@@ -5,14 +5,31 @@ services:
     build:
       context: .
     ports:
-      - "8080:8080"
+      - "8081:8081"
+
+  backend-dev:
+    image: eclipse-temurin:21-jdk
+    working_dir: /workspace
+    command: bash -lc "chmod +x mvnw && ./mvnw spring-boot:run"
+    volumes:
+      - .:/workspace
+      - maven-repo:/root/.m2
+    ports:
+      - "8081:8081"
+    environment:
+      - MAVEN_OPTS=-Dmaven.repo.local=/root/.m2
+
   motioncanvas:
     build:
       context: ./motion-canvas
     environment:
-      - VITE_BACKEND_URL=http://backend:8080
+      - VITE_BACKEND_URL=http://host.docker.internal:8081
+      - EDITOR=none
     ports:
       - "5173:5173"
     depends_on:
-      - backend
+      - backend-dev
+
+volumes:
+  maven-repo:
 

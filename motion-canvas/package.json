@@ -4,19 +4,18 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "motion-canvas dev",
-    "build": "motion-canvas build",
-    "preview": "motion-canvas preview"
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
   },
   "dependencies": {
-    "@motion-canvas/2d": "^3.7.0",
-    "@motion-canvas/core": "^3.7.0",
-    "@motion-canvas/ui": "^3.7.0"
+    "@motion-canvas/2d": "^3.17.2",
+    "@motion-canvas/core": "^3.17.2"
   },
   "devDependencies": {
-    "@motion-canvas/cli": "^3.7.0",
-    "@motion-canvas/vite-plugin": "^3.7.0",
-    "typescript": "^5.4.0",
+    "@motion-canvas/ui": "^3.17.2",
+    "@motion-canvas/vite-plugin": "^3.17.2",
+    "typescript": "^5.5.4",
     "vite": "^5.2.0"
   }
 }

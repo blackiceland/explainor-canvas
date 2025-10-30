@@ -71,7 +71,7 @@ const defaultScene: SceneResponse = {
   ]
 };
 
-const fallbackBaseUrl = 'http://localhost:8080';
+const fallbackBaseUrl = 'http://localhost:8081';
 
 export async function fetchCircleSlideScene(baseUrl?: string): Promise<SceneResponse> {
   const resolvedBaseUrl = baseUrl ?? import.meta.env.VITE_BACKEND_URL ?? fallbackBaseUrl;
