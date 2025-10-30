@@ -1,0 +1,23 @@
+{
+  "name": "motion-canvas-service",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "motion-canvas dev",
+    "build": "motion-canvas build",
+    "preview": "motion-canvas preview"
+  },
+  "dependencies": {
+    "@motion-canvas/2d": "^3.7.0",
+    "@motion-canvas/core": "^3.7.0",
+    "@motion-canvas/ui": "^3.7.0"
+  },
+  "devDependencies": {
+    "@motion-canvas/cli": "^3.7.0",
+    "@motion-canvas/vite-plugin": "^3.7.0",
+    "typescript": "^5.4.0",
+    "vite": "^5.2.0"
+  }
+}
+
