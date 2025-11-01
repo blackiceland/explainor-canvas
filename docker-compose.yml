@@ -27,7 +27,6 @@ services:
     build:
       context: ./motion-canvas
     environment:
-      - VITE_BACKEND_URL=http://localhost:8081
       - EDITOR=none
     ports:
       - "5173:5173"

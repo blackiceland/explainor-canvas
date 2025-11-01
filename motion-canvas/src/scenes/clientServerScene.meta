@@ -1,0 +1,21 @@
+{
+  "version": 0,
+  "timeEvents": [],
+  "seed": 1234567890,
+  "shared": {
+    "background": null,
+    "range": [
+      0,
+      null
+    ],
+    "size": {
+      "x": 1920,
+      "y": 1080
+    },
+    "audioOffset": 0
+  },
+  "preview": {
+    "fps": 30,
+    "resolutionScale": 1
+  }
+}

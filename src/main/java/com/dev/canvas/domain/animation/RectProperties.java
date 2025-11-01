@@ -2,16 +2,20 @@ package com.dev.canvas.domain.animation;
 
 import java.util.Objects;
 
-public final class CircleProperties implements PrimitiveProperties {
+public final class RectProperties implements PrimitiveProperties {
 
     private final int centerX;
     private final int centerY;
+    private final int width;
+    private final int height;
     private final int radius;
     private final Style style;
 
-    private CircleProperties(Builder builder) {
+    private RectProperties(Builder builder) {
         this.centerX = builder.centerX;
         this.centerY = builder.centerY;
+        this.width = builder.width;
+        this.height = builder.height;
         this.radius = builder.radius;
         this.style = builder.style;
     }
@@ -22,7 +26,7 @@ public final class CircleProperties implements PrimitiveProperties {
 
     @Override
     public PrimitiveType getType() {
-        return PrimitiveType.CIRCLE;
+        return PrimitiveType.RECT;
     }
 
     public int getCenterX() {
@@ -31,6 +35,14 @@ public final class CircleProperties implements PrimitiveProperties {
 
     public int getCenterY() {
         return centerY;
+    }
+
+    public int getWidth() {
+        return width;
+    }
+
+    public int getHeight() {
+        return height;
     }
 
     public int getRadius() {
@@ -45,6 +57,8 @@ public final class CircleProperties implements PrimitiveProperties {
 
         private int centerX;
         private int centerY;
+        private int width;
+        private int height;
         private int radius;
         private Style style;
 
@@ -58,6 +72,16 @@ public final class CircleProperties implements PrimitiveProperties {
             return this;
         }
 
+        public Builder width(int value) {
+            this.width = value;
+            return this;
+        }
+
+        public Builder height(int value) {
+            this.height = value;
+            return this;
+        }
+
         public Builder radius(int value) {
             this.radius = value;
             return this;
@@ -68,9 +92,9 @@ public final class CircleProperties implements PrimitiveProperties {
             return this;
         }
 
-        public CircleProperties build() {
+        public RectProperties build() {
             Objects.requireNonNull(style);
-            return new CircleProperties(this);
+            return new RectProperties(this);
         }
     }
 }

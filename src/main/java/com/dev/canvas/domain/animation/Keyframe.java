@@ -1,16 +1,15 @@
 package com.dev.canvas.domain.animation;
 
-import java.math.BigDecimal;
 import java.util.Objects;
 
 public final class Keyframe {
 
-    private final BigDecimal timeSeconds;
-    private final BigDecimal value;
-    private final String easing;
+    private final int timeMillis;
+    private final double value;
+    private final EasingFunction easing;
 
     private Keyframe(Builder builder) {
-        this.timeSeconds = builder.timeSeconds;
+        this.timeMillis = builder.timeMillis;
         this.value = builder.value;
         this.easing = builder.easing;
     }
@@ -19,45 +18,42 @@ public final class Keyframe {
         return new Builder();
     }
 
-    public BigDecimal getTimeSeconds() {
-        return timeSeconds;
+    public int getTimeMillis() {
+        return timeMillis;
     }
 
-    public BigDecimal getValue() {
+    public double getValue() {
         return value;
     }
 
-    public String getEasing() {
+    public EasingFunction getEasing() {
         return easing;
     }
 
     public static final class Builder {
 
-        private BigDecimal timeSeconds;
-        private BigDecimal value;
-        private String easing;
+        private int timeMillis;
+        private double value;
+        private EasingFunction easing;
 
-        public Builder timeSeconds(BigDecimal value) {
-            this.timeSeconds = Objects.requireNonNull(value);
+        public Builder timeMillis(int value) {
+            this.timeMillis = value;
             return this;
         }
 
-        public Builder value(BigDecimal newValue) {
-            this.value = Objects.requireNonNull(newValue);
+        public Builder value(double value) {
+            this.value = value;
             return this;
         }
 
-        public Builder easing(String value) {
+        public Builder easing(EasingFunction value) {
             this.easing = Objects.requireNonNull(value);
             return this;
         }
 
         public Keyframe build() {
-            Objects.requireNonNull(timeSeconds);
-            Objects.requireNonNull(value);
             Objects.requireNonNull(easing);
             return new Keyframe(this);
         }
     }
 }
-

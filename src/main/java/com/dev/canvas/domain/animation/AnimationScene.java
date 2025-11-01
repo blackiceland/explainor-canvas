@@ -1,6 +1,5 @@
 package com.dev.canvas.domain.animation;
 
-import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -10,13 +9,17 @@ public final class AnimationScene {
 
     private final String sceneId;
     private final String name;
-    private final BigDecimal durationSeconds;
+    private final SchemaVersion schemaVersion;
+    private final int durationMillis;
+    private final String background;
     private final List<SceneElement> elements;
 
     private AnimationScene(Builder builder) {
         this.sceneId = builder.sceneId;
         this.name = builder.name;
-        this.durationSeconds = builder.durationSeconds;
+        this.schemaVersion = builder.schemaVersion;
+        this.durationMillis = builder.durationMillis;
+        this.background = builder.background;
         this.elements = List.copyOf(builder.elements);
     }
 
@@ -32,8 +35,16 @@ public final class AnimationScene {
         return name;
     }
 
-    public BigDecimal getDurationSeconds() {
-        return durationSeconds;
+    public SchemaVersion getSchemaVersion() {
+        return schemaVersion;
+    }
+
+    public int getDurationMillis() {
+        return durationMillis;
+    }
+
+    public String getBackground() {
+        return background;
     }
 
     public List<SceneElement> getElements() {
@@ -44,11 +55,14 @@ public final class AnimationScene {
 
         private String sceneId;
         private String name;
-        private BigDecimal durationSeconds;
+        private SchemaVersion schemaVersion;
+        private int durationMillis;
+        private String background;
         private final List<SceneElement> elements;
 
         public Builder() {
             this.elements = new ArrayList<>();
+            this.schemaVersion = SchemaVersion.current();
         }
 
         public Builder sceneId(String value) {
@@ -61,8 +75,18 @@ public final class AnimationScene {
             return this;
         }
 
-        public Builder durationSeconds(BigDecimal value) {
-            this.durationSeconds = Objects.requireNonNull(value);
+        public Builder schemaVersion(SchemaVersion value) {
+            this.schemaVersion = Objects.requireNonNull(value);
+            return this;
+        }
+
+        public Builder durationMillis(int value) {
+            this.durationMillis = value;
+            return this;
+        }
+
+        public Builder background(String value) {
+            this.background = value;
             return this;
         }
 
@@ -74,9 +98,8 @@ public final class AnimationScene {
         public AnimationScene build() {
             Objects.requireNonNull(sceneId);
             Objects.requireNonNull(name);
-            Objects.requireNonNull(durationSeconds);
+            Objects.requireNonNull(schemaVersion);
             return new AnimationScene(this);
         }
     }
 }
-

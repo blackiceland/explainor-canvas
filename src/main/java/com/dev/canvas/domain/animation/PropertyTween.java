@@ -7,11 +7,11 @@ import java.util.Objects;
 
 public final class PropertyTween {
 
-    private final String propertyName;
+    private final PropertyPath propertyPath;
     private final List<Keyframe> keyframes;
 
     private PropertyTween(Builder builder) {
-        this.propertyName = builder.propertyName;
+        this.propertyPath = builder.propertyPath;
         this.keyframes = List.copyOf(builder.keyframes);
     }
 
@@ -19,8 +19,8 @@ public final class PropertyTween {
         return new Builder();
     }
 
-    public String getPropertyName() {
-        return propertyName;
+    public PropertyPath getPropertyPath() {
+        return propertyPath;
     }
 
     public List<Keyframe> getKeyframes() {
@@ -29,15 +29,15 @@ public final class PropertyTween {
 
     public static final class Builder {
 
-        private String propertyName;
+        private PropertyPath propertyPath;
         private final List<Keyframe> keyframes;
 
         public Builder() {
             this.keyframes = new ArrayList<>();
         }
 
-        public Builder propertyName(String value) {
-            this.propertyName = Objects.requireNonNull(value);
+        public Builder propertyPath(PropertyPath value) {
+            this.propertyPath = Objects.requireNonNull(value);
             return this;
         }
 
@@ -47,9 +47,8 @@ public final class PropertyTween {
         }
 
         public PropertyTween build() {
-            Objects.requireNonNull(propertyName);
+            Objects.requireNonNull(propertyPath);
             return new PropertyTween(this);
         }
     }
 }
-
