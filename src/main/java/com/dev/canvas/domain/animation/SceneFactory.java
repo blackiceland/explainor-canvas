@@ -11,7 +11,7 @@ public final class SceneFactory {
             .centerY(new BigDecimal("0"))
             .radius(new BigDecimal("160"))
             .strokeColor("#1F2933")
-            .fillColor("#61DAFB")
+            .fillColor("#EF4444")
             .build();
 
         PropertyTween xPositionTween = PropertyTween.builder()

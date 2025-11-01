@@ -10,7 +10,11 @@ services:
   backend-dev:
     image: eclipse-temurin:21-jdk
     working_dir: /workspace
-    command: bash -lc "chmod +x mvnw && ./mvnw spring-boot:run"
+    command: >-
+      bash -lc "apt-get update >/dev/null && apt-get install -y entr >/dev/null &&
+      chmod +x mvnw &&
+      find pom.xml src/main -type f \\( -name '*.java' -o -name '*.kt' -o -name '*.xml' -o -name '*.properties' -o -name '*.yml' \\) |
+      entr -n -d -r ./mvnw -ntp -DskipTests spring-boot:run"
     volumes:
       - .:/workspace
       - maven-repo:/root/.m2
@@ -23,12 +27,13 @@ services:
     build:
       context: ./motion-canvas
     environment:
-      - VITE_BACKEND_URL=http://host.docker.internal:8081
+      - VITE_BACKEND_URL=http://localhost:8081
       - EDITOR=none
     ports:
       - "5173:5173"
-    depends_on:
-      - backend-dev
+    volumes:
+      - ./motion-canvas:/app
+      - /app/node_modules
 
 volumes:
   maven-repo:

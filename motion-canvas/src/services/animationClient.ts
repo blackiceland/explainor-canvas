@@ -48,7 +48,7 @@ const defaultScene: SceneResponse = {
         centerY: 0,
         radius: 160,
         strokeColor: '#1F2933',
-        fillColor: '#61DAFB'
+        fillColor: '#F56565'
       },
       tweens: [
         {
@@ -78,10 +78,12 @@ export async function fetchCircleSlideScene(baseUrl?: string): Promise<SceneResp
   try {
     const response = await fetch(`${resolvedBaseUrl}/api/v1/animations/circle-slide`);
     if (!response.ok) {
+      console.error('Failed to fetch scene', response.status, response.statusText);
       return defaultScene;
     }
     return (await response.json()) as SceneResponse;
   } catch (error) {
+    console.error('Error fetching scene', error);
     return defaultScene;
   }
 }
