@@ -121,8 +121,17 @@ const defaultScene: SceneResponse = {
 
 const fallbackBaseUrl = 'http://localhost:8081';
 
+function getResolvedBaseUrl(baseUrl?: string): string {
+  if (baseUrl) return baseUrl;
+  const envUrl = import.meta.env.VITE_BACKEND_URL;
+  if (envUrl && !envUrl.includes('host.docker.internal')) {
+    return envUrl;
+  }
+  return fallbackBaseUrl;
+}
+
 export async function fetchCircleSlideScene(baseUrl?: string): Promise<SceneResponse> {
-  const resolvedBaseUrl = baseUrl ?? import.meta.env.VITE_BACKEND_URL ?? fallbackBaseUrl;
+  const resolvedBaseUrl = getResolvedBaseUrl(baseUrl);
   try {
     const response = await fetch(`${resolvedBaseUrl}/api/v1/animations/circle-slide`);
     if (!response.ok) {
@@ -137,7 +146,7 @@ export async function fetchCircleSlideScene(baseUrl?: string): Promise<SceneResp
 }
 
 export async function fetchClientServerScene(baseUrl?: string): Promise<SceneResponse> {
-  const resolvedBaseUrl = baseUrl ?? import.meta.env.VITE_BACKEND_URL ?? fallbackBaseUrl;
+  const resolvedBaseUrl = getResolvedBaseUrl(baseUrl);
   try {
     const response = await fetch(`${resolvedBaseUrl}/api/v1/animations/client-server`);
     if (!response.ok) {
@@ -147,6 +156,21 @@ export async function fetchClientServerScene(baseUrl?: string): Promise<SceneRes
     return (await response.json()) as SceneResponse;
   } catch (error) {
     console.error('Error fetching client-server scene', error);
+    throw error;
+  }
+}
+
+export async function fetchDominoFallScene(baseUrl?: string): Promise<SceneResponse> {
+  const resolvedBaseUrl = getResolvedBaseUrl(baseUrl);
+  try {
+    const response = await fetch(`${resolvedBaseUrl}/api/v1/animations/domino-fall`);
+    if (!response.ok) {
+      console.error('Failed to fetch domino-fall scene', response.status, response.statusText);
+      throw new Error('Failed to fetch scene');
+    }
+    return (await response.json()) as SceneResponse;
+  } catch (error) {
+    console.error('Error fetching domino-fall scene', error);
     throw error;
   }
 }

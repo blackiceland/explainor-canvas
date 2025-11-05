@@ -4,6 +4,7 @@ public final class SceneFactory {
 
     private static final String SCENE_CIRCLE_SLIDE = "circle-slide";
     private static final String SCENE_CLIENT_SERVER = "client-server";
+    private static final String SCENE_DOMINO_FALL = "domino-fall";
 
     public AnimationScene createCircleSlideScene() {
         Style circleStyle = Style.builder()
@@ -204,5 +205,65 @@ public final class SceneFactory {
             .addElement(arrow)
             .addElement(label)
             .build();
+    }
+
+    public AnimationScene createDominoFallScene() {
+        Style wireframeStyle = Style.builder()
+            .strokeColor("#000000")
+            .fillColor("transparent")
+            .lineWidth(2)
+            .build();
+
+        AnimationScene.Builder sceneBuilder = AnimationScene.builder()
+            .sceneId(SceneId.generate(SCENE_DOMINO_FALL).getValue())
+            .name(SCENE_DOMINO_FALL)
+            .background("#F5F5DC")
+            .durationMillis(3000);
+
+        int dominoCount = 5;
+        int spacing = 100;
+        int startX = -200;
+
+        for (int i = 0; i < dominoCount; i++) {
+            int x = startX + i * spacing;
+            int delay = i * 250;
+
+            DominoProperties dominoProperties = DominoProperties.builder()
+                .x(x)
+                .y(0)
+                .z(0)
+                .width(60)
+                .height(120)
+                .depth(10)
+                .rotationX(0)
+                .style(wireframeStyle)
+                .build();
+
+            PropertyTween rotationTween = PropertyTween.builder()
+                .propertyPath(PropertyPath.ROTATION_X)
+                .addKeyframe(Keyframe.builder()
+                    .timeMillis(delay)
+                    .value(0)
+                    .easing(EasingFunction.EASE_IN_OUT)
+                    .build())
+                .addKeyframe(Keyframe.builder()
+                    .timeMillis(delay + 600)
+                    .value(90)
+                    .easing(EasingFunction.EASE_IN_OUT)
+                    .build())
+                .build();
+
+            SceneElement dominoElement = SceneElement.builder()
+                .elementId(SceneId.generateForElement(SCENE_DOMINO_FALL, "domino", i).getValue())
+                .startMillis(0)
+                .durationMillis(3000)
+                .properties(dominoProperties)
+                .addTween(rotationTween)
+                .build();
+
+            sceneBuilder.addElement(dominoElement);
+        }
+
+        return sceneBuilder.build();
     }
 }

@@ -5,6 +5,7 @@ public enum PrimitiveType {
     CIRCLE,
     RECT,
     LINE,
-    TEXT
+    TEXT,
+    DOMINO
 }
 

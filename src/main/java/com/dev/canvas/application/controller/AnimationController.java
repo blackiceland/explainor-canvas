@@ -28,5 +28,10 @@ public class AnimationController {
     public SceneResponse getClientServerScene() {
         return sceneAssembler.toResponse(sceneFactory.createClientServerScene());
     }
+
+    @GetMapping("/domino-fall")
+    public SceneResponse getDominoFallScene() {
+        return sceneAssembler.toResponse(sceneFactory.createDominoFallScene());
+    }
 }
 

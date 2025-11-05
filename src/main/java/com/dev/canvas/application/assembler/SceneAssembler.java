@@ -1,6 +1,7 @@
 package com.dev.canvas.application.assembler;
 
 import com.dev.canvas.application.dto.CirclePropertiesResponse;
+import com.dev.canvas.application.dto.DominoPropertiesResponse;
 import com.dev.canvas.application.dto.ElementResponse;
 import com.dev.canvas.application.dto.KeyframeResponse;
 import com.dev.canvas.application.dto.LinePropertiesResponse;
@@ -12,6 +13,7 @@ import com.dev.canvas.application.dto.StyleResponse;
 import com.dev.canvas.application.dto.TextPropertiesResponse;
 import com.dev.canvas.domain.animation.AnimationScene;
 import com.dev.canvas.domain.animation.CircleProperties;
+import com.dev.canvas.domain.animation.DominoProperties;
 import com.dev.canvas.domain.animation.Keyframe;
 import com.dev.canvas.domain.animation.LineProperties;
 import com.dev.canvas.domain.animation.PropertyTween;
@@ -44,12 +46,14 @@ public final class SceneAssembler {
         RectPropertiesResponse rect = null;
         LinePropertiesResponse line = null;
         TextPropertiesResponse text = null;
+        DominoPropertiesResponse domino = null;
 
         switch (element.getProperties()) {
             case CircleProperties props -> circle = mapCircle(props);
             case RectProperties props -> rect = mapRect(props);
             case LineProperties props -> line = mapLine(props);
             case TextProperties props -> text = mapText(props);
+            case DominoProperties props -> domino = mapDomino(props);
         }
 
         List<PropertyTweenResponse> tweens = element.getTweens().stream()
@@ -65,6 +69,7 @@ public final class SceneAssembler {
             rect,
             line,
             text,
+            domino,
             tweens
         );
     }
@@ -126,6 +131,19 @@ public final class SceneAssembler {
             properties.getFontSize(),
             properties.getColor(),
             properties.getFontWeight()
+        );
+    }
+
+    private DominoPropertiesResponse mapDomino(DominoProperties properties) {
+        return new DominoPropertiesResponse(
+            properties.x(),
+            properties.y(),
+            properties.z(),
+            properties.width(),
+            properties.height(),
+            properties.depth(),
+            properties.rotationX(),
+            mapStyle(properties.style())
         );
     }
 

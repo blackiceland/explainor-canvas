@@ -8,6 +8,7 @@ public enum PropertyPath {
     SCALE_X("scaleX"),
     SCALE_Y("scaleY"),
     ROTATION("rotation"),
+    ROTATION_X("rotationX"),
     END("end");
 
     private final String value;
