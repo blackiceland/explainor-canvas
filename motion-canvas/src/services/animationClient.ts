@@ -1,10 +1,10 @@
-type KeyframeResponse = {
+export type KeyframeResponse = {
   timeMillis: number;
   value: number;
   easing: string;
 };
 
-type PropertyTweenResponse = {
+export type PropertyTweenResponse = {
   propertyPath: string;
   keyframes: KeyframeResponse[];
 };
@@ -56,7 +56,7 @@ type TextPropertiesResponse = {
   fontWeight: string;
 };
 
-type ElementResponse = {
+export type ElementResponse = {
   elementId: string;
   primitiveType: string;
   startMillis: number;

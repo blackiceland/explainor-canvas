@@ -1,10 +1,6 @@
 import {Circle, Line, makeScene2D, Rect, Txt} from '@motion-canvas/2d';
 import {createRef, waitFor} from '@motion-canvas/core';
-import {ElementResponse, fetchClientServerScene, SceneResponse} from '../services/animationClient';
-
-function findTween(element: ElementResponse, propertyPath: string) {
-  return element.tweens.find((tween) => tween.propertyPath === propertyPath);
-}
+import {fetchClientServerScene} from '../services/animationClient';
 
 export default makeScene2D(function* (view) {
   const scene = yield fetchClientServerScene();
