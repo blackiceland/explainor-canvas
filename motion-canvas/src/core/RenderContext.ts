@@ -16,6 +16,7 @@ export class RenderContext {
     }
 
     public createRect(props: RectProps, ref?: Reference<Rect>): Rect {
+        console.log('RenderContext: createRect called with', props);
         const rect = new Rect({
             ...props,
         });
@@ -24,7 +25,8 @@ export class RenderContext {
             ref(rect);
         }
 
-        rect.parent(this.container);
+        this.container.add(rect);
+        console.log('RenderContext: rect added to container', this.container);
 
         return rect;
     }
