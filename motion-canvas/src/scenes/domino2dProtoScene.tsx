@@ -105,10 +105,6 @@ export default makeScene2D(function* (view) {
           return dominoDepth + Math.abs(Math.sin(radians)) * 15;
         }}
         fill={'rgba(0, 0, 0, 0.2)'}
-        filters={{blur: () => {
-          const dy = positionY();
-          return 6 + (dy / hh) * 4;
-        }}}
         opacity={() => {
           const angle = rotationAngle();
           const dy = positionY();

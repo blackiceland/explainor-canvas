@@ -1,0 +1,73 @@
+@startuml
+left to right direction
+
+package "motion-canvas core" {
+  class ColorTheme {
+    +background: string
+    +surface: string
+    +textPrimary: string
+    +textSecondary: string
+    +textCode: string
+    +strokePrimary: string
+    +strokeSecondary: string
+    +statusSuccess: string
+    +statusWarning: string
+    +statusError: string
+    +statusInfo: string
+  }
+
+  class Theme {
+    +colors: ColorTheme
+    +fontsPrimary: string
+    +fontsCode: string
+    +spacingSmall: number
+    +spacingMedium: number
+    +spacingLarge: number
+    +timingFast: number
+    +timingMedium: number
+    +timingSlow: number
+  }
+
+  abstract class AnimatedComponent {
+    -theme: Theme
+    +mount(ctx: RenderContext): void
+    #onMount(ctx: RenderContext): void
+    +getTiming(duration?): number
+    +appear(duration?): Promise<void>
+  }
+
+  class SquareComponent {
+    -propsSize: number
+    -propsColor: string
+    -propsX: number
+    -propsY: number
+    +onMount(ctx: RenderContext): void
+    +appear(duration?): Promise<void>
+  }
+
+  class RenderContext {
+    +view: Node
+    +theme: Theme
+    +createRect(spec): Rect
+    +createText(spec)
+    +createLine(spec)
+    +createGroup(spec)
+  }
+}
+
+package "Motion Canvas (external)" {
+  class Node
+  class Rect
+}
+
+Theme *-- ColorTheme
+RenderContext o-- Theme
+RenderContext ..> Node
+RenderContext ..> Rect
+
+AnimatedComponent --> RenderContext
+SquareComponent ..|> AnimatedComponent
+SquareComponent ..> RenderContext
+SquareComponent ..> Rect
+
+@enduml

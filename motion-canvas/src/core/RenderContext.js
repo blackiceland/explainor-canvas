@@ -1,31 +1,24 @@
-import {Node, Rect, RectProps} from '@motion-canvas/2d';
-import {Reference} from '@motion-canvas/core';
-import {Theme} from './types';
-
+import { Rect } from '@motion-canvas/2d';
 /**
  * Контекст рендеринга.
  * Предоставляет доступ к теме и фабрикам примитивов.
  * Изолирует компоненты от прямого использования конструкторов Motion Canvas.
  */
 export class RenderContext {
-
-    constructor(
-        private readonly container: Node,
-        public readonly theme: Theme
-    ) {
+    container;
+    theme;
+    constructor(container, theme) {
+        this.container = container;
+        this.theme = theme;
     }
-
-    public createRect(props: RectProps, ref?: Reference<Rect>): Rect {
+    createRect(props, ref) {
         const rect = new Rect({
             ...props,
         });
-
         if (ref) {
             ref(rect);
         }
-
-        rect.parent(this.container);
-
+        this.container.add(rect);
         return rect;
     }
 }

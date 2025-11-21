@@ -37,39 +37,53 @@
 
 Сначала фиксируем правильную базу, чтобы потом не ломать API.
 
-Задачи недели: создать RenderContext как фабрику view-объектов, базовый AnimatedComponent без наследования от Node, Theme и минимальный набор примитивов (box, text, arrow).
+Задачи недели: создать `RenderContext` как фабрику view-объектов, базовый `AnimatedComponent` без наследования от `Node`, `Theme` и минимальный набор примитивов (box, text, arrow). Всё это живёт в `motion-canvas/src/core` и используется в ручных сценах.
 
-Мини-пример.
+Мини-пример (текущая реализация v0).
 
 ```ts
-export interface Theme {
-  colors: {
+export interface ColorTheme {
+  background: string
+  surface: string
+  text: {
     primary: string
     secondary: string
-    accent: string
-    background: string
-    text: string
+    code: string
   }
+  stroke: {
+    primary: string
+    secondary: string
+  }
+  status: {
+    success: string
+    warning: string
+    error: string
+    info: string
+  }
+}
+
+export interface Theme {
+  colors: ColorTheme
   fonts: {
-    main: string
-    mono: string
-    sizes: { small: number; medium: number; large: number }
+    primary: string
+    code: string
   }
-  lineWidths: {
-    thin: number
+  spacing: {
+    small: number
     medium: number
-    thick: number
+    large: number
   }
-  animations: {
-    durations: { fast: number; medium: number; slow: number }
+  timing: {
+    fast: number
+    medium: number
+    slow: number
   }
 }
 
 export class RenderContext {
   constructor(
     public view: any,
-    public layout: any,
-    public theme: Theme
+    public theme: Theme,
   ) {}
 
   createRect(spec: any): any {}
@@ -79,16 +93,30 @@ export class RenderContext {
 }
 
 export abstract class AnimatedComponent {
-  protected view: any
+  protected theme: Theme | null = null
 
-  abstract mount(ctx: RenderContext): void
+  public mount(ctx: RenderContext): void {
+    this.theme = ctx.theme
+    this.onMount(ctx)
+  }
+
+  protected abstract onMount(ctx: RenderContext): void
+
+  protected getTiming(duration?: number): number {
+    if (duration !== undefined) {
+      return duration
+    }
+    if (this.theme === null) {
+      throw new Error('Theme is not initialized. Call mount(ctx) before using timing.')
+    }
+    return this.theme.timing.medium
+  }
+
   abstract appear(duration?: number): Promise<void>
-  abstract disappear(duration?: number): Promise<void>
-  abstract highlight(style?: any, duration?: number): Promise<void>
 }
 ```
 
-Результат недели: у тебя есть «правильный фундамент» и хотя бы один тестовый демо-шот, который рендерится.
+Результат недели: у тебя есть «правильный фундамент» в `motion-canvas`, и хотя бы один тестовый демо-шот, который рендерится локально из кода без участия веб-UI.
 
 ---
 

@@ -25,8 +25,8 @@ export class SquareComponent extends AnimatedComponent {
                 fill: this.props.color ?? ctx.theme.colors.status.info,
                 x: this.props.x ?? 0,
                 y: this.props.y ?? 0,
-                opacity: 0,
-                scale: 0,
+                opacity: 1,
+                scale: 1,
             },
             this.ref
         );
