@@ -1,4 +1,4 @@
-import {Node, Rect, RectProps} from '@motion-canvas/2d';
+import {Node, Rect, RectProps, Txt, TxtProps} from '@motion-canvas/2d';
 import {Reference} from '@motion-canvas/core';
 import {Theme} from './types';
 
@@ -29,5 +29,19 @@ export class RenderContext {
         console.log('RenderContext: rect added to container', this.container);
 
         return rect;
+    }
+
+    public createText(props: TxtProps, ref?: Reference<Txt>): Txt {
+        const text = new Txt({
+            ...props
+        });
+
+        if (ref) {
+            ref(text);
+        }
+
+        this.container.add(text);
+
+        return text;
     }
 }

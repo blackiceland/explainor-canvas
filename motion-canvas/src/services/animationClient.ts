@@ -151,12 +151,12 @@ export async function fetchClientServerScene(baseUrl?: string): Promise<SceneRes
     const response = await fetch(`${resolvedBaseUrl}/api/v1/animations/client-server`);
     if (!response.ok) {
       console.error('Failed to fetch client-server scene', response.status, response.statusText);
-      throw new Error('Failed to fetch scene');
+      return defaultScene;
     }
     return (await response.json()) as SceneResponse;
   } catch (error) {
     console.error('Error fetching client-server scene', error);
-    throw error;
+    return defaultScene;
   }
 }
 
@@ -166,11 +166,11 @@ export async function fetchDominoFallScene(baseUrl?: string): Promise<SceneRespo
     const response = await fetch(`${resolvedBaseUrl}/api/v1/animations/domino-fall`);
     if (!response.ok) {
       console.error('Failed to fetch domino-fall scene', response.status, response.statusText);
-      throw new Error('Failed to fetch scene');
+      return defaultScene;
     }
     return (await response.json()) as SceneResponse;
   } catch (error) {
     console.error('Error fetching domino-fall scene', error);
-    throw error;
+    return defaultScene;
   }
 }
