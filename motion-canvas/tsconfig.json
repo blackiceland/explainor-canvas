@@ -9,6 +9,7 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "baseUrl": ".",
+    "noEmit": true,
     "jsx": "preserve",
     "jsxImportSource": "@motion-canvas/2d/lib"
   },

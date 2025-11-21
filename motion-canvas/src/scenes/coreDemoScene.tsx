@@ -6,6 +6,8 @@ import {SquareComponent} from '../core/primitives/SquareComponent';
 import {TextComponent} from '../core/primitives/TextComponent';
 
 export default makeScene2D(function* (view) {
+    view.fill(StandardTheme.colors.background);
+
     const ctx = new RenderContext(view, StandardTheme);
 
     const square = new SquareComponent({
