@@ -1,5 +1,5 @@
 import { Rect } from '@motion-canvas/2d';
-import { createRef } from '@motion-canvas/core';
+import { createRef, all, ThreadGenerator } from '@motion-canvas/core';
 import { AnimatedComponent } from '../AnimatedComponent';
 import { RenderContext } from '../RenderContext';
 
@@ -32,13 +32,13 @@ export class SquareComponent extends AnimatedComponent {
         );
     }
 
-    override async appear(duration?: number): Promise<void> {
+    override *appear(duration?: number): ThreadGenerator {
         const rect = this.ref();
         const time = this.getTiming(duration);
 
-        await Promise.all([
+        yield* all(
             rect.opacity(1, time),
             rect.scale(1, time)
-        ]);
+        );
     }
 }

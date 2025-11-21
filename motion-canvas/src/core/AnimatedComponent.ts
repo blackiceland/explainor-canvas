@@ -1,5 +1,6 @@
 import { RenderContext } from './RenderContext';
 import { Theme } from './types';
+import { ThreadGenerator } from '@motion-canvas/core';
 
 export abstract class AnimatedComponent {
 
@@ -22,6 +23,6 @@ export abstract class AnimatedComponent {
         return this.theme.timing.medium;
     }
 
-    abstract appear(duration?: number): Promise<void>;
+    abstract appear(duration?: number): ThreadGenerator;
 
 }

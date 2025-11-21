@@ -15,6 +15,6 @@ export default makeScene2D(function* (view) {
 
     square.mount(ctx);
 
-    yield square.appear();
+    yield* square.appear();
     yield* waitFor(1);
 });
