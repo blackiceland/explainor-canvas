@@ -2,22 +2,20 @@ import { Theme } from './types';
 
 export const StandardTheme: Theme = {
     colors: {
-        background: '#141414',
-        surface: '#1f1f1f',
+        background: '#F9F7F1', // Warm beige
+        surface: '#F0EBE0',
         text: {
-            primary: '#e0e0e0',
-            secondary: '#a0a0a0',
-            code: '#9cdcfe',
+            primary: '#1A1A1A', // Ink
+            muted: '#666666',
+            code: '#475f75',
         },
         stroke: {
-            primary: '#e0e0e0',
-            secondary: '#444444',
+            primary: '#1A1A1A', // Ink
+            secondary: '#A0A0A0',
         },
-        status: {
-            success: '#4caf50',
-            warning: '#ff9800',
-            error: '#f44336',
-            info: '#2196f3',
+        accent: {
+            blue: '#2E86AB', // Architectural Blue
+            red: '#D64045', // Warm Red
         },
     },
     fonts: {

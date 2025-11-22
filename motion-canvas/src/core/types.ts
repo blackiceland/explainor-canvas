@@ -3,19 +3,17 @@ export interface ColorTheme {
     surface: string;
     text: {
         primary: string;
-        secondary: string;
+        muted: string;
         code: string;
     };
     stroke: {
         primary: string;
         secondary: string;
     };
-    status: {
-        success: string;
-        warning: string;
-        error: string;
-        info: string;
-    }
+    accent: {
+        blue: string;
+        red: string;
+    };
 }
 
 export interface Theme {

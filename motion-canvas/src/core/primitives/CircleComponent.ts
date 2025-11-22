@@ -1,28 +1,31 @@
-import { Rect } from '@motion-canvas/2d';
+import { Circle } from '@motion-canvas/2d';
 import { createRef, all, ThreadGenerator } from '@motion-canvas/core';
 import { AnimatedComponent } from '../AnimatedComponent';
 import { RenderContext } from '../RenderContext';
 
-export interface SquareProps {
+export interface CircleProps {
     size: number;
-    color?: string;
+    color?: string; // fill color
+    stroke?: string; // stroke color
+    lineWidth?: number;
     x?: number;
     y?: number;
 }
 
-export class SquareComponent extends AnimatedComponent {
+export class CircleComponent extends AnimatedComponent {
+    private readonly ref = createRef<Circle>();
 
-    private readonly ref = createRef<Rect>();
-
-    constructor(private readonly props: SquareProps) {
+    constructor(private readonly props: CircleProps) {
         super();
     }
 
     protected override onMount(ctx: RenderContext): void {
-        ctx.createRect(
+        ctx.createCircle(
             {
                 size: this.props.size,
-                fill: this.props.color ?? ctx.theme.colors.accent.blue,
+                fill: this.props.color,
+                stroke: this.props.stroke,
+                lineWidth: this.props.lineWidth ?? 0,
                 x: this.props.x ?? 0,
                 y: this.props.y ?? 0,
                 opacity: 0,
@@ -33,12 +36,13 @@ export class SquareComponent extends AnimatedComponent {
     }
 
     override *appear(duration?: number): ThreadGenerator {
-        const rect = this.ref();
+        const circle = this.ref();
         const time = this.getTiming(duration);
 
         yield* all(
-            rect.opacity(1, time),
-            rect.scale(1, time)
+            circle.opacity(1, time),
+            circle.scale(1, time)
         );
     }
 }
+

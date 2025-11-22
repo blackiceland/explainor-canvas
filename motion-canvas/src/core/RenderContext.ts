@@ -1,4 +1,4 @@
-import {Node, Rect, RectProps, Txt, TxtProps} from '@motion-canvas/2d';
+import {Circle, CircleProps, Line, LineProps, Node, Rect, RectProps, Txt, TxtProps} from '@motion-canvas/2d';
 import {Reference} from '@motion-canvas/core';
 import {Theme} from './types';
 
@@ -41,5 +41,33 @@ export class RenderContext {
         this.container.add(text);
 
         return text;
+    }
+
+    public createLine(props: LineProps, ref?: Reference<Line>): Line {
+        const line = new Line({
+            ...props
+        });
+
+        if (ref) {
+            ref(line);
+        }
+
+        this.container.add(line);
+
+        return line;
+    }
+
+    public createCircle(props: CircleProps, ref?: Reference<Circle>): Circle {
+        const circle = new Circle({
+            ...props
+        });
+
+        if (ref) {
+            ref(circle);
+        }
+
+        this.container.add(circle);
+
+        return circle;
     }
 }
