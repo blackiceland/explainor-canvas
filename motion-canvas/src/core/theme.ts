@@ -19,7 +19,7 @@ export const StandardTheme: Theme = {
         },
     },
     fonts: {
-        primary: 'JetBrains Mono, monospace',
+        primary: 'Manrope, sans-serif',
         code: 'JetBrains Mono, monospace',
     },
     spacing: {

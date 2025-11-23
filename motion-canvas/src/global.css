@@ -1,0 +1,7 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Manrope:wght@400;700&display=swap');
+
+:root {
+  --font-manrope: 'Manrope', sans-serif;
+  --font-jetbrains: 'JetBrains Mono', monospace;
+}
+

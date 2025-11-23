@@ -31,6 +31,8 @@ export class RenderContext {
 
     public createText(props: TxtProps, ref?: Reference<Txt>): Txt {
         const text = new Txt({
+            fontFamily: this.theme.fonts.primary,
+            fontWeight: 700,
             ...props
         });
 
