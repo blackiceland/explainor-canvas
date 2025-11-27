@@ -1,6 +1,8 @@
 import {Node, Txt} from '@motion-canvas/2d';
 import {all, createRef, Reference, ThreadGenerator} from '@motion-canvas/core';
 import {CodeDocument} from '../model/CodeDocument';
+import {tokenizeLine, Token} from '../model/Tokenizer';
+import {getTokenColor, SyntaxTheme, IntelliJDarkTheme} from '../model/SyntaxTheme';
 
 export interface CodeGridConfig {
     x?: number;
@@ -9,14 +11,19 @@ export interface CodeGridConfig {
     fontSize?: number;
     lineHeight?: number;
     fontFamily?: string;
-    fill?: string;
+    theme?: SyntaxTheme;
+}
+
+interface LineData {
+    container: Reference<Node>;
+    tokens: Reference<Txt>[];
 }
 
 export class CodeGrid {
     private readonly containerRef = createRef<Node>();
-    private readonly lineRefs: Reference<Txt>[] = [];
+    private readonly linesData: LineData[] = [];
     private readonly document: CodeDocument;
-    private readonly config: Required<CodeGridConfig>;
+    private readonly config: Required<Omit<CodeGridConfig, 'theme'>> & {theme: SyntaxTheme};
 
     private constructor(document: CodeDocument, config: CodeGridConfig) {
         this.document = document;
@@ -27,7 +34,7 @@ export class CodeGrid {
             fontSize: config.fontSize ?? 20,
             lineHeight: config.lineHeight ?? (config.fontSize ?? 20) * 1.5,
             fontFamily: config.fontFamily ?? 'JetBrains Mono, monospace',
-            fill: config.fill ?? '#d4d4d4',
+            theme: config.theme ?? IntelliJDarkTheme,
         };
     }
 
@@ -52,38 +59,45 @@ export class CodeGrid {
         const leftEdge = -this.config.width / 2;
 
         for (let i = 0; i < n; i++) {
-            const ref = createRef<Txt>();
-            this.lineRefs.push(ref);
-
+            const lineText = this.document.getLine(i) ?? '';
+            const tokens = tokenizeLine(lineText);
             const y = (i - centerOffset) * this.config.lineHeight;
 
-            const txt = new Txt({
-                text: this.document.getLine(i) ?? '',
-                fontFamily: this.config.fontFamily,
-                fontSize: this.config.fontSize,
-                fill: this.config.fill,
-                y: y,
-                x: leftEdge,
-                offset: [-1, 0],
-            });
-            ref(txt);
-            container.add(txt);
+            const lineContainer = new Node({y});
+            const lineContainerRef = createRef<Node>();
+            lineContainerRef(lineContainer);
+
+            const tokenRefs: Reference<Txt>[] = [];
+            let xOffset = leftEdge;
+
+            for (const token of tokens) {
+                const ref = createRef<Txt>();
+                tokenRefs.push(ref);
+
+                const txt = new Txt({
+                    text: token.text,
+                    fontFamily: this.config.fontFamily,
+                    fontSize: this.config.fontSize,
+                    fill: getTokenColor(token.type, this.config.theme),
+                    x: xOffset,
+                    offset: [-1, 0],
+                });
+                ref(txt);
+                lineContainer.add(txt);
+
+                xOffset += this.measureText(token.text);
+            }
+
+            this.linesData.push({container: lineContainerRef, tokens: tokenRefs});
+            container.add(lineContainer);
         }
 
         parent.add(container);
     }
 
-    public getLineNode(index: number): Txt | undefined {
-        return this.lineRefs[index]?.();
-    }
-
-    public getLineNodes(from: number, to: number): Txt[] {
-        const nodes: Txt[] = [];
-        for (let i = from; i <= to && i < this.lineRefs.length; i++) {
-            const node = this.lineRefs[i]?.();
-            if (node) nodes.push(node);
-        }
-        return nodes;
+    private measureText(text: string): number {
+        const charWidth = this.config.fontSize * 0.6;
+        return text.length * charWidth;
     }
 
     public getLineY(index: number): number {
@@ -106,26 +120,25 @@ export class CodeGrid {
 
     public *highlight(from: number, to: number, duration: number = 0.4): ThreadGenerator {
         const animations: ThreadGenerator[] = [];
-        for (let i = 0; i < this.lineRefs.length; i++) {
-            const node = this.lineRefs[i]();
+        for (let i = 0; i < this.linesData.length; i++) {
             const targetOpacity = (i >= from && i <= to) ? 1 : 0.25;
-            animations.push(node.opacity(targetOpacity, duration));
+            animations.push(this.linesData[i].container().opacity(targetOpacity, duration));
         }
         yield* all(...animations);
     }
 
     public *dim(from: number, to: number, opacity: number = 0.25, duration: number = 0.4): ThreadGenerator {
         const animations: ThreadGenerator[] = [];
-        for (let i = from; i <= to && i < this.lineRefs.length; i++) {
-            animations.push(this.lineRefs[i]().opacity(opacity, duration));
+        for (let i = from; i <= to && i < this.linesData.length; i++) {
+            animations.push(this.linesData[i].container().opacity(opacity, duration));
         }
         yield* all(...animations);
     }
 
     public *dimAll(opacity: number = 0.25, duration: number = 0.4): ThreadGenerator {
         const animations: ThreadGenerator[] = [];
-        for (const ref of this.lineRefs) {
-            animations.push(ref().opacity(opacity, duration));
+        for (const line of this.linesData) {
+            animations.push(line.container().opacity(opacity, duration));
         }
         yield* all(...animations);
     }
@@ -148,7 +161,7 @@ export class CodeGrid {
             fontSize: this.config.fontSize,
             lineHeight: this.config.lineHeight,
             fontFamily: this.config.fontFamily,
-            fill: this.config.fill,
+            theme: this.config.theme,
         });
     }
 
