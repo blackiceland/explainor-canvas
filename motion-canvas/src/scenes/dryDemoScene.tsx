@@ -1,13 +1,11 @@
-import {makeScene2D, Code, lines} from '@motion-canvas/2d';
-import {all, waitFor, createRef} from '@motion-canvas/core';
+import {makeScene2D} from '@motion-canvas/2d';
+import {all, waitFor} from '@motion-canvas/core';
+import {CodeBlock} from '../core/code';
 import {StandardTheme} from '../core/theme';
 
 export default makeScene2D(function* (view) {
-    // ===== SCENE SETUP =====
-    const BG_COLOR = '#1e1e1e';
-    view.fill(BG_COLOR);
+    view.fill('#1e1e1e');
 
-    // ===== CODE CONTENT =====
     const codeStartTrial = `void startTrial(User user) {
     if (!user.isEmailVerified()) {
         throw new IllegalStateException("Email not verified");
@@ -44,66 +42,39 @@ export default makeScene2D(function* (view) {
     analytics.track("paid_started", user.getId());
 }`;
 
-    // ===== LAYOUT =====
-    const LEFT_X = -480;
-    const RIGHT_X = 480;
-    const CODE_Y = 0;
-    const FONT_SIZE = 20;
+    const codeLeft = new CodeBlock({
+        code: codeStartTrial,
+        x: -480,
+        y: 0,
+        fontSize: 18,
+    });
 
-    // ===== REFS =====
-    const codeLeftRef = createRef<Code>();
-    const codeRightRef = createRef<Code>();
+    const codeRight = new CodeBlock({
+        code: codeStartPaid,
+        x: 480,
+        y: 0,
+        fontSize: 18,
+    });
 
-    // ===== CREATE ELEMENTS =====
+    codeLeft.mount(view, StandardTheme);
+    codeRight.mount(view, StandardTheme);
 
-    view.add(
-        <Code
-            ref={codeLeftRef}
-            code={codeStartTrial}
-            fontFamily={StandardTheme.fonts.code}
-            fontSize={FONT_SIZE}
-            x={LEFT_X}
-            y={CODE_Y}
-            opacity={0}
-        />
-    );
-
-    view.add(
-        <Code
-            ref={codeRightRef}
-            code={codeStartPaid}
-            fontFamily={StandardTheme.fonts.code}
-            fontSize={FONT_SIZE}
-            x={RIGHT_X}
-            y={CODE_Y}
-            opacity={0}
-        />
-    );
-
-    // ===== ANIMATION =====
-
-    // ACT 1: Show both methods
     yield* all(
-        codeLeftRef().opacity(1, 0.8),
-        codeRightRef().opacity(1, 0.8),
+        codeLeft.appear(0.8),
+        codeRight.appear(0.8),
     );
+    yield* waitFor(1.5);
+
+    yield* all(
+        codeLeft.highlightLines(1, 6),
+        codeRight.highlightLines(1, 6),
+    );
+    yield* waitFor(1.5);
+
+    yield* all(
+        codeLeft.flyLinesTo(1, 6, 0, 0, 1),
+        codeRight.flyLinesTo(1, 6, 0, 0, 1),
+    );
+
     yield* waitFor(2);
-
-    // ACT 2: Highlight shared code using selection
-    // lines(start, end) highlights lines from start to end (0-indexed)
-    // Shared code is lines 1-6 (the two if-blocks)
-    yield* all(
-        codeLeftRef().selection(lines(1, 6), 0.6),
-        codeRightRef().selection(lines(1, 6), 0.6),
-    );
-
-    yield* waitFor(3);
-
-    // ACT 3: Clear selection
-    yield* all(
-        codeLeftRef().selection([], 0.6),
-        codeRightRef().selection([], 0.6),
-    );
-
-    yield* waitFor(1);
 });
