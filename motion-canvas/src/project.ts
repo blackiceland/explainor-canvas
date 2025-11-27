@@ -1,7 +1,7 @@
 import {makeProject} from '@motion-canvas/core';
 import coreDemoScene from './scenes/coreDemoScene?scene';
-import './global.css';
+import dryDemoScene from './scenes/dryDemoScene?scene';
 
 export default makeProject({
-    scenes: [coreDemoScene]
+    scenes: [dryDemoScene, coreDemoScene]
 });

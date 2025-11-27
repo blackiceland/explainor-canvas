@@ -1,4 +1,4 @@
-import {Circle, CircleProps, Line, LineProps, Node, Rect, RectProps, Txt, TxtProps} from '@motion-canvas/2d';
+import {Circle, CircleProps, Code, CodeProps, Line, LineProps, Node, Rect, RectProps, Txt, TxtProps} from '@motion-canvas/2d';
 import {Reference} from '@motion-canvas/core';
 import {Theme} from './types';
 
