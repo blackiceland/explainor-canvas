@@ -1,12 +1,12 @@
 import {makeScene2D} from '@motion-canvas/2d';
 import {all, waitFor} from '@motion-canvas/core';
-import {CodeBlock} from '../core/code';
-import {StandardTheme} from '../core/theme';
+import {CodeGrid} from '../core/code';
 
 export default makeScene2D(function* (view) {
     view.fill('#1e1e1e');
 
-    const codeStartTrial = `void startTrial(User user) {
+    const codeLeft = CodeGrid.fromCode(
+`void startTrial(User user) {
     if (!user.isEmailVerified()) {
         throw new IllegalStateException("Email not verified");
     }
@@ -22,9 +22,12 @@ export default makeScene2D(function* (view) {
 
     emailService.sendTrialStarted(user.getEmail(), end);
     analytics.track("trial_started", user.getId());
-}`;
+}`,
+        {x: -450, y: 0, fontSize: 16}
+    );
 
-    const codeStartPaid = `void startPaid(User user, Plan plan) {
+    const codeRight = CodeGrid.fromCode(
+`void startPaid(User user, Plan plan) {
     if (!user.isEmailVerified()) {
         throw new IllegalStateException("Email not verified");
     }
@@ -40,40 +43,43 @@ export default makeScene2D(function* (view) {
 
     emailService.sendPaymentReceipt(user.getEmail(), plan.getPrice());
     analytics.track("paid_started", user.getId());
-}`;
+}`,
+        {x: 450, y: 0, fontSize: 16}
+    );
 
-    const codeLeft = new CodeBlock({
-        code: codeStartTrial,
-        x: -480,
-        y: 0,
-        fontSize: 18,
-    });
-
-    const codeRight = new CodeBlock({
-        code: codeStartPaid,
-        x: 480,
-        y: 0,
-        fontSize: 18,
-    });
-
-    codeLeft.mount(view, StandardTheme);
-    codeRight.mount(view, StandardTheme);
+    codeLeft.mount(view);
+    codeRight.mount(view);
 
     yield* all(
         codeLeft.appear(0.8),
         codeRight.appear(0.8),
     );
+
     yield* waitFor(1.5);
 
     yield* all(
-        codeLeft.highlightLines(1, 6),
-        codeRight.highlightLines(1, 6),
+        codeLeft.highlight(1, 6),
+        codeRight.highlight(1, 6),
     );
+
     yield* waitFor(1.5);
 
+    const extractedLeft = codeLeft.extract(1, 6);
+    const extractedRight = codeRight.extract(1, 6);
+
+    extractedLeft.mount(view);
+    extractedRight.mount(view);
+
     yield* all(
-        codeLeft.flyLinesTo(1, 6, 0, 0, 1),
-        codeRight.flyLinesTo(1, 6, 0, 0, 1),
+        codeLeft.dimAll(0.15),
+        codeRight.dimAll(0.15),
+        extractedLeft.appear(0.3),
+        extractedRight.appear(0.3),
+    );
+
+    yield* all(
+        extractedLeft.moveTo(0, 0, 1),
+        extractedRight.moveTo(0, 0, 1),
     );
 
     yield* waitFor(2);

@@ -1,4 +1,4 @@
-export {CodeLine} from './CodeLine';
-export {CodeBlock} from './CodeBlock';
-export type {CodeBlockProps} from './CodeBlock';
+export {CodeDocument} from './model';
+export {CodeGrid} from './view';
+export type {CodeGridConfig} from './view';
 
