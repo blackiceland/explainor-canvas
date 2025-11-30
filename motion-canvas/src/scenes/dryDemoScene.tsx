@@ -23,7 +23,7 @@ export default makeScene2D(function* (view) {
     emailService.sendTrialStarted(user.getEmail(), end);
     analytics.track("trial_started", user.getId());
 }`,
-        {x: -450, y: 0, fontSize: 16}
+        {x: -500, y: 0, fontSize: 16}
     );
 
     const codeRight = CodeGrid.fromCode(
@@ -44,7 +44,7 @@ export default makeScene2D(function* (view) {
     emailService.sendPaymentReceipt(user.getEmail(), plan.getPrice());
     analytics.track("paid_started", user.getId());
 }`,
-        {x: 450, y: 0, fontSize: 16}
+        {x: 400, y: 0, fontSize: 16}
     );
 
     codeLeft.mount(view);
