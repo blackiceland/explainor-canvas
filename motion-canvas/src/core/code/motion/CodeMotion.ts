@@ -1,5 +1,5 @@
 import {Node} from '@motion-canvas/2d';
-import {all, delay, ThreadGenerator} from '@motion-canvas/core';
+import {all, delay, ThreadGenerator, Vector2, waitFor} from '@motion-canvas/core';
 import {CodeGrid, CodeAnchor} from '../view/CodeGrid';
 
 export interface ExtractedBlock {
@@ -20,6 +20,12 @@ export interface ExtractResult {
 
 export interface MorphResult {
     target: CodeGrid;
+    sources: CodeGrid[];
+    animate: () => ThreadGenerator;
+}
+
+export interface StripResult {
+    callGrid: CodeGrid;
     animate: () => ThreadGenerator;
 }
 
@@ -38,7 +44,7 @@ export function extractLines(
     for (const spec of specs) {
         const extracted = spec.grid.extract(spec.range[0], spec.range[1]);
         extracted.mount(parent);
-        
+
         blocks.push({
             grid: extracted,
             sourceGrid: spec.grid,
@@ -74,7 +80,7 @@ export function* mergeToCenter(
     yield* all(...animations);
 }
 
-export function morphTo(
+export function wrapWithSignature(
     parent: Node,
     sources: ExtractedBlock[] | CodeGrid[],
     targetCode: string,
@@ -87,15 +93,13 @@ export function morphTo(
 ): MorphResult {
     const grids = sources.map(b => 'grid' in b ? b.grid : b);
     const firstGrid = grids[0];
-    
+
     const duration = config.duration ?? 0.6;
-    const x = config.x ?? firstGrid.x;
-    const y = config.y ?? firstGrid.y;
     const fontSize = config.fontSize ?? firstGrid.fontSize;
 
     const target = CodeGrid.fromCode(targetCode, {
-        x,
-        y,
+        x: firstGrid.x,
+        y: firstGrid.y,
         fontSize,
         fontFamily: firstGrid.fontFamily,
         theme: firstGrid.theme,
@@ -103,94 +107,143 @@ export function morphTo(
     });
     target.mount(parent);
 
-    function* animate(): ThreadGenerator {
-        const disappearAnimations: ThreadGenerator[] = [];
-        for (const g of grids) {
-            disappearAnimations.push(g.disappear(duration));
-        }
+    const bodyStartLine = 1;
+    const bodyEndLine = target.lineCount - 2;
 
+    const firstGridBodyAnchor = firstGrid.getAnchor(0);
+    const targetBodyAnchor = target.getAnchor(bodyStartLine);
+
+    const dx = firstGridBodyAnchor.x - targetBodyAnchor.x;
+    const dy = firstGridBodyAnchor.y - targetBodyAnchor.y;
+
+    const currentPos = target.getPosition();
+    target.container().position(new Vector2(currentPos.x + dx, currentPos.y + dy));
+
+    target.container().opacity(0);
+
+    function* animate(): ThreadGenerator {
         yield* all(
-            ...disappearAnimations,
-            delay(duration * 0.3, target.appear(duration * 0.8))
+            target.appear(duration),
+            target.hideRanges([[bodyStartLine, bodyEndLine]], 0)
         );
     }
 
-    return {target, animate};
+    return {target, sources: grids, animate};
 }
 
-export function injectCalls(
+export function stripToCall(
     parent: Node,
     helper: CodeGrid,
+    sources: CodeGrid[],
+    callCode: string,
+    duration: number = 0.5
+): StripResult {
+    const helperToken = helper.findToken(0, 'validate');
+    
+    const helperPos = helper.getPosition();
+    const callGrid = CodeGrid.fromCode(callCode, {
+        x: helperPos.x,
+        y: helperPos.y,
+        fontSize: helper.fontSize,
+        fontFamily: helper.fontFamily,
+        theme: helper.theme,
+    });
+    callGrid.mount(parent);
+    
+    const callToken = callGrid.findToken(0, 'validate');
+    
+    if (callToken && helperToken) {
+        const dx = helperToken.x - callToken.x;
+        const dy = helperToken.y - callToken.y;
+        
+        const currentGridPos = callGrid.getPosition();
+        callGrid.container().position(new Vector2(currentGridPos.x + dx, currentGridPos.y + dy));
+    }
+
+    callGrid.container().opacity(0);
+
+    function* animate(): ThreadGenerator {
+        yield* all(
+            helper.disappear(duration * 1.2),
+            ...sources.map(s => s.disappear(duration * 1.2)),
+            delay(duration * 0.4, callGrid.appear(duration))
+        );
+    }
+
+    return {callGrid, animate};
+}
+
+export function injectFromCall(
+    parent: Node,
+    sourceCall: CodeGrid,
     callCode: string,
     targets: CodeAnchor[],
-    config: {
-        fromLine?: number;
-        duration?: number;
-        stagger?: number;
-    } = {}
+    duration: number = 0.8
 ): InjectResult {
-    const fromLine = config.fromLine ?? 0;
-    const duration = config.duration ?? 1.0;
-    const stagger = config.stagger ?? 0;
+    const sourcePos = sourceCall.getPosition();
 
-    const sourceAnchor = helper.getAnchor(fromLine);
     const calls: CodeGrid[] = [];
 
-    for (const target of targets) {
+    for (let i = 0; i < targets.length; i++) {
         const call = CodeGrid.fromCode(callCode, {
-            x: sourceAnchor.x,
-            y: sourceAnchor.y,
-            fontSize: helper.fontSize,
-            fontFamily: helper.fontFamily,
-            theme: helper.theme,
+            x: sourcePos.x,
+            y: sourcePos.y,
+            fontSize: sourceCall.fontSize,
+            fontFamily: sourceCall.fontFamily,
+            theme: sourceCall.theme,
         });
         call.mount(parent);
+        call.container().opacity(1); 
         calls.push(call);
     }
 
     function* animate(): ThreadGenerator {
-        const appearAnimations: ThreadGenerator[] = [];
-        for (const c of calls) {
-            appearAnimations.push(c.appear(0.3));
-        }
-        yield* all(...appearAnimations);
-
-        if (stagger > 0) {
-            for (let i = 0; i < calls.length; i++) {
-                if (i > 0) {
-                    yield* delay(stagger, calls[i].flyTo(targets[i], duration));
-                } else {
-                    yield* calls[i].flyTo(targets[i], duration);
-                }
-            }
-        } else {
-            const flyAnimations: ThreadGenerator[] = [];
-            for (let i = 0; i < calls.length; i++) {
-                flyAnimations.push(calls[i].flyTo(targets[i], duration));
-            }
-            yield* all(...flyAnimations);
-        }
+        yield* sourceCall.container().opacity(0, 0);
+        
+        yield* all(
+            ...calls.map((c, i) => c.flyTo(targets[i], duration))
+        );
     }
 
     return {calls, animate};
 }
 
-export function* restoreOriginals(
-    blocks: ExtractedBlock[],
-    opacity: number = 1,
-    duration: number = 0.4
+export function* collapseSourceGaps(
+    specs: ExtractSpec[],
+    duration: number = 0.6
 ): ThreadGenerator {
     const animations: ThreadGenerator[] = [];
 
-    for (const block of blocks) {
-        const lineCount = block.sourceGrid.lineCount;
-        const [from, to] = block.range;
+    for (const spec of specs) {
+        const [from, to] = spec.range;
+        const linesToCollapse = to - from;
+        
+        if (linesToCollapse > 0) {
+            const delta = -linesToCollapse * spec.grid.lineHeight;
+            animations.push(spec.grid.shiftLines(to + 1, delta, duration));
+        }
+    }
+
+    if (animations.length > 0) {
+        yield* all(...animations);
+    }
+}
+
+export function* finalizeCode(
+    specs: ExtractSpec[],
+    duration: number = 0.5
+): ThreadGenerator {
+    const animations: ThreadGenerator[] = [];
+
+    for (const spec of specs) {
+        const lineCount = spec.grid.lineCount;
+        const [from, to] = spec.range;
 
         if (from > 0) {
-            animations.push(block.sourceGrid.dim(0, from - 1, opacity, duration));
+            animations.push(spec.grid.dim(0, from - 1, 1, duration));
         }
         if (to < lineCount - 1) {
-            animations.push(block.sourceGrid.dim(to + 1, lineCount - 1, opacity, duration));
+            animations.push(spec.grid.dim(to + 1, lineCount - 1, 1, duration));
         }
     }
 
@@ -208,27 +261,41 @@ export function* dryRefactor(
         centerY?: number;
         extractDuration?: number;
         mergeDuration?: number;
-        morphDuration?: number;
+        wrapDuration?: number;
+        stripDuration?: number;
         injectDuration?: number;
+        collapseDuration?: number;
     } = {}
 ): ThreadGenerator {
     const centerY = config.centerY ?? 0;
-    const extractDuration = config.extractDuration ?? 0.5;
+    const extractDuration = config.extractDuration ?? 0.6;
     const mergeDuration = config.mergeDuration ?? 0.8;
-    const morphDuration = config.morphDuration ?? 0.8;
-    const injectDuration = config.injectDuration ?? 1.0;
+    const wrapDuration = config.wrapDuration ?? 0.8;
+    const stripDuration = config.stripDuration ?? 0.9;
+    const injectDuration = config.injectDuration ?? 0.8;
+    const collapseDuration = config.collapseDuration ?? 0.6;
 
     const {blocks, animate: animateExtract} = extractLines(parent, specs, extractDuration);
     yield* animateExtract();
-    
+    yield* waitFor(0.2);
+
     yield* mergeToCenter(blocks, 0, centerY, mergeDuration);
-    
-    const {target: helper, animate: animateMorph} = morphTo(parent, blocks, helperCode, {duration: morphDuration});
-    yield* animateMorph();
-    
+    yield* waitFor(0.2);
+
+    const {target: helper, sources, animate: animateWrap} = wrapWithSignature(parent, blocks, helperCode, {duration: wrapDuration});
+    yield* animateWrap();
+    yield* waitFor(0.3);
+
+    const {callGrid, animate: animateStrip} = stripToCall(parent, helper, sources, callCode, stripDuration);
+    yield* animateStrip();
+    yield* waitFor(0.2);
+
     const targets = specs.map(spec => spec.grid.getAnchor(spec.range[0]));
-    const {calls, animate: animateInject} = injectCalls(parent, helper, callCode, targets, {duration: injectDuration});
+    const {animate: animateInject} = injectFromCall(parent, callGrid, callCode, targets, injectDuration);
     yield* animateInject();
-    
-    yield* restoreOriginals(blocks);
+
+    yield* all(
+        collapseSourceGaps(specs, collapseDuration),
+        finalizeCode(specs, collapseDuration)
+    );
 }

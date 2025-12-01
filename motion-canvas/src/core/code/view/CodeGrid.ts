@@ -3,6 +3,7 @@ import {all, createRef, easeInOutCubic, Reference, ThreadGenerator} from '@motio
 import {CodeDocument} from '../model/CodeDocument';
 import {tokenizeLine} from '../model/Tokenizer';
 import {getTokenColor, SyntaxTheme, IntelliJDarkTheme} from '../model/SyntaxTheme';
+import {Position} from '../layout/Stage';
 
 export interface CodeGridConfig {
     x?: number;
@@ -19,9 +20,15 @@ export interface CodeAnchor {
     readonly y: number;
 }
 
+export interface TokenAnchor extends CodeAnchor {
+    readonly width: number;
+    readonly text: string;
+}
+
 interface LineData {
     container: Reference<Node>;
     tokens: Reference<Txt>[];
+    tokenTexts: string[];
     localY: number;
 }
 
@@ -55,6 +62,10 @@ export class CodeGrid {
         return new CodeGrid(CodeDocument.from(code), config);
     }
 
+    public static fromCodeAt(code: string, position: Position, config: Omit<CodeGridConfig, 'x' | 'y'> = {}): CodeGrid {
+        return new CodeGrid(CodeDocument.from(code), {...config, x: position.x, y: position.y});
+    }
+
     public mount(parent: Node): void {
         const container = new Node({
             x: this.config.x,
@@ -77,11 +88,13 @@ export class CodeGrid {
             lineContainerRef(lineContainer);
 
             const tokenRefs: Reference<Txt>[] = [];
+            const tokenTexts: string[] = [];
             let xOffset = leftEdge;
 
             for (const token of tokens) {
                 const ref = createRef<Txt>();
                 tokenRefs.push(ref);
+                tokenTexts.push(token.text);
 
                 const txt = new Txt({
                     text: token.text,
@@ -97,7 +110,7 @@ export class CodeGrid {
                 xOffset += this.measureText(token.text);
             }
 
-            this.linesData.push({container: lineContainerRef, tokens: tokenRefs, localY});
+            this.linesData.push({container: lineContainerRef, tokens: tokenRefs, tokenTexts, localY});
             container.add(lineContainer);
         }
 
@@ -142,9 +155,47 @@ export class CodeGrid {
         };
     }
 
+    public findToken(line: number, search: string): TokenAnchor | null {
+        if (line < 0 || line >= this.linesData.length) {
+            return null;
+        }
+
+        const lineData = this.linesData[line];
+        const containerPos = this.getContainerPosition();
+        const scale = this.getScale();
+        const leftEdge = -this.config.width / 2;
+
+        let xOffset = leftEdge;
+        for (let i = 0; i < lineData.tokenTexts.length; i++) {
+            const text = lineData.tokenTexts[i];
+            const tokenWidth = this.measureText(text);
+
+            if (text.includes(search)) {
+                const indexInToken = text.indexOf(search);
+                const searchWidth = this.measureText(search);
+                const localX = xOffset + this.measureText(text.substring(0, indexInToken)) + searchWidth / 2;
+
+                return {
+                    x: containerPos.x + localX * scale,
+                    y: containerPos.y + lineData.localY * scale,
+                    width: searchWidth * scale,
+                    text: search,
+                };
+            }
+
+            xOffset += tokenWidth;
+        }
+
+        return null;
+    }
+
     public getPosition(): CodeAnchor {
         const pos = this.getContainerPosition();
         return {x: pos.x, y: pos.y};
+    }
+
+    public container(): Node {
+        return this.containerRef();
     }
 
     public *appear(duration: number = 0.6): ThreadGenerator {
@@ -159,15 +210,25 @@ export class CodeGrid {
         yield* this.containerRef().position([x, y], duration, easeInOutCubic);
     }
 
-    public *flyLineToAnchor(line: number, target: CodeAnchor, duration: number = 1): ThreadGenerator {
-        const localY = this.getLocalY(line);
-        const scale = this.getScale();
-        const targetContainerY = target.y - localY * scale;
-        yield* this.containerRef().position([target.x, targetContainerY], duration, easeInOutCubic);
+    public *moveToPosition(position: Position, duration: number = 1): ThreadGenerator {
+        yield* this.moveTo(position.x, position.y, duration);
     }
 
     public *flyTo(target: CodeAnchor, duration: number = 1): ThreadGenerator {
         yield* this.containerRef().position([target.x, target.y], duration, easeInOutCubic);
+    }
+
+    public *shiftLines(startIndex: number, delta: number, duration: number = 0.4): ThreadGenerator {
+        const animations: ThreadGenerator[] = [];
+        for (let i = startIndex; i < this.linesData.length; i++) {
+            const line = this.linesData[i];
+            const newY = line.localY + delta;
+            line.localY = newY;
+            animations.push(line.container().y(newY, duration, easeInOutCubic));
+        }
+        if (animations.length > 0) {
+            yield* all(...animations);
+        }
     }
 
     public *scale(factor: number, duration: number = 0.5): ThreadGenerator {
