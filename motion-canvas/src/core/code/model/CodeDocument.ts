@@ -25,4 +25,3 @@ export class CodeDocument {
         return new CodeDocument(this.getLines(from, to));
     }
 }
-

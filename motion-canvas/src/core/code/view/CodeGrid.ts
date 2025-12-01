@@ -1,7 +1,7 @@
 import {Node, Txt} from '@motion-canvas/2d';
-import {all, createRef, Reference, ThreadGenerator} from '@motion-canvas/core';
+import {all, createRef, easeInOutCubic, Reference, ThreadGenerator} from '@motion-canvas/core';
 import {CodeDocument} from '../model/CodeDocument';
-import {tokenizeLine, Token} from '../model/Tokenizer';
+import {tokenizeLine} from '../model/Tokenizer';
 import {getTokenColor, SyntaxTheme, IntelliJDarkTheme} from '../model/SyntaxTheme';
 
 export interface CodeGridConfig {
@@ -14,16 +14,25 @@ export interface CodeGridConfig {
     theme?: SyntaxTheme;
 }
 
+export interface CodeAnchor {
+    readonly x: number;
+    readonly y: number;
+}
+
 interface LineData {
     container: Reference<Node>;
     tokens: Reference<Txt>[];
+    localY: number;
 }
+
+const MONOSPACE_CHAR_WIDTH_RATIO = 0.6;
 
 export class CodeGrid {
     private readonly containerRef = createRef<Node>();
     private readonly linesData: LineData[] = [];
     private readonly document: CodeDocument;
     private readonly config: Required<Omit<CodeGridConfig, 'theme'>> & {theme: SyntaxTheme};
+    private mounted = false;
 
     private constructor(document: CodeDocument, config: CodeGridConfig) {
         this.document = document;
@@ -54,16 +63,16 @@ export class CodeGrid {
         });
         this.containerRef(container);
 
-        const n = this.document.lineCount;
-        const centerOffset = (n - 1) / 2;
+        const lineCount = this.document.lineCount;
+        const centerOffset = (lineCount - 1) / 2;
         const leftEdge = -this.config.width / 2;
 
-        for (let i = 0; i < n; i++) {
+        for (let i = 0; i < lineCount; i++) {
             const lineText = this.document.getLine(i) ?? '';
             const tokens = tokenizeLine(lineText);
-            const y = (i - centerOffset) * this.config.lineHeight;
+            const localY = (i - centerOffset) * this.config.lineHeight;
 
-            const lineContainer = new Node({y});
+            const lineContainer = new Node({y: localY});
             const lineContainerRef = createRef<Node>();
             lineContainerRef(lineContainer);
 
@@ -88,41 +97,92 @@ export class CodeGrid {
                 xOffset += this.measureText(token.text);
             }
 
-            this.linesData.push({container: lineContainerRef, tokens: tokenRefs});
+            this.linesData.push({container: lineContainerRef, tokens: tokenRefs, localY});
             container.add(lineContainer);
         }
 
         parent.add(container);
+        this.mounted = true;
     }
 
     private measureText(text: string): number {
-        const charWidth = this.config.fontSize * 0.6;
-        return text.length * charWidth;
+        return text.length * this.config.fontSize * MONOSPACE_CHAR_WIDTH_RATIO;
     }
 
-    public getLineY(index: number): number {
-        const n = this.document.lineCount;
-        const centerOffset = (n - 1) / 2;
-        return this.config.y + (index - centerOffset) * this.config.lineHeight;
+    private getContainerPosition(): {x: number; y: number} {
+        if (!this.mounted) {
+            return {x: this.config.x, y: this.config.y};
+        }
+        const pos = this.containerRef().position();
+        return {x: pos.x, y: pos.y};
     }
 
-    public getLineWorldY(index: number): number {
-        return this.getLineY(index);
+    private getLocalY(line: number): number {
+        if (line < 0 || line >= this.linesData.length) {
+            return 0;
+        }
+        return this.linesData[line].localY;
+    }
+
+    private getScale(): number {
+        if (!this.mounted) {
+            return 1;
+        }
+        return this.containerRef().scale().x;
+    }
+
+    public getAnchor(line: number): CodeAnchor {
+        const containerPos = this.getContainerPosition();
+        const localY = this.getLocalY(line);
+        const scale = this.getScale();
+
+        return {
+            x: containerPos.x,
+            y: containerPos.y + localY * scale,
+        };
+    }
+
+    public getPosition(): CodeAnchor {
+        const pos = this.getContainerPosition();
+        return {x: pos.x, y: pos.y};
     }
 
     public *appear(duration: number = 0.6): ThreadGenerator {
-        yield* this.containerRef().opacity(1, duration);
+        yield* this.containerRef().opacity(1, duration, easeInOutCubic);
     }
 
     public *disappear(duration: number = 0.6): ThreadGenerator {
-        yield* this.containerRef().opacity(0, duration);
+        yield* this.containerRef().opacity(0, duration, easeInOutCubic);
+    }
+
+    public *moveTo(x: number, y: number, duration: number = 1): ThreadGenerator {
+        yield* this.containerRef().position([x, y], duration, easeInOutCubic);
+    }
+
+    public *flyLineToAnchor(line: number, target: CodeAnchor, duration: number = 1): ThreadGenerator {
+        const localY = this.getLocalY(line);
+        const scale = this.getScale();
+        const targetContainerY = target.y - localY * scale;
+        yield* this.containerRef().position([target.x, targetContainerY], duration, easeInOutCubic);
+    }
+
+    public *flyTo(target: CodeAnchor, duration: number = 1): ThreadGenerator {
+        yield* this.containerRef().position([target.x, target.y], duration, easeInOutCubic);
+    }
+
+    public *scale(factor: number, duration: number = 0.5): ThreadGenerator {
+        yield* this.containerRef().scale(factor, duration, easeInOutCubic);
     }
 
     public *highlight(from: number, to: number, duration: number = 0.4): ThreadGenerator {
+        yield* this.highlightRanges([[from, to]], duration);
+    }
+
+    public *highlightRanges(ranges: [number, number][], duration: number = 0.4): ThreadGenerator {
         const animations: ThreadGenerator[] = [];
         for (let i = 0; i < this.linesData.length; i++) {
-            const targetOpacity = (i >= from && i <= to) ? 1 : 0.25;
-            animations.push(this.linesData[i].container().opacity(targetOpacity, duration));
+            const inRange = ranges.some(([from, to]) => i >= from && i <= to);
+            animations.push(this.linesData[i].container().opacity(inRange ? 1 : 0.25, duration));
         }
         yield* all(...animations);
     }
@@ -136,27 +196,45 @@ export class CodeGrid {
     }
 
     public *dimAll(opacity: number = 0.25, duration: number = 0.4): ThreadGenerator {
+        yield* all(...this.linesData.map(line => line.container().opacity(opacity, duration)));
+    }
+
+    public *hideRanges(ranges: [number, number][], duration: number = 0.4): ThreadGenerator {
         const animations: ThreadGenerator[] = [];
-        for (const line of this.linesData) {
-            animations.push(line.container().opacity(opacity, duration));
+        for (let i = 0; i < this.linesData.length; i++) {
+            if (ranges.some(([from, to]) => i >= from && i <= to)) {
+                animations.push(this.linesData[i].container().opacity(0, duration));
+            }
         }
         yield* all(...animations);
     }
 
-    public *moveTo(x: number, y: number, duration: number = 1): ThreadGenerator {
-        yield* this.containerRef().position([x, y], duration);
+    public *showAll(duration: number = 0.4): ThreadGenerator {
+        yield* all(...this.linesData.map(line => line.container().opacity(1, duration)));
     }
 
     public extract(from: number, to: number): CodeGrid {
         const slicedDoc = this.document.slice(from, to);
-
-        const sourceY = this.getLineWorldY(from);
-        const extractedCenterOffset = (slicedDoc.lineCount - 1) / 2;
-        const newY = sourceY + extractedCenterOffset * this.config.lineHeight;
+        const fromAnchor = this.getAnchor(from);
+        const newCenterOffset = (slicedDoc.lineCount - 1) / 2;
+        const newCenterY = fromAnchor.y + newCenterOffset * this.config.lineHeight;
 
         return CodeGrid.create(slicedDoc, {
-            x: this.config.x,
-            y: newY,
+            x: fromAnchor.x,
+            y: newCenterY,
+            width: this.config.width,
+            fontSize: this.config.fontSize,
+            lineHeight: this.config.lineHeight,
+            fontFamily: this.config.fontFamily,
+            theme: this.config.theme,
+        });
+    }
+
+    public clone(): CodeGrid {
+        const pos = this.getPosition();
+        return CodeGrid.create(this.document, {
+            x: pos.x,
+            y: pos.y,
             width: this.config.width,
             fontSize: this.config.fontSize,
             lineHeight: this.config.lineHeight,
@@ -166,11 +244,11 @@ export class CodeGrid {
     }
 
     public get x(): number {
-        return this.config.x;
+        return this.getContainerPosition().x;
     }
 
     public get y(): number {
-        return this.config.y;
+        return this.getContainerPosition().y;
     }
 
     public get width(): number {
@@ -183,5 +261,17 @@ export class CodeGrid {
 
     public get lineHeight(): number {
         return this.config.lineHeight;
+    }
+
+    public get fontSize(): number {
+        return this.config.fontSize;
+    }
+
+    public get fontFamily(): string {
+        return this.config.fontFamily;
+    }
+
+    public get theme(): SyntaxTheme {
+        return this.config.theme;
     }
 }

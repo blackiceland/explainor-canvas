@@ -36,91 +36,89 @@ const JAVA_TYPES = new Set([
     'User', 'Plan', 'Subscription', 'IllegalStateException',
 ]);
 
+const PATTERNS = {
+    comment: /^\/\/.*/,
+    annotation: /^@\w+/,
+    string: /^"([^"\\]|\\.)*"/,
+    number: /^\d+(\.\d+)?[fFdDlL]?/,
+    word: /^[a-zA-Z_]\w*/,
+    operator: /^(&&|\|\||==|!=|<=|>=|->|::|\+\+|--|[+\-*/%=<>!&|^~?:])/,
+    punctuation: /^[{}()\[\];,.<>]/,
+    whitespace: /^\s+/,
+};
+
+function classifyWord(word: string, nextChar: string): TokenType {
+    if (JAVA_KEYWORDS.has(word)) return 'keyword';
+    if (JAVA_TYPES.has(word)) return 'type';
+    if (nextChar === '(') return 'method';
+    return 'plain';
+}
+
 export function tokenizeLine(line: string): Token[] {
     const tokens: Token[] = [];
     let remaining = line;
 
     while (remaining.length > 0) {
-        let matched = false;
-
-        if (remaining.startsWith('//')) {
-            tokens.push({text: remaining, type: 'comment'});
+        const commentMatch = remaining.match(PATTERNS.comment);
+        if (commentMatch) {
+            tokens.push({text: commentMatch[0], type: 'comment'});
             break;
         }
 
-        const annotationMatch = remaining.match(/^@\w+/);
+        const annotationMatch = remaining.match(PATTERNS.annotation);
         if (annotationMatch) {
             tokens.push({text: annotationMatch[0], type: 'annotation'});
             remaining = remaining.slice(annotationMatch[0].length);
-            matched = true;
             continue;
         }
 
-        const stringMatch = remaining.match(/^"([^"\\]|\\.)*"/);
+        const stringMatch = remaining.match(PATTERNS.string);
         if (stringMatch) {
             tokens.push({text: stringMatch[0], type: 'string'});
             remaining = remaining.slice(stringMatch[0].length);
-            matched = true;
             continue;
         }
 
-        const numberMatch = remaining.match(/^\d+(\.\d+)?[fFdDlL]?/);
+        const numberMatch = remaining.match(PATTERNS.number);
         if (numberMatch) {
             tokens.push({text: numberMatch[0], type: 'number'});
             remaining = remaining.slice(numberMatch[0].length);
-            matched = true;
             continue;
         }
 
-        const wordMatch = remaining.match(/^[a-zA-Z_]\w*/);
+        const wordMatch = remaining.match(PATTERNS.word);
         if (wordMatch) {
             const word = wordMatch[0];
-            let type: TokenType = 'plain';
-
-            if (JAVA_KEYWORDS.has(word)) {
-                type = 'keyword';
-            } else if (JAVA_TYPES.has(word)) {
-                type = 'type';
-            } else if (remaining.length > word.length && remaining[word.length] === '(') {
-                type = 'method';
-            }
-
-            tokens.push({text: word, type});
+            const nextChar = remaining[word.length] ?? '';
+            tokens.push({text: word, type: classifyWord(word, nextChar)});
             remaining = remaining.slice(word.length);
-            matched = true;
             continue;
         }
 
-        const operatorMatch = remaining.match(/^(&&|\|\||==|!=|<=|>=|->|::|\+\+|--|[+\-*/%=<>!&|^~?:])/);
+        const operatorMatch = remaining.match(PATTERNS.operator);
         if (operatorMatch) {
             tokens.push({text: operatorMatch[0], type: 'operator'});
             remaining = remaining.slice(operatorMatch[0].length);
-            matched = true;
             continue;
         }
 
-        const punctMatch = remaining.match(/^[{}()\[\];,.<>]/);
+        const punctMatch = remaining.match(PATTERNS.punctuation);
         if (punctMatch) {
             tokens.push({text: punctMatch[0], type: 'punctuation'});
             remaining = remaining.slice(punctMatch[0].length);
-            matched = true;
             continue;
         }
 
-        const whitespaceMatch = remaining.match(/^\s+/);
+        const whitespaceMatch = remaining.match(PATTERNS.whitespace);
         if (whitespaceMatch) {
             tokens.push({text: whitespaceMatch[0], type: 'plain'});
             remaining = remaining.slice(whitespaceMatch[0].length);
-            matched = true;
             continue;
         }
 
-        if (!matched) {
-            tokens.push({text: remaining[0], type: 'plain'});
-            remaining = remaining.slice(1);
-        }
+        tokens.push({text: remaining[0], type: 'plain'});
+        remaining = remaining.slice(1);
     }
 
     return tokens;
 }
-

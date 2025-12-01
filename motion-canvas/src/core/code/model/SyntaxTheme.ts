@@ -29,4 +29,3 @@ export const IntelliJDarkTheme: SyntaxTheme = {
 export function getTokenColor(type: TokenType, theme: SyntaxTheme = IntelliJDarkTheme): string {
     return theme[type];
 }
-
