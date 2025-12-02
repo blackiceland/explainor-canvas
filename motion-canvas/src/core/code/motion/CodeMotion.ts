@@ -136,9 +136,18 @@ export function stripToCall(
     helper: CodeGrid,
     sources: CodeGrid[],
     callCode: string,
-    duration: number = 0.5
+    duration: number = 0.5,
+    config: {
+        tokensToKeep?: string[];
+        tokensToCollapse?: string[];
+        anchorToken?: string;
+    } = {}
 ): StripResult {
-    const helperToken = helper.findToken(0, 'validate');
+    const tokensToKeep = config.tokensToKeep ?? ['validate', '(', 'user', ')', ';'];
+    const tokensToCollapse = config.tokensToCollapse ?? ['User', ' '];
+    const anchorToken = config.anchorToken ?? '(';
+
+    const helperToken = helper.findToken(0, tokensToKeep[0]);
     
     const helperPos = helper.getPosition();
     const callGrid = CodeGrid.fromCode(callCode, {
@@ -150,7 +159,7 @@ export function stripToCall(
     });
     callGrid.mount(parent);
     
-    const callToken = callGrid.findToken(0, 'validate');
+    const callToken = callGrid.findToken(0, tokensToKeep[0]);
     
     if (callToken && helperToken) {
         const dx = helperToken.x - callToken.x;
@@ -160,14 +169,16 @@ export function stripToCall(
         callGrid.container().position(new Vector2(currentGridPos.x + dx, currentGridPos.y + dy));
     }
 
-    callGrid.container().opacity(0);
+    callGrid.hideAllExceptTokens(0, tokensToKeep, 0);
 
     function* animate(): ThreadGenerator {
         yield* all(
-            helper.disappear(duration * 1.2),
-            ...sources.map(s => s.disappear(duration * 1.2)),
-            delay(duration * 0.4, callGrid.appear(duration))
+            helper.hideAllExceptTokens(0, tokensToKeep, duration),
+            helper.collapseTokensTo(0, anchorToken, tokensToCollapse, duration),
+            ...sources.map(s => s.disappear(duration)),
         );
+        
+        yield* callGrid.showAll(duration * 0.6);
     }
 
     return {callGrid, animate};
@@ -176,6 +187,7 @@ export function stripToCall(
 export function injectFromCall(
     parent: Node,
     sourceCall: CodeGrid,
+    helper: CodeGrid,
     callCode: string,
     targets: CodeAnchor[],
     duration: number = 0.8
@@ -198,7 +210,10 @@ export function injectFromCall(
     }
 
     function* animate(): ThreadGenerator {
-        yield* sourceCall.container().opacity(0, 0);
+        yield* all(
+            sourceCall.container().opacity(0, 0),
+            helper.container().opacity(0, 0),
+        );
         
         yield* all(
             ...calls.map((c, i) => c.flyTo(targets[i], duration))
@@ -291,7 +306,7 @@ export function* dryRefactor(
     yield* waitFor(0.2);
 
     const targets = specs.map(spec => spec.grid.getAnchor(spec.range[0]));
-    const {animate: animateInject} = injectFromCall(parent, callGrid, callCode, targets, injectDuration);
+    const {animate: animateInject} = injectFromCall(parent, callGrid, helper, callCode, targets, injectDuration);
     yield* animateInject();
 
     yield* all(

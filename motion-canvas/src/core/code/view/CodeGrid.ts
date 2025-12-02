@@ -274,6 +274,78 @@ export class CodeGrid {
         yield* all(...this.linesData.map(line => line.container().opacity(1, duration)));
     }
 
+    public *hideAllExceptTokens(line: number, tokensToKeep: string[], duration: number = 0.4): ThreadGenerator {
+        const animations: ThreadGenerator[] = [];
+
+        for (let i = 0; i < this.linesData.length; i++) {
+            const lineData = this.linesData[i];
+
+            if (i === line) {
+                for (let j = 0; j < lineData.tokens.length; j++) {
+                    const tokenRef = lineData.tokens[j];
+                    const tokenText = lineData.tokenTexts[j];
+                    const shouldKeep = tokensToKeep.some(t => tokenText.includes(t));
+                    if (!shouldKeep) {
+                        animations.push(tokenRef().opacity(0, duration));
+                    }
+                }
+            } else {
+                animations.push(lineData.container().opacity(0, duration));
+            }
+        }
+
+        yield* all(...animations);
+    }
+
+    public *collapseTokensTo(line: number, anchorToken: string, tokensToCollapse: string[], duration: number = 0.4): ThreadGenerator {
+        const lineData = this.linesData[line];
+        if (!lineData) return;
+
+        const animations: ThreadGenerator[] = [];
+        let anchorX: number | null = null;
+        const leftEdge = -this.config.width / 2;
+        let xOffset = leftEdge;
+
+        for (let j = 0; j < lineData.tokens.length; j++) {
+            const tokenText = lineData.tokenTexts[j];
+            const tokenWidth = this.measureText(tokenText);
+
+            if (tokenText.includes(anchorToken)) {
+                anchorX = xOffset + tokenWidth;
+            }
+            xOffset += tokenWidth;
+        }
+
+        if (anchorX === null) return;
+
+        let currentX = anchorX;
+        let foundAnchor = false;
+        xOffset = leftEdge;
+
+        for (let j = 0; j < lineData.tokens.length; j++) {
+            const tokenRef = lineData.tokens[j];
+            const tokenText = lineData.tokenTexts[j];
+            const tokenWidth = this.measureText(tokenText);
+
+            if (tokenText.includes(anchorToken)) {
+                foundAnchor = true;
+                currentX = xOffset + tokenWidth;
+            } else if (foundAnchor) {
+                const shouldCollapse = tokensToCollapse.some(t => tokenText.includes(t));
+                if (shouldCollapse) {
+                    continue;
+                }
+                animations.push(tokenRef().x(currentX, duration, easeInOutCubic));
+                currentX += tokenWidth;
+            }
+            xOffset += tokenWidth;
+        }
+
+        if (animations.length > 0) {
+            yield* all(...animations);
+        }
+    }
+
     public extract(from: number, to: number): CodeGrid {
         const slicedDoc = this.document.slice(from, to);
         const fromAnchor = this.getAnchor(from);

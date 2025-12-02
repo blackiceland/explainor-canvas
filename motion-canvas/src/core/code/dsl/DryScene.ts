@@ -87,7 +87,7 @@ export function* runDryScene(
     yield* waitFor(0.2);
 
     const targets = specs.map(spec => spec.grid.getAnchor(spec.range[0]));
-    const {animate: animateInject} = injectFromCall(view, callGrid, pattern.call, targets, durations.inject);
+    const {animate: animateInject} = injectFromCall(view, callGrid, helper, pattern.call, targets, durations.inject);
     yield* animateInject();
 
     yield* all(
