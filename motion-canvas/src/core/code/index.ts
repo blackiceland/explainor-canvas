@@ -15,3 +15,6 @@ export {
     dryRefactor,
 } from './motion/CodeMotion';
 export type {ExtractedBlock, ExtractSpec} from './motion/CodeMotion';
+
+export {runDryScene} from './dsl';
+export type {ScenePattern, DryPattern, DrySceneConfig} from './dsl';
