@@ -1,7 +1,6 @@
 import {makeProject} from '@motion-canvas/core';
-import coreDemoScene from './scenes/coreDemoScene?scene';
-import dryDemoScene from './scenes/dryDemoScene?scene';
+import dryKnowledgeScene from './scenes/dryKnowledgeScene?scene';
 
 export default makeProject({
-    scenes: [dryDemoScene, coreDemoScene]
+    scenes: [dryKnowledgeScene]
 });
