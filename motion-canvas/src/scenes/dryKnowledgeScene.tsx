@@ -1,5 +1,5 @@
 import {makeScene2D, Node, Txt, Circle} from '@motion-canvas/2d';
-import {all, createRef, easeInOutCubic, easeOutCubic, waitFor} from '@motion-canvas/core';
+import {all, chain, createRef, easeInCubic, easeInOutCubic, easeOutBack, easeOutCubic, waitFor} from '@motion-canvas/core';
 import {ExplainorTheme} from '../core/theme';
 
 const COLORS = ExplainorTheme.colors;
@@ -10,9 +10,7 @@ export default makeScene2D(function* (view) {
 
     const quoteContainer = createRef<Node>();
     const knowledgeWord = createRef<Txt>();
-    const line2 = createRef<Txt>();
-    const line3 = createRef<Txt>();
-    const attribution = createRef<Txt>();
+    const knowledgeClone = createRef<Txt>();
     const knowledgeCircle = createRef<Circle>();
 
     view.add(
@@ -27,7 +25,6 @@ export default makeScene2D(function* (view) {
                 Every piece of <Txt ref={knowledgeWord} fill={COLORS.accent.red} fontWeight={600}>knowledge</Txt> must have
             </Txt>
             <Txt
-                ref={line2}
                 fontFamily={FONTS.primary}
                 fontSize={36}
                 fill={COLORS.text.primary}
@@ -37,7 +34,6 @@ export default makeScene2D(function* (view) {
                 a single, unambiguous,
             </Txt>
             <Txt
-                ref={line3}
                 fontFamily={FONTS.primary}
                 fontSize={36}
                 fill={COLORS.text.primary}
@@ -47,7 +43,6 @@ export default makeScene2D(function* (view) {
                 authoritative representation within a system
             </Txt>
             <Txt
-                ref={attribution}
                 fontFamily={FONTS.primary}
                 fontSize={24}
                 fill={COLORS.text.muted}
@@ -60,12 +55,24 @@ export default makeScene2D(function* (view) {
     );
 
     view.add(
+        <Txt
+            ref={knowledgeClone}
+            text="knowledge"
+            fontFamily={FONTS.primary}
+            fontSize={36}
+            fontWeight={600}
+            fill={COLORS.accent.red}
+            opacity={0}
+        />
+    );
+
+    view.add(
         <Circle
             ref={knowledgeCircle}
             size={80}
             fill={COLORS.accent.red}
             opacity={0}
-            scale={0}
+            scale={1}
         />
     );
 
@@ -78,13 +85,17 @@ export default makeScene2D(function* (view) {
 
     const wordPos = knowledgeWord().absolutePosition();
     knowledgeCircle().absolutePosition(wordPos);
+    knowledgeClone().absolutePosition(wordPos);
+    
+    knowledgeClone().opacity(1);
+    knowledgeWord().opacity(0);
+
+    yield* quoteContainer().opacity(0, 1.0, easeInOutCubic);
 
     yield* all(
-        quoteContainer().opacity(0, 0.5, easeOutCubic),
-        knowledgeCircle().opacity(1, 0.5, easeOutCubic),
-        knowledgeCircle().scale(1, 0.5, easeOutCubic),
+        knowledgeClone().opacity(0, 0.6, easeInOutCubic),
+        knowledgeCircle().opacity(1, 0.6, easeInOutCubic),
     );
 
     yield* waitFor(2);
 });
-
