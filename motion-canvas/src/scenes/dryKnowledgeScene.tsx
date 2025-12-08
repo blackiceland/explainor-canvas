@@ -1,21 +1,51 @@
-import {makeScene2D, Node, Txt, Circle, Layout} from '@motion-canvas/2d';
-import {all, chain, createRef, easeInCubic, easeInOutCubic, easeOutBack, easeOutCubic, easeOutElastic, waitFor, range} from '@motion-canvas/core';
+import {makeScene2D, Node, Txt, Gradient} from '@motion-canvas/2d';
+import {all, createRef, easeInOutCubic, waitFor, Vector2} from '@motion-canvas/core';
 import {ExplainorTheme} from '../core/theme';
+import {QuadCodeScene, applyGradientBackground} from '../core/templates/QuadCodeScene';
 
 const COLORS = ExplainorTheme.colors;
 const FONTS = ExplainorTheme.fonts;
 
+const INVOICE_CODE = `class InvoiceService {
+  BigDecimal total(BigDecimal val) {
+    return val.multiply(
+      new BigDecimal("0.20")
+    );
+  }
+}`;
+
+const CHECKOUT_CODE = `class CheckoutService {
+  BigDecimal tax(BigDecimal val) {
+    return val.multiply(
+      new BigDecimal("0.20")
+    );
+  }
+}`;
+
+const FISCAL_CODE = `class FiscalExport {
+  BigDecimal vat(BigDecimal val) {
+    return val.multiply(
+      new BigDecimal("0.20")
+    );
+  }
+}`;
+
+const AUDIT_CODE = `class AuditService {
+  BigDecimal check(BigDecimal val) {
+    return val.multiply(
+      new BigDecimal("0.20")
+    );
+  }
+}`;
+
+const HIGHLIGHT_PATTERN = ["new", "BigDecimal", "0.20"];
+
 export default makeScene2D(function* (view) {
-    view.fill(COLORS.background);
+    applyGradientBackground(view);
 
     const quoteContainer = createRef<Node>();
     const knowledgeWord = createRef<Txt>();
-    const lettersContainer = createRef<Layout>();
-    const knowledgeCircle = createRef<Circle>();
-
-    const word = "knowledge";
-    const letters = word.split('');
-    const letterRefs = letters.map(() => createRef<Txt>());
+    const knowledgeClone = createRef<Txt>();
 
     view.add(
         <Node ref={quoteContainer} opacity={0} y={-20}>
@@ -59,35 +89,14 @@ export default makeScene2D(function* (view) {
     );
 
     view.add(
-        <Layout
-            ref={lettersContainer}
-            layout
-            direction="row"
-            alignItems="center"
-            justifyContent="center"
-            gap={0}
-            opacity={0}
-        >
-            {letters.map((char, index) => (
-                <Txt
-                    ref={letterRefs[index]}
-                    text={char}
-                    fontFamily={FONTS.primary}
-                    fontSize={36}
-                    fontWeight={600}
-                    fill={COLORS.accent.red}
-                />
-            ))}
-        </Layout>
-    );
-
-    view.add(
-        <Circle
-            ref={knowledgeCircle}
-            size={80}
+        <Txt
+            ref={knowledgeClone}
+            text="knowledge"
+            fontFamily={FONTS.primary}
+            fontSize={36}
+            fontWeight={600}
             fill={COLORS.accent.red}
             opacity={0}
-            scale={0}
         />
     );
 
@@ -96,28 +105,25 @@ export default makeScene2D(function* (view) {
         quoteContainer().y(0, 0.8, easeInOutCubic),
     );
 
-    yield* waitFor(3);
+    yield* waitFor(2);
 
     const wordPos = knowledgeWord().absolutePosition();
-
-    lettersContainer().absolutePosition(wordPos);
-    knowledgeCircle().absolutePosition(wordPos);
-    
-    lettersContainer().opacity(1);
+    knowledgeClone().absolutePosition(wordPos);
+    knowledgeClone().opacity(1);
     knowledgeWord().opacity(0);
 
     yield* quoteContainer().opacity(0, 1.0, easeInOutCubic);
 
-    yield* waitFor(0.5);
-    
-    yield* all(
-        ...letterRefs.map(letter => letter().margin.right(-25, 0.6, easeInCubic)),
-    );
-
-    lettersContainer().opacity(0);
-    knowledgeCircle().opacity(1);
-    
-    yield* knowledgeCircle().scale(1, 1, easeOutElastic);
-
     yield* waitFor(2);
+
+    yield* knowledgeClone().opacity(0, 0.8, easeInOutCubic);
+
+    yield* QuadCodeScene.play(view, {
+        blocks: [
+            { code: INVOICE_CODE, highlightLine: 3, highlightPattern: HIGHLIGHT_PATTERN },
+            { code: CHECKOUT_CODE, highlightLine: 3, highlightPattern: HIGHLIGHT_PATTERN },
+            { code: FISCAL_CODE, highlightLine: 3, highlightPattern: HIGHLIGHT_PATTERN },
+            { code: AUDIT_CODE, highlightLine: 3, highlightPattern: HIGHLIGHT_PATTERN },
+        ],
+    });
 });

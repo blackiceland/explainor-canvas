@@ -346,6 +346,24 @@ export class CodeGrid {
         }
     }
 
+    public *recolor(line: number, searchPatterns: string[], color: string, duration: number = 0.4): ThreadGenerator {
+        const lineData = this.linesData[line];
+        if (!lineData) return;
+
+        const animations: ThreadGenerator[] = [];
+        for (let j = 0; j < lineData.tokens.length; j++) {
+            const tokenRef = lineData.tokens[j];
+            const tokenText = lineData.tokenTexts[j];
+
+            if (searchPatterns.some(p => tokenText.includes(p))) {
+                 animations.push(tokenRef().fill(color, duration, easeInOutCubic));
+            }
+        }
+        if (animations.length > 0) {
+            yield* all(...animations);
+        }
+    }
+
     public extract(from: number, to: number): CodeGrid {
         const slicedDoc = this.document.slice(from, to);
         const fromAnchor = this.getAnchor(from);
