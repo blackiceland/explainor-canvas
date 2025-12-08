@@ -63,6 +63,8 @@ export default makeScene2D(function* (view) {
             ref={lettersContainer}
             layout
             direction="row"
+            alignItems="center"
+            justifyContent="center"
             gap={0}
             opacity={0}
         >
@@ -97,10 +99,10 @@ export default makeScene2D(function* (view) {
     yield* waitFor(3);
 
     const wordPos = knowledgeWord().absolutePosition();
+
     lettersContainer().absolutePosition(wordPos);
     knowledgeCircle().absolutePosition(wordPos);
     
-    // Switch to letters
     lettersContainer().opacity(1);
     knowledgeWord().opacity(0);
 
@@ -108,11 +110,13 @@ export default makeScene2D(function* (view) {
 
     yield* waitFor(0.5);
     
-    yield* lettersContainer().gap(-35, 0.6, easeInCubic);
+    yield* all(
+        ...letterRefs.map(letter => letter().margin.right(-25, 0.6, easeInCubic)),
+    );
 
     lettersContainer().opacity(0);
     knowledgeCircle().opacity(1);
-
+    
     yield* knowledgeCircle().scale(1, 1, easeOutElastic);
 
     yield* waitFor(2);
