@@ -1,5 +1,5 @@
-import {makeScene2D, Node, Txt, Circle} from '@motion-canvas/2d';
-import {all, chain, createRef, easeInCubic, easeInOutCubic, easeOutBack, easeOutCubic, waitFor} from '@motion-canvas/core';
+import {makeScene2D, Node, Txt, Circle, Layout} from '@motion-canvas/2d';
+import {all, chain, createRef, easeInCubic, easeInOutCubic, easeOutBack, easeOutCubic, easeOutElastic, waitFor, range} from '@motion-canvas/core';
 import {ExplainorTheme} from '../core/theme';
 
 const COLORS = ExplainorTheme.colors;
@@ -10,8 +10,12 @@ export default makeScene2D(function* (view) {
 
     const quoteContainer = createRef<Node>();
     const knowledgeWord = createRef<Txt>();
-    const knowledgeClone = createRef<Txt>();
+    const lettersContainer = createRef<Layout>();
     const knowledgeCircle = createRef<Circle>();
+
+    const word = "knowledge";
+    const letters = word.split('');
+    const letterRefs = letters.map(() => createRef<Txt>());
 
     view.add(
         <Node ref={quoteContainer} opacity={0} y={-20}>
@@ -55,15 +59,24 @@ export default makeScene2D(function* (view) {
     );
 
     view.add(
-        <Txt
-            ref={knowledgeClone}
-            text="knowledge"
-            fontFamily={FONTS.primary}
-            fontSize={36}
-            fontWeight={600}
-            fill={COLORS.accent.red}
+        <Layout
+            ref={lettersContainer}
+            layout
+            direction="row"
+            gap={0}
             opacity={0}
-        />
+        >
+            {letters.map((char, index) => (
+                <Txt
+                    ref={letterRefs[index]}
+                    text={char}
+                    fontFamily={FONTS.primary}
+                    fontSize={36}
+                    fontWeight={600}
+                    fill={COLORS.accent.red}
+                />
+            ))}
+        </Layout>
     );
 
     view.add(
@@ -72,7 +85,7 @@ export default makeScene2D(function* (view) {
             size={80}
             fill={COLORS.accent.red}
             opacity={0}
-            scale={1}
+            scale={0}
         />
     );
 
@@ -84,18 +97,23 @@ export default makeScene2D(function* (view) {
     yield* waitFor(3);
 
     const wordPos = knowledgeWord().absolutePosition();
+    lettersContainer().absolutePosition(wordPos);
     knowledgeCircle().absolutePosition(wordPos);
-    knowledgeClone().absolutePosition(wordPos);
     
-    knowledgeClone().opacity(1);
+    // Switch to letters
+    lettersContainer().opacity(1);
     knowledgeWord().opacity(0);
 
     yield* quoteContainer().opacity(0, 1.0, easeInOutCubic);
 
-    yield* all(
-        knowledgeClone().opacity(0, 0.6, easeInOutCubic),
-        knowledgeCircle().opacity(1, 0.6, easeInOutCubic),
-    );
+    yield* waitFor(0.5);
+    
+    yield* lettersContainer().gap(-35, 0.6, easeInCubic);
+
+    lettersContainer().opacity(0);
+    knowledgeCircle().opacity(1);
+
+    yield* knowledgeCircle().scale(1, 1, easeOutElastic);
 
     yield* waitFor(2);
 });
