@@ -3,12 +3,12 @@ export const Colors = {
         from: '#05070B',
         to: '#0B0E14',
     },
-    surface: '#11141C',
+    surface: '#0B0E14',
     text: {
-        primary: '#F4F1EB',
-        muted: '#70778A',
+        primary: '#DBD5CA',
+        muted: '#A2A8B5',
     },
-    accent: '#FF8C3A',
+    accent: '#FF7A1A',
 };
 
 export const Fonts = {

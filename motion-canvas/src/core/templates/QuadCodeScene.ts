@@ -24,9 +24,8 @@ export function* playQuadCode(view: Node, options: QuadCodeOptions): Generator<a
 
     const grids = blocks.map((block, i) => {
         const cell = layout.cells[i];
-        const offsetX = 40;
         const grid = CodeGrid.fromCode(block.code, {
-            x: cell.x + offsetX,
+            x: cell.x,
             y: cell.y,
             width: cell.width,
             fontSize: layout.fontSize,

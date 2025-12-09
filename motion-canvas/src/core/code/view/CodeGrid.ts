@@ -1,9 +1,10 @@
-import {Node, Txt} from '@motion-canvas/2d';
+import {Node, Rect, Txt} from '@motion-canvas/2d';
 import {all, createRef, easeInOutCubic, Reference, ThreadGenerator} from '@motion-canvas/core';
 import {CodeDocument} from '../model/CodeDocument';
 import {tokenizeLine} from '../model/Tokenizer';
 import {getTokenColor, SyntaxTheme, IntelliJDarkTheme} from '../model/SyntaxTheme';
 import {Position} from '../../types';
+import {Colors} from '../../theme';
 
 export interface CodeGridConfig {
     x?: number;
@@ -54,6 +55,16 @@ export class CodeGrid {
         };
     }
 
+    private getPadding(): number {
+        return this.config.fontSize * 2.0;
+    }
+
+    private getContentLeftEdge(): number {
+        const padding = this.getPadding();
+        const contentWidth = Math.max(this.config.width - padding * 2, 0);
+        return -contentWidth / 2;
+    }
+
     public static create(document: CodeDocument, config: CodeGridConfig = {}): CodeGrid {
         return new CodeGrid(document, config);
     }
@@ -76,7 +87,22 @@ export class CodeGrid {
 
         const lineCount = this.document.lineCount;
         const centerOffset = (lineCount - 1) / 2;
-        const leftEdge = -this.config.width / 2;
+        const leftEdge = this.getContentLeftEdge();
+
+        const padding = this.getPadding();
+        const cardWidth = this.config.width;
+        const cardHeight = lineCount * this.config.lineHeight + padding * 2;
+
+        const card = new Rect({
+            width: cardWidth,
+            height: cardHeight,
+            radius: 28,
+            fill: Colors.surface,
+            shadowColor: 'rgba(0,0,0,0.32)',
+            shadowBlur: 60,
+            shadowOffset: [0, 26],
+        });
+        container.add(card);
 
         for (let i = 0; i < lineCount; i++) {
             const lineText = this.document.getLine(i) ?? '';
@@ -163,7 +189,7 @@ export class CodeGrid {
         const lineData = this.linesData[line];
         const containerPos = this.getContainerPosition();
         const scale = this.getScale();
-        const leftEdge = -this.config.width / 2;
+        const leftEdge = this.getContentLeftEdge();
 
         let xOffset = leftEdge;
         for (let i = 0; i < lineData.tokenTexts.length; i++) {
@@ -303,7 +329,7 @@ export class CodeGrid {
 
         const animations: ThreadGenerator[] = [];
         let anchorX: number | null = null;
-        const leftEdge = -this.config.width / 2;
+        const leftEdge = this.getContentLeftEdge();
         let xOffset = leftEdge;
 
         for (let j = 0; j < lineData.tokens.length; j++) {
