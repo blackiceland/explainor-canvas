@@ -3,7 +3,7 @@ import {all, createRef, easeInOutCubic, Reference, ThreadGenerator} from '@motio
 import {CodeDocument} from '../model/CodeDocument';
 import {tokenizeLine} from '../model/Tokenizer';
 import {getTokenColor, SyntaxTheme, IntelliJDarkTheme} from '../model/SyntaxTheme';
-import {Position} from '../layout/Stage';
+import {Position} from '../../types';
 
 export interface CodeGridConfig {
     x?: number;
