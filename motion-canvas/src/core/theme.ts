@@ -3,12 +3,13 @@ export const Colors = {
         from: '#05070B',
         to: '#0B0E14',
     },
-    surface: '#0B0E14',
+    // Практически сливается с фоном, на грани восприятия (#0B0E14 -> #0C0F15)
+    surface: '#0C0F15', 
     text: {
         primary: '#DBD5CA',
-        muted: '#A2A8B5',
+        muted: '#70778A',
     },
-    accent: '#FF7A1A',
+    accent: '#FF8C3A',
 };
 
 export const Fonts = {

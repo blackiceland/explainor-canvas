@@ -39,17 +39,18 @@ export const WhiteTheme: SyntaxTheme = {
     plain: '#FFFFFF',
 };
 
+// Стильная тема "Expensive Minimal"
 export const ExplainorCodeTheme: SyntaxTheme = {
-    keyword: '#DBD5CA',
-    type: '#DBD5CA',
-    string: '#DBD5CA',
-    number: '#DBD5CA',
-    operator: '#DBD5CA',
-    punctuation: '#DBD5CA',
-    method: '#DBD5CA',
-    comment: '#70778A',
-    annotation: '#DBD5CA',
-    plain: '#DBD5CA',
+    keyword: '#E6B47C', // Приглушенный золотистый (Gold/Sand) - для структуры (class, return)
+    type: '#DBD5CA',    // Основной бежевый (Base Beige) - для типов
+    string: '#A5C9CA',  // Очень светлый серо-бирюзовый (Soft Teal) - свежесть для данных
+    number: '#A5C9CA',  // Тот же teal для чисел
+    operator: '#70778A', // Серый (Muted) - чтобы знаки не шумели
+    punctuation: '#70778A', // Серый (Muted)
+    method: '#F4F1EB',  // Почти белый (Off-white) - для действий, самый яркий акцент
+    comment: '#4A505E', // Темно-серый, едва заметный
+    annotation: '#E6B47C', 
+    plain: '#DBD5CA',   // Основной текст переменных - бежевый
 };
 
 export function getTokenColor(type: TokenType, theme: SyntaxTheme = IntelliJDarkTheme): string {
