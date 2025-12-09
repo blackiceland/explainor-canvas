@@ -40,10 +40,10 @@ export const WhiteTheme: SyntaxTheme = {
 };
 
 export const ExplainorCodeTheme: SyntaxTheme = {
-    keyword: '#FF7A1A',
-    type: '#F4F1EB',
+    keyword: '#F4F1EB',
+    type: '#F4F1EB', 
     string: '#F4F1EB',
-    number: '#FF7A1A',
+    number: '#F4F1EB',
     operator: '#F4F1EB',
     punctuation: '#F4F1EB',
     method: '#F4F1EB',

@@ -5,38 +5,34 @@ import {applyBackground} from '../core/utils';
 import {playQuadCode} from '../core/templates/QuadCodeScene';
 
 const INVOICE_CODE = `class InvoiceService {
-  BigDecimal total(BigDecimal val) {
-    return val.multiply(
-      new BigDecimal("0.20")
-    );
+
+  BigDecimal calculateTotal(BigDecimal amount) {
+    return amount.multiply(new BigDecimal("0.20"));
   }
 }`;
 
 const CHECKOUT_CODE = `class CheckoutService {
-  BigDecimal tax(BigDecimal val) {
-    return val.multiply(
-      new BigDecimal("0.20")
-    );
+
+  BigDecimal calculateTax(BigDecimal price) {
+    return price.multiply(new BigDecimal("0.20"));
   }
 }`;
 
 const FISCAL_CODE = `class FiscalExport {
-  BigDecimal vat(BigDecimal val) {
-    return val.multiply(
-      new BigDecimal("0.20")
-    );
+
+  BigDecimal exportVat(BigDecimal revenue) {
+    return revenue.multiply(new BigDecimal("0.20"));
   }
 }`;
 
 const AUDIT_CODE = `class AuditService {
-  BigDecimal check(BigDecimal val) {
-    return val.multiply(
-      new BigDecimal("0.20")
-    );
+
+  BigDecimal checkCompliance(BigDecimal value) {
+    return value.multiply(new BigDecimal("0.20"));
   }
 }`;
 
-const HIGHLIGHT = ["new", "BigDecimal", "0.20"];
+const HIGHLIGHT_PATTERN = [""];
 
 export default makeScene2D(function* (view) {
     applyBackground(view);
@@ -116,12 +112,26 @@ export default makeScene2D(function* (view) {
 
     yield* knowledgeClone().opacity(0, Timing.slow, easeInOutCubic);
 
-    yield* playQuadCode(view, {
+    const grids = yield* playQuadCode(view, {
         blocks: [
-            {code: INVOICE_CODE, highlightLine: 3, highlightPattern: HIGHLIGHT},
-            {code: CHECKOUT_CODE, highlightLine: 3, highlightPattern: HIGHLIGHT},
-            {code: FISCAL_CODE, highlightLine: 3, highlightPattern: HIGHLIGHT},
-            {code: AUDIT_CODE, highlightLine: 3, highlightPattern: HIGHLIGHT},
+            {code: INVOICE_CODE},
+            {code: CHECKOUT_CODE},
+            {code: FISCAL_CODE},
+            {code: AUDIT_CODE},
         ],
     });
+
+    yield* waitFor(0.5);
+
+    const duration = 0.15;
+    
+    yield* all(...grids.map(g => g.recolor(3, HIGHLIGHT_PATTERN, Colors.accent, duration)));
+    yield* waitFor(0.1);
+    
+    yield* all(...grids.map(g => g.recolor(3, HIGHLIGHT_PATTERN, Colors.text.primary, duration)));
+    yield* waitFor(0.1);
+
+    yield* all(...grids.map(g => g.recolor(3, HIGHLIGHT_PATTERN, Colors.accent, duration)));
+    
+    yield* waitFor(2);
 });

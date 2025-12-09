@@ -17,14 +17,14 @@ export interface QuadCodeOptions {
     theme?: SyntaxTheme;
 }
 
-export function* playQuadCode(view: Node, options: QuadCodeOptions): ThreadGenerator {
+export function* playQuadCode(view: Node, options: QuadCodeOptions): Generator<any, CodeGrid[], any> {
     const {blocks, highlightColor = Colors.accent, theme = ExplainorCodeTheme} = options;
     const codes = blocks.map(b => b.code);
     const layout = GridLayout.quad(codes);
 
     const grids = blocks.map((block, i) => {
         const cell = layout.cells[i];
-        const offsetX = 120;
+        const offsetX = 40;
         const grid = CodeGrid.fromCode(block.code, {
             x: cell.x + offsetX,
             y: cell.y,
@@ -56,4 +56,6 @@ export function* playQuadCode(view: Node, options: QuadCodeOptions): ThreadGener
     }
 
     yield* waitFor(Timing.slow * 2);
+
+    return grids;
 }
