@@ -122,16 +122,9 @@ export default makeScene2D(function* (view) {
 
     yield* waitFor(0.5);
 
-    const fastDuration = 0.08;
-    const duration = 0.15;
+    const duration = Timing.slow;
     
-    yield* all(...grids.map(g => g.recolor(3, HIGHLIGHT_PATTERN, Colors.accent, fastDuration)));
-    yield* waitFor(0.05);
-    
-    yield* all(...grids.map(g => g.recolor(3, HIGHLIGHT_PATTERN, Colors.text.primary, fastDuration)));
-    yield* waitFor(0.08);
-
-    yield* all(...grids.map(g => g.recolor(3, HIGHLIGHT_PATTERN, Colors.accent, duration)));
+    yield* all(...grids.map(g => g.highlightLineBackground(3, Colors.accent, Colors.surface, duration)));
     
     yield* waitFor(2);
 });

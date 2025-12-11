@@ -31,6 +31,7 @@ interface LineData {
     tokens: Reference<Txt>[];
     tokenTexts: string[];
     localY: number;
+    background: Reference<Rect> | null;
 }
 
 const MONOSPACE_CHAR_WIDTH_RATIO = 0.6;
@@ -92,6 +93,7 @@ export class CodeGrid {
         const padding = this.getPadding();
         const cardWidth = this.config.width;
         const cardHeight = lineCount * this.config.lineHeight + padding * 2;
+        const contentWidth = Math.max(cardWidth - padding * 2, 0);
 
         const card = new Rect({
             width: cardWidth,
@@ -116,6 +118,21 @@ export class CodeGrid {
             const lineContainerRef = createRef<Node>();
             lineContainerRef(lineContainer);
 
+            const backgroundRef = createRef<Rect>();
+            const leftInset = this.config.fontSize * 0.6;
+            const rightInset = this.config.fontSize * 1.2;
+            const highlightWidth = Math.max(contentWidth - leftInset - rightInset, 0);
+            const highlightX = (rightInset - leftInset) / 2;
+            const background = new Rect({
+                width: highlightWidth,
+                height: this.config.lineHeight * 1.15,
+                x: highlightX,
+                y: 0,
+                fill: Colors.surface,
+            });
+            backgroundRef(background);
+            lineContainer.add(background);
+
             const tokenRefs: Reference<Txt>[] = [];
             const tokenTexts: string[] = [];
             let xOffset = leftEdge;
@@ -139,7 +156,13 @@ export class CodeGrid {
                 xOffset += this.measureText(token.text);
             }
 
-            this.linesData.push({container: lineContainerRef, tokens: tokenRefs, tokenTexts, localY});
+            this.linesData.push({
+                container: lineContainerRef,
+                tokens: tokenRefs,
+                tokenTexts,
+                localY,
+                background: backgroundRef,
+            });
             container.add(lineContainer);
         }
 
@@ -388,6 +411,23 @@ export class CodeGrid {
                  animations.push(tokenRef().fill(color, duration, easeInOutCubic));
             }
         }
+        if (animations.length > 0) {
+            yield* all(...animations);
+        }
+    }
+
+    public *highlightLineBackground(line: number, backgroundColor: string, textColor: string, duration: number = 0.4): ThreadGenerator {
+        const lineData = this.linesData[line];
+        if (!lineData || !lineData.background) return;
+
+        const animations: ThreadGenerator[] = [];
+        animations.push(lineData.background().fill(backgroundColor, duration, easeInOutCubic));
+
+        for (let j = 0; j < lineData.tokens.length; j++) {
+            const tokenRef = lineData.tokens[j];
+            animations.push(tokenRef().fill(textColor, duration, easeInOutCubic));
+        }
+
         if (animations.length > 0) {
             yield* all(...animations);
         }
