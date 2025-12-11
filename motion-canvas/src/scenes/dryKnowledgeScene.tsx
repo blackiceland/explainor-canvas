@@ -59,7 +59,7 @@ export default makeScene2D(function* (view) {
                 textAlign="center"
                 y={0}
             >
-                a single, unambiguous,
+                a single, unambiguous, authoritative
             </Txt>
             <Txt
                 fontFamily={Fonts.primary}
@@ -68,12 +68,14 @@ export default makeScene2D(function* (view) {
                 textAlign="center"
                 y={50}
             >
-                authoritative representation within a system
+                representation within a system
             </Txt>
             <Txt
                 fontFamily={Fonts.primary}
-                fontSize={24}
+                fontSize={20}
                 fill={Colors.text.muted}
+                opacity={0.8}
+                fontStyle="italic"
                 textAlign="center"
                 y={130}
             >
