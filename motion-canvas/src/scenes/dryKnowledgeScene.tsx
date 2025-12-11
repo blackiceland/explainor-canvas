@@ -96,10 +96,7 @@ export default makeScene2D(function* (view) {
         />
     );
 
-    yield* all(
-        quoteContainer().opacity(1, Timing.slow, easeInOutCubic),
-        quoteContainer().y(0, Timing.slow, easeInOutCubic),
-    );
+    yield* quoteContainer().opacity(1, Timing.slow, easeInOutCubic);
 
     yield* waitFor(2);
 

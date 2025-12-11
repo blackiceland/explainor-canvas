@@ -24,5 +24,5 @@ export const Screen = {
 export const Timing = {
     fast: 0.3,
     normal: 0.6,
-    slow: 1.0,
+    slow: 1.1,
 };
