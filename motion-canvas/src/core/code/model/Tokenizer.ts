@@ -34,6 +34,7 @@ const JAVA_TYPES = new Set([
     'Exception', 'RuntimeException', 'Error',
     'LocalDate', 'LocalDateTime', 'Instant',
     'User', 'Plan', 'Subscription', 'IllegalStateException',
+    'BigDecimal', 'BigInteger', 'Decimal',
 ]);
 
 const PATTERNS = {
