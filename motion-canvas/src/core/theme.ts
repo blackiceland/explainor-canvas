@@ -3,8 +3,7 @@ export const Colors = {
         from: '#05070B',
         to: '#0B0E14',
     },
-    // Практически сливается с фоном, на грани восприятия (#0B0E14 -> #0C0F15)
-    surface: '#0C0F15', 
+    surface: '#0B0F17',
     text: {
         primary: '#DBD5CA',
         muted: '#70778A',

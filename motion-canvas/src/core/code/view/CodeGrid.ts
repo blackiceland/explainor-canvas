@@ -101,9 +101,9 @@ export class CodeGrid {
             // "Бархатный" кант: едва заметная белая обводка
             stroke: 'rgba(255, 255, 255, 0.03)', 
             lineWidth: 2,
-            shadowColor: 'rgba(0,0,0,0.25)',
-            shadowBlur: 70,
-            shadowOffset: [0, 20],
+            shadowColor: 'rgba(0,0,0,0.28)',
+            shadowBlur: 74,
+            shadowOffset: [0, 22],
         });
         container.add(card);
 
