@@ -48,9 +48,16 @@ const PATTERNS = {
     whitespace: /^\s+/,
 };
 
-function classifyWord(word: string, nextChar: string): TokenType {
+function classifyWord(word: string, nextChar: string, previousMeaningful: Token | null): TokenType {
     if (JAVA_KEYWORDS.has(word)) return 'keyword';
     if (JAVA_TYPES.has(word)) return 'type';
+    if (
+        previousMeaningful &&
+        previousMeaningful.type === 'keyword' &&
+        (previousMeaningful.text === 'class' || previousMeaningful.text === 'interface' || previousMeaningful.text === 'enum')
+    ) {
+        return 'type';
+    }
     if (nextChar === '(') return 'method';
     return 'plain';
 }
@@ -58,6 +65,7 @@ function classifyWord(word: string, nextChar: string): TokenType {
 export function tokenizeLine(line: string): Token[] {
     const tokens: Token[] = [];
     let remaining = line;
+    let previousMeaningful: Token | null = null;
 
     while (remaining.length > 0) {
         const commentMatch = remaining.match(PATTERNS.comment);
@@ -82,7 +90,11 @@ export function tokenizeLine(line: string): Token[] {
 
         const numberMatch = remaining.match(PATTERNS.number);
         if (numberMatch) {
-            tokens.push({text: numberMatch[0], type: 'number'});
+            const token = {text: numberMatch[0], type: 'number' as TokenType};
+            tokens.push(token);
+            if (token.text.trim().length > 0) {
+                previousMeaningful = token;
+            }
             remaining = remaining.slice(numberMatch[0].length);
             continue;
         }
@@ -91,33 +103,50 @@ export function tokenizeLine(line: string): Token[] {
         if (wordMatch) {
             const word = wordMatch[0];
             const nextChar = remaining[word.length] ?? '';
-            tokens.push({text: word, type: classifyWord(word, nextChar)});
+            const token = {text: word, type: classifyWord(word, nextChar, previousMeaningful)};
+            tokens.push(token);
+            if (token.text.trim().length > 0) {
+                previousMeaningful = token;
+            }
             remaining = remaining.slice(word.length);
             continue;
         }
 
         const operatorMatch = remaining.match(PATTERNS.operator);
         if (operatorMatch) {
-            tokens.push({text: operatorMatch[0], type: 'operator'});
+            const token = {text: operatorMatch[0], type: 'operator' as TokenType};
+            tokens.push(token);
+            if (token.text.trim().length > 0) {
+                previousMeaningful = token;
+            }
             remaining = remaining.slice(operatorMatch[0].length);
             continue;
         }
 
         const punctMatch = remaining.match(PATTERNS.punctuation);
         if (punctMatch) {
-            tokens.push({text: punctMatch[0], type: 'punctuation'});
+            const token = {text: punctMatch[0], type: 'punctuation' as TokenType};
+            tokens.push(token);
+            if (token.text.trim().length > 0) {
+                previousMeaningful = token;
+            }
             remaining = remaining.slice(punctMatch[0].length);
             continue;
         }
 
         const whitespaceMatch = remaining.match(PATTERNS.whitespace);
         if (whitespaceMatch) {
-            tokens.push({text: whitespaceMatch[0], type: 'plain'});
+            const token = {text: whitespaceMatch[0], type: 'plain' as TokenType};
+            tokens.push(token);
             remaining = remaining.slice(whitespaceMatch[0].length);
             continue;
         }
 
-        tokens.push({text: remaining[0], type: 'plain'});
+        const token = {text: remaining[0], type: 'plain' as TokenType};
+        tokens.push(token);
+        if (token.text.trim().length > 0) {
+            previousMeaningful = token;
+        }
         remaining = remaining.slice(1);
     }
 
