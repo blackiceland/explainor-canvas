@@ -1,4 +1,5 @@
-import {Screen, Fonts} from '../theme';
+import {Screen} from '../theme';
+import {measureCode, getLineHeight} from '../code/shared/TextMeasure';
 
 export interface Cell {
     x: number;
@@ -28,15 +29,6 @@ const DEFAULTS: Required<LayoutOptions> = {
     minFontSize: 18,
     maxFontSize: 26,
 };
-
-function measureCode(code: string, fontSize: number): { width: number; height: number } {
-    const lines = code.split('\n');
-    const maxLen = Math.max(...lines.map(l => l.length));
-    return {
-        width: maxLen * fontSize * 0.6,
-        height: lines.length * fontSize * 1.5,
-    };
-}
 
 function createGrid(rows: number, cols: number, opts: Required<LayoutOptions>): Cell[] {
     const totalGapX = (cols + 1) * opts.gap;
@@ -93,7 +85,7 @@ function fitCodes(codes: string[], rows: number, cols: number, opts: Required<La
     return {
         cells,
         fontSize,
-        lineHeight: fontSize * 1.5,
+        lineHeight: getLineHeight(fontSize),
     };
 }
 

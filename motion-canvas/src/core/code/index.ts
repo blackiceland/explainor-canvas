@@ -1,20 +1,9 @@
 export {CodeDocument} from './model';
-export {CodeGrid} from './view';
-export type {CodeGridConfig, CodeAnchor, TokenAnchor} from './view';
+export {CodeBlock, CodeCard, CodeLine} from './components';
+export type {CodeBlockConfig, CodeBlockPosition} from './components/CodeBlock';
+export type {CodeCardConfig, CodeCardStyle} from './components/CodeCard';
+export type {CodeLineConfig} from './components/CodeLine';
 export {Stage} from './layout';
 export type {SlotName, Position, StageConfig} from './layout';
-
-export {
-    extractLines,
-    mergeToCenter,
-    wrapWithSignature,
-    stripToCall,
-    injectFromCall,
-    collapseSourceGaps,
-    finalizeCode,
-    dryRefactor,
-} from './motion/CodeMotion';
-export type {ExtractedBlock, ExtractSpec} from './motion/CodeMotion';
-
-export {runDryScene} from './dsl';
-export type {ScenePattern, DryPattern, DrySceneConfig} from './dsl';
+export * from './shared';
+export * from './animation';

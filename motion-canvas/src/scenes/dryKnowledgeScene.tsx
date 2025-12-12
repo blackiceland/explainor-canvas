@@ -3,6 +3,7 @@ import {all, createRef, easeInOutCubic, waitFor} from '@motion-canvas/core';
 import {Colors, Fonts, Timing} from '../core/theme';
 import {applyBackground} from '../core/utils';
 import {playQuadCode} from '../core/templates/QuadCodeScene';
+import {buildLineGhosts, mountGhosts, flyGhostsTo, fadeInGhosts, fadeOutGhosts} from '../core/code/animation/GhostBuilder';
 
 const INVOICE_CODE = `class InvoiceService {
 
@@ -31,8 +32,6 @@ const AUDIT_CODE = `class AuditService {
     return value.multiply(new BigDecimal("0.20"));
   }
 }`;
-
-const HIGHLIGHT_PATTERN = [""];
 
 export default makeScene2D(function* (view) {
     applyBackground(view);
@@ -111,27 +110,52 @@ export default makeScene2D(function* (view) {
 
     yield* knowledgeClone().opacity(0, Timing.slow, easeInOutCubic);
 
-    const grids = yield* playQuadCode(view, {
+    const codeBlocks = yield* playQuadCode(view, {
         blocks: [
             {code: INVOICE_CODE},
             {code: CHECKOUT_CODE},
             {code: FISCAL_CODE},
             {code: AUDIT_CODE},
         ],
+        visibleIndices: [0, 1, 2],
     });
+
+    const targetBlock = codeBlocks[3];
+    targetBlock.hideAllTokens();
 
     yield* waitFor(0.5);
 
     const duration = Timing.slow;
+    const sourceBlocks = [codeBlocks[0], codeBlocks[1], codeBlocks[2]];
+    const highlightLineIndex = 3;
 
     yield* all(
-        ...grids.map(g =>
+        ...sourceBlocks.map(b =>
             all(
-                g.highlightRanges([[3, 3]], duration),
-                g.recolorLine(3, Colors.accent, duration),
+                b.highlightLines([[highlightLineIndex, highlightLineIndex]], duration),
+                b.recolorLine(highlightLineIndex, Colors.accent, duration),
             ),
         ),
     );
-    
+
+    yield* waitFor(0.6);
+
+    yield* targetBlock.appear(Timing.slow);
+
+    const ghosts = buildLineGhosts(sourceBlocks, highlightLineIndex);
+    mountGhosts(view, ghosts, 1);
+
+    yield* all(
+        ...sourceBlocks.map(b => b.hideLines([[highlightLineIndex, highlightLineIndex]], 0)),
+    );
+
+    const targetPos = targetBlock.getLineWorldPosition(3);
+    if (targetPos) {
+        yield* all(
+            flyGhostsTo(ghosts, targetPos, 0.8),
+            fadeOutGhosts(ghosts.slice(1), 0.6),
+        );
+    }
+
     yield* waitFor(2);
 });
