@@ -119,16 +119,16 @@ export class CodeGrid {
             lineContainerRef(lineContainer);
 
             const backgroundRef = createRef<Rect>();
-            const leftInset = this.config.fontSize * 0.6;
-            const rightInset = this.config.fontSize * 1.2;
-            const highlightWidth = Math.max(contentWidth - leftInset - rightInset, 0);
-            const highlightX = (rightInset - leftInset) / 2;
+            const highlightWidth = contentWidth;
+            const highlightX = 0;
             const background = new Rect({
                 width: highlightWidth,
                 height: this.config.lineHeight * 1.15,
                 x: highlightX,
                 y: 0,
+                radius: this.config.fontSize * 0.5,
                 fill: Colors.surface,
+                opacity: 0,
             });
             backgroundRef(background);
             lineContainer.add(background);
@@ -416,11 +416,26 @@ export class CodeGrid {
         }
     }
 
+    public *recolorLine(line: number, color: string, duration: number = 0.4): ThreadGenerator {
+        const lineData = this.linesData[line];
+        if (!lineData) return;
+
+        const animations: ThreadGenerator[] = [];
+        for (let j = 0; j < lineData.tokens.length; j++) {
+            const tokenRef = lineData.tokens[j];
+            animations.push(tokenRef().fill(color, duration, easeInOutCubic));
+        }
+        if (animations.length > 0) {
+            yield* all(...animations);
+        }
+    }
+
     public *highlightLineBackground(line: number, backgroundColor: string, textColor: string, duration: number = 0.4): ThreadGenerator {
         const lineData = this.linesData[line];
         if (!lineData || !lineData.background) return;
 
         const animations: ThreadGenerator[] = [];
+        animations.push(lineData.background().opacity(1, duration, easeInOutCubic));
         animations.push(lineData.background().fill(backgroundColor, duration, easeInOutCubic));
 
         for (let j = 0; j < lineData.tokens.length; j++) {

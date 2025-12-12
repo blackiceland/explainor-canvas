@@ -23,7 +23,7 @@ interface LayoutOptions {
 
 const DEFAULTS: Required<LayoutOptions> = {
     margin: 100,
-    gap: 60,
+    gap: 90,
     fill: 0.88,
     minFontSize: 18,
     maxFontSize: 26,
@@ -39,16 +39,24 @@ function measureCode(code: string, fontSize: number): { width: number; height: n
 }
 
 function createGrid(rows: number, cols: number, opts: Required<LayoutOptions>): Cell[] {
-    const usableW = Screen.width * opts.fill;
-    const usableH = Screen.height * opts.fill;
+    const totalGapX = (cols + 1) * opts.gap;
+    const cellW = (Screen.width - totalGapX) / cols;
 
-    const cellW = (usableW - (cols - 1) * opts.gap) / cols;
-    const cellH = (usableH - (rows - 1) * opts.gap) / rows;
+    let cellH: number;
+    let gridH: number;
 
-    const gridW = cols * cellW + (cols - 1) * opts.gap;
-    const gridH = rows * cellH + (rows - 1) * opts.gap;
+    if (rows === 2) {
+        const gapY = opts.gap;
+        const availableH = Screen.height - gapY * 3;
+        cellH = availableH / 2;
+        gridH = 2 * cellH + gapY;
+    } else {
+        const usableH = Screen.height * opts.fill;
+        cellH = (usableH - (rows - 1) * opts.gap) / rows;
+        gridH = rows * cellH + (rows - 1) * opts.gap;
+    }
 
-    const startX = -gridW / 2 + cellW / 2;
+    const startX = -Screen.width / 2 + opts.gap + cellW / 2;
     const startY = -gridH / 2 + cellH / 2;
 
     const cells: Cell[] = [];

@@ -123,8 +123,15 @@ export default makeScene2D(function* (view) {
     yield* waitFor(0.5);
 
     const duration = Timing.slow;
-    
-    yield* all(...grids.map(g => g.highlightLineBackground(3, Colors.accent, Colors.surface, duration)));
+
+    yield* all(
+        ...grids.map(g =>
+            all(
+                g.highlightRanges([[3, 3]], duration),
+                g.recolorLine(3, Colors.accent, duration),
+            ),
+        ),
+    );
     
     yield* waitFor(2);
 });
