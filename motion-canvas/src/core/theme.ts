@@ -8,7 +8,7 @@ export const Colors = {
         primary: '#DBD5CA',
         muted: '#70778A',
     },
-    accent: '#FF7B6A',
+    accent: '#FF8CA3',
 };
 
 export const Fonts = {
