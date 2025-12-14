@@ -3,7 +3,6 @@ import {all, createRef, easeInOutCubic, waitFor} from '@motion-canvas/core';
 import {Colors, Fonts, Timing} from '../core/theme';
 import {applyBackground} from '../core/utils';
 import {playQuadCode} from '../core/templates/QuadCodeScene';
-import {buildLineGhosts, mountGhosts, flyGhostsTo, fadeInGhosts, fadeOutGhosts} from '../core/code/animation/GhostBuilder';
 
 const INVOICE_CODE = `class InvoiceService {
 
@@ -26,10 +25,13 @@ const FISCAL_CODE = `class FiscalExport {
   }
 }`;
 
-const AUDIT_CODE = `class AuditService {
+const COMMON_CODE = `class TaxCalculator {
 
-  BigDecimal checkCompliance(BigDecimal value) {
-    return value.multiply(new BigDecimal("0.20"));
+  private static final BigDecimal VAT = 
+      new BigDecimal("0.20");
+
+  public BigDecimal calculate(BigDecimal v) {
+    return v.multiply(VAT);
   }
 }`;
 
@@ -115,47 +117,33 @@ export default makeScene2D(function* (view) {
             {code: INVOICE_CODE},
             {code: CHECKOUT_CODE},
             {code: FISCAL_CODE},
-            {code: AUDIT_CODE},
+            {code: COMMON_CODE},
         ],
         visibleIndices: [0, 1, 2],
     });
 
-    const targetBlock = codeBlocks[3];
-    targetBlock.hideAllTokens();
+    const sourceBlocks = [codeBlocks[0], codeBlocks[1], codeBlocks[2]];
+    const commonBlock = codeBlocks[3];
 
     yield* waitFor(0.5);
 
-    const duration = Timing.slow;
-    const sourceBlocks = [codeBlocks[0], codeBlocks[1], codeBlocks[2]];
     const highlightLineIndex = 3;
 
     yield* all(
         ...sourceBlocks.map(b =>
             all(
-                b.highlightLines([[highlightLineIndex, highlightLineIndex]], duration),
-                b.recolorLine(highlightLineIndex, Colors.accent, duration),
+                b.highlightLines([[highlightLineIndex, highlightLineIndex]], Timing.slow),
+                b.recolorLine(highlightLineIndex, Colors.accent, Timing.slow),
             ),
         ),
     );
 
-    yield* waitFor(0.6);
-
-    yield* targetBlock.appear(Timing.slow);
-
-    const ghosts = buildLineGhosts(sourceBlocks, highlightLineIndex);
-    mountGhosts(view, ghosts, 1);
+    yield* waitFor(1);
 
     yield* all(
-        ...sourceBlocks.map(b => b.hideLines([[highlightLineIndex, highlightLineIndex]], 0)),
+        ...sourceBlocks.map(b => b.node.opacity(0.3, Timing.slow, easeInOutCubic)),
+        commonBlock.appear(Timing.slow),
     );
-
-    const targetPos = targetBlock.getLineWorldPosition(3);
-    if (targetPos) {
-        yield* all(
-            flyGhostsTo(ghosts, targetPos, 0.8),
-            fadeOutGhosts(ghosts.slice(1), 0.6),
-        );
-    }
 
     yield* waitFor(2);
 });
