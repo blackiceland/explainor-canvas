@@ -3,7 +3,7 @@ import {all, createRef, easeInOutCubic, Reference, ThreadGenerator} from '@motio
 import {CodeDocument} from '../model/CodeDocument';
 import {tokenizeLine} from '../model/Tokenizer';
 import {SyntaxTheme, IntelliJDarkTheme} from '../model/SyntaxTheme';
-import {CodeCard} from './CodeCard';
+import {CodeCard, CodeCardStyle} from './CodeCard';
 import {CodeLine} from './CodeLine';
 import {getLineHeight} from '../shared/TextMeasure';
 import {getWorldPosition, Point} from '../shared/Coordinates';
@@ -17,6 +17,8 @@ export interface CodeBlockConfig {
     lineHeight?: number;
     fontFamily?: string;
     theme?: SyntaxTheme;
+    cardStyle?: CodeCardStyle;
+    customTypes?: string[];  // Классы/типы для подсветки как type
 }
 
 export interface CodeBlockPosition {
@@ -48,6 +50,8 @@ export class CodeBlock {
             lineHeight: config.lineHeight ?? getLineHeight(fontSize),
             fontFamily: config.fontFamily ?? Fonts.code,
             theme: config.theme ?? IntelliJDarkTheme,
+            cardStyle: config.cardStyle ?? {},
+            customTypes: config.customTypes ?? [],
         };
     }
 
@@ -85,7 +89,7 @@ export class CodeBlock {
         const cardHeight = lineCount * this.config.lineHeight + padding * 2;
         const contentWidth = Math.max(cardWidth - padding * 2, 0);
 
-        this.card = new CodeCard({width: cardWidth, height: cardHeight});
+        this.card = new CodeCard({width: cardWidth, height: cardHeight, style: this.config.cardStyle});
         container.add(this.card.build());
 
         const centerOffset = (lineCount - 1) / 2;
@@ -93,7 +97,7 @@ export class CodeBlock {
 
         for (let i = 0; i < lineCount; i++) {
             const lineText = this.document.getLine(i) ?? '';
-            const tokens = tokenizeLine(lineText);
+            const tokens = tokenizeLine(lineText, this.config.customTypes);
             const localY = (i - centerOffset) * this.config.lineHeight;
 
             const codeLine = new CodeLine({

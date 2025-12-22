@@ -1,6 +1,7 @@
 export interface Token {
     text: string;
     type: TokenType;
+    color?: string;  // Если задан, используется напрямую (для Shiki)
 }
 
 export type TokenType =
@@ -48,9 +49,14 @@ const PATTERNS = {
     whitespace: /^\s+/,
 };
 
-function classifyWord(word: string, nextChar: string, previousMeaningful: Token | null): TokenType {
+function classifyWord(
+    word: string, 
+    nextChar: string, 
+    previousMeaningful: Token | null,
+    customTypes: Set<string> = new Set()
+): TokenType {
     if (JAVA_KEYWORDS.has(word)) return 'keyword';
-    if (JAVA_TYPES.has(word)) return 'type';
+    if (JAVA_TYPES.has(word) || customTypes.has(word)) return 'type';
     if (
         previousMeaningful &&
         previousMeaningful.type === 'keyword' &&
@@ -62,10 +68,11 @@ function classifyWord(word: string, nextChar: string, previousMeaningful: Token 
     return 'plain';
 }
 
-export function tokenizeLine(line: string): Token[] {
+export function tokenizeLine(line: string, customTypes: string[] = []): Token[] {
     const tokens: Token[] = [];
     let remaining = line;
     let previousMeaningful: Token | null = null;
+    const customTypesSet = new Set(customTypes);
 
     while (remaining.length > 0) {
         const commentMatch = remaining.match(PATTERNS.comment);
@@ -103,7 +110,7 @@ export function tokenizeLine(line: string): Token[] {
         if (wordMatch) {
             const word = wordMatch[0];
             const nextChar = remaining[word.length] ?? '';
-            const token = {text: word, type: classifyWord(word, nextChar, previousMeaningful)};
+            const token = {text: word, type: classifyWord(word, nextChar, previousMeaningful, customTypesSet)};
             tokens.push(token);
             if (token.text.trim().length > 0) {
                 previousMeaningful = token;

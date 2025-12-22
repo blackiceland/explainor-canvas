@@ -1,0 +1,78 @@
+## Размещение кода в сценах
+
+### Позиция (где на экране)
+
+    TL   TC   TR
+    ML   C    MR
+    BL   BC   BR
+
+TL = top-left       TC = top-center     TR = top-right
+ML = middle-left    C  = center         MR = middle-right
+BL = bottom-left    BC = bottom-center  BR = bottom-right
+
+Алиасы:
+  L = ML (слева)
+  R = MR (справа)
+  T = TC (сверху)
+  B = BC (снизу)
+
+
+### Размер (ширина блока)
+
+  S  — маленький (~400px)
+  M  — средний   (~600px)
+  L  — большой   (~900px)
+  F  — full      (почти весь экран)
+
+
+### Карточка (фон под кодом)
+
+  card   — с карточкой (фон + тень)
+  nocard — без карточки (только код)
+
+
+### Примеры запросов
+
+  "PaymentRepository, TL, M, nocard"
+  "Два блока: OrderRepo L, PaymentRepo R, оба card"
+  "Код по центру, F, nocard"
+  "Три блока сверху: TL, TC, TR, размер S, card"
+
+
+## Подсветка кода
+
+### Автоматически определяются
+  - keyword: final, class, private, return, new, this, if, else...
+  - type: String, List, Map, Optional (стандартные Java-типы)
+  - method: слово перед ( — find(), toString()
+  - string: "текст в кавычках"
+  - number: 123, 45.67
+  - annotation: @Override, @Nullable
+  - comment: // комментарий
+
+### customTypes — ОБЯЗАТЕЛЬНО указывать!
+
+Кастомные классы НЕ определяются автоматически.
+При создании CodeBlock указывай ВСЕ нестандартные классы:
+
+```typescript
+CodeBlock.fromCode(code, {
+  customTypes: [
+    'PaymentRepository',   // класс
+    'DSLContext',          // класс  
+    'PaymentSearchFilter', // класс
+    'Condition',           // класс
+  ],
+});
+```
+
+Эти слова будут окрашены как type (бежевый).
+Без этого они будут plain (белый) — некрасиво.
+
+### Как найти customTypes в коде
+
+Ищи слова с большой буквы, которые НЕ являются:
+  - стандартными (String, List, Map...)
+  - методами (слово перед скобкой)
+  - ключевыми словами
+

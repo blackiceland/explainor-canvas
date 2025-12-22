@@ -16,3 +16,137 @@
    - Было: ставка налога (например, 0.20) захардкожена в нескольких местах (UI/инвойс/отчёты).
    - Правильно: один авторитетный источник (TaxCalculator / конфиг / справочник) и единый метод расчёта.
    - Вывод: дублировать текст можно; дублировать знание — нельзя.
+
+
+
+
+
+
+
+
+   Ок, делаем всё на **jOOQ** (это библиотека/DSL для типобезопасного SQL).
+
+   ### Данные (2 таблицы, реалистично)
+
+   ```sql
+   -- orders
+   insert into orders(id, created_at, status, customer_email, total_cents, deleted) values
+   (101, '2025-12-01 10:15:00', 'NEW',       'anna.petrov@example.com',  19900, false),
+   (102, '2025-12-10 09:00:00', 'CANCELLED', 'boris.ivanov@example.com', 50000, true),
+   (103, '2025-12-20 18:40:00', 'PAID',      'anna.petrov@example.com', 120000, false);
+
+   -- payments
+   insert into payments(id, executed_at, state, payer_email, amount_cents, currency) values
+   (9001, '2025-12-02 11:00:00', 'CAPTURED', 'anna.petrov@example.com',  19900, 'USD'),
+   (9002, '2025-12-11 12:30:00', 'FAILED',   'boris.ivanov@example.com', 50000, 'USD'),
+   (9003, '2025-12-21 08:05:00', 'CAPTURED', 'anna.petrov@example.com', 120000, 'EUR');
+   ```
+
+   ### Фильтры (2 штуки)
+
+   ```java
+   import java.time.Instant;
+
+   record OrderSearchFilter(
+       Instant createdSince,
+       String status,
+       String customerEmail,
+       Long minTotalCents,
+       boolean includeDeleted
+   ) {}
+
+   record PaymentSearchFilter(
+       Instant executedSince,
+       String state,
+       String payerEmail,
+       Long minAmountCents,
+       String currency
+   ) {}
+   ```
+
+   ### Два хелпера, которые строят `Condition` (почти дубль)
+
+   ```java
+   import org.jooq.Condition;
+   import org.jooq.impl.DSL;
+
+   import static com.example.jooq.tables.Orders.ORDERS;
+   import static com.example.jooq.tables.Payments.PAYMENTS;
+
+   final class OrderConditions {
+     static Condition fromFilter(OrderSearchFilter filter) {
+       Condition conditions = DSL.trueCondition();
+
+       if (!filter.includeDeleted()) {
+         conditions = conditions.and(ORDERS.DELETED.isFalse());
+       }
+       if (filter.createdSince() != null) {
+         conditions = conditions.and(ORDERS.CREATED_AT.ge(filter.createdSince()));
+       }
+       if (filter.status() != null) {
+         conditions = conditions.and(ORDERS.STATUS.eq(filter.status()));
+       }
+       if (filter.customerEmail() != null) {
+         conditions = conditions.and(ORDERS.CUSTOMER_EMAIL.eq(filter.customerEmail()));
+       }
+       if (filter.minTotalCents() != null) {
+         conditions = conditions.and(ORDERS.TOTAL_CENTS.ge(filter.minTotalCents()));
+       }
+
+       return conditions;
+     }
+   }
+
+   final class PaymentConditions {
+     static Condition fromFilter(PaymentSearchFilter filter) {
+       Condition conditions = DSL.trueCondition();
+
+       if (filter.executedSince() != null) {
+         conditions = conditions.and(PAYMENTS.EXECUTED_AT.ge(filter.executedSince()));
+       }
+       if (filter.state() != null) {
+         conditions = conditions.and(PAYMENTS.STATE.eq(filter.state()));
+       }
+       if (filter.payerEmail() != null) {
+         conditions = conditions.and(PAYMENTS.PAYER_EMAIL.eq(filter.payerEmail()));
+       }
+       if (filter.minAmountCents() != null) {
+         conditions = conditions.and(PAYMENTS.AMOUNT_CENTS.ge(filter.minAmountCents()));
+       }
+       if (filter.currency() != null) {
+         conditions = conditions.and(PAYMENTS.CURRENCY.eq(filter.currency()));
+       }
+
+       return conditions;
+     }
+   }
+   ```
+
+   ### Два репозитория, где вызывается `find(...)`
+
+   ```java
+   import org.jooq.DSLContext;
+   import java.util.List;
+
+   final class OrderRepository {
+     private final DSLContext dsl;
+
+     OrderRepository(DSLContext dsl) { this.dsl = dsl; }
+
+     List<OrderRecord> find(OrderSearchFilter filter) {
+       Condition where = OrderConditions.fromFilter(filter);
+       return dsl.selectFrom(ORDERS).where(where).fetch();
+     }
+   }
+
+   final class PaymentRepository {
+     private final DSLContext dsl;
+
+     PaymentRepository(DSLContext dsl) { this.dsl = dsl; }
+
+     List<PaymentRecord> find(PaymentSearchFilter filter) {
+       Condition where = PaymentConditions.fromFilter(filter);
+       return dsl.selectFrom(PAYMENTS).where(where).fetch();
+     }
+   }
+   ```

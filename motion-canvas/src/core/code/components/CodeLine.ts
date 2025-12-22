@@ -51,11 +51,13 @@ export class CodeLine {
         let xOffset = this.config.leftEdge;
         for (const token of this.config.tokens) {
             const ref = createRef<Txt>();
+            // Если токен имеет color (Shiki), используем его напрямую
+            const tokenColor = token.color ?? getTokenColor(token.type, this.config.theme);
             const txt = new Txt({
                 text: token.text,
                 fontFamily: this.config.fontFamily,
                 fontSize: this.config.fontSize,
-                fill: getTokenColor(token.type, this.config.theme),
+                fill: tokenColor,
                 x: xOffset,
                 offset: [-1, 0],
             });

@@ -7,6 +7,7 @@ export interface CodeCardStyle {
     fill?: string;
     stroke?: string;
     strokeWidth?: number;
+    opacity?: number;
     shadowColor?: string;
     shadowBlur?: number;
     shadowOffsetY?: number;
@@ -23,6 +24,7 @@ const DEFAULT_STYLE: Required<CodeCardStyle> = {
     fill: Colors.surface,
     stroke: 'rgba(255, 255, 255, 0.03)',
     strokeWidth: 2,
+    opacity: 1,
     shadowColor: 'rgba(0, 0, 0, 0.28)',
     shadowBlur: 74,
     shadowOffsetY: 22,
@@ -46,6 +48,7 @@ export class CodeCard {
             fill: this.style.fill,
             stroke: this.style.stroke,
             lineWidth: this.style.strokeWidth,
+            opacity: this.style.opacity,
             shadowColor: this.style.shadowColor,
             shadowBlur: this.style.shadowBlur,
             shadowOffset: [0, this.style.shadowOffsetY],
