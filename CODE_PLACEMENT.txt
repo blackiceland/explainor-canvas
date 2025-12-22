@@ -1,269 +1,211 @@
-## Размещение кода в сценах
+# Система размещения кода в сценах
 
-### Позиция (где на экране)
+## Контракты (гарантии системы)
 
-    TL   TC   TR
-    ML   C    MR
-    BL   BC   BR
+### 1. placeCode(code, position, fontSize)
+- Возвращает `{ x, y, width, fontSize }`
+- **width** вычисляется автоматически по длине кода + padding
+- **position** = anchor (TL = верхний левый угол блока у верхнего левого угла safe zone)
+- **fontSize** — что передал, то и получил (система НЕ меняет)
 
-TL = top-left       TC = top-center     TR = top-right
-ML = middle-left    C  = center         MR = middle-right
-BL = bottom-left    BC = bottom-center  BR = bottom-right
+### 2. placeCodeStack(codes[], align, fontSize)
+- Возвращает массив `{ x, y, width, height, fontSize }[]`
+- **Все карточки одинакового размера** (по самой большой)
+- **Зазор между карточками**: 60px (STACK_GAP)
+- **fontSize** — что передал, то и получил (система НЕ меняет)
+- Если не помещается — твоя ответственность (уменьши fontSize или код)
 
-Алиасы:
-  L = ML (слева)
-  R = MR (справа)
-  T = TC (сверху)
-  B = BC (снизу)
+### 3. Padding (отступ от кода до края карточки)
+- Формула: `fontSize * 1.5 + 8`, ограничено 24–48px
+- При fontSize 16 → ~32px
 
-
-### Размер (ширина блока)
-
-  S  — маленький (~400px)
-  M  — средний   (~600px)
-  L  — большой   (~900px)
-  F  — full      (почти весь экран)
-
-
-### Карточка (фон под кодом)
-
-  card   — с карточкой (фон + тень)
-  nocard — без карточки (только код)
-
-
-### Примеры запросов
-
-  "PaymentRepository, TL, M, nocard"
-  "Два блока: OrderRepo L, PaymentRepo R, оба card"
-  "Код по центру, F, nocard"
-  "Три блока сверху: TL, TC, TR, размер S, card"
-
-
-## Инструкция для AI (краткий контекст)
-
-Проект: Motion Canvas — создание explainer-видео с анимированным кодом.
-
-### Ключевые файлы:
-- `motion-canvas/src/scenes/` — сцены видео (*.tsx)
-- `motion-canvas/src/core/code/model/SyntaxTheme.ts` — цветовая тема кода (ExplainorCodeTheme)
-- `motion-canvas/src/core/code/model/Tokenizer.ts` — токенизатор (customTypes для кастомных классов)
-- `motion-canvas/src/core/code/components/CodeBlock.ts` — компонент отображения кода
-- `motion-canvas/src/core/ScreenGrid.ts` — Position (TL, TC...) и Size (S, M, L, F)
-
-### Создание сцены с кодом:
-```typescript
-const layout = placeCode(CODE_STRING, 'TL', 16);
-
-const block = CodeBlock.fromCode(CODE_STRING, {
-  x: layout.x,
-  y: layout.y,
-  width: layout.width,
-  fontSize: 16,
-  theme: ExplainorCodeTheme,
-  customTypes: ['MyClass', 'OtherClass'],
-});
-block.mount(view);
-yield* block.appear(Timing.slow);
-```
-
-**API placeCode:**
-```typescript
-placeCode(code, position, fontSize?)
-// position: 'TL' | 'TC' | 'TR' | 'ML' | 'C' | 'MR' | 'BL' | 'BC' | 'BR'
-// fontSize: default 20
-// → { x, y, width, fontSize }
-```
-
-**Равные отступы и одинаковые карточки в группе:**
-
-Когда в сцене несколько похожих карточек (например, два репозитория), используем `placeCodeStack()`:
-
-```typescript
-const layouts = placeCodeStack([CODE1, CODE2], 'L', 16);
-// → одинаковые width/height для обеих карточек (подгонка под большую)
-// → одинаковый зазор между карточками
-// → одинаковый отступ от верхнего и левого края кадра
-```
-
-Правила:
-- Зазор между карточками = 60px (STACK_GAP)
-- Все карточки в группе получают одинаковые `width` и `height` (по самой большой)
-- Если группа не помещается по высоте, fontSize уменьшается шагом 2 до минимума 14
-
-### customTypes (ВАЖНО):
-AI должен САМ анализировать код и определять customTypes:
-1. Найти все слова с заглавной буквы, которые выглядят как классы/типы
-2. Исключить стандартные (List, Map, String, Optional и т.д. — уже в JAVA_TYPES)
-3. Добавить остальные в customTypes
-
-Пример: в коде `PaymentRepository`, `DSLContext`, `Condition` — всё это customTypes.
-Без этого кастомные классы будут белыми (plain) вместо бежевых (type).
-
-### ВАЖНО: core не трогать!
-Файлы в `motion-canvas/src/core/` менять только по явной просьбе пользователя.
-ExplainorCodeTheme уже настроена — использовать как есть.
-
-### Отступы в коде (для видео)
-- Использовать **пробелы**, не табы.
-- Базовый шаг отступа: **2 пробела** (для компактности и читаемости на экране).
-- Пустые строки (вертикальные отступы):
-  - После строки с объявлением класса — сразу после `{`, чтобы “шапка” класса не прилипала к содержимому.
-  - Между блоком полей и конструктором.
-  - Между конструктором и методами.
-  - Между методами, если это разные логические части (или методы длинные).
-  - Внутри метода — между шагами (валидация → подготовка → действие → возврат), но не после каждой строки.
-  - Перед `return` — если перед этим есть подготовка (например, вычисление переменных/условий), чтобы отделить “подготовку” от “результата”.
-- Отступы нужны:
-  - Внутри `{ ... }` у классов/методов/`if`/`for`/`while`/`try`.
-  - Для полей/методов внутри класса.
-  - Для продолжения выражений (например, длинные параметры) — перенос с визуальным отступом.
-- Цепочки вызовов:
-  - Если цепочка помещается — оставлять в одну строку.
-  - Если длинная — переносить “лесенкой”, чтобы точки были на одной вертикали:
-    - `dsl.selectFrom(PAYMENTS)`
-    - `  .where(where)`
-    - `  .fetch();`
-- Для ролика держать строки короче (условно **до ~70–80 символов**), лучше перенос, чем мелкий шрифт.
-
+### 4. Safe Zone
+- Вертикаль: от -480 до +480 (960px)
+- Горизонталь: от -840 до +840 (1680px)
 
 ---
 
-## Компоновка и композиция в кадре
+## API
 
-### Safe zone (отступы от краёв экрана)
-
-Экран: 1920×1080. Код НЕ должен прилипать к краям.
-
-```
-    ┌──────────────────────────────────┐
-    │  ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  │  ← 80px сверху
-    │  ░                            ░  │
-    │  ░      SAFE ZONE             ░  │  ← 120px слева/справа
-    │  ░      (рабочая область)     ░  │
-    │  ░                            ░  │
-    │  ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  │  ← 80px снизу
-    └──────────────────────────────────┘
-```
-
-- **Минимум 80px** от верха/низа
-- **Минимум 120px** от левого/правого края
-- Позиции TL/TR/BL/BR должны учитывать safe zone (не край экрана, а край safe zone)
-
-
-### Адаптация размера шрифта под количество строк
-
-| Строк в блоке | fontSize | Комментарий |
-|---------------|----------|-------------|
-| 1–5           | 24–28px  | Крупный, акцентный код |
-| 6–12          | 20–22px  | Стандартный |
-| 13–20         | 16–18px  | Компактный |
-| 21–30         | 14–16px  | Мелкий (крайний случай) |
-| >30           | —        | Разбить на части или показывать фрагментами |
-
-**Правило:** лучше разбить код на 2 блока, чем делать шрифт <16px.
-
-
-### Максимальная длина строки (символов) по размеру блока
-
-| Size | Ширина   | Макс. символов | Примечание |
-|------|----------|----------------|------------|
-| S    | ~400px   | ~35–40         | Короткие сниппеты |
-| M    | ~600px   | ~50–55         | Стандартный блок |
-| L    | ~900px   | ~75–80         | Широкий блок |
-| F    | ~1680px  | ~100–110       | Почти весь экран |
-
-**Если строка длиннее — переносить!**
-
-
-### Правила переноса длинных строк
-
-1. **После запятой** (в параметрах, аргументах):
-   ```java
-   void process(String name,
-                int count,
-                boolean active)
-   ```
-
-2. **Перед точкой** (в fluent-цепочках):
-   ```java
-   dsl.selectFrom(PAYMENTS)
-      .where(condition)
-      .fetch();
-   ```
-
-3. **После оператора** (в длинных выражениях):
-   ```java
-   boolean result = isValid &&
-                    hasPermission &&
-                    !isExpired;
-   ```
-
-4. **После открывающей скобки** (если много аргументов):
-   ```java
-   return new Result(
-     id,
-     status,
-     timestamp
-   );
-   ```
-
-
-### Композиция: сколько блоков — какая раскладка
-
-| Блоков | Рекомендуемая раскладка | Размер |
-|--------|-------------------------|--------|
-| 1      | C (центр) или L/R       | M или L |
-| 2      | L + R (по бокам)        | M каждый |
-| 2      | TL + BR (диагональ)     | M каждый |
-| 3      | TL + TC + TR (в ряд)    | S каждый |
-| 4      | TL + TR + BL + BR       | S каждый |
-
-**Правило баланса:** если код короткий (3–5 строк), не ставить в самый угол — сместить ближе к центру.
-
-
-### Вертикальное центрирование
-
-Позиции TL/TC/TR и BL/BC/BR привязаны к фиксированным Y-координатам.
-Но если блок короткий и "висит" в углу — это выглядит плохо.
-
-**Решение:**
-- Короткий код (≤5 строк) в угловой позиции → сместить Y ближе к центру
-- Или использовать ML/C/MR вместо TL/TC/TR
-
-
-### Авто-ширина карточки
-
-Функция `placeCode()` автоматически вычисляет ширину карточки по коду:
-
+### placeCode — одиночный блок
 ```typescript
 const layout = placeCode(CODE, 'TL', 16);
-// → layout.width вычисляется автоматически
+// → { x, y, width, fontSize }
 ```
 
-**Как работает:**
-1. Находит самую длинную строку в коде
-2. Вычисляет: `width = maxLineLength × charWidth + padding × 2`
-3. Ограничивает: min 300px, max 1600px
+### placeCodeStack — группа блоков (вертикальный стек)
+```typescript
+const layouts = placeCodeStack([CODE1, CODE2], 'L', 16);
+// → [{ x, y, width, height, fontSize }, ...]
+```
 
-**Правило отступа до края карточки (padding):**
-- padding вычисляется как `getCodePadding(fontSize)` и одинаков везде (и в `CodeBlock`, и в `placeCode()`).
-- Формула: `fontSize * 1.5 + 8`, ограничено 24–48px.
-- Примерно: 16px → 32px, 20px → 38px.
+**align**: `'L'` (слева), `'C'` (центр), `'R'` (справа)
 
-**Ограничения ширины:**
-- `MIN_CARD_WIDTH = 300px`
-- `MAX_CARD_WIDTH = 1600px`
+---
 
-**Результат:** карточка всегда "обтягивает" код с одинаковыми отступами.
+## Позиции (position)
 
+```
+    TL   TC   TR
+    ML   C    MR
+    BL   BC   BR
+```
 
-### Чеклист перед финализацией сцены
+- TL = top-left (верхний левый угол блока у safe zone)
+- C = center (центр блока в центре экрана)
+- и т.д.
 
-1. ☐ Код не вылезает за safe zone?
-2. ☐ Код не вылезает за карточку? (placeCode делает это автоматически)
-3. ☐ Шрифт читаемый (≥16px)?
-4. ☐ Строки не обрезаются (перенесены если длинные)?
-5. ☐ Блоки визуально сбалансированы (не "висят" в углу)?
-6. ☐ customTypes заполнены (типы бежевые, не белые)?
-7. ☐ Пустые строки расставлены по правилам?
+Алиасы: `L` = ML, `R` = MR, `T` = TC, `B` = BC
 
+---
+
+## Пример сцены (референс)
+
+```typescript
+import {makeScene2D} from '@motion-canvas/2d';
+import {waitFor} from '@motion-canvas/core';
+import {CodeBlock} from '../core/code/components/CodeBlock';
+import {ExplainorCodeTheme} from '../core/code/model/SyntaxTheme';
+import {placeCodeStack} from '../core/ScreenGrid';
+import {Fonts, Timing} from '../core/theme';
+import {applyBackground} from '../core/utils';
+
+const CODE_1 = `...`;
+const CODE_2 = `...`;
+
+export default makeScene2D(function* (view) {
+  applyBackground(view);
+
+  const layouts = placeCodeStack([CODE_1, CODE_2], 'L', 16);
+  const [layout1, layout2] = layouts;
+  
+  const block1 = CodeBlock.fromCode(CODE_1, {
+    x: layout1.x,
+    y: layout1.y,
+    width: layout1.width,
+    height: layout1.height,
+    fontSize: layout1.fontSize,
+    fontFamily: Fonts.code,
+    theme: ExplainorCodeTheme,
+    customTypes: ['MyClass', 'OtherClass'],
+  });
+
+  const block2 = CodeBlock.fromCode(CODE_2, {
+    x: layout2.x,
+    y: layout2.y,
+    width: layout2.width,
+    height: layout2.height,
+    fontSize: layout2.fontSize,
+    fontFamily: Fonts.code,
+    theme: ExplainorCodeTheme,
+    customTypes: ['MyClass', 'OtherClass'],
+  });
+
+  block1.mount(view);
+  yield* block1.appear(Timing.slow);
+  
+  yield* waitFor(2);
+  
+  block2.mount(view);
+  yield* block2.appear(Timing.slow);
+  
+  yield* waitFor(3);
+});
+```
+
+---
+
+## customTypes (ВАЖНО)
+
+AI должен САМ анализировать код и определять customTypes:
+1. Найти все слова с заглавной буквы, которые выглядят как классы/типы
+2. Исключить стандартные (List, Map, String, Optional и т.д.)
+3. Добавить остальные в customTypes
+
+Без этого кастомные классы будут белыми вместо бежевых.
+
+---
+
+## Константы
+
+| Константа | Значение | Описание |
+|-----------|----------|----------|
+| STACK_GAP | 60px | Зазор между карточками в стеке |
+| MIN_CARD_WIDTH | 300px | Минимальная ширина карточки |
+| MAX_CARD_WIDTH | 1600px | Максимальная ширина карточки |
+| SafeZone.top | -480 | Верхняя граница рабочей области |
+| SafeZone.bottom | 480 | Нижняя граница рабочей области |
+| SafeZone.left | -840 | Левая граница рабочей области |
+| SafeZone.right | 840 | Правая граница рабочей области |
+
+---
+
+## Форматирование кода (внутри строк)
+
+### Отступы
+- **2 пробела** (не табы)
+- Внутри `{ }` — всегда отступ
+
+### Пустые строки
+- После `{` класса
+- Между полями и конструктором
+- Между конструктором и методами
+- Перед `return` (если есть подготовка)
+
+### Переносы
+- Fluent-цепочки — "лесенкой":
+  ```java
+  dsl.selectFrom(PAYMENTS)
+    .where(condition)
+    .fetch();
+  ```
+
+---
+
+## Цветовая тема (ExplainorCodeTheme)
+
+| Токен | Цвет | Примеры |
+|-------|------|---------|
+| keyword | #E6B47C (оранжевый) | `final`, `class`, `return`, `this` |
+| type | #D5CCBF (бежевый) | `List`, `String`, + customTypes |
+| constant | #C8B8D8 (лавандовый) | `PAYMENTS`, `ORDERS` |
+| method | #B8D4E8 (голубой) | `.selectFrom()`, `.fetch()` |
+| string | #B2C7C9 (голубой) | `"text"` |
+| number | #A5C9CA (голубой) | `123`, `0.5` |
+| plain | #FCFBF8 (белый) | переменные, параметры |
+| punctuation | #EBE8E2 (бежево-белый) | `{}`, `()`, `;` |
+| comment | #4A505E (тёмный) | `// comment` |
+
+---
+
+## Карточка (card vs nocard)
+
+- **card** (по умолчанию) — фон + тень
+- **nocard** — прозрачный фон, только код:
+  ```typescript
+  import {NoCardStyle} from '../core/ScreenGrid';
+  
+  CodeBlock.fromCode(CODE, {
+    ...layout,
+    cardStyle: NoCardStyle,
+  });
+  ```
+
+---
+
+## Ключевые файлы
+
+| Файл | Назначение |
+|------|------------|
+| `motion-canvas/src/scenes/*.tsx` | Сцены видео |
+| `motion-canvas/src/core/ScreenGrid.ts` | placeCode, placeCodeStack, SafeZone |
+| `motion-canvas/src/core/code/model/SyntaxTheme.ts` | Цветовая тема |
+| `motion-canvas/src/core/code/model/Tokenizer.ts` | Токенизатор (customTypes) |
+| `motion-canvas/src/core/code/components/CodeBlock.ts` | Компонент отображения |
+| `motion-canvas/src/core/code/shared/TextMeasure.ts` | Расчёт размеров |
+
+---
+
+## ВАЖНО: core не трогать!
+
+Файлы в `motion-canvas/src/core/` менять только по явной просьбе.

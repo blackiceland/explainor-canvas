@@ -113,7 +113,6 @@ import {getCodePadding, getLineHeight, measureCode} from './code/shared/TextMeas
 const MIN_CARD_WIDTH = 300;
 const MAX_CARD_WIDTH = 1600;
 const STACK_GAP = 60;
-const MIN_FONT_SIZE = 14;
 
 export function placeCode(
   code: string,
@@ -162,46 +161,30 @@ export function placeCodeStack(
 ): { x: number; y: number; width: number; height: number; fontSize: number }[] {
   if (codes.length === 0) return [];
 
-  let fs = fontSize;
-  while (fs >= MIN_FONT_SIZE) {
-    const sizes = codes.map(code => {
-      const padding = getCodePadding(fs);
-      const metrics = measureCode(code, fs);
-      const width = Math.min(MAX_CARD_WIDTH, Math.max(MIN_CARD_WIDTH, metrics.width + padding * 2));
-      const height = code.split('\n').length * getLineHeight(fs) + padding * 2;
-      return {width, height};
-    });
+  const sizes = codes.map(code => {
+    const padding = getCodePadding(fontSize);
+    const metrics = measureCode(code, fontSize);
+    const width = Math.min(MAX_CARD_WIDTH, Math.max(MIN_CARD_WIDTH, metrics.width + padding * 2));
+    const height = code.split('\n').length * getLineHeight(fontSize) + padding * 2;
+    return {width, height};
+  });
 
-    const maxWidth = Math.max(...sizes.map(s => s.width));
-    const maxHeight = Math.max(...sizes.map(s => s.height));
+  const maxWidth = Math.max(...sizes.map(s => s.width));
+  const maxHeight = Math.max(...sizes.map(s => s.height));
 
-    const totalHeight = codes.length * maxHeight + (codes.length - 1) * STACK_GAP;
-    const fits = totalHeight <= (SafeZone.bottom - SafeZone.top);
-    if (fits) {
-      const x =
-        align === 'L' ? (SafeZone.left + maxWidth / 2) :
-        align === 'R' ? (SafeZone.right - maxWidth / 2) :
-        0;
+  const x =
+    align === 'L' ? (SafeZone.left + maxWidth / 2) :
+    align === 'R' ? (SafeZone.right - maxWidth / 2) :
+    0;
 
-      const topY = SafeZone.top + maxHeight / 2;
-      return codes.map((_, i) => ({
-        x,
-        y: topY + i * (maxHeight + STACK_GAP),
-        width: maxWidth,
-        height: maxHeight,
-        fontSize: fs,
-      }));
-    }
-    fs -= 2;
-  }
-
-  const fallback = placeCode(codes[0], 'C', MIN_FONT_SIZE);
+  const topY = SafeZone.top + maxHeight / 2;
+  
   return codes.map((_, i) => ({
-    x: fallback.x,
-    y: fallback.y + i * 200,
-    width: fallback.width,
-    height: 0,
-    fontSize: MIN_FONT_SIZE,
+    x,
+    y: topY + i * (maxHeight + STACK_GAP),
+    width: maxWidth,
+    height: maxHeight,
+    fontSize,
   }));
 }
 
