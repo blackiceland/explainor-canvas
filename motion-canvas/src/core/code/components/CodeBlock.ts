@@ -5,7 +5,7 @@ import {tokenizeLine} from '../model/Tokenizer';
 import {SyntaxTheme, IntelliJDarkTheme} from '../model/SyntaxTheme';
 import {CodeCard, CodeCardStyle} from './CodeCard';
 import {CodeLine} from './CodeLine';
-import {getLineHeight} from '../shared/TextMeasure';
+import {getCodePadding, getLineHeight} from '../shared/TextMeasure';
 import {getWorldPosition, Point} from '../shared/Coordinates';
 import {Fonts} from '../../theme';
 
@@ -13,12 +13,13 @@ export interface CodeBlockConfig {
     x?: number;
     y?: number;
     width?: number;
+    height?: number;
     fontSize?: number;
     lineHeight?: number;
     fontFamily?: string;
     theme?: SyntaxTheme;
     cardStyle?: CodeCardStyle;
-    customTypes?: string[];  // Классы/типы для подсветки как type
+    customTypes?: string[];
 }
 
 export interface CodeBlockPosition {
@@ -46,6 +47,7 @@ export class CodeBlock {
             x: config.x ?? 0,
             y: config.y ?? 0,
             width: config.width ?? 600,
+            height: config.height ?? 0,
             fontSize,
             lineHeight: config.lineHeight ?? getLineHeight(fontSize),
             fontFamily: config.fontFamily ?? Fonts.code,
@@ -64,7 +66,7 @@ export class CodeBlock {
     }
 
     private getPadding(): number {
-        return this.config.fontSize * 2.0;
+        return getCodePadding(this.config.fontSize);
     }
 
     private getContentLeftEdge(): number {
@@ -86,7 +88,8 @@ export class CodeBlock {
         const lineCount = this.document.lineCount;
         const padding = this.getPadding();
         const cardWidth = this.config.width;
-        const cardHeight = lineCount * this.config.lineHeight + padding * 2;
+        const contentHeight = lineCount * this.config.lineHeight + padding * 2;
+        const cardHeight = this.config.height > 0 ? this.config.height : contentHeight;
         const contentWidth = Math.max(cardWidth - padding * 2, 0);
 
         this.card = new CodeCard({width: cardWidth, height: cardHeight, style: this.config.cardStyle});

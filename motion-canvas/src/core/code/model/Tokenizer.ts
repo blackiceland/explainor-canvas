@@ -14,6 +14,7 @@ export type TokenType =
     | 'method'
     | 'comment'
     | 'annotation'
+    | 'constant'
     | 'plain';
 
 const JAVA_KEYWORDS = new Set([
@@ -49,6 +50,11 @@ const PATTERNS = {
     whitespace: /^\s+/,
 };
 
+// Проверка на константу: UPPER_CASE_WITH_UNDERSCORES
+function isConstant(word: string): boolean {
+    return /^[A-Z][A-Z0-9_]*$/.test(word) && word.length > 1;
+}
+
 function classifyWord(
     word: string, 
     nextChar: string, 
@@ -64,7 +70,9 @@ function classifyWord(
     ) {
         return 'type';
     }
-    if (nextChar === '(') return 'method';
+    // Вызов метода: только после точки (obj.method())
+    if (nextChar === '(' && previousMeaningful?.text === '.') return 'method';
+    if (isConstant(word)) return 'constant';
     return 'plain';
 }
 

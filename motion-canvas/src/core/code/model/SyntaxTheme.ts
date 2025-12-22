@@ -10,6 +10,7 @@ export interface SyntaxTheme {
     method: string;
     comment: string;
     annotation: string;
+    constant: string;
     plain: string;
 }
 
@@ -23,6 +24,7 @@ export const IntelliJDarkTheme: SyntaxTheme = {
     method: '#FFC66D',
     comment: '#808080',
     annotation: '#BBB529',
+    constant: '#9876AA',
     plain: '#A9B7C6',
 };
 
@@ -36,19 +38,21 @@ export const WhiteTheme: SyntaxTheme = {
     method: '#FFFFFF',
     comment: '#70778A',
     annotation: '#FFFFFF',
+    constant: '#FFFFFF',
     plain: '#FFFFFF',
 };
 
 export const ExplainorCodeTheme: SyntaxTheme = {
     keyword: '#E6B47C',
-    type: '#CEC6BB',
+    type: '#D5CCBF',
     string: '#B2C7C9',
     number: '#A5C9CA',
     operator: '#70778A',
-  punctuation: '#8C92A1',
-    method: '#FCFBF8',
+    punctuation: '#EBE8E2',
+    method: '#B8D4E8',
     comment: '#4A505E',
-    annotation: '#E6B47C', 
+    annotation: '#E6B47C',
+    constant: '#C8B8D8',
     plain: '#FCFBF8',
 };
 
