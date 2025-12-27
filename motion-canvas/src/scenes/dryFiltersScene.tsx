@@ -41,7 +41,7 @@ const ORDER_REPO_CODE = `final class OrderRepository {
   }
 }`;
 
-type ColKey = 'id' | 'status' | 'cents' | 'created_at';
+type ColKey = 'id' | 'status' | 'amount' | 'created_at';
 type Row = Record<ColKey, string>;
 
 interface Column {
@@ -69,15 +69,16 @@ const baseColumns: Omit<Column, 'width'>[] = [
     align: 'left',
     color: (v) => v === 'CAPTURED' ? '#A8D8C0' : v === 'PENDING' ? '#E6B47C' : Colors.text.muted,
   },
-  {key: 'cents', header: 'cents', ellipsis: 'end', align: 'right'},
-  {key: 'created_at', header: 'created_at', ellipsis: 'end', align: 'right'},
+  {key: 'amount', header: 'amount', ellipsis: 'end', align: 'left'},
+  {key: 'created_at', header: 'created_at', ellipsis: 'end', align: 'left'},
 ];
 
 const rows: Row[] = [
-  {id: '550e8400-e29b-41d4-a716-446655440000', status: 'CAPTURED', cents: '9900', created_at: '2024-12-15'},
-  {id: '6ba7b810-9dad-11d1-80b4-00c04fd430c8', status: 'DECLINED', cents: '15000', created_at: '2024-12-14'},
-  {id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479', status: 'CAPTURED', cents: '24500', created_at: '2024-12-12'},
-  {id: '7c9e6679-7425-40de-944b-e07fc1f90ae7', status: 'PENDING', cents: '7800', created_at: '2024-12-10'},
+  {id: '550e8400-e29b-41d4-a716-446655440000', status: 'CAPTURED', amount: '$99.00', created_at: '2024-12-15 14:32'},
+  {id: '6ba7b810-9dad-11d1-80b4-00c04fd430c8', status: 'DECLINED', amount: '$150.00', created_at: '2024-12-14 09:15'},
+  {id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479', status: 'CAPTURED', amount: '$245.00', created_at: '2024-12-12 18:47'},
+  {id: '7c9e6679-7425-40de-944b-e07fc1f90ae7', status: 'PENDING', amount: '$78.00', created_at: '2024-12-10 11:03'},
+  {id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890', status: 'CAPTURED', amount: '$312.50', created_at: '2024-12-08 22:19'},
 ];
 
 export default makeScene2D(function* (view) {
@@ -96,8 +97,6 @@ export default makeScene2D(function* (view) {
   const tableY = paymentLayout.y;
   
   const contentWidth = tableWidth - TABLE_PADDING * 2;
-  const colWidth = Math.floor(contentWidth / baseColumns.length);
-  const columns: Column[] = baseColumns.map(col => ({...col, width: colWidth}));
 
   view.add(
     <Rect
@@ -121,23 +120,26 @@ export default makeScene2D(function* (view) {
       scale={0.98}
       clip
     >
-      <Rect layout direction={'row'} height={ROW_H} width={contentWidth} clip>
-        {columns.map(col => (
+      <Rect layout direction={'row'} height={ROW_H} width={contentWidth} justifyContent={'start'} clip>
+        {baseColumns.map((col, i) => (
           <Rect
             layout
-            width={col.width}
-            grow={0}
-            shrink={0}
-            basis={col.width}
+            grow={1}
+            shrink={1}
+            basis={0}
+            minWidth={0}
             height={'100%'}
             paddingLeft={CELL_PX}
             paddingRight={CELL_PX}
             alignItems={'center'}
-            justifyContent={col.align === 'right' ? 'end' : 'start'}
+            justifyContent={'start'}
             clip
           >
             <Txt
+              width={'100%'}
+              minWidth={0}
               textWrap={false}
+              textAlign={col.align === 'right' ? 'right' : 'left'}
               fontFamily={FONT_FAMILY}
               fontSize={FONT_SIZE}
               fontWeight={600}
@@ -154,31 +156,36 @@ export default makeScene2D(function* (view) {
           direction={'row'}
           height={ROW_H}
           width={contentWidth}
+          justifyContent={'start'}
           clip
           marginTop={rowIndex === 0 ? 8 : 0}
         >
-          {columns.map(col => {
+          {baseColumns.map((col, i) => {
             const raw = row[col.key];
-            const avail = col.width - CELL_PX * 2;
+            const cellWidth = contentWidth / baseColumns.length;
+            const avail = cellWidth - CELL_PX * 2;
             const shown = fitText(raw, avail, col.ellipsis ?? 'end', FONT_FAMILY, FONT_SIZE, FONT_WEIGHT);
             const textColor = col.color ? col.color(raw) : Colors.text.primary;
 
             return (
               <Rect
                 layout
-                width={col.width}
-                grow={0}
-                shrink={0}
-                basis={col.width}
+                grow={1}
+                shrink={1}
+                basis={0}
+                minWidth={0}
                 height={'100%'}
                 paddingLeft={CELL_PX}
                 paddingRight={CELL_PX}
                 alignItems={'center'}
-                justifyContent={col.align === 'right' ? 'end' : 'start'}
+                justifyContent={'start'}
                 clip
               >
                 <Txt
+                  width={'100%'}
+                  minWidth={0}
                   textWrap={false}
+                  textAlign={col.align === 'right' ? 'right' : 'left'}
                   fontFamily={FONT_FAMILY}
                   fontSize={FONT_SIZE}
                   fontWeight={FONT_WEIGHT}
