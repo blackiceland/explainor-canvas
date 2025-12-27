@@ -122,31 +122,36 @@ export default makeScene2D(function* (view) {
     >
       <Rect layout direction={'row'} height={ROW_H} width={contentWidth} justifyContent={'start'} clip>
         {baseColumns.map((col, i) => (
-          <Rect
-            layout
-            grow={1}
-            shrink={1}
-            basis={0}
-            minWidth={0}
-            height={'100%'}
-            paddingLeft={CELL_PX}
-            paddingRight={CELL_PX}
-            alignItems={'center'}
-            justifyContent={'start'}
-            clip
-          >
-            <Txt
-              width={'100%'}
+          <>
+            <Rect
+              layout
+              grow={1}
+              shrink={1}
+              basis={0}
               minWidth={0}
-              textWrap={false}
-              textAlign={col.align === 'right' ? 'right' : 'left'}
-              fontFamily={FONT_FAMILY}
-              fontSize={FONT_SIZE}
-              fontWeight={600}
-              fill={'rgba(252, 251, 248, 0.5)'}
-              text={col.header}
-            />
-          </Rect>
+              height={'100%'}
+              paddingLeft={CELL_PX}
+              paddingRight={CELL_PX}
+              alignItems={'center'}
+              justifyContent={'start'}
+              clip
+            >
+              <Txt
+                width={'100%'}
+                minWidth={0}
+                textWrap={false}
+                textAlign={col.align === 'right' ? 'right' : 'left'}
+                fontFamily={FONT_FAMILY}
+                fontSize={FONT_SIZE}
+                fontWeight={600}
+                fill={'rgba(252, 251, 248, 0.5)'}
+                text={col.header}
+              />
+            </Rect>
+            {i < baseColumns.length - 1 && (
+              <Rect width={1} height={'100%'} fill={'rgba(255, 255, 255, 0.08)'} shrink={0} />
+            )}
+          </>
         ))}
       </Rect>
 
@@ -168,31 +173,36 @@ export default makeScene2D(function* (view) {
             const textColor = col.color ? col.color(raw) : Colors.text.primary;
 
             return (
-              <Rect
-                layout
-                grow={1}
-                shrink={1}
-                basis={0}
-                minWidth={0}
-                height={'100%'}
-                paddingLeft={CELL_PX}
-                paddingRight={CELL_PX}
-                alignItems={'center'}
-                justifyContent={'start'}
-                clip
-              >
-                <Txt
-                  width={'100%'}
+              <>
+                <Rect
+                  layout
+                  grow={1}
+                  shrink={1}
+                  basis={0}
                   minWidth={0}
-                  textWrap={false}
-                  textAlign={col.align === 'right' ? 'right' : 'left'}
-                  fontFamily={FONT_FAMILY}
-                  fontSize={FONT_SIZE}
-                  fontWeight={FONT_WEIGHT}
-                  fill={textColor}
-                  text={shown}
-                />
-              </Rect>
+                  height={'100%'}
+                  paddingLeft={CELL_PX}
+                  paddingRight={CELL_PX}
+                  alignItems={'center'}
+                  justifyContent={'start'}
+                  clip
+                >
+                  <Txt
+                    width={'100%'}
+                    minWidth={0}
+                    textWrap={false}
+                    textAlign={col.align === 'right' ? 'right' : 'left'}
+                    fontFamily={FONT_FAMILY}
+                    fontSize={FONT_SIZE}
+                    fontWeight={FONT_WEIGHT}
+                    fill={textColor}
+                    text={shown}
+                  />
+                </Rect>
+                {i < baseColumns.length - 1 && (
+                  <Rect width={1} height={'100%'} fill={'rgba(255, 255, 255, 0.08)'} shrink={0} />
+                )}
+              </>
             );
           })}
         </Rect>

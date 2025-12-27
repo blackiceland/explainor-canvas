@@ -204,8 +204,44 @@ AI должен САМ анализировать код и определять
 ### Гарантии
 
 - Текст не вылезает за границы: сначала `fitText(...)` (ellipsis по реальному `measureText`), затем `clip` как страховка.
-- Колонки стабильные: ширины колонок фиксированы (px), без процентов.
-- Таблица fit-content: ширина карточки = `sum(col.width) + padding*2`.
+- Колонки равномерные: `grow={1} shrink={1} basis={0} minWidth={0}` на каждой ячейке.
+- Выравнивание текста: через `textAlign` на `Txt` с `width={'100%'}`.
+
+### Геометрия карточек (код + таблица рядом)
+
+**Правило равных отступов:**
+- `edgeMargin = 120px` — отступ от края кадра до карточки кода
+- `edgeMargin = 120px` — отступ между карточкой кода и таблицей
+- Таблица растягивается до `SafeZone.right` (автоматически 120px от края кадра)
+
+```typescript
+const codeRight = codeLayout.x + codeLayout.width / 2;
+const edgeMargin = 120;
+const tableLeft = codeRight + edgeMargin;
+const tableRight = SafeZone.right;
+const tableWidth = tableRight - tableLeft;
+const tableX = tableLeft + tableWidth / 2;
+const tableY = codeLayout.y;  // Выравнивание по верхней карточке кода
+```
+
+### Разделители колонок (бесшовные)
+
+**Не использовать `stroke` на ячейках** — рисует обводку со всех сторон.
+
+Вместо этого — отдельные вертикальные `Rect` между колонками:
+
+```tsx
+{columns.map((col, i) => (
+  <>
+    <Rect layout grow={1} shrink={1} basis={0} minWidth={0} ...>
+      <Txt ... />
+    </Rect>
+    {i < columns.length - 1 && (
+      <Rect width={1} height={'100%'} fill={'rgba(255, 255, 255, 0.08)'} shrink={0} />
+    )}
+  </>
+))}
+```
 
 ### API для ellipsis
 
@@ -214,35 +250,177 @@ AI должен САМ анализировать код и определять
 - `fitText(text, maxPx, mode, fontFamily, fontSize, fontWeight)`
   - mode: `'end'` (обычный ellipsis) или `'middle'` (UUID как в DB-гридах)
 
-### Референс-паттерн (таблица рядом с кодом)
+### Референс таблицы (полный)
 
 ```typescript
 import {Rect, Txt, makeScene2D} from '@motion-canvas/2d';
-import {createRef} from '@motion-canvas/core';
+import {createRef, easeInOutCubic} from '@motion-canvas/core';
 import {fitText} from '../core/utils/textMeasure';
-import {SafeZone} from '../core/ScreenGrid';
+import {placeCodeStack, SafeZone} from '../core/ScreenGrid';
+import {Colors, Fonts, Timing} from '../core/theme';
 
+// Константы
 const TABLE_PADDING = 24;
 const ROW_H = 52;
 const CELL_PX = 16;
+const FONT_SIZE = 16;
+const FONT_WEIGHT = 400;
 
-const columns = [
-  {key: 'id', header: 'id', width: 280, ellipsis: 'middle', align: 'left'},
-  {key: 'status', header: 'status', width: 150, ellipsis: 'end', align: 'left'},
-  {key: 'cents', header: 'cents', width: 110, ellipsis: 'end', align: 'right'},
-  {key: 'created_at', header: 'created_at', width: 180, ellipsis: 'end', align: 'right'},
+// Колонки (без width — flex поделит равномерно)
+const baseColumns = [
+  {key: 'id', header: 'id', ellipsis: 'middle', align: 'left'},
+  {
+    key: 'status',
+    header: 'status',
+    ellipsis: 'end',
+    align: 'left',
+    color: (v) => v === 'CAPTURED' ? '#A8D8C0' : v === 'PENDING' ? '#E6B47C' : Colors.text.muted,
+  },
+  {key: 'amount', header: 'amount', ellipsis: 'end', align: 'left'},
+  {key: 'created_at', header: 'created_at', ellipsis: 'end', align: 'left'},
 ];
 
-const tableWidth = columns.reduce((s, c) => s + c.width, 0) + TABLE_PADDING * 2;
+// Данные (реалистичные)
+const rows = [
+  {id: '550e8400-e29b-41d4-a716-446655440000', status: 'CAPTURED', amount: '$99.00', created_at: '2024-12-15 14:32'},
+  {id: '6ba7b810-9dad-11d1-80b4-00c04fd430c8', status: 'DECLINED', amount: '$150.00', created_at: '2024-12-14 09:15'},
+  // ...
+];
 
-// tableX/tableY: справа от кода с фиксированным gap, но не выходя за SafeZone
+// Геометрия
+const codeRight = codeLayout.x + codeLayout.width / 2;
+const edgeMargin = 120;
+const tableLeft = codeRight + edgeMargin;
+const tableRight = SafeZone.right;
+const tableWidth = tableRight - tableLeft;
+const tableX = tableLeft + tableWidth / 2;
+const tableY = codeLayout.y;
+const contentWidth = tableWidth - TABLE_PADDING * 2;
+
+// Карточка таблицы
+<Rect
+  ref={tableRef}
+  x={tableX}
+  y={tableY}
+  width={tableWidth}
+  height={codeLayout.height}  // Высота = высота карточки кода
+  layout
+  direction={'column'}
+  gap={0}
+  padding={TABLE_PADDING}
+  radius={28}
+  fill={Colors.surface}
+  stroke={'rgba(255, 255, 255, 0.03)'}
+  lineWidth={2}
+  shadowColor={'rgba(0, 0, 0, 0.28)'}
+  shadowBlur={74}
+  shadowOffset={[0, 22]}
+  clip
+>
+  {/* Header row */}
+  <Rect layout direction={'row'} height={ROW_H} width={contentWidth} justifyContent={'start'} clip>
+    {baseColumns.map((col, i) => (
+      <>
+        <Rect
+          layout
+          grow={1}
+          shrink={1}
+          basis={0}
+          minWidth={0}
+          height={'100%'}
+          paddingLeft={CELL_PX}
+          paddingRight={CELL_PX}
+          alignItems={'center'}
+          justifyContent={'start'}
+          clip
+        >
+          <Txt
+            width={'100%'}
+            minWidth={0}
+            textWrap={false}
+            textAlign={col.align === 'right' ? 'right' : 'left'}
+            fontFamily={Fonts.code}
+            fontSize={FONT_SIZE}
+            fontWeight={600}
+            fill={'rgba(252, 251, 248, 0.5)'}
+            text={col.header}
+          />
+        </Rect>
+        {i < baseColumns.length - 1 && (
+          <Rect width={1} height={'100%'} fill={'rgba(255, 255, 255, 0.08)'} shrink={0} />
+        )}
+      </>
+    ))}
+  </Rect>
+
+  {/* Data rows */}
+  {rows.map((row, rowIndex) => (
+    <Rect
+      layout
+      direction={'row'}
+      height={ROW_H}
+      width={contentWidth}
+      justifyContent={'start'}
+      clip
+      marginTop={rowIndex === 0 ? 8 : 0}
+    >
+      {baseColumns.map((col, i) => {
+        const raw = row[col.key];
+        const cellWidth = contentWidth / baseColumns.length;
+        const avail = cellWidth - CELL_PX * 2;
+        const shown = fitText(raw, avail, col.ellipsis ?? 'end', Fonts.code, FONT_SIZE, FONT_WEIGHT);
+        const textColor = col.color ? col.color(raw) : Colors.text.primary;
+
+        return (
+          <>
+            <Rect
+              layout
+              grow={1}
+              shrink={1}
+              basis={0}
+              minWidth={0}
+              height={'100%'}
+              paddingLeft={CELL_PX}
+              paddingRight={CELL_PX}
+              alignItems={'center'}
+              justifyContent={'start'}
+              clip
+            >
+              <Txt
+                width={'100%'}
+                minWidth={0}
+                textWrap={false}
+                textAlign={col.align === 'right' ? 'right' : 'left'}
+                fontFamily={Fonts.code}
+                fontSize={FONT_SIZE}
+                fontWeight={FONT_WEIGHT}
+                fill={textColor}
+                text={shown}
+              />
+            </Rect>
+            {i < baseColumns.length - 1 && (
+              <Rect width={1} height={'100%'} fill={'rgba(255, 255, 255, 0.08)'} shrink={0} />
+            )}
+          </>
+        );
+      })}
+    </Rect>
+  ))}
+</Rect>
+
+// Анимация появления (вместе с кодом)
+yield* all(
+  codeBlock.appear(Timing.slow),
+  tableRef().opacity(1, Timing.slow, easeInOutCubic),
+  tableRef().scale(1, Timing.slow, easeInOutCubic),
+);
 ```
 
-### Цвета статусов (рекомендация)
+### Цвета статусов
 
-- success: `#A8D8C0`
-- warning: `#E6B47C`
-- muted: `Colors.text.muted`
+- success (CAPTURED): `#A8D8C0`
+- warning (PENDING): `#E6B47C`
+- muted (DECLINED, etc.): `Colors.text.muted`
 
 ---
 
