@@ -66,7 +66,7 @@ import {makeScene2D} from '@motion-canvas/2d';
 import {waitFor} from '@motion-canvas/core';
 import {CodeBlock} from '../core/code/components/CodeBlock';
 import {ExplainorCodeTheme} from '../core/code/model/SyntaxTheme';
-import {placeCodeStack} from '../core/ScreenGrid';
+import {placeCodeStack, SafeZone} from '../core/ScreenGrid';
 import {Fonts, Timing} from '../core/theme';
 import {applyBackground} from '../core/utils';
 
@@ -76,8 +76,10 @@ const CODE_2 = `...`;
 export default makeScene2D(function* (view) {
   applyBackground(view);
 
-  const layouts = placeCodeStack([CODE_1, CODE_2], 'L', 16);
-  const [layout1, layout2] = layouts;
+  // Иммутабельный подход — НЕ мутируем результат placeCodeStack
+  const baseLayouts = placeCodeStack([CODE_1, CODE_2], 'L', 16);
+  const layout1 = {...baseLayouts[0]};
+  const layout2 = {...baseLayouts[1]};
   
   const block1 = CodeBlock.fromCode(CODE_1, {
     x: layout1.x,
@@ -87,6 +89,7 @@ export default makeScene2D(function* (view) {
     fontSize: layout1.fontSize,
     fontFamily: Fonts.code,
     theme: ExplainorCodeTheme,
+    contentOffsetX: 20,  // Сдвиг кода внутри карточки вправо
     customTypes: ['MyClass', 'OtherClass'],
   });
 
@@ -98,6 +101,7 @@ export default makeScene2D(function* (view) {
     fontSize: layout2.fontSize,
     fontFamily: Fonts.code,
     theme: ExplainorCodeTheme,
+    contentOffsetX: 20,
     customTypes: ['MyClass', 'OtherClass'],
   });
 
@@ -190,6 +194,38 @@ AI должен САМ анализировать код и определять
     cardStyle: NoCardStyle,
   });
   ```
+
+---
+
+## contentOffsetX (сдвиг кода внутри карточки)
+
+Когда карточка шире кода, можно сдвинуть код вправо для визуального баланса:
+
+```typescript
+CodeBlock.fromCode(CODE, {
+  ...layout,
+  contentOffsetX: 20,  // px вправо от центра
+});
+```
+
+---
+
+## Равные размеры карточек (код + таблица)
+
+Когда нужны карточки одинаковой ширины слева и справа:
+
+```typescript
+const gap = 120;
+const totalWidth = SafeZone.right - SafeZone.left;  // 1680px
+const cardWidth = (totalWidth - gap) / 2;           // 780px каждая
+const codeX = SafeZone.left + cardWidth / 2;
+const tableX = SafeZone.right - cardWidth / 2;
+
+// Иммутабельно переопределяем layouts
+const baseLayouts = placeCodeStack([CODE_1, CODE_2], 'L', 16);
+const layout1 = {...baseLayouts[0], x: codeX, width: cardWidth};
+const layout2 = {...baseLayouts[1], x: codeX, width: cardWidth};
+```
 
 ---
 
@@ -408,11 +444,10 @@ const contentWidth = tableWidth - TABLE_PADDING * 2;
   ))}
 </Rect>
 
-// Анимация появления (вместе с кодом)
+// Анимация появления (вместе с кодом) — только opacity, без scale
 yield* all(
   codeBlock.appear(Timing.slow),
   tableRef().opacity(1, Timing.slow, easeInOutCubic),
-  tableRef().scale(1, Timing.slow, easeInOutCubic),
 );
 ```
 
