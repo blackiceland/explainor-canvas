@@ -20,6 +20,7 @@ export interface CodeBlockConfig {
     theme?: SyntaxTheme;
     cardStyle?: CodeCardStyle;
     customTypes?: string[];
+    contentOffsetX?: number;
 }
 
 export interface CodeBlockPosition {
@@ -54,6 +55,7 @@ export class CodeBlock {
             theme: config.theme ?? IntelliJDarkTheme,
             cardStyle: config.cardStyle ?? {},
             customTypes: config.customTypes ?? [],
+            contentOffsetX: config.contentOffsetX ?? 0,
         };
     }
 
@@ -72,7 +74,7 @@ export class CodeBlock {
     private getContentLeftEdge(): number {
         const padding = this.getPadding();
         const contentWidth = Math.max(this.config.width - padding * 2, 0);
-        return -contentWidth / 2;
+        return -contentWidth / 2 + this.config.contentOffsetX;
     }
 
     public mount(parent: Node): void {

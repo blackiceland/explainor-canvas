@@ -84,17 +84,24 @@ const rows: Row[] = [
 export default makeScene2D(function* (view) {
   applyBackground(view);
 
+  const gap = 120;
+  const totalWidth = SafeZone.right - SafeZone.left;
+  const cardWidth = (totalWidth - gap) / 2;
+
   const layouts = placeCodeStack([PAYMENT_REPO_CODE, ORDER_REPO_CODE], 'L', 16);
   const [paymentLayout, orderLayout] = layouts;
 
+  const codeX = SafeZone.left + cardWidth / 2;
+  const tableX = SafeZone.right - cardWidth / 2;
+
+  paymentLayout.x = codeX;
+  paymentLayout.width = cardWidth;
+  orderLayout.x = codeX;
+  orderLayout.width = cardWidth;
+
   const tableRef = createRef<Rect>();
-  const codeRight = paymentLayout.x + paymentLayout.width / 2;
-  const edgeMargin = 120;
-  const tableLeft = codeRight + edgeMargin;
-  const tableRight = SafeZone.right;
-  const tableWidth = tableRight - tableLeft;
-  const tableX = tableLeft + tableWidth / 2;
   const tableY = paymentLayout.y;
+  const tableWidth = cardWidth;
   
   const contentWidth = tableWidth - TABLE_PADDING * 2;
 
@@ -117,7 +124,6 @@ export default makeScene2D(function* (view) {
       shadowBlur={74}
       shadowOffset={[0, 22]}
       opacity={0}
-      scale={0.98}
       clip
     >
       <Rect layout direction={'row'} height={ROW_H} width={contentWidth} justifyContent={'start'} clip>
@@ -218,6 +224,7 @@ export default makeScene2D(function* (view) {
     fontSize: paymentLayout.fontSize,
     fontFamily: Fonts.code,
     theme: ExplainorCodeTheme,
+    contentOffsetX: 20,
     customTypes: [
       'PaymentRepository',
       'DSLContext',
@@ -236,6 +243,7 @@ export default makeScene2D(function* (view) {
     fontSize: orderLayout.fontSize,
     fontFamily: Fonts.code,
     theme: ExplainorCodeTheme,
+    contentOffsetX: 20,
     customTypes: [
       'OrderRepository',
       'DSLContext',
@@ -250,7 +258,6 @@ export default makeScene2D(function* (view) {
   yield* all(
     paymentRepo.appear(Timing.slow),
     tableRef().opacity(1, Timing.slow, easeInOutCubic),
-    tableRef().scale(1, Timing.slow, easeInOutCubic),
   );
 
   yield* waitFor(2);
