@@ -188,3 +188,93 @@ export function placeCodeStack(
   }));
 }
 
+export interface TablePlacement {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  fontSize: number;
+}
+
+export interface PlaceTableOptions {
+  width?: number;
+  height?: number;
+  fontSize?: number;
+  rowCount?: number;
+}
+
+const TABLE_PADDING_X = 48;
+const TABLE_PADDING_Y = 40;
+const TABLE_ROW_HEIGHT_FACTOR = 2.8;
+
+export function placeTable(
+  position: PositionKey,
+  options: PlaceTableOptions = {}
+): TablePlacement {
+  const fontSize = options.fontSize ?? 14;
+  const rowCount = options.rowCount ?? 4;
+  
+  const rowHeight = fontSize * TABLE_ROW_HEIGHT_FACTOR;
+  const contentHeight = rowHeight * (rowCount + 1);
+  const height = options.height ?? (contentHeight + TABLE_PADDING_Y);
+  const width = options.width ?? 500;
+  
+  const anchor = ANCHOR_MAP[position];
+  
+  let x: number;
+  let y: number;
+  
+  if (anchor.includes('left')) {
+    x = SafeZone.left + width / 2;
+  } else if (anchor.includes('right')) {
+    x = SafeZone.right - width / 2;
+  } else {
+    x = 0;
+  }
+  
+  if (anchor.startsWith('top')) {
+    y = SafeZone.top + height / 2;
+  } else if (anchor.startsWith('bottom')) {
+    y = SafeZone.bottom - height / 2;
+  } else {
+    y = 0;
+  }
+  
+  return { x, y, width, height, fontSize };
+}
+
+export function placeTableNextTo(
+  codeLayout: { x: number; y: number; width: number; height: number },
+  side: 'left' | 'right',
+  options: PlaceTableOptions = {}
+): TablePlacement {
+  const fontSize = options.fontSize ?? 14;
+  const rowCount = options.rowCount ?? 4;
+  
+  const rowHeight = fontSize * TABLE_ROW_HEIGHT_FACTOR;
+  const contentHeight = rowHeight * (rowCount + 1);
+  const height = options.height ?? codeLayout.height;
+  let width = options.width ?? 500;
+  
+  const gap = STACK_GAP;
+  
+  let x: number;
+  if (side === 'right') {
+    const codeRight = codeLayout.x + codeLayout.width / 2;
+    const maxWidth = SafeZone.right - (codeRight + gap);
+    width = Math.max(MIN_CARD_WIDTH, Math.min(width, maxWidth));
+    x = codeRight + gap + width / 2;
+    x = Math.min(x, SafeZone.right - width / 2);
+  } else {
+    const codeLeft = codeLayout.x - codeLayout.width / 2;
+    const maxWidth = (codeLeft - gap) - SafeZone.left;
+    width = Math.max(MIN_CARD_WIDTH, Math.min(width, maxWidth));
+    x = codeLeft - gap - width / 2;
+    x = Math.max(x, SafeZone.left + width / 2);
+  }
+  
+  const y = codeLayout.y;
+  
+  return { x, y, width, height, fontSize };
+}
+

@@ -193,6 +193,59 @@ AI должен САМ анализировать код и определять
 
 ---
 
+## Таблицы (layout + measureText)
+
+### Ключевая идея
+
+Таблицу **нельзя** собирать через ручные `x/y` для каждой ячейки. Нужны две опоры:
+1) **Layout Motion Canvas** (`layout`, `direction`, `padding`, `alignItems`) — отвечает за геометрию
+2) **Реальное измерение текста** (`CanvasRenderingContext2D.measureText()`) — отвечает за ellipsis
+
+### Гарантии
+
+- Текст не вылезает за границы: сначала `fitText(...)` (ellipsis по реальному `measureText`), затем `clip` как страховка.
+- Колонки стабильные: ширины колонок фиксированы (px), без процентов.
+- Таблица fit-content: ширина карточки = `sum(col.width) + padding*2`.
+
+### API для ellipsis
+
+Файл: `motion-canvas/src/core/utils/textMeasure.ts`
+
+- `fitText(text, maxPx, mode, fontFamily, fontSize, fontWeight)`
+  - mode: `'end'` (обычный ellipsis) или `'middle'` (UUID как в DB-гридах)
+
+### Референс-паттерн (таблица рядом с кодом)
+
+```typescript
+import {Rect, Txt, makeScene2D} from '@motion-canvas/2d';
+import {createRef} from '@motion-canvas/core';
+import {fitText} from '../core/utils/textMeasure';
+import {SafeZone} from '../core/ScreenGrid';
+
+const TABLE_PADDING = 24;
+const ROW_H = 52;
+const CELL_PX = 16;
+
+const columns = [
+  {key: 'id', header: 'id', width: 280, ellipsis: 'middle', align: 'left'},
+  {key: 'status', header: 'status', width: 150, ellipsis: 'end', align: 'left'},
+  {key: 'cents', header: 'cents', width: 110, ellipsis: 'end', align: 'right'},
+  {key: 'created_at', header: 'created_at', width: 180, ellipsis: 'end', align: 'right'},
+];
+
+const tableWidth = columns.reduce((s, c) => s + c.width, 0) + TABLE_PADDING * 2;
+
+// tableX/tableY: справа от кода с фиксированным gap, но не выходя за SafeZone
+```
+
+### Цвета статусов (рекомендация)
+
+- success: `#A8D8C0`
+- warning: `#E6B47C`
+- muted: `Colors.text.muted`
+
+---
+
 ## Ключевые файлы
 
 | Файл | Назначение |
@@ -201,8 +254,9 @@ AI должен САМ анализировать код и определять
 | `motion-canvas/src/core/ScreenGrid.ts` | placeCode, placeCodeStack, SafeZone |
 | `motion-canvas/src/core/code/model/SyntaxTheme.ts` | Цветовая тема |
 | `motion-canvas/src/core/code/model/Tokenizer.ts` | Токенизатор (customTypes) |
-| `motion-canvas/src/core/code/components/CodeBlock.ts` | Компонент отображения |
+| `motion-canvas/src/core/code/components/CodeBlock.ts` | Компонент кода |
 | `motion-canvas/src/core/code/shared/TextMeasure.ts` | Расчёт размеров |
+| `motion-canvas/src/core/utils/textMeasure.ts` | Реальное измерение текста + ellipsis |
 
 ---
 

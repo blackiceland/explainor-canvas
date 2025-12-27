@@ -1,10 +1,11 @@
-import {makeScene2D} from '@motion-canvas/2d';
-import {waitFor} from '@motion-canvas/core';
+import {Layout, makeScene2D, Rect, Txt} from '@motion-canvas/2d';
+import {all, createRef, easeInOutCubic, waitFor} from '@motion-canvas/core';
 import {CodeBlock} from '../core/code/components/CodeBlock';
 import {ExplainorCodeTheme} from '../core/code/model/SyntaxTheme';
-import {placeCodeStack} from '../core/ScreenGrid';
-import {Fonts, Timing} from '../core/theme';
+import {placeCodeStack, SafeZone} from '../core/ScreenGrid';
+import {Colors, Fonts, Timing} from '../core/theme';
 import {applyBackground} from '../core/utils';
+import {fitText} from '../core/utils/textMeasure';
 
 const PAYMENT_REPO_CODE = `final class PaymentRepository {
 
@@ -40,12 +41,158 @@ const ORDER_REPO_CODE = `final class OrderRepository {
   }
 }`;
 
+type ColKey = 'id' | 'status' | 'cents' | 'created_at';
+type Row = Record<ColKey, string>;
+
+interface Column {
+  key: ColKey;
+  header: string;
+  width: number;
+  align?: 'left' | 'center' | 'right';
+  ellipsis?: 'end' | 'middle';
+  color?: (value: string) => string;
+}
+
+const FONT_FAMILY = Fonts.code;
+const FONT_SIZE = 16;
+const FONT_WEIGHT = 400;
+const ROW_H = 52;
+const CELL_PX = 16;
+const TABLE_PADDING = 24;
+
+const baseColumns: Omit<Column, 'width'>[] = [
+  {key: 'id', header: 'id', ellipsis: 'middle', align: 'left'},
+  {
+    key: 'status',
+    header: 'status',
+    ellipsis: 'end',
+    align: 'left',
+    color: (v) => v === 'CAPTURED' ? '#A8D8C0' : v === 'PENDING' ? '#E6B47C' : Colors.text.muted,
+  },
+  {key: 'cents', header: 'cents', ellipsis: 'end', align: 'right'},
+  {key: 'created_at', header: 'created_at', ellipsis: 'end', align: 'right'},
+];
+
+const rows: Row[] = [
+  {id: '550e8400-e29b-41d4-a716-446655440000', status: 'CAPTURED', cents: '9900', created_at: '2024-12-15'},
+  {id: '6ba7b810-9dad-11d1-80b4-00c04fd430c8', status: 'DECLINED', cents: '15000', created_at: '2024-12-14'},
+  {id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479', status: 'CAPTURED', cents: '24500', created_at: '2024-12-12'},
+  {id: '7c9e6679-7425-40de-944b-e07fc1f90ae7', status: 'PENDING', cents: '7800', created_at: '2024-12-10'},
+];
+
 export default makeScene2D(function* (view) {
   applyBackground(view);
 
   const layouts = placeCodeStack([PAYMENT_REPO_CODE, ORDER_REPO_CODE], 'L', 16);
   const [paymentLayout, orderLayout] = layouts;
+
+  const tableRef = createRef<Rect>();
+  const codeRight = paymentLayout.x + paymentLayout.width / 2;
+  const edgeMargin = 120;
+  const tableLeft = codeRight + edgeMargin;
+  const tableRight = SafeZone.right;
+  const tableWidth = tableRight - tableLeft;
+  const tableX = tableLeft + tableWidth / 2;
+  const tableY = paymentLayout.y;
   
+  const contentWidth = tableWidth - TABLE_PADDING * 2;
+  const colWidth = Math.floor(contentWidth / baseColumns.length);
+  const columns: Column[] = baseColumns.map(col => ({...col, width: colWidth}));
+
+  view.add(
+    <Rect
+      ref={tableRef}
+      x={tableX}
+      y={tableY}
+      width={tableWidth}
+      height={paymentLayout.height}
+      layout
+      direction={'column'}
+      gap={0}
+      padding={TABLE_PADDING}
+      radius={28}
+      fill={Colors.surface}
+      stroke={'rgba(255, 255, 255, 0.03)'}
+      lineWidth={2}
+      shadowColor={'rgba(0, 0, 0, 0.28)'}
+      shadowBlur={74}
+      shadowOffset={[0, 22]}
+      opacity={0}
+      scale={0.98}
+      clip
+    >
+      <Rect layout direction={'row'} height={ROW_H} width={contentWidth} clip>
+        {columns.map(col => (
+          <Rect
+            layout
+            width={col.width}
+            grow={0}
+            shrink={0}
+            basis={col.width}
+            height={'100%'}
+            paddingLeft={CELL_PX}
+            paddingRight={CELL_PX}
+            alignItems={'center'}
+            justifyContent={col.align === 'right' ? 'end' : 'start'}
+            clip
+          >
+            <Txt
+              textWrap={false}
+              fontFamily={FONT_FAMILY}
+              fontSize={FONT_SIZE}
+              fontWeight={600}
+              fill={'rgba(252, 251, 248, 0.5)'}
+              text={col.header}
+            />
+          </Rect>
+        ))}
+      </Rect>
+
+      {rows.map((row, rowIndex) => (
+        <Rect
+          layout
+          direction={'row'}
+          height={ROW_H}
+          width={contentWidth}
+          clip
+          marginTop={rowIndex === 0 ? 8 : 0}
+        >
+          {columns.map(col => {
+            const raw = row[col.key];
+            const avail = col.width - CELL_PX * 2;
+            const shown = fitText(raw, avail, col.ellipsis ?? 'end', FONT_FAMILY, FONT_SIZE, FONT_WEIGHT);
+            const textColor = col.color ? col.color(raw) : Colors.text.primary;
+
+            return (
+              <Rect
+                layout
+                width={col.width}
+                grow={0}
+                shrink={0}
+                basis={col.width}
+                height={'100%'}
+                paddingLeft={CELL_PX}
+                paddingRight={CELL_PX}
+                alignItems={'center'}
+                justifyContent={col.align === 'right' ? 'end' : 'start'}
+                clip
+              >
+                <Txt
+                  textWrap={false}
+                  fontFamily={FONT_FAMILY}
+                  fontSize={FONT_SIZE}
+                  fontWeight={FONT_WEIGHT}
+                  fill={textColor}
+                  text={shown}
+                />
+              </Rect>
+            );
+          })}
+        </Rect>
+      ))}
+    </Rect>,
+  );
+
   const paymentRepo = CodeBlock.fromCode(PAYMENT_REPO_CODE, {
     x: paymentLayout.x,
     y: paymentLayout.y,
@@ -56,7 +203,7 @@ export default makeScene2D(function* (view) {
     theme: ExplainorCodeTheme,
     customTypes: [
       'PaymentRepository',
-      'DSLContext', 
+      'DSLContext',
       'PaymentRecord',
       'PaymentSearchFilter',
       'Condition',
@@ -83,12 +230,16 @@ export default makeScene2D(function* (view) {
   });
 
   paymentRepo.mount(view);
-  yield* paymentRepo.appear(Timing.slow);
-  
+  yield* all(
+    paymentRepo.appear(Timing.slow),
+    tableRef().opacity(1, Timing.slow, easeInOutCubic),
+    tableRef().scale(1, Timing.slow, easeInOutCubic),
+  );
+
   yield* waitFor(2);
-  
+
   orderRepo.mount(view);
   yield* orderRepo.appear(Timing.slow);
-  
+
   yield* waitFor(3);
 });
