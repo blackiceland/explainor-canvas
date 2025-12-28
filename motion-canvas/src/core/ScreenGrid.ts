@@ -108,7 +108,7 @@ const ANCHOR_MAP: Record<PositionKey, AnchorType> = {
   T:  'top-center',   B:  'bottom-center',
 };
 
-import {getCodePadding, getLineHeight, measureCode} from './code/shared/TextMeasure';
+import {getCodePaddingX, getCodePaddingY, getLineHeight, measureCode} from './code/shared/TextMeasure';
 
 const MIN_CARD_WIDTH = 300;
 const MAX_CARD_WIDTH = 1600;
@@ -120,13 +120,14 @@ export function placeCode(
   fontSize: number = 20
 ): { x: number; y: number; width: number; fontSize: number } {
   const lineCount = code.split('\n').length;
-  const padding = getCodePadding(fontSize);
+  const paddingX = getCodePaddingX(fontSize);
+  const paddingY = getCodePaddingY(fontSize);
 
   const metrics = measureCode(code, fontSize);
-  const calculatedWidth = metrics.width + padding * 2;
+  const calculatedWidth = metrics.width + paddingX * 2;
   const blockWidth = Math.min(MAX_CARD_WIDTH, Math.max(MIN_CARD_WIDTH, calculatedWidth));
 
-  const blockHeight = lineCount * getLineHeight(fontSize) + padding * 2;
+  const blockHeight = lineCount * getLineHeight(fontSize) + paddingY * 2;
   
   const anchor = ANCHOR_MAP[position];
   
@@ -162,10 +163,11 @@ export function placeCodeStack(
   if (codes.length === 0) return [];
 
   const sizes = codes.map(code => {
-    const padding = getCodePadding(fontSize);
+    const paddingX = getCodePaddingX(fontSize);
+    const paddingY = getCodePaddingY(fontSize);
     const metrics = measureCode(code, fontSize);
-    const width = Math.min(MAX_CARD_WIDTH, Math.max(MIN_CARD_WIDTH, metrics.width + padding * 2));
-    const height = code.split('\n').length * getLineHeight(fontSize) + padding * 2;
+    const width = Math.min(MAX_CARD_WIDTH, Math.max(MIN_CARD_WIDTH, metrics.width + paddingX * 2));
+    const height = code.split('\n').length * getLineHeight(fontSize) + paddingY * 2;
     return {width, height};
   });
 
@@ -177,7 +179,10 @@ export function placeCodeStack(
     align === 'R' ? (SafeZone.right - maxWidth / 2) :
     0;
 
-  const topY = SafeZone.top + maxHeight / 2;
+  const safeHeight = SafeZone.bottom - SafeZone.top;
+  const stackHeight = codes.length * maxHeight + (codes.length - 1) * STACK_GAP;
+  const marginY = Math.max(0, (safeHeight - stackHeight) / 2);
+  const topY = SafeZone.top + marginY + maxHeight / 2;
   
   return codes.map((_, i) => ({
     x,

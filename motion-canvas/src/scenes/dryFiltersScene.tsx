@@ -55,9 +55,12 @@ interface Column {
 const FONT_FAMILY = Fonts.code;
 const FONT_SIZE = 16;
 const FONT_WEIGHT = 400;
-const ROW_H = 52;
+const ROW_H = 48;
 const CELL_PX = 16;
 const TABLE_PADDING = 24;
+const TITLE_H = 24;
+const TITLE_FONT_SIZE = 14;
+const TITLE_COLOR = 'rgba(219, 213, 202, 0.72)';
 
 const paymentColumns: Omit<Column, 'width'>[] = [
   {key: 'id', header: 'id', ellipsis: 'middle', align: 'left'},
@@ -141,6 +144,24 @@ export default makeScene2D(function* (view) {
       opacity={0}
       clip
     >
+      <Rect
+        layout
+        direction={'row'}
+        height={TITLE_H}
+        width={contentWidth}
+        justifyContent={'start'}
+        alignItems={'center'}
+        clip
+        marginBottom={10}
+      >
+        <Txt
+          fontFamily={FONT_FAMILY}
+          fontSize={TITLE_FONT_SIZE}
+          fontWeight={600}
+          fill={TITLE_COLOR}
+          text={'PAYMENTS'}
+        />
+      </Rect>
       <Rect layout direction={'row'} height={ROW_H} width={contentWidth} justifyContent={'start'} clip>
         {paymentColumns.map((col, i) => (
           <>
@@ -184,7 +205,7 @@ export default makeScene2D(function* (view) {
           width={contentWidth}
           justifyContent={'start'}
           clip
-          marginTop={rowIndex === 0 ? 8 : 0}
+          marginTop={rowIndex === 0 ? 6 : 0}
         >
           {paymentColumns.map((col, i) => {
             const raw = row[col.key];
@@ -252,6 +273,24 @@ export default makeScene2D(function* (view) {
       opacity={0}
       clip
     >
+      <Rect
+        layout
+        direction={'row'}
+        height={TITLE_H}
+        width={contentWidth}
+        justifyContent={'start'}
+        alignItems={'center'}
+        clip
+        marginBottom={10}
+      >
+        <Txt
+          fontFamily={FONT_FAMILY}
+          fontSize={TITLE_FONT_SIZE}
+          fontWeight={600}
+          fill={TITLE_COLOR}
+          text={'ORDERS'}
+        />
+      </Rect>
       <Rect layout direction={'row'} height={ROW_H} width={contentWidth} justifyContent={'start'} clip>
         {orderColumns.map((col, i) => (
           <>
@@ -295,7 +334,7 @@ export default makeScene2D(function* (view) {
           width={contentWidth}
           justifyContent={'start'}
           clip
-          marginTop={rowIndex === 0 ? 8 : 0}
+          marginTop={rowIndex === 0 ? 6 : 0}
         >
           {orderColumns.map((col, i) => {
             const raw = row[col.key];
@@ -384,12 +423,30 @@ export default makeScene2D(function* (view) {
     paymentTableRef().opacity(1, Timing.slow, easeInOutCubic),
   );
 
+  const conditionLineIndex = 9;
+  const whereLineIndex = 12;
+
   yield* waitFor(2);
 
   orderRepo.mount(view);
   yield* all(
     orderRepo.appear(Timing.slow),
     orderTableRef().opacity(1, Timing.slow, easeInOutCubic),
+  );
+
+  yield* waitFor(0.4);
+
+  yield* all(
+    all(
+      paymentRepo.highlightLines([[conditionLineIndex, conditionLineIndex], [whereLineIndex, whereLineIndex]], Timing.slow),
+      paymentRepo.recolorLine(conditionLineIndex, Colors.accent, Timing.slow),
+      paymentRepo.recolorLine(whereLineIndex, Colors.accent, Timing.slow),
+    ),
+    all(
+      orderRepo.highlightLines([[conditionLineIndex, conditionLineIndex], [whereLineIndex, whereLineIndex]], Timing.slow),
+      orderRepo.recolorLine(conditionLineIndex, Colors.accent, Timing.slow),
+      orderRepo.recolorLine(whereLineIndex, Colors.accent, Timing.slow),
+    ),
   );
 
   yield* waitFor(3);

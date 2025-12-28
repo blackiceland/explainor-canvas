@@ -5,7 +5,7 @@ import {tokenizeLine} from '../model/Tokenizer';
 import {SyntaxTheme, IntelliJDarkTheme} from '../model/SyntaxTheme';
 import {CodeCard, CodeCardStyle} from './CodeCard';
 import {CodeLine} from './CodeLine';
-import {getCodePadding, getLineHeight} from '../shared/TextMeasure';
+import {getCodePaddingX, getCodePaddingY, getLineHeight} from '../shared/TextMeasure';
 import {getWorldPosition, Point} from '../shared/Coordinates';
 import {Fonts} from '../../theme';
 
@@ -67,13 +67,17 @@ export class CodeBlock {
         return new CodeBlock(document, config);
     }
 
-    private getPadding(): number {
-        return getCodePadding(this.config.fontSize);
+    private getPaddingX(): number {
+        return getCodePaddingX(this.config.fontSize);
+    }
+
+    private getPaddingY(): number {
+        return getCodePaddingY(this.config.fontSize);
     }
 
     private getContentLeftEdge(): number {
-        const padding = this.getPadding();
-        const contentWidth = Math.max(this.config.width - padding * 2, 0);
+        const paddingX = this.getPaddingX();
+        const contentWidth = Math.max(this.config.width - paddingX * 2, 0);
         return -contentWidth / 2 + this.config.contentOffsetX;
     }
 
@@ -88,11 +92,12 @@ export class CodeBlock {
         this.containerRef(container);
 
         const lineCount = this.document.lineCount;
-        const padding = this.getPadding();
+        const paddingX = this.getPaddingX();
+        const paddingY = this.getPaddingY();
         const cardWidth = this.config.width;
-        const contentHeight = lineCount * this.config.lineHeight + padding * 2;
+        const contentHeight = lineCount * this.config.lineHeight + paddingY * 2;
         const cardHeight = this.config.height > 0 ? this.config.height : contentHeight;
-        const contentWidth = Math.max(cardWidth - padding * 2, 0);
+        const contentWidth = Math.max(cardWidth - paddingX * 2, 0);
 
         this.card = new CodeCard({width: cardWidth, height: cardHeight, style: this.config.cardStyle});
         container.add(this.card.build());

@@ -12,12 +12,15 @@
 - Возвращает массив `{ x, y, width, height, fontSize }[]`
 - **Все карточки одинакового размера** (по самой большой)
 - **Зазор между карточками**: 60px (STACK_GAP)
+- **Вертикальная композиция**: стек центрируется по SafeZone (чтобы верх/низ выглядели сбалансировано)
 - **fontSize** — что передал, то и получил (система НЕ меняет)
 - Если не помещается — твоя ответственность (уменьши fontSize или код)
 
 ### 3. Padding (отступ от кода до края карточки)
-- Формула: `fontSize * 2 + 8`, ограничено 24–56px
-- При fontSize 16 → 40px
+- Горизонталь (X): `fontSize * 2 + 8`, ограничено 24–56px
+  - При fontSize 16 → 40px (совпадает с таблицей: 24 + 16)
+- Вертикаль (Y): `fontSize * 1.5 + 8`, ограничено 24–48px
+  - При fontSize 16 → 32px
 
 ### 4. Safe Zone
 - Вертикаль: от -480 до +480 (960px)
@@ -127,6 +130,23 @@ AI должен САМ анализировать код и определять
 3. Добавить остальные в customTypes
 
 Без этого кастомные классы будут белыми вместо бежевых.
+
+---
+
+## Подсветка condition (как в dryKnowledgeScene)
+
+Паттерн: приглушаем всё кроме нужных строк и красим их в `Colors.accent` (розовый `#FF8CA3`).
+
+```typescript
+const conditionLineIndex = 9;
+const whereLineIndex = 12;
+
+yield* all(
+  repo.highlightLines([[conditionLineIndex, conditionLineIndex], [whereLineIndex, whereLineIndex]], Timing.slow),
+  repo.recolorLine(conditionLineIndex, Colors.accent, Timing.slow),
+  repo.recolorLine(whereLineIndex, Colors.accent, Timing.slow),
+);
+```
 
 ---
 
@@ -300,10 +320,12 @@ import {Colors, Fonts, Timing} from '../core/theme';
 
 // Константы
 const TABLE_PADDING = 24;
-const ROW_H = 52;
+const ROW_H = 48;
 const CELL_PX = 16;
 const FONT_SIZE = 16;
 const FONT_WEIGHT = 400;
+const TITLE_H = 24;
+const TITLE_FONT_SIZE = 14;
 
 // Колонки (без width — flex поделит равномерно)
 const baseColumns = [
@@ -356,6 +378,9 @@ const contentWidth = tableWidth - TABLE_PADDING * 2;
   shadowOffset={[0, 22]}
   clip
 >
+  <Rect layout direction={'row'} height={TITLE_H} width={contentWidth} justifyContent={'start'} alignItems={'center'} clip marginBottom={10}>
+    <Txt fontFamily={Fonts.code} fontSize={TITLE_FONT_SIZE} fontWeight={600} fill={'rgba(219, 213, 202, 0.72)'} text={'PAYMENTS'} />
+  </Rect>
   {/* Header row */}
   <Rect layout direction={'row'} height={ROW_H} width={contentWidth} justifyContent={'start'} clip>
     {baseColumns.map((col, i) => (
