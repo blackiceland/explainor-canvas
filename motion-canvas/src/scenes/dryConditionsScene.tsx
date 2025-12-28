@@ -1,5 +1,5 @@
 import {Line, makeScene2D, Rect, Txt} from '@motion-canvas/2d';
-import {all, createRef, easeInOutCubic, waitFor} from '@motion-canvas/core';
+import {all, createRef, createSignal, easeInOutCubic, waitFor} from '@motion-canvas/core';
 import {CodeBlock} from '../core/code/components/CodeBlock';
 import {ExplainorCodeTheme} from '../core/code/model/SyntaxTheme';
 import {getCodePaddingX, getCodePaddingY} from '../core/code/shared/TextMeasure';
@@ -94,6 +94,30 @@ const COMMON_CONDITIONS_CODE = `final class CommonConditions {
 const DEP_BLUE = '#2C6BFF';
 const DEP_CARD_STROKE = 'rgba(255, 255, 255, 0.03)';
 const DEP_LINK_STROKE = 'rgba(219, 213, 202, 0.22)';
+
+function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}
+
+function edgePoint(
+  center: [number, number],
+  size: [number, number],
+  target: [number, number],
+): [number, number] {
+  const [cx, cy] = center;
+  const [tx, ty] = target;
+  const dx = tx - cx;
+  const dy = ty - cy;
+  if (dx === 0 && dy === 0) return [cx, cy];
+
+  const hw = size[0] / 2;
+  const hh = size[1] / 2;
+  const ax = Math.abs(dx);
+  const ay = Math.abs(dy);
+
+  const t = Math.min(hw / (ax || 1e-9), hh / (ay || 1e-9));
+  return [cx + dx * t, cy + dy * t];
+}
 
 function codeCardHeight(code: string, lineHeight: number, paddingY: number): number {
   const lines = code.split('\n').length;
@@ -493,8 +517,16 @@ export default makeScene2D(function* (view) {
         lineWidth={2}
         end={0}
         points={() => [
-          [hub().position.x(), hub().position.y()],
-          [leftPos[0], leftPos[1]],
+          edgePoint(
+            [hub().position.x(), hub().position.y()],
+            [hub().width(), hub().height()],
+            [leftPos[0], leftPos[1]],
+          ),
+          edgePoint(
+            [leftPos[0], leftPos[1]],
+            [nodeW, nodeH],
+            [hub().position.x(), hub().position.y()],
+          ),
         ]}
       />
       <Line
@@ -503,8 +535,16 @@ export default makeScene2D(function* (view) {
         lineWidth={2}
         end={0}
         points={() => [
-          [hub().position.x(), hub().position.y()],
-          [rightPos[0], rightPos[1]],
+          edgePoint(
+            [hub().position.x(), hub().position.y()],
+            [hub().width(), hub().height()],
+            [rightPos[0], rightPos[1]],
+          ),
+          edgePoint(
+            [rightPos[0], rightPos[1]],
+            [nodeW, nodeH],
+            [hub().position.x(), hub().position.y()],
+          ),
         ]}
       />
       <Line
@@ -513,8 +553,16 @@ export default makeScene2D(function* (view) {
         lineWidth={2}
         end={0}
         points={() => [
-          [hub().position.x(), hub().position.y()],
-          [bottomPos[0], bottomPos[1]],
+          edgePoint(
+            [hub().position.x(), hub().position.y()],
+            [hub().width(), hub().height()],
+            [bottomPos[0], bottomPos[1]],
+          ),
+          edgePoint(
+            [bottomPos[0], bottomPos[1]],
+            [nodeW, nodeH],
+            [hub().position.x(), hub().position.y()],
+          ),
         ]}
       />
 
@@ -624,6 +672,117 @@ export default makeScene2D(function* (view) {
     right().opacity(1, Timing.slow, easeInOutCubic),
     bottom().opacity(1, Timing.slow, easeInOutCubic),
   );
+
+  linkL().opacity(0.75);
+  linkR().opacity(0.75);
+  linkB().opacity(0.75);
+
+  const pL = createSignal(0);
+  const pR = createSignal(0);
+  const pB = createSignal(0);
+  const oL = createSignal(0);
+  const oR = createSignal(0);
+  const oB = createSignal(0);
+
+  view.add(
+    <>
+      <Rect
+        width={10}
+        height={10}
+        radius={5}
+        fill={DEP_BLUE}
+        shadowColor={DEP_BLUE}
+        shadowBlur={18}
+        opacity={() => oL()}
+        x={() => {
+          const a = edgePoint(leftPos, [nodeW, nodeH], [hub().position.x(), hub().position.y()]);
+          const b = edgePoint([hub().position.x(), hub().position.y()], [hub().width(), hub().height()], leftPos);
+          return lerp(a[0], b[0], pL());
+        }}
+        y={() => {
+          const a = edgePoint(leftPos, [nodeW, nodeH], [hub().position.x(), hub().position.y()]);
+          const b = edgePoint([hub().position.x(), hub().position.y()], [hub().width(), hub().height()], leftPos);
+          return lerp(a[1], b[1], pL());
+        }}
+      />
+      <Rect
+        width={10}
+        height={10}
+        radius={5}
+        fill={DEP_BLUE}
+        shadowColor={DEP_BLUE}
+        shadowBlur={18}
+        opacity={() => oR()}
+        x={() => {
+          const a = edgePoint([hub().position.x(), hub().position.y()], [hub().width(), hub().height()], rightPos);
+          const b = edgePoint(rightPos, [nodeW, nodeH], [hub().position.x(), hub().position.y()]);
+          return lerp(a[0], b[0], pR());
+        }}
+        y={() => {
+          const a = edgePoint([hub().position.x(), hub().position.y()], [hub().width(), hub().height()], rightPos);
+          const b = edgePoint(rightPos, [nodeW, nodeH], [hub().position.x(), hub().position.y()]);
+          return lerp(a[1], b[1], pR());
+        }}
+      />
+      <Rect
+        width={10}
+        height={10}
+        radius={5}
+        fill={DEP_BLUE}
+        shadowColor={DEP_BLUE}
+        shadowBlur={18}
+        opacity={() => oB()}
+        x={() => {
+          const a = edgePoint([hub().position.x(), hub().position.y()], [hub().width(), hub().height()], bottomPos);
+          const b = edgePoint(bottomPos, [nodeW, nodeH], [hub().position.x(), hub().position.y()]);
+          return lerp(a[0], b[0], pB());
+        }}
+        y={() => {
+          const a = edgePoint([hub().position.x(), hub().position.y()], [hub().width(), hub().height()], bottomPos);
+          const b = edgePoint(bottomPos, [nodeW, nodeH], [hub().position.x(), hub().position.y()]);
+          return lerp(a[1], b[1], pB());
+        }}
+      />
+    </>,
+  );
+
+  for (let i = 0; i < 3; i++) {
+    pL(0);
+    pR(0);
+    pB(0);
+    oL(1);
+    oR(0);
+    oB(0);
+
+    yield* all(
+      linkL().opacity(1, 0.18, easeInOutCubic),
+      pL(1, 0.7, easeInOutCubic),
+    );
+
+    yield* all(
+      linkL().opacity(0.75, 0.22, easeInOutCubic),
+      oL(0, 0.22, easeInOutCubic),
+    );
+
+    oR(1);
+    oB(1);
+
+    yield* all(
+      linkR().opacity(1, 0.18, easeInOutCubic),
+      linkB().opacity(1, 0.18, easeInOutCubic),
+      pR(1, 0.75, easeInOutCubic),
+      pB(1, 0.75, easeInOutCubic),
+    );
+
+    yield* all(
+      linkR().opacity(0.75, 0.22, easeInOutCubic),
+      linkB().opacity(0.75, 0.22, easeInOutCubic),
+      oR(0, 0.22, easeInOutCubic),
+      oB(0, 0.22, easeInOutCubic),
+    );
+
+    yield* waitFor(0.15);
+  }
 
   yield* waitFor(16);
 });
