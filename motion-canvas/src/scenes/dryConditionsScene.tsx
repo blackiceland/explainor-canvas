@@ -1,5 +1,5 @@
 import {makeScene2D} from '@motion-canvas/2d';
-import {all, waitFor} from '@motion-canvas/core';
+import {all, easeInOutCubic, waitFor} from '@motion-canvas/core';
 import {CodeBlock} from '../core/code/components/CodeBlock';
 import {ExplainorCodeTheme} from '../core/code/model/SyntaxTheme';
 import {getCodePaddingX, getCodePaddingY} from '../core/code/shared/TextMeasure';
@@ -48,12 +48,10 @@ const PAYMENT_CONDITIONS_CODE = `final class PaymentConditions {
 
 const COMMON_CONDITIONS_CODE = `final class CommonConditions {
 
-  interface DateStatusFilter {
-    LocalDateTime createdSince();
-    String status();
-  }
-
-  static Condition fromFilter(DateStatusFilter filter, Field<LocalDateTime> createdAt, Field<String> statusField) {
+  static Condition fromFilter(
+    Filter filter, Field<LocalDateTime> createdAt, Field<String> statusField,
+    Field<Boolean> deleted, boolean isOrders, boolean isPayments
+  ) {
     Condition conditions = DSL.trueCondition();
 
     if (filter.createdSince() != null) {
@@ -62,6 +60,10 @@ const COMMON_CONDITIONS_CODE = `final class CommonConditions {
 
     if (filter.status() != null) {
       conditions = conditions.and(statusField.eq(filter.status()));
+    }
+
+    if (isOrders && !filter.includeDeleted()) {
+      conditions = conditions.and(deleted.isFalse());
     }
 
     return conditions;
@@ -89,7 +91,6 @@ export default makeScene2D(function* (view) {
   const lineHeight = Math.round(fontSize * 1.7 * 10) / 10;
   const paddingY = getCodePaddingY(fontSize);
   const paddingX = getCodePaddingX(fontSize);
-  const extraCommonLines = 10;
   const gap = 120;
   const totalWidth = SafeZone.right - SafeZone.left;
   const cardWidth = (totalWidth - gap) / 2;
@@ -126,7 +127,13 @@ export default makeScene2D(function* (view) {
   });
 
   const commonWidth = codeCardWidth(COMMON_CONDITIONS_CODE, Fonts.code, fontSize, paddingX);
-  const commonHeight = codeCardHeight(COMMON_CONDITIONS_CODE, lineHeight, paddingY) + extraCommonLines * lineHeight;
+  const commonHeight = 920;
+  const commonTopMargin = 28;
+  const commonLineCount = COMMON_CONDITIONS_CODE.split('\n').length;
+  const commonCenterOffset = (commonLineCount - 1) / 2;
+  const commonClipHeight = Math.max(0, commonHeight - paddingY * 2);
+  const commonContentOffsetY =
+    (-commonClipHeight / 2 + lineHeight / 2 + commonTopMargin) + commonCenterOffset * lineHeight;
   const commonBlock = CodeBlock.fromCode(COMMON_CONDITIONS_CODE, {
     x: 0,
     y: 0,
@@ -134,13 +141,14 @@ export default makeScene2D(function* (view) {
     height: commonHeight,
     fontSize,
     lineHeight,
+    contentOffsetY: commonContentOffsetY,
     fontFamily: Fonts.code,
     theme: ExplainorCodeTheme,
     customTypes: [
       'CommonConditions',
-      'DateStatusFilter',
       'LocalDateTime',
       'Field',
+      'Boolean',
       'Condition',
       'DSL',
     ],
@@ -287,7 +295,87 @@ export default makeScene2D(function* (view) {
   );
 
   commonBlock.mount(view);
+
+  const commonLines = COMMON_CONDITIONS_CODE.split('\n');
+  const commonLineCount2 = commonLines.length;
+  const commonCenterOffset2 = (commonLineCount2 - 1) / 2;
+  const baseY: number[] = new Array(commonLineCount2).fill(0);
+  const currentY: number[] = new Array(commonLineCount2).fill(0);
+
+  for (let i = 0; i < commonLineCount2; i++) {
+    baseY[i] = (i - commonCenterOffset2) * lineHeight + commonContentOffsetY;
+    currentY[i] = baseY[i];
+  }
+
+  const pParamsExtra = commonLines.findIndex(l => l.includes('Field<Boolean> deleted'));
+  const ifOrdersStart = commonLines.findIndex(l => l.includes('if (isOrders && !filter.includeDeleted())'));
+  const ifOrdersEnd = ifOrdersStart >= 0
+    ? commonLines.findIndex((l, idx) => idx > ifOrdersStart && l.trim() === '}')
+    : -1;
+  const ifOrdersRange: [number, number] | null =
+    ifOrdersStart >= 0 && ifOrdersEnd >= ifOrdersStart ? [ifOrdersStart, ifOrdersEnd] : null;
+
+  const hidden: boolean[] = new Array(commonLineCount2).fill(false);
+  if (pParamsExtra >= 0) hidden[pParamsExtra] = true;
+  if (ifOrdersRange) {
+    for (let i = ifOrdersRange[0]; i <= ifOrdersRange[1]; i++) hidden[i] = true;
+  }
+
+  const hiddenAboveCount: number[] = new Array(commonLineCount2).fill(0);
+  let hiddenSoFar = 0;
+  for (let i = 0; i < commonLineCount2; i++) {
+    hiddenAboveCount[i] = hiddenSoFar;
+    if (hidden[i]) hiddenSoFar++;
+  }
+
+  for (let i = 0; i < commonLineCount2; i++) {
+    currentY[i] = baseY[i] - hiddenAboveCount[i] * lineHeight;
+    const line = commonBlock.getLine(i);
+    if (line) {
+      line.node.position([0, currentY[i]]);
+      if (hidden[i]) line.node.opacity(0);
+    }
+  }
+
   yield* commonBlock.appear(Timing.slow);
+
+  yield* waitFor(0.6);
+
+  function* insertRange(range: [number, number], duration: number) {
+    const [a, b] = range;
+    const deltaY = (b - a + 1) * lineHeight;
+
+    const reveals = [];
+    for (let i = a; i <= b; i++) {
+      const line = commonBlock.getLine(i);
+      if (!line) continue;
+      const targetY = currentY[a] + (i - a) * lineHeight;
+      currentY[i] = targetY;
+      reveals.push(line.node.position([0, targetY], duration, easeInOutCubic));
+      reveals.push(line.node.opacity(1, duration, easeInOutCubic));
+      hidden[i] = false;
+    }
+
+    const shifts = [];
+    for (let i = b + 1; i < commonLineCount2; i++) {
+      const line = commonBlock.getLine(i);
+      if (!line) continue;
+      currentY[i] += deltaY;
+      shifts.push(line.node.position([0, currentY[i]], duration, easeInOutCubic));
+    }
+
+    yield* all(...reveals, ...shifts);
+  }
+
+  if (pParamsExtra >= 0) {
+    yield* insertRange([pParamsExtra, pParamsExtra], Timing.slow);
+  }
+
+  yield* waitFor(0.5);
+
+  if (ifOrdersRange) {
+    yield* insertRange(ifOrdersRange, Timing.slow);
+  }
 
   yield* waitFor(16);
 });
