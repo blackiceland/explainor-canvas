@@ -43,7 +43,7 @@ export const WhiteTheme: SyntaxTheme = {
 };
 
 export const ExplainorCodeTheme: SyntaxTheme = {
-    keyword: '#E6B47C',
+    keyword: '#E2B7C1',
     type: '#D5CCBF',
     string: '#B2C7C9',
     number: '#A5C9CA',
@@ -51,7 +51,7 @@ export const ExplainorCodeTheme: SyntaxTheme = {
     punctuation: '#EBE8E2',
     method: '#B8D4E8',
     comment: '#4A505E',
-    annotation: '#E6B47C',
+    annotation: '#E2B7C1',
     constant: '#C8B8D8',
     plain: '#FCFBF8',
 };

@@ -190,7 +190,7 @@ yield* all(
 
 | Токен | Цвет | Примеры |
 |-------|------|---------|
-| keyword | #E6B47C (оранжевый) | `final`, `class`, `return`, `this` |
+| keyword | #E2B7C1 (пыльная роза) | `final`, `class`, `return`, `this` |
 | type | #D5CCBF (бежевый) | `List`, `String`, + customTypes |
 | constant | #C8B8D8 (лавандовый) | `PAYMENTS`, `ORDERS` |
 | method | #B8D4E8 (голубой) | `.selectFrom()`, `.fetch()` |
