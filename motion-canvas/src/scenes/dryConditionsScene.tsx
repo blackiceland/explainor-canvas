@@ -13,7 +13,9 @@ const ORDER_CONDITIONS_CODE = `final class OrderConditions {
     Condition conditions = DSL.trueCondition();
 
     if (filter.createdSince() != null) {
-      conditions = conditions.and(ORDERS.CREATED_AT.ge(filter.createdSince()));
+      conditions = conditions.and(
+        ORDERS.CREATED_AT.ge(filter.createdSince())
+      );
     }
 
     if (filter.status() != null) {
@@ -30,7 +32,9 @@ const PAYMENT_CONDITIONS_CODE = `final class PaymentConditions {
     Condition conditions = DSL.trueCondition();
 
     if (filter.createdSince() != null) {
-      conditions = conditions.and(PAYMENTS.CREATED_AT.ge(filter.createdSince()));
+      conditions = conditions.and(
+        PAYMENTS.CREATED_AT.ge(filter.createdSince())
+      );
     }
 
     if (filter.status() != null) {
