@@ -23,7 +23,7 @@ interface TokenData {
     originalColor: string;
 }
 
-const LIGATURE_OPERATORS = new Set(['!=', '==', '<=', '>=', '&&', '||', '++', '--', '->', '::']);
+const LIGATURE_OPERATORS = new Set(['!=']);
 
 export class CodeLine {
     private readonly containerRef: Reference<Node> = createRef<Node>();

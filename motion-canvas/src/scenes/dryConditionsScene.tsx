@@ -153,6 +153,7 @@ export default makeScene2D(function* (view) {
     paymentBlock.appear(Timing.slow),
   );
 
+  const restoreDur = 0.8;
   const stepDur = 0.5;
   const stepGap = 0.16;
 
@@ -184,26 +185,26 @@ export default makeScene2D(function* (view) {
   yield* syncLine(15, 15);
 
   yield* all(
-    orderBlock.resetLineColors(2, 0.35),
-    orderBlock.resetLineColors(3, 0.35),
-    orderBlock.resetLineColors(5, 0.35),
-    orderBlock.resetLineColors(6, 0.35),
-    orderBlock.resetLineColors(7, 0.35),
-    orderBlock.resetLineColors(8, 0.35),
-    orderBlock.resetLineColors(11, 0.35),
-    orderBlock.resetLineColors(12, 0.35),
-    orderBlock.resetLineColors(15, 0.35),
-    paymentBlock.resetLineColors(2, 0.35),
-    paymentBlock.resetLineColors(3, 0.35),
-    paymentBlock.resetLineColors(5, 0.35),
-    paymentBlock.resetLineColors(6, 0.35),
-    paymentBlock.resetLineColors(7, 0.35),
-    paymentBlock.resetLineColors(8, 0.35),
-    paymentBlock.resetLineColors(11, 0.35),
-    paymentBlock.resetLineColors(12, 0.35),
-    paymentBlock.resetLineColors(15, 0.35),
-    orderBlock.showAllLines(0.35),
-    paymentBlock.showAllLines(0.35),
+    orderBlock.resetLineColors(2, restoreDur),
+    orderBlock.resetLineColors(3, restoreDur),
+    orderBlock.resetLineColors(5, restoreDur),
+    orderBlock.resetLineColors(6, restoreDur),
+    orderBlock.resetLineColors(7, restoreDur),
+    orderBlock.resetLineColors(8, restoreDur),
+    orderBlock.resetLineColors(11, restoreDur),
+    orderBlock.resetLineColors(12, restoreDur),
+    orderBlock.resetLineColors(15, restoreDur),
+    paymentBlock.resetLineColors(2, restoreDur),
+    paymentBlock.resetLineColors(3, restoreDur),
+    paymentBlock.resetLineColors(5, restoreDur),
+    paymentBlock.resetLineColors(6, restoreDur),
+    paymentBlock.resetLineColors(7, restoreDur),
+    paymentBlock.resetLineColors(8, restoreDur),
+    paymentBlock.resetLineColors(11, restoreDur),
+    paymentBlock.resetLineColors(12, restoreDur),
+    paymentBlock.resetLineColors(15, restoreDur),
+    orderBlock.showAllLines(restoreDur),
+    paymentBlock.showAllLines(restoreDur),
   );
 
   yield* waitFor(0.35);
@@ -265,16 +266,16 @@ export default makeScene2D(function* (view) {
   yield* waitFor(2);
 
   yield* all(
-    orderBlock.resetLineColors(0, 0.4),
-    orderBlock.resetLineColors(2, 0.4),
-    orderBlock.resetLineColors(7, 0.4),
-    orderBlock.resetLineColors(12, 0.4),
-    paymentBlock.resetLineColors(0, 0.4),
-    paymentBlock.resetLineColors(2, 0.4),
-    paymentBlock.resetLineColors(7, 0.4),
-    paymentBlock.resetLineColors(12, 0.4),
-    orderBlock.showAllLines(0.4),
-    paymentBlock.showAllLines(0.4),
+    orderBlock.resetLineColors(0, restoreDur),
+    orderBlock.resetLineColors(2, restoreDur),
+    orderBlock.resetLineColors(7, restoreDur),
+    orderBlock.resetLineColors(12, restoreDur),
+    paymentBlock.resetLineColors(0, restoreDur),
+    paymentBlock.resetLineColors(2, restoreDur),
+    paymentBlock.resetLineColors(7, restoreDur),
+    paymentBlock.resetLineColors(12, restoreDur),
+    orderBlock.showAllLines(restoreDur),
+    paymentBlock.showAllLines(restoreDur),
   );
 
   yield* waitFor(0.6);
