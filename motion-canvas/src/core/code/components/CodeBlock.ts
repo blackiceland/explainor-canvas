@@ -1,4 +1,4 @@
-import {Node} from '@motion-canvas/2d';
+import {Node, Rect} from '@motion-canvas/2d';
 import {all, createRef, easeInOutCubic, Reference, ThreadGenerator} from '@motion-canvas/core';
 import {CodeDocument} from '../model/CodeDocument';
 import {tokenizeLine} from '../model/Tokenizer';
@@ -100,7 +100,18 @@ export class CodeBlock {
         const contentWidth = Math.max(cardWidth - paddingX * 2, 0);
 
         this.card = new CodeCard({width: cardWidth, height: cardHeight, style: this.config.cardStyle});
-        container.add(this.card.build());
+        const cardNode = this.card.build();
+        container.add(cardNode);
+
+        const clipHeight = Math.max(0, cardHeight - paddingY * 2);
+        const clipContainer = new Rect({
+            width: contentWidth,
+            height: clipHeight,
+            radius: 0,
+            fill: '#00000000',
+            clip: true,
+        });
+        container.add(clipContainer);
 
         const centerOffset = (lineCount - 1) / 2;
         const leftEdge = this.getContentLeftEdge();
@@ -120,7 +131,7 @@ export class CodeBlock {
                 leftEdge,
             });
 
-            container.add(codeLine.build(localY));
+            clipContainer.add(codeLine.build(localY));
             this.lines.push(codeLine);
         }
 

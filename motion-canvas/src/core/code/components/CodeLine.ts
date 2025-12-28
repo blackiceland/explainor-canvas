@@ -2,9 +2,9 @@ import {Node, Rect, Txt} from '@motion-canvas/2d';
 import {all, createRef, easeInOutCubic, Reference, ThreadGenerator} from '@motion-canvas/core';
 import {Token} from '../model/Tokenizer';
 import {getTokenColor, SyntaxTheme} from '../model/SyntaxTheme';
-import {measureText} from '../shared/TextMeasure';
 import {Colors} from '../../theme';
 import {getWorldPosition, Point} from '../shared/Coordinates';
+import {textWidth} from '../../utils/textMeasure';
 
 export interface CodeLineConfig {
     tokens: Token[];
@@ -21,6 +21,8 @@ interface TokenData {
     text: string;
     localX: number;
 }
+
+const LIGATURE_OPERATORS = new Set(['!=', '==', '<=', '>=', '&&', '||', '++', '--', '->', '::']);
 
 export class CodeLine {
     private readonly containerRef: Reference<Node> = createRef<Node>();
@@ -50,9 +52,36 @@ export class CodeLine {
 
         let xOffset = this.config.leftEdge;
         for (const token of this.config.tokens) {
-            const ref = createRef<Txt>();
             // Если токен имеет color (Shiki), используем его напрямую
             const tokenColor = token.color ?? getTokenColor(token.type, this.config.theme);
+
+            if (token.type === 'operator' && LIGATURE_OPERATORS.has(token.text)) {
+                for (let i = 0; i < token.text.length; i++) {
+                    const ch = token.text[i];
+                    const ref = createRef<Txt>();
+                    const txt = new Txt({
+                        text: ch,
+                        fontFamily: this.config.fontFamily,
+                        fontSize: this.config.fontSize,
+                        fill: tokenColor,
+                        x: xOffset,
+                        offset: [-1, 0],
+                    });
+                    ref(txt);
+                    container.add(txt);
+
+                    this.tokensData.push({
+                        ref,
+                        text: i === 0 ? token.text : '',
+                        localX: xOffset,
+                    });
+
+                    xOffset += textWidth(ch, this.config.fontFamily, this.config.fontSize);
+                }
+                continue;
+            }
+
+            const ref = createRef<Txt>();
             const txt = new Txt({
                 text: token.text,
                 fontFamily: this.config.fontFamily,
@@ -70,7 +99,7 @@ export class CodeLine {
                 localX: xOffset,
             });
 
-            xOffset += measureText(token.text, this.config.fontSize);
+            xOffset += textWidth(token.text, this.config.fontFamily, this.config.fontSize);
         }
 
         return container;
@@ -149,8 +178,8 @@ export class CodeLine {
         for (const tokenData of this.tokensData) {
             if (tokenData.text.includes(search)) {
                 const idx = tokenData.text.indexOf(search);
-                const offsetBefore = measureText(tokenData.text.substring(0, idx), this.config.fontSize);
-                const searchWidth = measureText(search, this.config.fontSize);
+                const offsetBefore = textWidth(tokenData.text.substring(0, idx), this.config.fontFamily, this.config.fontSize);
+                const searchWidth = textWidth(search, this.config.fontFamily, this.config.fontSize);
                 return {
                     localX: tokenData.localX + offsetBefore + searchWidth / 2,
                     width: searchWidth,

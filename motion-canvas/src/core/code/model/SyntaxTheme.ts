@@ -47,7 +47,7 @@ export const ExplainorCodeTheme: SyntaxTheme = {
     type: '#D5CCBF',
     string: '#B2C7C9',
     number: '#A5C9CA',
-    operator: '#70778A',
+    operator: '#CFC7BC',
     punctuation: '#EBE8E2',
     method: '#B8D4E8',
     comment: '#4A505E',
