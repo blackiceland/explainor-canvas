@@ -66,6 +66,14 @@ const COMMON_CONDITIONS_CODE = `final class CommonConditions {
       conditions = conditions.and(deleted.isFalse());
     }
 
+    if (isPayments && filter.currency() != null) {
+      conditions = conditions.and(PAYMENTS.CURRENCY.eq(filter.currency()));
+    }
+
+    if (isPayments && filter.executedSince() != null) {
+      conditions = conditions.and(PAYMENTS.EXECUTED_AT.ge(filter.executedSince()));
+    }
+
     return conditions;
   }
 }`;
@@ -315,10 +323,30 @@ export default makeScene2D(function* (view) {
   const ifOrdersRange: [number, number] | null =
     ifOrdersStart >= 0 && ifOrdersEnd >= ifOrdersStart ? [ifOrdersStart, ifOrdersEnd] : null;
 
+  const ifCurrencyStart = commonLines.findIndex(l => l.includes('if (isPayments && filter.currency() != null)'));
+  const ifCurrencyEnd = ifCurrencyStart >= 0
+    ? commonLines.findIndex((l, idx) => idx > ifCurrencyStart && l.trim() === '}')
+    : -1;
+  const ifCurrencyRange: [number, number] | null =
+    ifCurrencyStart >= 0 && ifCurrencyEnd >= ifCurrencyStart ? [ifCurrencyStart, ifCurrencyEnd] : null;
+
+  const ifExecutedStart = commonLines.findIndex(l => l.includes('if (isPayments && filter.executedSince() != null)'));
+  const ifExecutedEnd = ifExecutedStart >= 0
+    ? commonLines.findIndex((l, idx) => idx > ifExecutedStart && l.trim() === '}')
+    : -1;
+  const ifExecutedRange: [number, number] | null =
+    ifExecutedStart >= 0 && ifExecutedEnd >= ifExecutedStart ? [ifExecutedStart, ifExecutedEnd] : null;
+
   const hidden: boolean[] = new Array(commonLineCount2).fill(false);
   if (pParamsExtra >= 0) hidden[pParamsExtra] = true;
   if (ifOrdersRange) {
     for (let i = ifOrdersRange[0]; i <= ifOrdersRange[1]; i++) hidden[i] = true;
+  }
+  if (ifCurrencyRange) {
+    for (let i = ifCurrencyRange[0]; i <= ifCurrencyRange[1]; i++) hidden[i] = true;
+  }
+  if (ifExecutedRange) {
+    for (let i = ifExecutedRange[0]; i <= ifExecutedRange[1]; i++) hidden[i] = true;
   }
 
   const hiddenAboveCount: number[] = new Array(commonLineCount2).fill(0);
@@ -375,6 +403,18 @@ export default makeScene2D(function* (view) {
 
   if (ifOrdersRange) {
     yield* insertRange(ifOrdersRange, Timing.slow);
+  }
+
+  yield* waitFor(0.45);
+
+  if (ifCurrencyRange) {
+    yield* insertRange(ifCurrencyRange, Timing.slow);
+  }
+
+  yield* waitFor(0.45);
+
+  if (ifExecutedRange) {
+    yield* insertRange(ifExecutedRange, Timing.slow);
   }
 
   yield* waitFor(16);
