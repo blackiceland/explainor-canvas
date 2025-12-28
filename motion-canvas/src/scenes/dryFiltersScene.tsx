@@ -61,6 +61,15 @@ const TABLE_PADDING = 24;
 const TITLE_H = 24;
 const TITLE_FONT_SIZE = 14;
 const TITLE_COLOR = 'rgba(219, 213, 202, 0.72)';
+const CELL_FILL_OFF = 'rgba(0, 0, 0, 0)';
+const CELL_HIGHLIGHT = 'rgba(255, 140, 163, 0.28)';
+
+const FILTER_FROM = '2024-12-10 00:00';
+const SCAN_PULSE_ON = 0.12;
+const SCAN_PULSE_OFF = 0.12;
+const SCAN_ROW_DELAY = 0.03;
+const SCAN_BETWEEN_PASSES = 0.12;
+const SCAN_CYCLES = 2;
 
 const paymentColumns: Omit<Column, 'width'>[] = [
   {key: 'id', header: 'id', ellipsis: 'middle', align: 'left'},
@@ -107,6 +116,31 @@ const orderRows: Row[] = [
 export default makeScene2D(function* (view) {
   applyBackground(view);
 
+  function* pulseCell(cell: Rect, on: number = SCAN_PULSE_ON, off: number = SCAN_PULSE_OFF) {
+    yield* cell.fill(CELL_HIGHLIGHT, on, easeInOutCubic);
+    yield* cell.fill(CELL_FILL_OFF, off, easeInOutCubic);
+  }
+
+  function passesDateFrom(v: string): boolean {
+    return v >= FILTER_FROM;
+  }
+
+  function paymentPassesDate(row: Row): boolean {
+    return passesDateFrom(row.created_at);
+  }
+
+  function paymentPassesStatus(row: Row): boolean {
+    return row.status === 'CAPTURED';
+  }
+
+  function orderPassesDate(row: Row): boolean {
+    return passesDateFrom(row.created_at);
+  }
+
+  function orderPassesStatus(row: Row): boolean {
+    return row.status === 'SHIPPED';
+  }
+
   const gap = 120;
   const totalWidth = SafeZone.right - SafeZone.left;
   const cardWidth = (totalWidth - gap) / 2;
@@ -122,6 +156,16 @@ export default makeScene2D(function* (view) {
   const orderTableRef = createRef<Rect>();
   const tableWidth = cardWidth;
   const contentWidth = tableWidth - TABLE_PADDING * 2;
+
+  const paymentHighlightCells = paymentRows.map(() => ({
+    status: createRef<Rect>(),
+    created_at: createRef<Rect>(),
+  }));
+
+  const orderHighlightCells = orderRows.map(() => ({
+    status: createRef<Rect>(),
+    created_at: createRef<Rect>(),
+  }));
 
   view.add(
     <Rect
@@ -213,10 +257,15 @@ export default makeScene2D(function* (view) {
             const avail = cellWidth - CELL_PX * 2;
             const shown = fitText(raw, avail, col.ellipsis ?? 'end', FONT_FAMILY, FONT_SIZE, FONT_WEIGHT);
             const textColor = col.color ? col.color(raw) : Colors.text.primary;
+            const highlightRef =
+              col.key === 'status' ? paymentHighlightCells[rowIndex].status :
+              col.key === 'created_at' ? paymentHighlightCells[rowIndex].created_at :
+              undefined;
 
             return (
               <>
                 <Rect
+                  ref={highlightRef}
                   layout
                   grow={1}
                   shrink={1}
@@ -228,6 +277,7 @@ export default makeScene2D(function* (view) {
                   alignItems={'center'}
                   justifyContent={'start'}
                   clip
+                  fill={highlightRef ? CELL_FILL_OFF : undefined}
                 >
                   <Txt
                     width={'100%'}
@@ -342,10 +392,15 @@ export default makeScene2D(function* (view) {
             const avail = cellWidth - CELL_PX * 2;
             const shown = fitText(raw, avail, col.ellipsis ?? 'end', FONT_FAMILY, FONT_SIZE, FONT_WEIGHT);
             const textColor = col.color ? col.color(raw) : Colors.text.primary;
+            const highlightRef =
+              col.key === 'status' ? orderHighlightCells[rowIndex].status :
+              col.key === 'created_at' ? orderHighlightCells[rowIndex].created_at :
+              undefined;
 
             return (
               <>
                 <Rect
+                  ref={highlightRef}
                   layout
                   grow={1}
                   shrink={1}
@@ -357,6 +412,7 @@ export default makeScene2D(function* (view) {
                   alignItems={'center'}
                   justifyContent={'start'}
                   clip
+                  fill={highlightRef ? CELL_FILL_OFF : undefined}
                 >
                   <Txt
                     width={'100%'}
@@ -449,5 +505,39 @@ export default makeScene2D(function* (view) {
     ),
   );
 
-  yield* waitFor(3);
+  yield* waitFor(0.6);
+
+  for (let c = 0; c < SCAN_CYCLES; c++) {
+    // 1) Даты (created_at)
+    for (let i = 0; i < Math.max(paymentRows.length, orderRows.length); i++) {
+      yield* all(
+        i < paymentRows.length && paymentPassesDate(paymentRows[i])
+          ? pulseCell(paymentHighlightCells[i].created_at())
+          : waitFor(0),
+        i < orderRows.length && orderPassesDate(orderRows[i])
+          ? pulseCell(orderHighlightCells[i].created_at())
+          : waitFor(0),
+      );
+      yield* waitFor(SCAN_ROW_DELAY);
+    }
+
+    yield* waitFor(SCAN_BETWEEN_PASSES);
+
+    // 2) Статусы (status)
+    for (let i = 0; i < Math.max(paymentRows.length, orderRows.length); i++) {
+      yield* all(
+        i < paymentRows.length && paymentPassesStatus(paymentRows[i])
+          ? pulseCell(paymentHighlightCells[i].status())
+          : waitFor(0),
+        i < orderRows.length && orderPassesStatus(orderRows[i])
+          ? pulseCell(orderHighlightCells[i].status())
+          : waitFor(0),
+      );
+      yield* waitFor(SCAN_ROW_DELAY);
+    }
+
+    yield* waitFor(SCAN_BETWEEN_PASSES);
+  }
+
+  yield* waitFor(6);
 });
