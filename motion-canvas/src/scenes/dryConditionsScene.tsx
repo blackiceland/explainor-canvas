@@ -94,6 +94,8 @@ const COMMON_CONDITIONS_CODE = `final class CommonConditions {
 const DEP_BLUE = '#2C6BFF';
 const DEP_CARD_STROKE = 'rgba(255, 255, 255, 0.03)';
 const DEP_LINK_STROKE = 'rgba(219, 213, 202, 0.22)';
+const DEP_ALARM = '#E35B66';
+const DEP_ALARM_LINK = 'rgba(227, 91, 102, 0.55)';
 
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
@@ -782,6 +784,35 @@ export default makeScene2D(function* (view) {
     );
 
     yield* waitFor(0.15);
+  }
+
+  yield* all(
+    hub().fill(DEP_ALARM, 0.55, easeInOutCubic),
+    linkL().stroke(DEP_ALARM_LINK, 0.55, easeInOutCubic),
+    linkR().stroke(DEP_ALARM_LINK, 0.55, easeInOutCubic),
+    linkB().stroke(DEP_ALARM_LINK, 0.55, easeInOutCubic),
+  );
+
+  yield* waitFor(0.12);
+
+  for (let i = 0; i < 2; i++) {
+    yield* all(
+      left().stroke(DEP_ALARM, 0.18, easeInOutCubic),
+      right().stroke(DEP_ALARM, 0.18, easeInOutCubic),
+      bottom().stroke(DEP_ALARM, 0.18, easeInOutCubic),
+      linkL().opacity(1, 0.18, easeInOutCubic),
+      linkR().opacity(1, 0.18, easeInOutCubic),
+      linkB().opacity(1, 0.18, easeInOutCubic),
+    );
+
+    yield* all(
+      left().stroke(DEP_CARD_STROKE, 0.22, easeInOutCubic),
+      right().stroke(DEP_CARD_STROKE, 0.22, easeInOutCubic),
+      bottom().stroke(DEP_CARD_STROKE, 0.22, easeInOutCubic),
+      linkL().opacity(0.75, 0.22, easeInOutCubic),
+      linkR().opacity(0.75, 0.22, easeInOutCubic),
+      linkB().opacity(0.75, 0.22, easeInOutCubic),
+    );
   }
 
   yield* waitFor(16);
