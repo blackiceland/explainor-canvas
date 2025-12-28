@@ -114,6 +114,7 @@ export default makeScene2D(function* (view) {
       ),
     );
     yield* waitFor(stepGap);
+    yield* waitFor(stepGap);
   }
 
   yield* waitFor(0.35);
@@ -149,6 +150,77 @@ export default makeScene2D(function* (view) {
     paymentBlock.resetLineColors(15, 0.35),
     orderBlock.showAllLines(0.35),
     paymentBlock.showAllLines(0.35),
+  );
+
+  yield* waitFor(0.35);
+
+  yield* all(
+    all(
+      orderBlock.highlightLines([[0, 0], [2, 2], [7, 7], [12, 12]], Timing.slow),
+      orderBlock.recolorTokens(0, ['OrderConditions'], Colors.accent, Timing.slow),
+      orderBlock.recolorTokens(2, ['OrderSearchFilter'], Colors.accent, Timing.slow),
+      orderBlock.recolorTokens(7, ['ORDERS'], Colors.accent, Timing.slow),
+      orderBlock.recolorTokens(12, ['ORDERS'], Colors.accent, Timing.slow),
+    ),
+    all(
+      paymentBlock.highlightLines([[0, 0], [2, 2], [7, 7], [12, 12]], Timing.slow),
+      paymentBlock.recolorTokens(0, ['PaymentConditions'], Colors.accent, Timing.slow),
+      paymentBlock.recolorTokens(2, ['PaymentSearchFilter'], Colors.accent, Timing.slow),
+      paymentBlock.recolorTokens(7, ['PAYMENTS'], Colors.accent, Timing.slow),
+      paymentBlock.recolorTokens(12, ['PAYMENTS'], Colors.accent, Timing.slow),
+    ),
+  );
+
+  const diffPulseLow = 'rgba(255, 140, 163, 0.72)';
+  const diffPulseDur = 0.16;
+
+  yield* waitFor(0.25);
+
+  for (let i = 0; i < 2; i++) {
+    yield* all(
+      all(
+        orderBlock.recolorTokens(0, ['OrderConditions'], diffPulseLow, diffPulseDur),
+        orderBlock.recolorTokens(2, ['OrderSearchFilter'], diffPulseLow, diffPulseDur),
+        orderBlock.recolorTokens(7, ['ORDERS'], diffPulseLow, diffPulseDur),
+        orderBlock.recolorTokens(12, ['ORDERS'], diffPulseLow, diffPulseDur),
+      ),
+      all(
+        paymentBlock.recolorTokens(0, ['PaymentConditions'], diffPulseLow, diffPulseDur),
+        paymentBlock.recolorTokens(2, ['PaymentSearchFilter'], diffPulseLow, diffPulseDur),
+        paymentBlock.recolorTokens(7, ['PAYMENTS'], diffPulseLow, diffPulseDur),
+        paymentBlock.recolorTokens(12, ['PAYMENTS'], diffPulseLow, diffPulseDur),
+      ),
+    );
+
+    yield* all(
+      all(
+        orderBlock.recolorTokens(0, ['OrderConditions'], Colors.accent, diffPulseDur),
+        orderBlock.recolorTokens(2, ['OrderSearchFilter'], Colors.accent, diffPulseDur),
+        orderBlock.recolorTokens(7, ['ORDERS'], Colors.accent, diffPulseDur),
+        orderBlock.recolorTokens(12, ['ORDERS'], Colors.accent, diffPulseDur),
+      ),
+      all(
+        paymentBlock.recolorTokens(0, ['PaymentConditions'], Colors.accent, diffPulseDur),
+        paymentBlock.recolorTokens(2, ['PaymentSearchFilter'], Colors.accent, diffPulseDur),
+        paymentBlock.recolorTokens(7, ['PAYMENTS'], Colors.accent, diffPulseDur),
+        paymentBlock.recolorTokens(12, ['PAYMENTS'], Colors.accent, diffPulseDur),
+      ),
+    );
+  }
+
+  yield* waitFor(2);
+
+  yield* all(
+    orderBlock.resetLineColors(0, 0.4),
+    orderBlock.resetLineColors(2, 0.4),
+    orderBlock.resetLineColors(7, 0.4),
+    orderBlock.resetLineColors(12, 0.4),
+    paymentBlock.resetLineColors(0, 0.4),
+    paymentBlock.resetLineColors(2, 0.4),
+    paymentBlock.resetLineColors(7, 0.4),
+    paymentBlock.resetLineColors(12, 0.4),
+    orderBlock.showAllLines(0.4),
+    paymentBlock.showAllLines(0.4),
   );
 
   yield* waitFor(16);
