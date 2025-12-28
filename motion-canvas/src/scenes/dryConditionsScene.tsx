@@ -1,5 +1,5 @@
 import {makeScene2D} from '@motion-canvas/2d';
-import {all, easeInOutCubic, waitFor} from '@motion-canvas/core';
+import {all, waitFor} from '@motion-canvas/core';
 import {CodeBlock} from '../core/code/components/CodeBlock';
 import {ExplainorCodeTheme} from '../core/code/model/SyntaxTheme';
 import {getCodePaddingX, getCodePaddingY} from '../core/code/shared/TextMeasure';
@@ -137,11 +137,6 @@ export default makeScene2D(function* (view) {
   const commonWidth = codeCardWidth(COMMON_CONDITIONS_CODE, Fonts.code, fontSize, paddingX);
   const commonHeight = 920;
   const commonTopMargin = 28;
-  const commonLineCount = COMMON_CONDITIONS_CODE.split('\n').length;
-  const commonCenterOffset = (commonLineCount - 1) / 2;
-  const commonClipHeight = Math.max(0, commonHeight - paddingY * 2);
-  const commonContentOffsetY =
-    (-commonClipHeight / 2 + lineHeight / 2 + commonTopMargin) + commonCenterOffset * lineHeight;
   const commonBlock = CodeBlock.fromCode(COMMON_CONDITIONS_CODE, {
     x: 0,
     y: 0,
@@ -149,7 +144,7 @@ export default makeScene2D(function* (view) {
     height: commonHeight,
     fontSize,
     lineHeight,
-    contentOffsetY: commonContentOffsetY,
+    contentOffsetY: commonTopMargin,
     fontFamily: Fonts.code,
     theme: ExplainorCodeTheme,
     customTypes: [
@@ -306,14 +301,8 @@ export default makeScene2D(function* (view) {
 
   const commonLines = COMMON_CONDITIONS_CODE.split('\n');
   const commonLineCount2 = commonLines.length;
-  const commonCenterOffset2 = (commonLineCount2 - 1) / 2;
-  const baseY: number[] = new Array(commonLineCount2).fill(0);
-  const currentY: number[] = new Array(commonLineCount2).fill(0);
-
-  for (let i = 0; i < commonLineCount2; i++) {
-    baseY[i] = (i - commonCenterOffset2) * lineHeight + commonContentOffsetY;
-    currentY[i] = baseY[i];
-  }
+  const layouts = commonBlock.getLineLayouts();
+  const currentY: number[] = layouts.map(l => l.y);
 
   const pParamsExtra = commonLines.findIndex(l => l.includes('Field<Boolean> deleted'));
   const ifOrdersStart = commonLines.findIndex(l => l.includes('if (isOrders && !filter.includeDeleted())'));
@@ -357,64 +346,35 @@ export default makeScene2D(function* (view) {
   }
 
   for (let i = 0; i < commonLineCount2; i++) {
-    currentY[i] = baseY[i] - hiddenAboveCount[i] * lineHeight;
-    const line = commonBlock.getLine(i);
-    if (line) {
-      line.node.position([0, currentY[i]]);
-      if (hidden[i]) line.node.opacity(0);
-    }
+    currentY[i] = layouts[i].y - hiddenAboveCount[i] * lineHeight;
+    commonBlock.setLinePosition(i, currentY[i]);
+    if (hidden[i]) commonBlock.setLineOpacity(i, 0);
   }
 
   yield* commonBlock.appear(Timing.slow);
 
   yield* waitFor(0.6);
 
-  function* insertRange(range: [number, number], duration: number) {
-    const [a, b] = range;
-    const deltaY = (b - a + 1) * lineHeight;
-
-    const reveals = [];
-    for (let i = a; i <= b; i++) {
-      const line = commonBlock.getLine(i);
-      if (!line) continue;
-      const targetY = currentY[a] + (i - a) * lineHeight;
-      currentY[i] = targetY;
-      reveals.push(line.node.position([0, targetY], duration, easeInOutCubic));
-      reveals.push(line.node.opacity(1, duration, easeInOutCubic));
-      hidden[i] = false;
-    }
-
-    const shifts = [];
-    for (let i = b + 1; i < commonLineCount2; i++) {
-      const line = commonBlock.getLine(i);
-      if (!line) continue;
-      currentY[i] += deltaY;
-      shifts.push(line.node.position([0, currentY[i]], duration, easeInOutCubic));
-    }
-
-    yield* all(...reveals, ...shifts);
-  }
-
   if (pParamsExtra >= 0) {
-    yield* insertRange([pParamsExtra, pParamsExtra], Timing.slow);
+    yield* commonBlock.animateInsertLines([pParamsExtra, pParamsExtra], currentY, Timing.slow);
   }
 
   yield* waitFor(0.5);
 
   if (ifOrdersRange) {
-    yield* insertRange(ifOrdersRange, Timing.slow);
+    yield* commonBlock.animateInsertLines(ifOrdersRange, currentY, Timing.slow);
   }
 
   yield* waitFor(0.45);
 
   if (ifCurrencyRange) {
-    yield* insertRange(ifCurrencyRange, Timing.slow);
+    yield* commonBlock.animateInsertLines(ifCurrencyRange, currentY, Timing.slow);
   }
 
   yield* waitFor(0.45);
 
   if (ifExecutedRange) {
-    yield* insertRange(ifExecutedRange, Timing.slow);
+    yield* commonBlock.animateInsertLines(ifExecutedRange, currentY, Timing.slow);
   }
 
   yield* waitFor(16);

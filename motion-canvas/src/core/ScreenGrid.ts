@@ -108,7 +108,19 @@ const ANCHOR_MAP: Record<PositionKey, AnchorType> = {
   T:  'top-center',   B:  'bottom-center',
 };
 
-import {getCodePaddingX, getCodePaddingY, getLineHeight, measureCode} from './code/shared/TextMeasure';
+import {getCodePaddingX, getCodePaddingY, getLineHeight} from './code/shared/TextMeasure';
+import {textWidth} from './utils/textMeasure';
+import {Fonts} from './theme';
+
+function measureCodeWidth(code: string, fontSize: number, fontFamily: string = Fonts.code): number {
+  const lines = code.split('\n');
+  let maxWidth = 0;
+  for (const line of lines) {
+    const w = textWidth(line, fontFamily, fontSize);
+    if (w > maxWidth) maxWidth = w;
+  }
+  return maxWidth;
+}
 
 const MIN_CARD_WIDTH = 300;
 const MAX_CARD_WIDTH = 1600;
@@ -123,8 +135,8 @@ export function placeCode(
   const paddingX = getCodePaddingX(fontSize);
   const paddingY = getCodePaddingY(fontSize);
 
-  const metrics = measureCode(code, fontSize);
-  const calculatedWidth = metrics.width + paddingX * 2;
+  const contentWidth = measureCodeWidth(code, fontSize);
+  const calculatedWidth = contentWidth + paddingX * 2;
   const blockWidth = Math.min(MAX_CARD_WIDTH, Math.max(MIN_CARD_WIDTH, calculatedWidth));
 
   const blockHeight = lineCount * getLineHeight(fontSize) + paddingY * 2;
@@ -165,8 +177,8 @@ export function placeCodeStack(
   const sizes = codes.map(code => {
     const paddingX = getCodePaddingX(fontSize);
     const paddingY = getCodePaddingY(fontSize);
-    const metrics = measureCode(code, fontSize);
-    const width = Math.min(MAX_CARD_WIDTH, Math.max(MIN_CARD_WIDTH, metrics.width + paddingX * 2));
+    const contentWidth = measureCodeWidth(code, fontSize);
+    const width = Math.min(MAX_CARD_WIDTH, Math.max(MIN_CARD_WIDTH, contentWidth + paddingX * 2));
     const height = code.split('\n').length * getLineHeight(fontSize) + paddingY * 2;
     return {width, height};
   });

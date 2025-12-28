@@ -9,6 +9,11 @@ import {getCodePaddingX, getCodePaddingY, getLineHeight} from '../shared/TextMea
 import {getWorldPosition, Point} from '../shared/Coordinates';
 import {Fonts} from '../../theme';
 
+export interface LineLayout {
+    readonly index: number;
+    readonly y: number;
+}
+
 export interface CodeBlockConfig {
     x?: number;
     y?: number;
@@ -21,6 +26,7 @@ export interface CodeBlockConfig {
     cardStyle?: CodeCardStyle;
     customTypes?: string[];
     contentOffsetX?: number;
+    contentOffsetY?: number;
 }
 
 export interface CodeBlockPosition {
@@ -38,6 +44,7 @@ export class CodeBlock {
     private readonly lines: CodeLine[] = [];
     private readonly document: CodeDocument;
     private readonly config: Required<CodeBlockConfig>;
+    private readonly initialLineY: number[] = [];
     private card: CodeCard | null = null;
     private mounted = false;
 
@@ -56,6 +63,7 @@ export class CodeBlock {
             cardStyle: config.cardStyle ?? {},
             customTypes: config.customTypes ?? [],
             contentOffsetX: config.contentOffsetX ?? 0,
+            contentOffsetY: config.contentOffsetY ?? 0,
         };
     }
 
@@ -114,12 +122,14 @@ export class CodeBlock {
         container.add(clipContainer);
 
         const leftEdge = this.getContentLeftEdge();
-        const topLineCenterY = -clipHeight / 2 + this.config.lineHeight / 2;
+        const topLineCenterY = -clipHeight / 2 + this.config.lineHeight / 2 + this.config.contentOffsetY;
 
         for (let i = 0; i < lineCount; i++) {
             const lineText = this.document.getLine(i) ?? '';
             const tokens = tokenizeLine(lineText, this.config.customTypes);
             const localY = topLineCenterY + i * this.config.lineHeight;
+
+            this.initialLineY.push(localY);
 
             const codeLine = new CodeLine({
                 tokens,
@@ -272,5 +282,66 @@ export class CodeBlock {
 
     public get theme(): SyntaxTheme {
         return this.config.theme;
+    }
+
+    public getLineLayouts(): LineLayout[] {
+        return this.initialLineY.map((y, index) => ({index, y}));
+    }
+
+    public getLineY(index: number): number {
+        return this.initialLineY[index] ?? 0;
+    }
+
+    public setLinePosition(index: number, y: number): void {
+        const line = this.lines[index];
+        if (line) {
+            line.node.position([0, y]);
+        }
+    }
+
+    public setLineOpacity(index: number, opacity: number): void {
+        const line = this.lines[index];
+        if (line) {
+            line.node.opacity(opacity);
+        }
+    }
+
+    public *animateLinePosition(index: number, y: number, duration: number): ThreadGenerator {
+        const line = this.lines[index];
+        if (line) {
+            yield* line.node.position([0, y], duration, easeInOutCubic);
+        }
+    }
+
+    public *animateLineOpacity(index: number, opacity: number, duration: number): ThreadGenerator {
+        const line = this.lines[index];
+        if (line) {
+            yield* line.node.opacity(opacity, duration, easeInOutCubic);
+        }
+    }
+
+    public *animateInsertLines(
+        range: [number, number],
+        currentY: number[],
+        duration: number
+    ): ThreadGenerator {
+        const [a, b] = range;
+        const deltaY = (b - a + 1) * this.config.lineHeight;
+
+        const reveals: ThreadGenerator[] = [];
+        for (let i = a; i <= b; i++) {
+            const targetY = currentY[a] + (i - a) * this.config.lineHeight;
+            currentY[i] = targetY;
+            reveals.push(this.animateLinePosition(i, targetY, duration));
+            reveals.push(this.animateLineOpacity(i, 1, duration));
+        }
+
+        const shifts: ThreadGenerator[] = [];
+        for (let i = b + 1; i < this.lines.length; i++) {
+            currentY[i] += deltaY;
+            shifts.push(this.animateLinePosition(i, currentY[i], duration));
+        }
+
+        yield* all(...reveals, ...shifts);
     }
 }
