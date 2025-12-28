@@ -1,5 +1,5 @@
-import {makeScene2D} from '@motion-canvas/2d';
-import {all, waitFor} from '@motion-canvas/core';
+import {Line, makeScene2D, Rect, Txt} from '@motion-canvas/2d';
+import {all, createRef, easeInOutCubic, waitFor} from '@motion-canvas/core';
 import {CodeBlock} from '../core/code/components/CodeBlock';
 import {ExplainorCodeTheme} from '../core/code/model/SyntaxTheme';
 import {getCodePaddingX, getCodePaddingY} from '../core/code/shared/TextMeasure';
@@ -90,6 +90,10 @@ const COMMON_CONDITIONS_CODE = `final class CommonConditions {
     return conditions;
   }
 }`;
+
+const DEP_BLUE = '#2C6BFF';
+const DEP_CARD_STROKE = 'rgba(255, 255, 255, 0.03)';
+const DEP_LINK_STROKE = 'rgba(219, 213, 202, 0.22)';
 
 function codeCardHeight(code: string, lineHeight: number, paddingY: number): number {
   const lines = code.split('\n').length;
@@ -459,6 +463,167 @@ export default makeScene2D(function* (view) {
   const targetLastY = clipHeight / 2 - lineHeight / 2 - bottomMargin;
   const scrollAmount = Math.max(0, currentY[lastLineIndex] - targetLastY);
   yield* commonBlock.animateScrollY(scrollAmount, Timing.slow);
+
+  yield* waitFor(0.35);
+
+  const hub = createRef<Rect>();
+  const left = createRef<Rect>();
+  const right = createRef<Rect>();
+  const bottom = createRef<Rect>();
+  const linkL = createRef<Line>();
+  const linkR = createRef<Line>();
+  const linkB = createRef<Line>();
+
+  const nodeW = 320;
+  const nodeH = 120;
+  const leftPos: [number, number] = [-520, -40];
+  const rightPos: [number, number] = [520, -40];
+  const bottomPos: [number, number] = [0, 360];
+
+  yield* all(
+    commonBlock.animateCardFill(DEP_BLUE, 0.7),
+    commonBlock.hideLines([[0, commonBlock.lineCount - 1]], 0.7),
+  );
+
+  view.add(
+    <>
+      <Line
+        ref={linkL}
+        stroke={DEP_LINK_STROKE}
+        lineWidth={2}
+        end={0}
+        points={() => [
+          [hub().position.x(), hub().position.y()],
+          [leftPos[0], leftPos[1]],
+        ]}
+      />
+      <Line
+        ref={linkR}
+        stroke={DEP_LINK_STROKE}
+        lineWidth={2}
+        end={0}
+        points={() => [
+          [hub().position.x(), hub().position.y()],
+          [rightPos[0], rightPos[1]],
+        ]}
+      />
+      <Line
+        ref={linkB}
+        stroke={DEP_LINK_STROKE}
+        lineWidth={2}
+        end={0}
+        points={() => [
+          [hub().position.x(), hub().position.y()],
+          [bottomPos[0], bottomPos[1]],
+        ]}
+      />
+
+      <Rect
+        ref={hub}
+        width={commonWidth}
+        height={commonHeight}
+        radius={28}
+        fill={DEP_BLUE}
+        stroke={DEP_CARD_STROKE}
+        lineWidth={2}
+        shadowColor={'rgba(0, 0, 0, 0.28)'}
+        shadowBlur={74}
+        shadowOffset={[0, 22]}
+        opacity={1}
+      />
+
+      <Rect
+        ref={left}
+        x={leftPos[0]}
+        y={leftPos[1]}
+        width={nodeW}
+        height={nodeH}
+        radius={22}
+        fill={Colors.surface}
+        stroke={DEP_CARD_STROKE}
+        lineWidth={2}
+        shadowColor={'rgba(0, 0, 0, 0.28)'}
+        shadowBlur={74}
+        shadowOffset={[0, 22]}
+        opacity={0}
+      >
+        <Txt
+          text={'ORDERS'}
+          fontFamily={Fonts.primary}
+          fontSize={22}
+          fontWeight={600}
+          fill={'rgba(219, 213, 202, 0.78)'}
+        />
+      </Rect>
+
+      <Rect
+        ref={right}
+        x={rightPos[0]}
+        y={rightPos[1]}
+        width={nodeW}
+        height={nodeH}
+        radius={22}
+        fill={Colors.surface}
+        stroke={DEP_CARD_STROKE}
+        lineWidth={2}
+        shadowColor={'rgba(0, 0, 0, 0.28)'}
+        shadowBlur={74}
+        shadowOffset={[0, 22]}
+        opacity={0}
+      >
+        <Txt
+          text={'PAYMENTS'}
+          fontFamily={Fonts.primary}
+          fontSize={22}
+          fontWeight={600}
+          fill={'rgba(219, 213, 202, 0.78)'}
+        />
+      </Rect>
+
+      <Rect
+        ref={bottom}
+        x={bottomPos[0]}
+        y={bottomPos[1]}
+        width={nodeW}
+        height={nodeH}
+        radius={22}
+        fill={Colors.surface}
+        stroke={DEP_CARD_STROKE}
+        lineWidth={2}
+        shadowColor={'rgba(0, 0, 0, 0.28)'}
+        shadowBlur={74}
+        shadowOffset={[0, 22]}
+        opacity={0}
+      >
+        <Txt
+          text={'INVOICES'}
+          fontFamily={Fonts.primary}
+          fontSize={22}
+          fontWeight={600}
+          fill={'rgba(219, 213, 202, 0.78)'}
+        />
+      </Rect>
+    </>,
+  );
+
+  commonBlock.node.opacity(0);
+
+  yield* all(
+    hub().size([170, 170], 0.9, easeInOutCubic),
+    hub().radius(22, 0.9, easeInOutCubic),
+  );
+
+  yield* all(
+    linkL().end(1, Timing.slow, easeInOutCubic),
+    linkR().end(1, Timing.slow, easeInOutCubic),
+    linkB().end(1, Timing.slow, easeInOutCubic),
+  );
+
+  yield* all(
+    left().opacity(1, Timing.slow, easeInOutCubic),
+    right().opacity(1, Timing.slow, easeInOutCubic),
+    bottom().opacity(1, Timing.slow, easeInOutCubic),
+  );
 
   yield* waitFor(16);
 });

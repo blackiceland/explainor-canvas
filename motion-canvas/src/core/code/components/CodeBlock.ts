@@ -350,6 +350,18 @@ export class CodeBlock {
         yield* all(...reveals, ...shifts);
     }
 
+    public setCardFill(color: string): void {
+        if (this.card) {
+            this.card.node.fill(color);
+        }
+    }
+
+    public *animateCardFill(color: string, duration: number): ThreadGenerator {
+        if (this.card) {
+            yield* this.card.node.fill(color, duration, easeInOutCubic);
+        }
+    }
+
     public *animateScrollY(deltaY: number, duration: number): ThreadGenerator {
         if (this.contentContainer) {
             const currentY = this.contentContainer.position.y();
