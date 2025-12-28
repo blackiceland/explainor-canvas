@@ -89,6 +89,7 @@ export default makeScene2D(function* (view) {
   const lineHeight = Math.round(fontSize * 1.7 * 10) / 10;
   const paddingY = getCodePaddingY(fontSize);
   const paddingX = getCodePaddingX(fontSize);
+  const extraCommonLines = 10;
   const gap = 120;
   const totalWidth = SafeZone.right - SafeZone.left;
   const cardWidth = (totalWidth - gap) / 2;
@@ -125,7 +126,7 @@ export default makeScene2D(function* (view) {
   });
 
   const commonWidth = codeCardWidth(COMMON_CONDITIONS_CODE, Fonts.code, fontSize, paddingX);
-  const commonHeight = codeCardHeight(COMMON_CONDITIONS_CODE, lineHeight, paddingY);
+  const commonHeight = codeCardHeight(COMMON_CONDITIONS_CODE, lineHeight, paddingY) + extraCommonLines * lineHeight;
   const commonBlock = CodeBlock.fromCode(COMMON_CONDITIONS_CODE, {
     x: 0,
     y: 0,

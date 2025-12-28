@@ -113,13 +113,13 @@ export class CodeBlock {
         });
         container.add(clipContainer);
 
-        const centerOffset = (lineCount - 1) / 2;
         const leftEdge = this.getContentLeftEdge();
+        const topLineCenterY = -clipHeight / 2 + this.config.lineHeight / 2;
 
         for (let i = 0; i < lineCount; i++) {
             const lineText = this.document.getLine(i) ?? '';
             const tokens = tokenizeLine(lineText, this.config.customTypes);
-            const localY = (i - centerOffset) * this.config.lineHeight;
+            const localY = topLineCenterY + i * this.config.lineHeight;
 
             const codeLine = new CodeLine({
                 tokens,
