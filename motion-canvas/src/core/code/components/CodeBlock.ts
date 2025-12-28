@@ -356,4 +356,32 @@ export class CodeBlock {
             yield* this.contentContainer.position.y(currentY - deltaY, duration, easeInOutCubic);
         }
     }
+
+    public setTokenOpacity(lineIndex: number, pattern: string, opacity: number): void {
+        const line = this.lines[lineIndex];
+        if (line) {
+            line.setTokenOpacity(pattern, opacity);
+        }
+    }
+
+    public *animateTokenOpacity(lineIndex: number, pattern: string, opacity: number, duration: number): ThreadGenerator {
+        const line = this.lines[lineIndex];
+        if (line) {
+            yield* line.animateTokenOpacity(pattern, opacity, duration);
+        }
+    }
+
+    public setTokenOpacityAt(lineIndex: number, tokenIndex: number, opacity: number): void {
+        const line = this.lines[lineIndex];
+        if (line) {
+            line.setTokenOpacityAt(tokenIndex, opacity);
+        }
+    }
+
+    public *animateTokenOpacityAt(lineIndex: number, tokenIndex: number, opacity: number, duration: number): ThreadGenerator {
+        const line = this.lines[lineIndex];
+        if (line) {
+            yield* line.animateTokenOpacityAt(tokenIndex, opacity, duration);
+        }
+    }
 }

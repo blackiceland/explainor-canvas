@@ -320,26 +320,43 @@ export default makeScene2D(function* (view) {
 
   const pParamsExtra = commonLines.findIndex(l => l.includes('Field<Boolean> deleted'));
   const pIsInvoices = commonLines.findIndex(l => l.trim().startsWith('boolean isInvoices'));
+
+  function expandRangeUp(range: [number, number]): [number, number] {
+    let [start, end] = range;
+    while (start > 0 && commonLines[start - 1].trim() === '') start--;
+    return [start, end];
+  }
+
+  const paramsExtraRange: [number, number] | null =
+    pParamsExtra >= 0 ? [pParamsExtra, pParamsExtra] : null;
+  const isInvoicesParamRange: [number, number] | null =
+    pIsInvoices >= 0 ? [pIsInvoices, pIsInvoices] : null;
   const ifOrdersStart = commonLines.findIndex(l => l.includes('if (isOrders && !filter.includeDeleted())'));
   const ifOrdersEnd = ifOrdersStart >= 0
     ? commonLines.findIndex((l, idx) => idx > ifOrdersStart && l.trim() === '}')
     : -1;
-  const ifOrdersRange: [number, number] | null =
+  const ifOrdersRangeRaw: [number, number] | null =
     ifOrdersStart >= 0 && ifOrdersEnd >= ifOrdersStart ? [ifOrdersStart, ifOrdersEnd] : null;
+  const ifOrdersRange: [number, number] | null =
+    ifOrdersRangeRaw ? expandRangeUp(ifOrdersRangeRaw) : null;
 
   const ifCurrencyStart = commonLines.findIndex(l => l.includes('if (isPayments && filter.currency() != null)'));
   const ifCurrencyEnd = ifCurrencyStart >= 0
     ? commonLines.findIndex((l, idx) => idx > ifCurrencyStart && l.trim() === '}')
     : -1;
-  const ifCurrencyRange: [number, number] | null =
+  const ifCurrencyRangeRaw: [number, number] | null =
     ifCurrencyStart >= 0 && ifCurrencyEnd >= ifCurrencyStart ? [ifCurrencyStart, ifCurrencyEnd] : null;
+  const ifCurrencyRange: [number, number] | null =
+    ifCurrencyRangeRaw ? expandRangeUp(ifCurrencyRangeRaw) : null;
 
   const ifExecutedStart = commonLines.findIndex(l => l.includes('if (isPayments && filter.executedSince() != null)'));
   const ifExecutedEnd = ifExecutedStart >= 0
     ? commonLines.findIndex((l, idx) => idx > ifExecutedStart && l.trim() === '}')
     : -1;
-  const ifExecutedRange: [number, number] | null =
+  const ifExecutedRangeRaw: [number, number] | null =
     ifExecutedStart >= 0 && ifExecutedEnd >= ifExecutedStart ? [ifExecutedStart, ifExecutedEnd] : null;
+  const ifExecutedRange: [number, number] | null =
+    ifExecutedRangeRaw ? expandRangeUp(ifExecutedRangeRaw) : null;
 
   const invoiceStarts: number[] = [];
   for (let i = 0; i < commonLineCount2; i++) {
@@ -353,12 +370,16 @@ export default makeScene2D(function* (view) {
       const e = commonLines.findIndex((l, idx) => idx > s && l.trim() === '}');
       if (e > end) end = e;
     }
-    if (end >= start) invoicesRange = [start, end];
+    if (end >= start) invoicesRange = expandRangeUp([start, end]);
   }
 
   const hidden: boolean[] = new Array(commonLineCount2).fill(false);
-  if (pParamsExtra >= 0) hidden[pParamsExtra] = true;
-  if (pIsInvoices >= 0) hidden[pIsInvoices] = true;
+  if (paramsExtraRange) {
+    for (let i = paramsExtraRange[0]; i <= paramsExtraRange[1]; i++) hidden[i] = true;
+  }
+  if (isInvoicesParamRange) {
+    for (let i = isInvoicesParamRange[0]; i <= isInvoicesParamRange[1]; i++) hidden[i] = true;
+  }
   if (ifOrdersRange) {
     for (let i = ifOrdersRange[0]; i <= ifOrdersRange[1]; i++) hidden[i] = true;
   }
@@ -385,12 +406,16 @@ export default makeScene2D(function* (view) {
     if (hidden[i]) commonBlock.setLineOpacity(i, 0);
   }
 
+  if (pParamsExtra >= 0) {
+    commonBlock.setTokenOpacityAt(pParamsExtra, -1, 0);
+  }
+
   yield* commonBlock.appear(Timing.slow);
 
   yield* waitFor(0.6);
 
-  if (pParamsExtra >= 0) {
-    yield* commonBlock.animateInsertLines([pParamsExtra, pParamsExtra], currentY, Timing.slow);
+  if (paramsExtraRange) {
+    yield* commonBlock.animateInsertLines(paramsExtraRange, currentY, Timing.slow);
   }
 
   yield* waitFor(0.5);
@@ -413,8 +438,11 @@ export default makeScene2D(function* (view) {
 
   yield* waitFor(0.45);
 
-  if (pIsInvoices >= 0) {
-    yield* commonBlock.animateInsertLines([pIsInvoices, pIsInvoices], currentY, Timing.slow);
+  if (isInvoicesParamRange) {
+    yield* all(
+      commonBlock.animateInsertLines(isInvoicesParamRange, currentY, Timing.slow),
+      commonBlock.animateTokenOpacityAt(pParamsExtra, -1, 1, Timing.slow),
+    );
   }
 
   yield* waitFor(0.45);
