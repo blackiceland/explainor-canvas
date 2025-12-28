@@ -500,7 +500,7 @@ export default makeScene2D(function* (view) {
   const linkR = createRef<Line>();
   const linkB = createRef<Line>();
 
-  const nodeW = 320;
+  const nodeW = 480;
   const nodeH = 120;
   const leftPos: [number, number] = [-520, -40];
   const rightPos: [number, number] = [520, -40];
@@ -787,13 +787,13 @@ export default makeScene2D(function* (view) {
   }
 
   yield* all(
-    hub().fill(DEP_ALARM, 0.55, easeInOutCubic),
-    linkL().stroke(DEP_ALARM_LINK, 0.55, easeInOutCubic),
-    linkR().stroke(DEP_ALARM_LINK, 0.55, easeInOutCubic),
-    linkB().stroke(DEP_ALARM_LINK, 0.55, easeInOutCubic),
+    hub().fill(DEP_ALARM, 0.75, easeInOutCubic),
+    linkL().stroke(DEP_ALARM_LINK, 0.75, easeInOutCubic),
+    linkR().stroke(DEP_ALARM_LINK, 0.75, easeInOutCubic),
+    linkB().stroke(DEP_ALARM_LINK, 0.75, easeInOutCubic),
   );
 
-  yield* waitFor(0.12);
+  yield* waitFor(0.18);
 
   for (let i = 0; i < 2; i++) {
     yield* all(
@@ -814,6 +814,190 @@ export default makeScene2D(function* (view) {
       linkB().opacity(0.75, 0.22, easeInOutCubic),
     );
   }
+
+  yield* waitFor(0.35);
+
+  yield* all(
+    hub().opacity(0, 0.65, easeInOutCubic),
+    linkL().opacity(0, 0.65, easeInOutCubic),
+    linkR().opacity(0, 0.65, easeInOutCubic),
+    linkB().opacity(0, 0.65, easeInOutCubic),
+    oL(0, 0.5, easeInOutCubic),
+    oR(0, 0.5, easeInOutCubic),
+    oB(0, 0.5, easeInOutCubic),
+  );
+
+  const topY = -320;
+  const rowX: [number, number, number] = [-600, 0, 600];
+  const ordersX = rowX[0];
+  const invoicesX = rowX[1];
+  const paymentsX = rowX[2];
+
+  yield* all(
+    left().position([ordersX, topY], 1.15, easeInOutCubic),
+    right().position([paymentsX, topY], 1.15, easeInOutCubic),
+    bottom().position([invoicesX, topY], 1.15, easeInOutCubic),
+  );
+
+  const testW = 480;
+  const testH = 300;
+  const testY = 120;
+  const testFontSize = 16;
+  const testLineHeight = Math.round(testFontSize * 1.7 * 10) / 10;
+
+  const ORDERS_TEST = `@Test
+void orders_filter_combinations() {
+  ...
+}`;
+
+  const PAYMENTS_TEST = `@Test
+void payments_filter_combinations() {
+  ...
+}`;
+
+  const INVOICES_TEST = `@Test
+void invoices_filter_combinations() {
+  ...
+}`;
+
+  const ordersTestBlock = CodeBlock.fromCode(ORDERS_TEST, {
+    x: ordersX,
+    y: testY,
+    width: testW,
+    height: testH,
+    fontSize: testFontSize,
+    lineHeight: testLineHeight,
+    contentOffsetY: 18,
+    fontFamily: Fonts.code,
+    theme: ExplainorCodeTheme,
+    customTypes: ['Test', 'List', 'LocalDateTime', 'Condition', 'OrderSearchFilter', 'OrderConditions'],
+  });
+
+  const paymentsTestBlock = CodeBlock.fromCode(PAYMENTS_TEST, {
+    x: paymentsX,
+    y: testY,
+    width: testW,
+    height: testH,
+    fontSize: testFontSize,
+    lineHeight: testLineHeight,
+    contentOffsetY: 18,
+    fontFamily: Fonts.code,
+    theme: ExplainorCodeTheme,
+    customTypes: ['Test', 'List', 'LocalDateTime', 'Condition', 'PaymentSearchFilter', 'PaymentConditions'],
+  });
+
+  const invoicesTestBlock = CodeBlock.fromCode(INVOICES_TEST, {
+    x: invoicesX,
+    y: testY,
+    width: testW,
+    height: testH,
+    fontSize: testFontSize,
+    lineHeight: testLineHeight,
+    contentOffsetY: 18,
+    fontFamily: Fonts.code,
+    theme: ExplainorCodeTheme,
+    customTypes: ['Test', 'List', 'LocalDateTime', 'Condition', 'InvoiceSearchFilter', 'InvoiceConditions'],
+  });
+
+  ordersTestBlock.mount(view);
+  paymentsTestBlock.mount(view);
+  invoicesTestBlock.mount(view);
+
+  const testLinkL = createRef<Line>();
+  const testLinkM = createRef<Line>();
+  const testLinkR = createRef<Line>();
+  const testOutlineL = createRef<Rect>();
+  const testOutlineM = createRef<Rect>();
+  const testOutlineR = createRef<Rect>();
+
+  view.add(
+    <>
+      <Line
+        ref={testLinkL}
+        stroke={DEP_LINK_STROKE}
+        lineWidth={2}
+        end={0}
+        opacity={0.6}
+        points={() => [
+          edgePoint([ordersX, topY], [nodeW, nodeH], [ordersX, testY]),
+          edgePoint([ordersX, testY], [testW, testH], [ordersX, topY]),
+        ]}
+      />
+      <Line
+        ref={testLinkM}
+        stroke={DEP_LINK_STROKE}
+        lineWidth={2}
+        end={0}
+        opacity={0.6}
+        points={() => [
+          edgePoint([invoicesX, topY], [nodeW, nodeH], [invoicesX, testY]),
+          edgePoint([invoicesX, testY], [testW, testH], [invoicesX, topY]),
+        ]}
+      />
+      <Line
+        ref={testLinkR}
+        stroke={DEP_LINK_STROKE}
+        lineWidth={2}
+        end={0}
+        opacity={0.6}
+        points={() => [
+          edgePoint([paymentsX, topY], [nodeW, nodeH], [paymentsX, testY]),
+          edgePoint([paymentsX, testY], [testW, testH], [paymentsX, topY]),
+        ]}
+      />
+
+      <Rect
+        ref={testOutlineL}
+        x={ordersX}
+        y={testY}
+        width={testW}
+        height={testH}
+        radius={28}
+        fill={'rgba(0, 0, 0, 0)'}
+        stroke={'rgba(0, 0, 0, 0)'}
+        lineWidth={3}
+      />
+      <Rect
+        ref={testOutlineM}
+        x={invoicesX}
+        y={testY}
+        width={testW}
+        height={testH}
+        radius={28}
+        fill={'rgba(0, 0, 0, 0)'}
+        stroke={'rgba(0, 0, 0, 0)'}
+        lineWidth={3}
+      />
+      <Rect
+        ref={testOutlineR}
+        x={paymentsX}
+        y={testY}
+        width={testW}
+        height={testH}
+        radius={28}
+        fill={'rgba(0, 0, 0, 0)'}
+        stroke={'rgba(0, 0, 0, 0)'}
+        lineWidth={3}
+      />
+    </>,
+  );
+
+  yield* all(
+    ordersTestBlock.appear(Timing.slow),
+    paymentsTestBlock.appear(Timing.slow),
+    invoicesTestBlock.appear(Timing.slow),
+    testLinkL().end(1, 1.35, easeInOutCubic),
+    testLinkM().end(1, 1.35, easeInOutCubic),
+    testLinkR().end(1, 1.35, easeInOutCubic),
+  );
+
+  yield* waitFor(0.25);
+
+  yield* testOutlineL().stroke('rgba(106, 219, 156, 0.95)', 0.55, easeInOutCubic);
+  yield* waitFor(0.2);
+  yield* testOutlineM().stroke('rgba(106, 219, 156, 0.95)', 0.55, easeInOutCubic);
+  yield* waitFor(0.2);
+  yield* testOutlineR().stroke('rgba(227, 91, 102, 0.95)', 0.55, easeInOutCubic);
 
   yield* waitFor(16);
 });
