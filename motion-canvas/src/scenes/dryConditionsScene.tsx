@@ -50,7 +50,8 @@ const COMMON_CONDITIONS_CODE = `final class CommonConditions {
 
   static Condition fromFilter(
     Filter filter, Field<LocalDateTime> createdAt, Field<String> statusField,
-    Field<Boolean> deleted, boolean isOrders, boolean isPayments
+    Field<Boolean> deleted, boolean isOrders, boolean isPayments,
+    boolean isInvoices
   ) {
     Condition conditions = DSL.trueCondition();
 
@@ -72,6 +73,18 @@ const COMMON_CONDITIONS_CODE = `final class CommonConditions {
 
     if (isPayments && filter.executedSince() != null) {
       conditions = conditions.and(PAYMENTS.EXECUTED_AT.ge(filter.executedSince()));
+    }
+
+    if (isInvoices && filter.invoiceNumber() != null) {
+      conditions = conditions.and(INVOICES.NUMBER.eq(filter.invoiceNumber()));
+    }
+
+    if (isInvoices && filter.invoiceCurrency() != null) {
+      conditions = conditions.and(INVOICES.CURRENCY.eq(filter.invoiceCurrency()));
+    }
+
+    if (isInvoices && filter.invoiceMinTotal() != null) {
+      conditions = conditions.and(INVOICES.TOTAL_CENTS.ge(filter.invoiceMinTotal()));
     }
 
     return conditions;
@@ -154,6 +167,7 @@ export default makeScene2D(function* (view) {
       'Boolean',
       'Condition',
       'DSL',
+      'INVOICES',
     ],
   });
 
@@ -305,6 +319,7 @@ export default makeScene2D(function* (view) {
   const currentY: number[] = layouts.map(l => l.y);
 
   const pParamsExtra = commonLines.findIndex(l => l.includes('Field<Boolean> deleted'));
+  const pIsInvoices = commonLines.findIndex(l => l.trim().startsWith('boolean isInvoices'));
   const ifOrdersStart = commonLines.findIndex(l => l.includes('if (isOrders && !filter.includeDeleted())'));
   const ifOrdersEnd = ifOrdersStart >= 0
     ? commonLines.findIndex((l, idx) => idx > ifOrdersStart && l.trim() === '}')
@@ -326,8 +341,24 @@ export default makeScene2D(function* (view) {
   const ifExecutedRange: [number, number] | null =
     ifExecutedStart >= 0 && ifExecutedEnd >= ifExecutedStart ? [ifExecutedStart, ifExecutedEnd] : null;
 
+  const invoiceStarts: number[] = [];
+  for (let i = 0; i < commonLineCount2; i++) {
+    if (commonLines[i].includes('if (isInvoices')) invoiceStarts.push(i);
+  }
+  let invoicesRange: [number, number] | null = null;
+  if (invoiceStarts.length > 0) {
+    const start = invoiceStarts[0];
+    let end = -1;
+    for (const s of invoiceStarts) {
+      const e = commonLines.findIndex((l, idx) => idx > s && l.trim() === '}');
+      if (e > end) end = e;
+    }
+    if (end >= start) invoicesRange = [start, end];
+  }
+
   const hidden: boolean[] = new Array(commonLineCount2).fill(false);
   if (pParamsExtra >= 0) hidden[pParamsExtra] = true;
+  if (pIsInvoices >= 0) hidden[pIsInvoices] = true;
   if (ifOrdersRange) {
     for (let i = ifOrdersRange[0]; i <= ifOrdersRange[1]; i++) hidden[i] = true;
   }
@@ -336,6 +367,9 @@ export default makeScene2D(function* (view) {
   }
   if (ifExecutedRange) {
     for (let i = ifExecutedRange[0]; i <= ifExecutedRange[1]; i++) hidden[i] = true;
+  }
+  if (invoicesRange) {
+    for (let i = invoicesRange[0]; i <= invoicesRange[1]; i++) hidden[i] = true;
   }
 
   const hiddenAboveCount: number[] = new Array(commonLineCount2).fill(0);
@@ -376,6 +410,27 @@ export default makeScene2D(function* (view) {
   if (ifExecutedRange) {
     yield* commonBlock.animateInsertLines(ifExecutedRange, currentY, Timing.slow);
   }
+
+  yield* waitFor(0.45);
+
+  if (pIsInvoices >= 0) {
+    yield* commonBlock.animateInsertLines([pIsInvoices, pIsInvoices], currentY, Timing.slow);
+  }
+
+  yield* waitFor(0.45);
+
+  if (invoicesRange) {
+    yield* commonBlock.animateInsertLines(invoicesRange, currentY, Timing.slow);
+  }
+
+  yield* waitFor(0.3);
+
+  const clipHeight = commonHeight - paddingY * 2;
+  const bottomMargin = 8;
+  const lastLineIndex = commonLineCount2 - 1;
+  const targetLastY = clipHeight / 2 - lineHeight / 2 - bottomMargin;
+  const scrollAmount = Math.max(0, currentY[lastLineIndex] - targetLastY);
+  yield* commonBlock.animateScrollY(scrollAmount, Timing.slow);
 
   yield* waitFor(16);
 });

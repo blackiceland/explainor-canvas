@@ -46,6 +46,7 @@ export class CodeBlock {
     private readonly config: Required<CodeBlockConfig>;
     private readonly initialLineY: number[] = [];
     private card: CodeCard | null = null;
+    private contentContainer: Node | null = null;
     private mounted = false;
 
     private constructor(document: CodeDocument, config: CodeBlockConfig) {
@@ -121,6 +122,10 @@ export class CodeBlock {
         });
         container.add(clipContainer);
 
+        const contentNode = new Node({});
+        this.contentContainer = contentNode;
+        clipContainer.add(contentNode);
+
         const leftEdge = this.getContentLeftEdge();
         const topLineCenterY = -clipHeight / 2 + this.config.lineHeight / 2 + this.config.contentOffsetY;
 
@@ -141,7 +146,7 @@ export class CodeBlock {
                 leftEdge,
             });
 
-            clipContainer.add(codeLine.build(localY));
+            contentNode.add(codeLine.build(localY));
             this.lines.push(codeLine);
         }
 
@@ -343,5 +348,12 @@ export class CodeBlock {
         }
 
         yield* all(...reveals, ...shifts);
+    }
+
+    public *animateScrollY(deltaY: number, duration: number): ThreadGenerator {
+        if (this.contentContainer) {
+            const currentY = this.contentContainer.position.y();
+            yield* this.contentContainer.position.y(currentY - deltaY, duration, easeInOutCubic);
+        }
     }
 }
