@@ -350,7 +350,6 @@ export default makeScene2D(function* (view) {
     fontSize: paymentLayout.fontSize,
     fontFamily: Fonts.code,
     theme: ExplainorCodeTheme,
-    contentOffsetX: 20,
     customTypes: [
       'PaymentRepository',
       'DSLContext',
@@ -369,7 +368,6 @@ export default makeScene2D(function* (view) {
     fontSize: orderLayout.fontSize,
     fontFamily: Fonts.code,
     theme: ExplainorCodeTheme,
-    contentOffsetX: 20,
     customTypes: [
       'OrderRepository',
       'DSLContext',

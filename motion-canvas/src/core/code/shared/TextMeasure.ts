@@ -28,7 +28,7 @@ export function measureCode(code: string, fontSize: number): TextMetrics {
 }
 
 export function getCodePadding(fontSize: number): number {
-    return Math.round(Math.max(24, Math.min(48, fontSize * 1.5 + 8)));
+    return Math.round(Math.max(24, Math.min(56, fontSize * 2 + 8)));
 }
 
 export function getLineHeight(fontSize: number): number {

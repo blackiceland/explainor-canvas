@@ -16,8 +16,8 @@
 - Если не помещается — твоя ответственность (уменьши fontSize или код)
 
 ### 3. Padding (отступ от кода до края карточки)
-- Формула: `fontSize * 1.5 + 8`, ограничено 24–48px
-- При fontSize 16 → ~32px
+- Формула: `fontSize * 2 + 8`, ограничено 24–56px
+- При fontSize 16 → 40px
 
 ### 4. Safe Zone
 - Вертикаль: от -480 до +480 (960px)
@@ -207,6 +207,9 @@ CodeBlock.fromCode(CODE, {
   contentOffsetX: 20,  // px вправо от центра
 });
 ```
+
+Важно: левый отступ текста от края карточки считается как `getCodePadding(fontSize) + contentOffsetX`.
+Чтобы совпасть с таблицей (24 + 16 = 40px при FONT_SIZE 16), держим `contentOffsetX: 0`.
 
 ---
 
