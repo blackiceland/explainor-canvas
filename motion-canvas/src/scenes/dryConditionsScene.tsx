@@ -2,10 +2,11 @@ import {makeScene2D} from '@motion-canvas/2d';
 import {all, waitFor} from '@motion-canvas/core';
 import {CodeBlock} from '../core/code/components/CodeBlock';
 import {ExplainorCodeTheme} from '../core/code/model/SyntaxTheme';
-import {getCodePaddingY} from '../core/code/shared/TextMeasure';
+import {getCodePaddingX, getCodePaddingY} from '../core/code/shared/TextMeasure';
 import {SafeZone} from '../core/ScreenGrid';
 import {Colors, Fonts, Timing} from '../core/theme';
 import {applyBackground} from '../core/utils';
+import {textWidth} from '../core/utils/textMeasure';
 
 const ORDER_CONDITIONS_CODE = `final class OrderConditions {
 
@@ -45,9 +46,40 @@ const PAYMENT_CONDITIONS_CODE = `final class PaymentConditions {
   }
 }`;
 
+const COMMON_CONDITIONS_CODE = `final class CommonConditions {
+
+  interface DateStatusFilter {
+    LocalDateTime createdSince();
+    String status();
+  }
+
+  static Condition fromFilter(DateStatusFilter filter, Field<LocalDateTime> createdAt, Field<String> statusField) {
+    Condition conditions = DSL.trueCondition();
+
+    if (filter.createdSince() != null) {
+      conditions = conditions.and(createdAt.ge(filter.createdSince()));
+    }
+
+    if (filter.status() != null) {
+      conditions = conditions.and(statusField.eq(filter.status()));
+    }
+
+    return conditions;
+  }
+}`;
+
 function codeCardHeight(code: string, lineHeight: number, paddingY: number): number {
   const lines = code.split('\n').length;
   return lines * lineHeight + paddingY * 2;
+}
+
+function codeCardWidth(code: string, fontFamily: string, fontSize: number, paddingX: number): number {
+  const maxLinePx = Math.max(
+    0,
+    ...code.split('\n').map(line => textWidth(line, fontFamily, fontSize, 400)),
+  );
+  const raw = Math.ceil(maxLinePx + paddingX * 2);
+  return Math.min(1600, Math.max(900, raw));
 }
 
 export default makeScene2D(function* (view) {
@@ -56,6 +88,7 @@ export default makeScene2D(function* (view) {
   const fontSize = 16;
   const lineHeight = Math.round(fontSize * 1.7 * 10) / 10;
   const paddingY = getCodePaddingY(fontSize);
+  const paddingX = getCodePaddingX(fontSize);
   const gap = 120;
   const totalWidth = SafeZone.right - SafeZone.left;
   const cardWidth = (totalWidth - gap) / 2;
@@ -89,6 +122,27 @@ export default makeScene2D(function* (view) {
     fontFamily: Fonts.code,
     theme: ExplainorCodeTheme,
     customTypes: ['PaymentConditions', 'PaymentSearchFilter', 'Condition', 'DSL'],
+  });
+
+  const commonWidth = codeCardWidth(COMMON_CONDITIONS_CODE, Fonts.code, fontSize, paddingX);
+  const commonHeight = codeCardHeight(COMMON_CONDITIONS_CODE, lineHeight, paddingY);
+  const commonBlock = CodeBlock.fromCode(COMMON_CONDITIONS_CODE, {
+    x: 0,
+    y: 0,
+    width: commonWidth,
+    height: commonHeight,
+    fontSize,
+    lineHeight,
+    fontFamily: Fonts.code,
+    theme: ExplainorCodeTheme,
+    customTypes: [
+      'CommonConditions',
+      'DateStatusFilter',
+      'LocalDateTime',
+      'Field',
+      'Condition',
+      'DSL',
+    ],
   });
 
   orderBlock.mount(view);
@@ -222,6 +276,16 @@ export default makeScene2D(function* (view) {
     orderBlock.showAllLines(0.4),
     paymentBlock.showAllLines(0.4),
   );
+
+  yield* waitFor(0.6);
+
+  yield* all(
+    orderBlock.disappear(Timing.slow),
+    paymentBlock.disappear(Timing.slow),
+  );
+
+  commonBlock.mount(view);
+  yield* commonBlock.appear(Timing.slow);
 
   yield* waitFor(16);
 });
