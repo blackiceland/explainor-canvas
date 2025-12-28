@@ -1,34 +1,25 @@
-# Система размещения кода в сценах
+# CODE_PLACEMENT — Техническое API размещения кода и таблиц
 
-## Контракты (гарантии системы)
+## Назначение
 
-### 1. placeCode(code, position, fontSize)
-- Возвращает `{ x, y, width, fontSize }`
-- **width** вычисляется автоматически по длине кода + padding
-- **position** = anchor (TL = верхний левый угол блока у верхнего левого угла safe zone)
-- **fontSize** — что передал, то и получил (система НЕ меняет)
-
-### 2. placeCodeStack(codes[], align, fontSize)
-- Возвращает массив `{ x, y, width, height, fontSize }[]`
-- **Все карточки одинакового размера** (по самой большой)
-- **Зазор между карточками**: 60px (STACK_GAP)
-- **Вертикальная композиция**: стек центрируется по SafeZone (чтобы верх/низ выглядели сбалансировано)
-- **fontSize** — что передал, то и получил (система НЕ меняет)
-- Если не помещается — твоя ответственность (уменьши fontSize или код)
-
-### 3. Padding (отступ от кода до края карточки)
-- Горизонталь (X): `fontSize * 2 + 8`, ограничено 24–56px
-  - При fontSize 16 → 40px (совпадает с таблицей: 24 + 16)
-- Вертикаль (Y): `fontSize * 1.5 + 8`, ограничено 24–48px
-  - При fontSize 16 → 32px
-
-### 4. Safe Zone
-- Вертикаль: от -480 до +480 (960px)
-- Горизонталь: от -840 до +840 (1680px)
+Контракты API, геометрия, константы. Без режиссуры (см. SCENE_PATTERNS.txt).
 
 ---
 
-## API
+## Safe Zone
+
+| Граница | Значение |
+|---------|----------|
+| top | -480 |
+| bottom | 480 |
+| left | -840 |
+| right | 840 |
+
+Размер: 1680×960px
+
+---
+
+## API: placeCode / placeCodeStack
 
 ### placeCode — одиночный блок
 ```typescript
@@ -36,7 +27,7 @@ const layout = placeCode(CODE, 'TL', 16);
 // → { x, y, width, fontSize }
 ```
 
-### placeCodeStack — группа блоков (вертикальный стек)
+### placeCodeStack — вертикальный стек
 ```typescript
 const layouts = placeCodeStack([CODE1, CODE2], 'L', 16);
 // → [{ x, y, width, height, fontSize }, ...]
@@ -44,237 +35,90 @@ const layouts = placeCodeStack([CODE1, CODE2], 'L', 16);
 
 **align**: `'L'` (слева), `'C'` (центр), `'R'` (справа)
 
----
-
-## Позиции (position)
-
+### Позиции
 ```
     TL   TC   TR
     ML   C    MR
     BL   BC   BR
 ```
-
-- TL = top-left (верхний левый угол блока у safe zone)
-- C = center (центр блока в центре экрана)
-- и т.д.
-
 Алиасы: `L` = ML, `R` = MR, `T` = TC, `B` = BC
 
 ---
 
-## Пример сцены (референс)
+## API: CodeBlock
 
+### Создание
 ```typescript
-import {makeScene2D} from '@motion-canvas/2d';
-import {waitFor} from '@motion-canvas/core';
-import {CodeBlock} from '../core/code/components/CodeBlock';
-import {ExplainorCodeTheme} from '../core/code/model/SyntaxTheme';
-import {placeCodeStack, SafeZone} from '../core/ScreenGrid';
-import {Fonts, Timing} from '../core/theme';
-import {applyBackground} from '../core/utils';
-
-const CODE_1 = `...`;
-const CODE_2 = `...`;
-
-export default makeScene2D(function* (view) {
-  applyBackground(view);
-
-  // Иммутабельный подход — НЕ мутируем результат placeCodeStack
-  const baseLayouts = placeCodeStack([CODE_1, CODE_2], 'L', 16);
-  const layout1 = {...baseLayouts[0]};
-  const layout2 = {...baseLayouts[1]};
-  
-  const block1 = CodeBlock.fromCode(CODE_1, {
-    x: layout1.x,
-    y: layout1.y,
-    width: layout1.width,
-    height: layout1.height,
-    fontSize: layout1.fontSize,
-    fontFamily: Fonts.code,
-    theme: ExplainorCodeTheme,
-    contentOffsetX: 20,  // Сдвиг кода внутри карточки вправо
-    customTypes: ['MyClass', 'OtherClass'],
-  });
-
-  const block2 = CodeBlock.fromCode(CODE_2, {
-    x: layout2.x,
-    y: layout2.y,
-    width: layout2.width,
-    height: layout2.height,
-    fontSize: layout2.fontSize,
-    fontFamily: Fonts.code,
-    theme: ExplainorCodeTheme,
-    contentOffsetX: 20,
-    customTypes: ['MyClass', 'OtherClass'],
-  });
-
-  block1.mount(view);
-  yield* block1.appear(Timing.slow);
-  
-  yield* waitFor(2);
-  
-  block2.mount(view);
-  yield* block2.appear(Timing.slow);
-  
-  yield* waitFor(3);
+const block = CodeBlock.fromCode(CODE, {
+  x, y, width, height,
+  fontSize: 16,
+  lineHeight: 27.2,  // fontSize * 1.7
+  fontFamily: Fonts.code,
+  theme: ExplainorCodeTheme,
+  contentOffsetY: 28,  // сдвиг контента от верха (для карточек с запасом)
+  customTypes: ['MyClass', 'Filter'],  // подсветка кастомных типов
 });
+block.mount(view);
 ```
 
----
+### Появление/исчезновение
+- `appear(duration)` — fade in
+- `disappear(duration)` — fade out
+- `moveTo(x, y, duration)` — переместить
 
-## customTypes (ВАЖНО)
+### Подсветка строк
+- `highlightLines([[from, to], ...], duration)` — приглушить остальное
+- `dimLines(from, to, opacity, duration)` — приглушить диапазон
+- `showAllLines(duration)` — вернуть opacity всех строк
 
-AI должен САМ анализировать код и определять customTypes:
-1. Найти все слова с заглавной буквы, которые выглядят как классы/типы
-2. Исключить стандартные (List, Map, String, Optional и т.д.)
-3. Добавить остальные в customTypes
+### Цвет строк/токенов
+- `recolorLine(lineIndex, color, duration)` — перекрасить всю строку
+- `recolorTokens(lineIndex, ['pattern'], color, duration)` — перекрасить токены по паттерну
+- `resetLineColors(lineIndex, duration)` — вернуть оригинальные цвета
 
-Без этого кастомные классы будут белыми вместо бежевых.
+### Позиционирование строк (для animateInsertLines)
+- `getLineLayouts()` — получить `[{index, y}, ...]`
+- `setLinePosition(index, y)` — установить Y мгновенно
+- `setLineOpacity(index, opacity)` — установить opacity мгновенно
+- `animateLinePosition(index, y, duration)` — анимировать Y
+- `animateLineOpacity(index, opacity, duration)` — анимировать opacity
+- `animateInsertLines([start, end], currentY[], duration)` — вставить блок, сдвинуть остальные
 
----
+### Управление токенами
+- `setTokenOpacityAt(lineIndex, tokenIndex, opacity)` — скрыть/показать токен (tokenIndex: -1 = последний)
+- `animateTokenOpacityAt(lineIndex, tokenIndex, opacity, duration)` — анимированно
 
-## Подсветка condition (как в dryKnowledgeScene)
-
-Паттерн: приглушаем всё кроме нужных строк и красим их в `Colors.accent` (розовый `#FF8CA3`).
-
-```typescript
-const conditionLineIndex = 9;
-const whereLineIndex = 12;
-
-yield* all(
-  repo.highlightLines([[conditionLineIndex, conditionLineIndex], [whereLineIndex, whereLineIndex]], Timing.slow),
-  repo.recolorLine(conditionLineIndex, Colors.accent, Timing.slow),
-  repo.recolorLine(whereLineIndex, Colors.accent, Timing.slow),
-);
-```
-
----
-
-## Гарантия: код не выходит за границы карточки
-
-`CodeBlock` клипует контент по внутренней области (контент‑прямоугольник внутри padding). Даже если измерение ширины неточное, токены физически не смогут рисоваться за пределами карточки.
-
-Это гарантирует “воздух” от кода до края карточки: клип всегда оставляет padding‑зону нетронутой.
-
-Для стабильности по правому краю позиционирование токенов в строках опирается на пиксельное `measureText()` (как в таблицах), а не на “оценку ширины символа”.
-
-## ВАЖНО: операторы должны выглядеть как в коде (без лигатур)
-
-В некоторых рендерах шрифт может превращать `!=` в `≠`, `>=` в `≥` и т.п. Это недопустимо: код должен выглядеть как реальный Java/jOOQ.
-
-Контракт: “лигатурные” операторы рендерятся посимвольно (как несколько отдельных `Txt`), поэтому подмена невозможна.
-
-## Межстрочный интервал
-
-Line height для кода повышен, чтобы строки “дышали” (коэффициент 1.7).
+### Скролл
+- `animateScrollY(deltaY, duration)` — сдвинуть контент вверх
 
 ---
 
-## Overflow в коде: как НЕ повторять обрезание строк
+## Padding (отступ код ↔ край карточки)
 
-Если строка не помещается в карточку, мы НЕ:
-- уменьшаем `fontSize` “по умолчанию”
-- не делаем псевдокод и не меняем синтаксис (пример остаётся на реальном Java/jOOQ)
-- не сокращаем имена переменных/полей ради ширины
-
-Мы делаем ровно одно дизайнерски‑правильное действие: переносим длинную строку в исходном code-string в Java‑стиле (лесенкой), и переносим ТОЛЬКО те строки, которые реально не помещаются:
-
-Пример для jOOQ:
-```
-conditions = conditions.and(
-  ORDERS.CREATED_AT.ge(filter.createdSince())
-);
-```
-
-`clip` у карточки остаётся как safety‑belt и никогда не является “решением” проблемы читаемости.
-
----
-
-## Согласованность сцен (чтобы не было логических расхождений)
-
-Если у нас есть:
-- сцена A: “репозиторий + таблица + анимация фильтра”
-- сцена B: “Conditions.fromFilter(...)”
-
-то поля и смысл фильтра должны совпадать.
-
-Пример правила: если в сцене A фильтр показывается по `created_at` и `status`, то в сцене B должны быть соответствующие условия по дате и статусу (в рамках реального jOOQ/Java).
-
----
-
-## Авто-ширина для одиночной карточки кода (чтобы не было “пустоты справа”)
-
-Если в кадре одна центральная карточка (например `CommonConditions`), ширину нельзя задавать “на глаз”.
-
-Правило: ширина считается по реальной пиксельной ширине самой длинной строки + padding, затем ограничивается в диапазоне.
-
-Референс-реализация: `motion-canvas/src/scenes/dryConditionsScene.tsx` (функция `codeCardWidth`).
-
----
-
-## Скорости анимаций (унификация)
-
-Правило: скорости должны быть унифицированы и повторяемы между сценами.
-
-- Появление/исчезновение карточек: `Timing.slow`
-- Подсветка строк/токенов: `Timing.slow` или близко к нему (без “дёрганых” 0.1–0.2 по умолчанию)
-- Возврат из подсветки в обычный режим: не резко, а плавно (ориентир ~0.8s; пример — `restoreDur` в сценах)
-
-Важно: в финале сцены, если код был в режиме подсветки (dim/розовый), его нужно вернуть в нормальный вид.
+- **X**: `fontSize * 2 + 8`, ограничено 24–56px (при fontSize 16 → 40px)
+- **Y**: `fontSize * 1.5 + 8`, ограничено 24–48px (при fontSize 16 → 32px)
 
 ---
 
 ## Константы
 
-| Константа | Значение | Описание |
-|-----------|----------|----------|
-| STACK_GAP | 60px | Зазор между карточками в стеке |
-| MIN_CARD_WIDTH | 300px | Минимальная ширина карточки |
-| MAX_CARD_WIDTH | 1600px | Максимальная ширина карточки |
-| SafeZone.top | -480 | Верхняя граница рабочей области |
-| SafeZone.bottom | 480 | Нижняя граница рабочей области |
-| SafeZone.left | -840 | Левая граница рабочей области |
-| SafeZone.right | 840 | Правая граница рабочей области |
+| Константа | Значение |
+|-----------|----------|
+| STACK_GAP | 60px |
+| MIN_CARD_WIDTH | 300px |
+| MAX_CARD_WIDTH | 1600px |
+| Line height ratio | 1.7 |
 
 ---
 
-## Форматирование кода (внутри строк)
+## customTypes (ВАЖНО)
 
-### Отступы
-- **2 пробела** (не табы)
-- Внутри `{ }` — всегда отступ
+AI должен анализировать код и добавлять кастомные типы:
+1. Найти слова с заглавной буквы (классы/типы)
+2. Исключить стандартные (List, Map, String, Optional)
+3. Добавить в `customTypes`
 
-### Пустые строки
-- После `{` класса
-- Между полями и конструктором
-- Между конструктором и методами
-- Перед `return` (если есть подготовка)
-
-### Переносы
-- Переносы делаем ТОЛЬКО когда строка реально не помещается в карточку (или когда перенос явно улучшает читаемость).
-- Если строка помещается — оставляем в одну строку. Не “дробим” код ради стиля.
-
-- Fluent-цепочки — "лесенкой" (когда не влезает или так читабельнее):
-  ```java
-  dsl.selectFrom(PAYMENTS)
-    .where(condition)
-    .fetch();
-  ```
-
-- Вызовы в условиях (jOOQ) — перенос только при переполнении:
-  ```java
-  conditions = conditions.and(
-    ORDERS.CREATED_AT.ge(filter.createdSince())
-  );
-  ```
-
----
-
-## Imports (как показывать импорты в карточках)
-
-- Не использовать fully-qualified имена типов в теле кода (например `org.jooq.Field<java.time.LocalDateTime>`) — это визуальный шум.
-- Импорты добавлять только если они реально уменьшают шум и улучшают читаемость.
-- Если импортов много и они не важны для смысла сцены — лучше их не показывать, чем превращать карточку в “простыню”.
+Без этого кастомные классы будут белыми вместо бежевых.
 
 ---
 
@@ -282,300 +126,105 @@ conditions = conditions.and(
 
 | Токен | Цвет | Примеры |
 |-------|------|---------|
-| keyword | #E2B7C1 (пыльная роза) | `final`, `class`, `return`, `this` |
-| type | #D5CCBF (бежевый) | `List`, `String`, + customTypes |
-| constant | #C8B8D8 (лавандовый) | `PAYMENTS`, `ORDERS` |
-| method | #B8D4E8 (голубой) | `.selectFrom()`, `.fetch()` |
-| string | #B2C7C9 (голубой) | `"text"` |
-| number | #A5C9CA (голубой) | `123`, `0.5` |
-| plain | #FCFBF8 (белый) | переменные, параметры |
-| punctuation | #EBE8E2 (бежево-белый) | `{}`, `()`, `;` |
-| comment | #4A505E (тёмный) | `// comment` |
+| keyword | #E2B7C1 | `final`, `class`, `return` |
+| type | #D5CCBF | `List`, `String`, customTypes |
+| constant | #C8B8D8 | `PAYMENTS`, `ORDERS` |
+| method | #B8D4E8 | `.selectFrom()`, `.fetch()` |
+| string | #B2C7C9 | `"text"` |
+| number | #A5C9CA | `123` |
+| plain | #FCFBF8 | переменные, параметры |
+| punctuation | #EBE8E2 | `{}`, `()`, `;` |
+| operator | #CFC7BC | `!=`, `&&` |
+
+**Правило**: оранжевый НЕ используется в подсветке кода.
 
 ---
 
-## Карточка (card vs nocard)
+## Overflow: что делать если код не влезает
 
-- **card** (по умолчанию) — фон + тень
-- **nocard** — прозрачный фон, только код:
-  ```typescript
-  import {NoCardStyle} from '../core/ScreenGrid';
-  
-  CodeBlock.fromCode(CODE, {
-    ...layout,
-    cardStyle: NoCardStyle,
-  });
-  ```
+**НЕ делаем**:
+- Уменьшать fontSize автоматически
+- Менять синтаксис / делать псевдокод
+- Сокращать имена переменных
 
----
+**Делаем**:
+- Переносим длинные строки в Java-стиле (лесенкой)
+- Переносим ТОЛЬКО то, что реально не помещается
 
-## contentOffsetX (сдвиг кода внутри карточки)
-
-Когда карточка шире кода, можно сдвинуть код вправо для визуального баланса:
-
-```typescript
-CodeBlock.fromCode(CODE, {
-  ...layout,
-  contentOffsetX: 20,  // px вправо от центра
-});
-```
-
-Важно: левый отступ текста от края карточки считается как `getCodePadding(fontSize) + contentOffsetX`.
-Чтобы совпасть с таблицей (24 + 16 = 40px при FONT_SIZE 16), держим `contentOffsetX: 0`.
-
----
-
-## Равные размеры карточек (код + таблица)
-
-Когда нужны карточки одинаковой ширины слева и справа:
-
-```typescript
-const gap = 120;
-const totalWidth = SafeZone.right - SafeZone.left;  // 1680px
-const cardWidth = (totalWidth - gap) / 2;           // 780px каждая
-const codeX = SafeZone.left + cardWidth / 2;
-const tableX = SafeZone.right - cardWidth / 2;
-
-// Иммутабельно переопределяем layouts
-const baseLayouts = placeCodeStack([CODE_1, CODE_2], 'L', 16);
-const layout1 = {...baseLayouts[0], x: codeX, width: cardWidth};
-const layout2 = {...baseLayouts[1], x: codeX, width: cardWidth};
-```
-
----
-
-## Таблицы (layout + measureText)
-
-### Ключевая идея
-
-Таблицу **нельзя** собирать через ручные `x/y` для каждой ячейки. Нужны две опоры:
-1) **Layout Motion Canvas** (`layout`, `direction`, `padding`, `alignItems`) — отвечает за геометрию
-2) **Реальное измерение текста** (`CanvasRenderingContext2D.measureText()`) — отвечает за ellipsis
-
-### Гарантии
-
-- Текст не вылезает за границы: сначала `fitText(...)` (ellipsis по реальному `measureText`), затем `clip` как страховка.
-- Колонки равномерные: `grow={1} shrink={1} basis={0} minWidth={0}` на каждой ячейке.
-- Выравнивание текста: через `textAlign` на `Txt` с `width={'100%'}`.
-
-### Геометрия карточек (код + таблица рядом)
-
-**Правило равных отступов:**
-- `edgeMargin = 120px` — отступ от края кадра до карточки кода
-- `edgeMargin = 120px` — отступ между карточкой кода и таблицей
-- Таблица растягивается до `SafeZone.right` (автоматически 120px от края кадра)
-
-```typescript
-const codeRight = codeLayout.x + codeLayout.width / 2;
-const edgeMargin = 120;
-const tableLeft = codeRight + edgeMargin;
-const tableRight = SafeZone.right;
-const tableWidth = tableRight - tableLeft;
-const tableX = tableLeft + tableWidth / 2;
-const tableY = codeLayout.y;  // Выравнивание по верхней карточке кода
-```
-
-### Разделители колонок (бесшовные)
-
-**Не использовать `stroke` на ячейках** — рисует обводку со всех сторон.
-
-Вместо этого — отдельные вертикальные `Rect` между колонками:
-
-```tsx
-{columns.map((col, i) => (
-  <>
-    <Rect layout grow={1} shrink={1} basis={0} minWidth={0} ...>
-      <Txt ... />
-    </Rect>
-    {i < columns.length - 1 && (
-      <Rect width={1} height={'100%'} fill={'rgba(255, 255, 255, 0.08)'} shrink={0} />
-    )}
-  </>
-))}
-```
-
-### API для ellipsis
-
-Файл: `motion-canvas/src/core/utils/textMeasure.ts`
-
-- `fitText(text, maxPx, mode, fontFamily, fontSize, fontWeight)`
-  - mode: `'end'` (обычный ellipsis) или `'middle'` (UUID как в DB-гридах)
-
-### Референс таблицы (полный)
-
-```typescript
-import {Rect, Txt, makeScene2D} from '@motion-canvas/2d';
-import {createRef, easeInOutCubic} from '@motion-canvas/core';
-import {fitText} from '../core/utils/textMeasure';
-import {placeCodeStack, SafeZone} from '../core/ScreenGrid';
-import {Colors, Fonts, Timing} from '../core/theme';
-
-// Константы
-const TABLE_PADDING = 24;
-const ROW_H = 48;
-const CELL_PX = 16;
-const FONT_SIZE = 16;
-const FONT_WEIGHT = 400;
-const TITLE_H = 24;
-const TITLE_FONT_SIZE = 14;
-
-// Колонки (без width — flex поделит равномерно)
-const baseColumns = [
-  {key: 'id', header: 'id', ellipsis: 'middle', align: 'left'},
-  {
-    key: 'status',
-    header: 'status',
-    ellipsis: 'end',
-    align: 'left',
-    color: (v) => v === 'CAPTURED' ? '#A8D8C0' : v === 'PENDING' ? '#E6B47C' : Colors.text.muted,
-  },
-  {key: 'amount', header: 'amount', ellipsis: 'end', align: 'left'},
-  {key: 'created_at', header: 'created_at', ellipsis: 'end', align: 'left'},
-];
-
-// Данные (реалистичные)
-const rows = [
-  {id: '550e8400-e29b-41d4-a716-446655440000', status: 'CAPTURED', amount: '$99.00', created_at: '2024-12-15 14:32'},
-  {id: '6ba7b810-9dad-11d1-80b4-00c04fd430c8', status: 'DECLINED', amount: '$150.00', created_at: '2024-12-14 09:15'},
-  // ...
-];
-
-// Геометрия
-const codeRight = codeLayout.x + codeLayout.width / 2;
-const edgeMargin = 120;
-const tableLeft = codeRight + edgeMargin;
-const tableRight = SafeZone.right;
-const tableWidth = tableRight - tableLeft;
-const tableX = tableLeft + tableWidth / 2;
-const tableY = codeLayout.y;
-const contentWidth = tableWidth - TABLE_PADDING * 2;
-
-// Карточка таблицы
-<Rect
-  ref={tableRef}
-  x={tableX}
-  y={tableY}
-  width={tableWidth}
-  height={codeLayout.height}  // Высота = высота карточки кода
-  layout
-  direction={'column'}
-  gap={0}
-  padding={TABLE_PADDING}
-  radius={28}
-  fill={Colors.surface}
-  stroke={'rgba(255, 255, 255, 0.03)'}
-  lineWidth={2}
-  shadowColor={'rgba(0, 0, 0, 0.28)'}
-  shadowBlur={74}
-  shadowOffset={[0, 22]}
-  clip
->
-  <Rect layout direction={'row'} height={TITLE_H} width={contentWidth} justifyContent={'start'} alignItems={'center'} clip marginBottom={10}>
-    <Txt fontFamily={Fonts.code} fontSize={TITLE_FONT_SIZE} fontWeight={600} fill={'rgba(219, 213, 202, 0.72)'} text={'PAYMENTS'} />
-  </Rect>
-  {/* Header row */}
-  <Rect layout direction={'row'} height={ROW_H} width={contentWidth} justifyContent={'start'} clip>
-    {baseColumns.map((col, i) => (
-      <>
-        <Rect
-          layout
-          grow={1}
-          shrink={1}
-          basis={0}
-          minWidth={0}
-          height={'100%'}
-          paddingLeft={CELL_PX}
-          paddingRight={CELL_PX}
-          alignItems={'center'}
-          justifyContent={'start'}
-          clip
-        >
-          <Txt
-            width={'100%'}
-            minWidth={0}
-            textWrap={false}
-            textAlign={col.align === 'right' ? 'right' : 'left'}
-            fontFamily={Fonts.code}
-            fontSize={FONT_SIZE}
-            fontWeight={600}
-            fill={'rgba(252, 251, 248, 0.5)'}
-            text={col.header}
-          />
-        </Rect>
-        {i < baseColumns.length - 1 && (
-          <Rect width={1} height={'100%'} fill={'rgba(255, 255, 255, 0.08)'} shrink={0} />
-        )}
-      </>
-    ))}
-  </Rect>
-
-  {/* Data rows */}
-  {rows.map((row, rowIndex) => (
-    <Rect
-      layout
-      direction={'row'}
-      height={ROW_H}
-      width={contentWidth}
-      justifyContent={'start'}
-      clip
-      marginTop={rowIndex === 0 ? 8 : 0}
-    >
-      {baseColumns.map((col, i) => {
-        const raw = row[col.key];
-        const cellWidth = contentWidth / baseColumns.length;
-        const avail = cellWidth - CELL_PX * 2;
-        const shown = fitText(raw, avail, col.ellipsis ?? 'end', Fonts.code, FONT_SIZE, FONT_WEIGHT);
-        const textColor = col.color ? col.color(raw) : Colors.text.primary;
-
-        return (
-          <>
-            <Rect
-              layout
-              grow={1}
-              shrink={1}
-              basis={0}
-              minWidth={0}
-              height={'100%'}
-              paddingLeft={CELL_PX}
-              paddingRight={CELL_PX}
-              alignItems={'center'}
-              justifyContent={'start'}
-              clip
-            >
-              <Txt
-                width={'100%'}
-                minWidth={0}
-                textWrap={false}
-                textAlign={col.align === 'right' ? 'right' : 'left'}
-                fontFamily={Fonts.code}
-                fontSize={FONT_SIZE}
-                fontWeight={FONT_WEIGHT}
-                fill={textColor}
-                text={shown}
-              />
-            </Rect>
-            {i < baseColumns.length - 1 && (
-              <Rect width={1} height={'100%'} fill={'rgba(255, 255, 255, 0.08)'} shrink={0} />
-            )}
-          </>
-        );
-      })}
-    </Rect>
-  ))}
-</Rect>
-
-// Анимация появления (вместе с кодом) — только opacity, без scale
-yield* all(
-  codeBlock.appear(Timing.slow),
-  tableRef().opacity(1, Timing.slow, easeInOutCubic),
+```java
+conditions = conditions.and(
+  ORDERS.CREATED_AT.ge(filter.createdSince())
 );
 ```
 
-### Цвета статусов
+`clip` у карточки — safety-belt, а не решение.
 
-- success (CAPTURED): `#A8D8C0`
-- warning (PENDING): `#E6B47C`
-- muted (DECLINED, etc.): `Colors.text.muted`
+---
+
+## Операторы: без лигатур
+
+Код должен выглядеть как реальный Java: `!=` а не `≠`, `>=` а не `≥`.
+
+Контракт: лигатурные операторы рендерятся посимвольно.
+
+---
+
+## Форматирование кода
+
+- **Отступы**: 2 пробела
+- **Пустые строки**: после `{` класса, между методами, перед `return`
+- **Переносы**: только при переполнении или явном улучшении читаемости
+
+---
+
+## Таблицы (краткое API)
+
+### Геометрия (код + таблица рядом)
+```typescript
+const gap = 120;
+const totalWidth = SafeZone.right - SafeZone.left;
+const cardWidth = (totalWidth - gap) / 2;
+const codeX = SafeZone.left + cardWidth / 2;
+const tableX = SafeZone.right - cardWidth / 2;
+```
+
+### Ключевые правила
+- Колонки: `grow={1} shrink={1} basis={0} minWidth={0}`
+- Разделители: отдельные вертикальные `Rect` (не stroke)
+- Overflow: `fitText()` + `clip` как страховка
+- Цвета статусов: success `#A8D8C0`, warning `#E6B47C`, muted `Colors.text.muted`
+
+### Референс
+Полный пример таблицы: `dryFiltersScene.tsx`
+
+---
+
+## Авто-ширина карточки
+
+Для одиночной центральной карточки:
+```typescript
+function codeCardWidth(code, fontFamily, fontSize, paddingX) {
+  const maxLinePx = Math.max(0, ...code.split('\n').map(
+    line => textWidth(line, fontFamily, fontSize, 400)
+  ));
+  return Math.min(1600, Math.max(900, Math.ceil(maxLinePx + paddingX * 2)));
+}
+```
+
+Референс: `dryConditionsScene.tsx`
+
+---
+
+## Скорости анимаций
+
+| Действие | Timing |
+|----------|--------|
+| Появление/исчезновение карточек | `Timing.slow` |
+| Подсветка строк/токенов | `Timing.slow` |
+| Возврат из подсветки | `~0.8s` (restoreDur) |
+| Мерцание | `0.16s` |
+
+**Правило**: в финале сцены код возвращается в нормальный вид.
 
 ---
 
@@ -583,22 +232,18 @@ yield* all(
 
 | Файл | Назначение |
 |------|------------|
-| `motion-canvas/src/scenes/*.tsx` | Сцены видео |
-| `motion-canvas/src/core/ScreenGrid.ts` | placeCode, placeCodeStack, SafeZone |
-| `motion-canvas/src/core/code/model/SyntaxTheme.ts` | Цветовая тема |
-| `motion-canvas/src/core/code/model/Tokenizer.ts` | Токенизатор (customTypes) |
-| `motion-canvas/src/core/code/components/CodeBlock.ts` | Компонент кода |
-| `motion-canvas/src/core/code/shared/TextMeasure.ts` | Расчёт размеров |
-| `motion-canvas/src/core/utils/textMeasure.ts` | Реальное измерение текста + ellipsis |
+| `core/ScreenGrid.ts` | placeCode, placeCodeStack, SafeZone |
+| `core/code/components/CodeBlock.ts` | Компонент кода |
+| `core/code/components/CodeLine.ts` | Строка кода |
+| `core/code/model/SyntaxTheme.ts` | Цветовая тема |
+| `core/code/model/Tokenizer.ts` | Токенизатор |
+| `core/utils/textMeasure.ts` | measureText, fitText, textWidth |
 
 ---
 
-## ВАЖНО: обновление документации
+## ВАЖНО
 
-`CODE_PLACEMENT.txt` изменяется **только по явной просьбе пользователя**.
-
----
-
-## ВАЖНО: core не трогать!
-
-Файлы в `motion-canvas/src/core/` менять только по явной просьбе.
+- `CODE_PLACEMENT.txt` изменяется только по явной просьбе
+- Файлы в `core/` менять только по явной просьбе
+- Сценарные паттерны → см. `SCENE_PATTERNS.txt`
+- Визуальный стиль → см. `DESIGN_STYLE.txt`

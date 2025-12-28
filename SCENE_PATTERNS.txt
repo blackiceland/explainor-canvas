@@ -1,0 +1,177 @@
+# SCENE_PATTERNS — Сценарные паттерны (режиссура анимаций)
+
+## Назначение
+
+Как строить нарратив в сценах. Не API, а приёмы рассказывания историй через код.
+
+---
+
+## 1. СРАВНЕНИЕ ДВУХ СУЩНОСТЕЙ (показать сходство/различие)
+
+**Цель**: Показать что два класса структурно похожи, но отличаются деталями.
+
+**Шаги**:
+1. Две карточки рядом (одинаковой ширины)
+2. Синхронная подсветка строк — показывает структурное сходство
+3. Возврат в нормальный режим
+4. Подсветка различий (имена классов, таблиц) + мерцание
+5. Возврат в нормальный режим
+
+**Ключевые методы**:
+- `highlightLines([[line, line]], duration)` — приглушить остальное
+- `recolorLine(line, Colors.accent, duration)` — покрасить строку
+- `recolorTokens(line, ['Token'], color, duration)` — покрасить токены
+- `resetLineColors(line, duration)` — вернуть цвет
+- `showAllLines(duration)` — вернуть opacity
+
+**Мерцание** (привлечь внимание к различиям):
+```typescript
+const pulseLow = 'rgba(255, 140, 163, 0.72)';
+const pulseDur = 0.16;
+for (let i = 0; i < 2; i++) {
+  yield* recolorTokens(line, ['Token'], pulseLow, pulseDur);
+  yield* recolorTokens(line, ['Token'], Colors.accent, pulseDur);
+}
+```
+
+**Референс**: `dryConditionsScene.tsx` (строки 186-290)
+
+---
+
+## 2. ПЕРЕХОД К ОБОБЩЕНИЮ (две карточки → одна)
+
+**Цель**: Показать попытку объединить дублирующийся код.
+
+**Шаги**:
+1. Обе карточки исчезают (`disappear`)
+2. Новая карточка монтируется и появляется (`mount` + `appear`)
+
+```typescript
+yield* all(
+  cardA.disappear(Timing.slow),
+  cardB.disappear(Timing.slow),
+);
+commonCard.mount(view);
+yield* commonCard.appear(Timing.slow);
+```
+
+**Референс**: `dryConditionsScene.tsx` (строки 309-354)
+
+---
+
+## 3. КОД "РАСТЁТ" (демонстрация разбухания класса)
+
+**Цель**: Показать как "общий" класс превращается в монстра.
+
+**Механика**:
+1. Определить какие строки скрыты изначально (`hidden[]`)
+2. Вычислить начальные позиции видимых строк (без учёта скрытых)
+3. Анимировать появление блоков с `animateInsertLines`
+
+**Ключевые методы**:
+- `getLineLayouts()` — получить начальные Y-позиции строк
+- `setLinePosition(index, y)` — установить позицию мгновенно
+- `setLineOpacity(index, 0)` — скрыть строку мгновенно
+- `animateInsertLines([start, end], currentY[], duration)` — вставить блок, сдвинуть остальные
+
+**Расширение диапазона** (включить пустую строку перед блоком):
+```typescript
+function expandRangeUp(range: [number, number]): [number, number] {
+  let [start, end] = range;
+  while (start > 0 && lines[start - 1].trim() === '') start--;
+  return [start, end];
+}
+```
+
+**Референс**: `dryConditionsScene.tsx` (строки 324-453)
+
+---
+
+## 4. СИНХРОНИЗАЦИЯ ТОКЕНА СО СТРОКОЙ (запятая появляется вовремя)
+
+**Цель**: Запятая после `isPayments` появляется вместе с `isInvoices`.
+
+**Проблема**: Запятая на строке A, но должна появиться с строкой B.
+
+**Решение**: Скрыть токен по индексу, показать при вставке строки.
+
+```typescript
+// При инициализации — скрыть последний токен (запятую)
+commonBlock.setTokenOpacityAt(lineIndex, -1, 0);
+
+// При вставке — показать синхронно
+yield* all(
+  commonBlock.animateInsertLines([...], currentY, Timing.slow),
+  commonBlock.animateTokenOpacityAt(lineIndex, -1, 1, Timing.slow),
+);
+```
+
+**Ключевые методы**:
+- `setTokenOpacityAt(lineIndex, tokenIndex, opacity)` — мгновенно (tokenIndex: -1 = последний)
+- `animateTokenOpacityAt(lineIndex, tokenIndex, opacity, duration)` — анимированно
+
+**Референс**: `dryConditionsScene.tsx` (строки 408, 445)
+
+---
+
+## 5. СКРОЛЛ ВНУТРИ КАРТОЧКИ
+
+**Цель**: Показать код, который не поместился в видимую область.
+
+```typescript
+const scrollAmount = 10 * lineHeight;
+yield* commonBlock.animateScrollY(scrollAmount, Timing.slow);
+```
+
+**Ключевой метод**:
+- `animateScrollY(deltaY, duration)` — сдвинуть контент вверх на deltaY пикселей
+
+**Референс**: `dryConditionsScene.tsx` (строки 457-462)
+
+---
+
+## 6. ФИЛЬТРАЦИЯ В ТАБЛИЦЕ (реалистичная анимация)
+
+**Цель**: Показать как фильтр проверяет строки таблицы.
+
+**Шаги**:
+1. Подсветить проверяемые поля (created_at, status) по очереди
+2. Строки, прошедшие фильтр, получают яркий highlight
+3. После завершения — вернуть всё в нормальный режим
+
+**Референс**: `dryFiltersScene.tsx`
+
+---
+
+## Общие правила
+
+### Возврат в нормальный режим
+После любой подсветки код должен вернуться в исходное состояние:
+```typescript
+yield* all(
+  block.resetLineColors(line, restoreDur),
+  block.showAllLines(restoreDur),
+);
+```
+
+### Timing
+- `Timing.slow` — появление/исчезновение карточек, основные анимации
+- `restoreDur = 0.8` — возврат из подсветки
+- `pulseDur = 0.16` — мерцание (быстро)
+
+### Паузы между шагами
+Паузы подгоняются под речь. В коде — placeholder'ы:
+- `yield* waitFor(0.3-0.6)` — между шагами
+- `yield* waitFor(16)` — конец сцены (для рендера)
+
+---
+
+## Ключевые файлы
+
+| Паттерн | Референс |
+|---------|----------|
+| Сравнение + обобщение + рост | `dryConditionsScene.tsx` |
+| Фильтрация таблицы | `dryFiltersScene.tsx` |
+| CodeBlock API | `core/code/components/CodeBlock.ts` |
+| CodeLine API | `core/code/components/CodeLine.ts` |
+
