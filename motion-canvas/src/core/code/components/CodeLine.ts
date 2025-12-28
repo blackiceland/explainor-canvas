@@ -20,6 +20,7 @@ interface TokenData {
     ref: Reference<Txt>;
     text: string;
     localX: number;
+    originalColor: string;
 }
 
 const LIGATURE_OPERATORS = new Set(['!=', '==', '<=', '>=', '&&', '||', '++', '--', '->', '::']);
@@ -74,6 +75,7 @@ export class CodeLine {
                         ref,
                         text: i === 0 ? token.text : '',
                         localX: xOffset,
+                        originalColor: tokenColor,
                     });
 
                     xOffset += textWidth(ch, this.config.fontFamily, this.config.fontSize);
@@ -97,6 +99,7 @@ export class CodeLine {
                 ref,
                 text: token.text,
                 localX: xOffset,
+                originalColor: tokenColor,
             });
 
             xOffset += textWidth(token.text, this.config.fontFamily, this.config.fontSize);
@@ -133,6 +136,16 @@ export class CodeLine {
             if (patterns.some(p => tokenData.text.includes(p))) {
                 animations.push(tokenData.ref().fill(color, duration, easeInOutCubic));
             }
+        }
+        if (animations.length > 0) {
+            yield* all(...animations);
+        }
+    }
+
+    public *resetColors(duration: number = 0.4): ThreadGenerator {
+        const animations: ThreadGenerator[] = [];
+        for (const tokenData of this.tokensData) {
+            animations.push(tokenData.ref().fill(tokenData.originalColor, duration, easeInOutCubic));
         }
         if (animations.length > 0) {
             yield* all(...animations);

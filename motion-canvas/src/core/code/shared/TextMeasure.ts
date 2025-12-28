@@ -1,5 +1,5 @@
 const MONOSPACE_CHAR_WIDTH_RATIO = 0.6;
-const DEFAULT_LINE_HEIGHT_RATIO = 1.7;
+const DEFAULT_LINE_HEIGHT_RATIO = 1.5;
 
 export interface TextMetrics {
     width: number;

@@ -214,6 +214,13 @@ export class CodeBlock {
         }
     }
 
+    public *resetLineColors(lineIndex: number, duration: number = 0.4): ThreadGenerator {
+        const line = this.lines[lineIndex];
+        if (line) {
+            yield* line.resetColors(duration);
+        }
+    }
+
     public *recolorTokens(lineIndex: number, patterns: string[], color: string, duration: number = 0.4): ThreadGenerator {
         const line = this.lines[lineIndex];
         if (line) {
