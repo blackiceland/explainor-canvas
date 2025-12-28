@@ -65,11 +65,11 @@ const CELL_FILL_OFF = 'rgba(0, 0, 0, 0)';
 const CELL_HIGHLIGHT = 'rgba(255, 140, 163, 0.28)';
 
 const FILTER_FROM = '2024-12-10 00:00';
-const SCAN_PULSE_ON = 0.12;
-const SCAN_PULSE_OFF = 0.12;
-const SCAN_ROW_DELAY = 0.03;
-const SCAN_BETWEEN_PASSES = 0.12;
-const SCAN_CYCLES = 2;
+const SCAN_PULSE_ON = 0.22;
+const SCAN_PULSE_OFF = 0.22;
+const SCAN_ROW_DELAY = 0.08;
+const SCAN_BETWEEN_PASSES = 0.28;
+const SCAN_CYCLES = 1;
 
 const paymentColumns: Omit<Column, 'width'>[] = [
   {key: 'id', header: 'id', ellipsis: 'middle', align: 'left'},
