@@ -1,4 +1,4 @@
-﻿import {Line, makeScene2D, Rect, Txt} from '@motion-canvas/2d';
+﻿import {blur, Line, makeScene2D, Rect, Txt} from '@motion-canvas/2d';
 import {all, createRef, createSignal, easeInOutCubic, waitFor} from '@motion-canvas/core';
 import {CodeBlock} from '../core/code/components/CodeBlock';
 import {ExplainorCodeTheme} from '../core/code/model/SyntaxTheme';
@@ -197,7 +197,6 @@ export default makeScene2D(function* (view) {
       'Boolean',
       'Condition',
       'DSL',
-      'INVOICES',
     ],
   });
 
@@ -334,12 +333,16 @@ export default makeScene2D(function* (view) {
     paymentBlock.showAllLines(restoreDur),
   );
 
-  yield* waitFor(0.6);
+  const blurOrders = createSignal(0);
+  const blurPayments = createSignal(0);
 
-  yield* all(
-    orderBlock.disappear(Timing.slow),
-    paymentBlock.disappear(Timing.slow),
-  );
+  orderBlock.node.cache(true);
+  paymentBlock.node.cache(true);
+  orderBlock.node.cachePadding(120);
+  paymentBlock.node.cachePadding(120);
+
+  orderBlock.node.filters(() => [blur(blurOrders())]);
+  paymentBlock.node.filters(() => [blur(blurPayments())]);
 
   commonBlock.mount(view);
 
@@ -440,6 +443,13 @@ export default makeScene2D(function* (view) {
     commonBlock.setTokenOpacityAt(pParamsExtra, -1, 0);
   }
 
+  yield* all(
+    blurOrders(8, Timing.slow, easeInOutCubic),
+    blurPayments(8, Timing.slow, easeInOutCubic),
+    orderBlock.node.opacity(0.22, Timing.slow, easeInOutCubic),
+    paymentBlock.node.opacity(0.22, Timing.slow, easeInOutCubic),
+  );
+
   yield* commonBlock.appear(Timing.slow);
 
   yield* waitFor(0.6);
@@ -509,6 +519,8 @@ export default makeScene2D(function* (view) {
   yield* all(
     commonBlock.animateCardFill(DEP_BLUE, 0.7),
     commonBlock.hideLines([[0, commonBlock.lineCount - 1]], 0.7),
+    orderBlock.node.opacity(0, 0.7, easeInOutCubic),
+    paymentBlock.node.opacity(0, 0.7, easeInOutCubic),
   );
 
   view.add(
