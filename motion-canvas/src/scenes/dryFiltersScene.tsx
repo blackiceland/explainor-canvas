@@ -141,6 +141,14 @@ export default makeScene2D(function* (view) {
     return row.status === 'SHIPPED';
   }
 
+  function paymentMatches(row: Row): boolean {
+    return paymentPassesDate(row) && paymentPassesStatus(row);
+  }
+
+  function orderMatches(row: Row): boolean {
+    return orderPassesDate(row) && orderPassesStatus(row);
+  }
+
   const gap = 120;
   const totalWidth = SafeZone.right - SafeZone.left;
   const cardWidth = (totalWidth - gap) / 2;
@@ -166,6 +174,9 @@ export default makeScene2D(function* (view) {
     status: createRef<Rect>(),
     created_at: createRef<Rect>(),
   }));
+
+  const paymentRowRefs = paymentRows.map(() => createRef<Rect>());
+  const orderRowRefs = orderRows.map(() => createRef<Rect>());
 
   view.add(
     <Rect
@@ -243,6 +254,7 @@ export default makeScene2D(function* (view) {
 
       {paymentRows.map((row, rowIndex) => (
         <Rect
+          ref={paymentRowRefs[rowIndex]}
           layout
           direction={'row'}
           height={ROW_H}
@@ -378,6 +390,7 @@ export default makeScene2D(function* (view) {
 
       {orderRows.map((row, rowIndex) => (
         <Rect
+          ref={orderRowRefs[rowIndex]}
           layout
           direction={'row'}
           height={ROW_H}
@@ -537,6 +550,31 @@ export default makeScene2D(function* (view) {
     }
 
     yield* waitFor(SCAN_BETWEEN_PASSES);
+  }
+
+  const hideDur = 0.7;
+  const hideAnimations: any[] = [];
+
+  for (let i = 0; i < paymentRows.length; i++) {
+    if (paymentMatches(paymentRows[i])) continue;
+    const rowRef = paymentRowRefs[i]();
+    hideAnimations.push(all(
+      rowRef.opacity(0, hideDur, easeInOutCubic),
+      rowRef.height(0, hideDur, easeInOutCubic),
+    ));
+  }
+
+  for (let i = 0; i < orderRows.length; i++) {
+    if (orderMatches(orderRows[i])) continue;
+    const rowRef = orderRowRefs[i]();
+    hideAnimations.push(all(
+      rowRef.opacity(0, hideDur, easeInOutCubic),
+      rowRef.height(0, hideDur, easeInOutCubic),
+    ));
+  }
+
+  if (hideAnimations.length > 0) {
+    yield* all(...hideAnimations);
   }
 
   yield* all(
