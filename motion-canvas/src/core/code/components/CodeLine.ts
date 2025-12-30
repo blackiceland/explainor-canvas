@@ -23,7 +23,7 @@ interface TokenData {
     originalColor: string;
 }
 
-const LIGATURE_OPERATORS = new Set(['!=']);
+const LIGATURE_OPERATORS = new Set(['!=', '==', '<=', '>=', '&&', '||', '++', '--', '->', '::']);
 
 export class CodeLine {
     private readonly containerRef: Reference<Node> = createRef<Node>();
@@ -200,42 +200,6 @@ export class CodeLine {
             }
         }
         return null;
-    }
-
-    public setTokenOpacity(pattern: string, opacity: number): void {
-        for (const tokenData of this.tokensData) {
-            if (tokenData.text === pattern || tokenData.text.includes(pattern)) {
-                tokenData.ref().opacity(opacity);
-            }
-        }
-    }
-
-    public *animateTokenOpacity(pattern: string, opacity: number, duration: number): ThreadGenerator {
-        const animations: ThreadGenerator[] = [];
-        for (const tokenData of this.tokensData) {
-            if (tokenData.text === pattern || tokenData.text.includes(pattern)) {
-                animations.push(tokenData.ref().opacity(opacity, duration, easeInOutCubic));
-            }
-        }
-        if (animations.length > 0) {
-            yield* all(...animations);
-        }
-    }
-
-    public setTokenOpacityAt(index: number, opacity: number): void {
-        const idx = index < 0 ? this.tokensData.length + index : index;
-        const tokenData = this.tokensData[idx];
-        if (tokenData) {
-            tokenData.ref().opacity(opacity);
-        }
-    }
-
-    public *animateTokenOpacityAt(index: number, opacity: number, duration: number): ThreadGenerator {
-        const idx = index < 0 ? this.tokensData.length + index : index;
-        const tokenData = this.tokensData[idx];
-        if (tokenData) {
-            yield* tokenData.ref().opacity(opacity, duration, easeInOutCubic);
-        }
     }
 }
 

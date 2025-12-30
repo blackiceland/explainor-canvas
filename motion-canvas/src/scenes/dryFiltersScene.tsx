@@ -539,16 +539,5 @@ export default makeScene2D(function* (view) {
     yield* waitFor(SCAN_BETWEEN_PASSES);
   }
 
-  const restoreDur = 0.8;
-
-  yield* all(
-    paymentRepo.resetLineColors(conditionLineIndex, restoreDur),
-    paymentRepo.resetLineColors(whereLineIndex, restoreDur),
-    orderRepo.resetLineColors(conditionLineIndex, restoreDur),
-    orderRepo.resetLineColors(whereLineIndex, restoreDur),
-    paymentRepo.showAllLines(restoreDur),
-    orderRepo.showAllLines(restoreDur),
-  );
-
   yield* waitFor(6);
 });
