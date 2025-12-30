@@ -443,14 +443,21 @@ export default makeScene2D(function* (view) {
     commonBlock.setTokenOpacityAt(pParamsExtra, -1, 0);
   }
 
-  yield* all(
-    blurOrders(8, Timing.slow, easeInOutCubic),
-    blurPayments(8, Timing.slow, easeInOutCubic),
-    orderBlock.node.opacity(0.22, Timing.slow, easeInOutCubic),
-    paymentBlock.node.opacity(0.22, Timing.slow, easeInOutCubic),
-  );
+  const defocusDur = Timing.slow;
+  const commonLead = 0.35;
 
-  yield* commonBlock.appear(Timing.slow);
+  function* appearCommonSoon() {
+    yield* waitFor(commonLead);
+    yield* commonBlock.appear(Timing.slow);
+  }
+
+  yield* all(
+    blurOrders(6, defocusDur, easeInOutCubic),
+    blurPayments(6, defocusDur, easeInOutCubic),
+    orderBlock.node.opacity(0.22, defocusDur, easeInOutCubic),
+    paymentBlock.node.opacity(0.22, defocusDur, easeInOutCubic),
+    appearCommonSoon(),
+  );
 
   yield* waitFor(0.6);
 
