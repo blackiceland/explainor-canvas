@@ -124,12 +124,12 @@ export default makeScene2D(function* (view) {
 
 ## customTypes (ВАЖНО)
 
-AI должен САМ анализировать код и определять customTypes:
-1. Найти все слова с заглавной буквы, которые выглядят как классы/типы
-2. Исключить стандартные (List, Map, String, Optional и т.д.)
-3. Добавить остальные в customTypes
+`customTypes` — это список доменных типов/классов, которые должны подсвечиваться как `type` (например `OrderConditions`, `PaymentSearchFilter`, `DSLContext`).
 
-Без этого кастомные классы будут белыми вместо бежевых.
+Правила:
+1) Добавляем только **типы/классы** (обычно `PascalCase`).
+2) **НЕ добавляем ALL_CAPS идентификаторы** (например `ORDERS`, `PAYMENTS`, `INVOICES`) — они должны подсвечиваться как `constant`.
+3) Если слово выглядит как “служебный класс DSL” (например `DSL`) — это **type**, не constant.
 
 ---
 
@@ -258,17 +258,21 @@ conditions = conditions.and(
 
 ## Цветовая тема (ExplainorCodeTheme)
 
+Источник правды: `motion-canvas/src/core/code/model/SyntaxTheme.ts` (`ExplainorCodeTheme`).
+
 | Токен | Цвет | Примеры |
 |-------|------|---------|
-| keyword | #E2B7C1 (пыльная роза) | `final`, `class`, `return`, `this` |
-| type | #D5CCBF (бежевый) | `List`, `String`, + customTypes |
-| constant | #C8B8D8 (лавандовый) | `PAYMENTS`, `ORDERS` |
-| method | #B8D4E8 (голубой) | `.selectFrom()`, `.fetch()` |
-| string | #B2C7C9 (голубой) | `"text"` |
-| number | #A5C9CA (голубой) | `123`, `0.5` |
-| plain | #FCFBF8 (белый) | переменные, параметры |
-| punctuation | #EBE8E2 (бежево-белый) | `{}`, `()`, `;` |
-| comment | #4A505E (тёмный) | `// comment` |
+| keyword | #F2A25F | `final`, `class`, `return`, `if` |
+| annotation | #F2A25F | `@Test` |
+| type | #C9D2E3 | `Condition`, `DSLContext`, + customTypes |
+| constant | #A8D8C0 | `ORDERS`, `PAYMENTS`, `INVOICES` |
+| method | #E8CFAE | `.fromFilter()`, `.and()` |
+| string | #F2C37B | `"CAPTURED"` |
+| number | #FF9A4A | `0`, `10` |
+| operator | #D3CCBF | `!=`, `>=`, `&&` |
+| punctuation | rgba(252,251,248,0.70) | `{}`, `()`, `;`, `,` |
+| plain | #FCFBF8 | переменные, параметры |
+| comment | #6E7380 | `// ...` |
 
 ---
 
@@ -577,6 +581,17 @@ yield* all(
 
 ---
 
-## ВАЖНО: core не трогать!
+## ВАЖНО: изменения в core (стабильность геометрии)
 
-Файлы в `motion-canvas/src/core/` менять только по явной просьбе.
+`motion-canvas/src/core/` менять можно, но как “контрактную библиотеку”:
+- нельзя ломать размеры/позиции карточек и выравнивание строк кода (особенно в сценах с фиксированной высотой);
+- любые новые эффекты (`scroll`, `token opacity`, `filters`) должны быть совместимы с уже существующими сценами.
+
+---
+
+## Эффекты для “дорогого” перехода (defocus / blur)
+
+Когда нужно убрать второстепенные карточки в “дефокус”, используем **настоящий blur фильтр** на уровне `Node`:
+- `node.cache(true)` + `node.cachePadding(...)` чтобы blur не обрезался по краям;
+- `node.filters(() => [blur(pxSignal())])`;
+- blur делаем только короткими отрезками (на переход), основной код должен быть резким.
