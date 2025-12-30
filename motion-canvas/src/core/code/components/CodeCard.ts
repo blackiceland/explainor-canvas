@@ -10,6 +10,7 @@ export interface CodeCardStyle {
     opacity?: number;
     shadowColor?: string;
     shadowBlur?: number;
+    shadowOffsetX?: number;
     shadowOffsetY?: number;
 }
 
@@ -22,11 +23,12 @@ export interface CodeCardConfig {
 const DEFAULT_STYLE: Required<CodeCardStyle> = {
     radius: 28,
     fill: Colors.surface,
-    stroke: 'rgba(255, 255, 255, 0.03)',
-    strokeWidth: 2,
+    stroke: '#262A34',
+    strokeWidth: 1,
     opacity: 1,
-    shadowColor: 'rgba(0, 0, 0, 0.28)',
-    shadowBlur: 74,
+    shadowColor: 'rgba(0, 0, 0, 0.50)',
+    shadowBlur: 44,
+    shadowOffsetX: -16,
     shadowOffsetY: 22,
 };
 
@@ -51,7 +53,7 @@ export class CodeCard {
             opacity: this.style.opacity,
             shadowColor: this.style.shadowColor,
             shadowBlur: this.style.shadowBlur,
-            shadowOffset: [0, this.style.shadowOffsetY],
+            shadowOffset: [this.style.shadowOffsetX, this.style.shadowOffsetY],
         });
         this.rectRef(rect);
         return rect;

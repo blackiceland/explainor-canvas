@@ -21,6 +21,9 @@ interface TokenData {
     text: string;
     localX: number;
     originalColor: string;
+    originalShadowBlur: number;
+    originalShadowColor: string;
+    originalShadowOffset: [number, number];
 }
 
 const LIGATURE_OPERATORS = new Set(['!=', '==', '<=', '>=', '&&', '||', '++', '--', '->', '::']);
@@ -76,6 +79,9 @@ export class CodeLine {
                         text: i === 0 ? token.text : '',
                         localX: xOffset,
                         originalColor: tokenColor,
+                        originalShadowBlur: 0,
+                        originalShadowColor: 'rgba(0,0,0,0)',
+                        originalShadowOffset: [0, 0],
                     });
 
                     xOffset += textWidth(ch, this.config.fontFamily, this.config.fontSize);
@@ -100,6 +106,9 @@ export class CodeLine {
                 text: token.text,
                 localX: xOffset,
                 originalColor: tokenColor,
+                originalShadowBlur: 0,
+                originalShadowColor: 'rgba(0,0,0,0)',
+                originalShadowOffset: [0, 0],
             });
 
             xOffset += textWidth(token.text, this.config.fontFamily, this.config.fontSize);
@@ -124,6 +133,7 @@ export class CodeLine {
         const animations: ThreadGenerator[] = [];
         for (const tokenData of this.tokensData) {
             animations.push(tokenData.ref().fill(color, duration, easeInOutCubic));
+            animations.push(...this.getGlowAnimations(tokenData, color, duration));
         }
         if (animations.length > 0) {
             yield* all(...animations);
@@ -135,6 +145,7 @@ export class CodeLine {
         for (const tokenData of this.tokensData) {
             if (patterns.some(p => tokenData.text.includes(p))) {
                 animations.push(tokenData.ref().fill(color, duration, easeInOutCubic));
+                animations.push(...this.getGlowAnimations(tokenData, color, duration));
             }
         }
         if (animations.length > 0) {
@@ -146,10 +157,29 @@ export class CodeLine {
         const animations: ThreadGenerator[] = [];
         for (const tokenData of this.tokensData) {
             animations.push(tokenData.ref().fill(tokenData.originalColor, duration, easeInOutCubic));
+            animations.push(tokenData.ref().shadowBlur(tokenData.originalShadowBlur, duration, easeInOutCubic));
+            animations.push(tokenData.ref().shadowColor(tokenData.originalShadowColor, duration, easeInOutCubic));
+            animations.push(tokenData.ref().shadowOffset(tokenData.originalShadowOffset, duration, easeInOutCubic));
         }
         if (animations.length > 0) {
             yield* all(...animations);
         }
+    }
+
+    private getGlowAnimations(tokenData: TokenData, color: string, duration: number): ThreadGenerator[] {
+        if (color !== Colors.accent) {
+            return [
+                tokenData.ref().shadowBlur(tokenData.originalShadowBlur, duration, easeInOutCubic),
+                tokenData.ref().shadowColor(tokenData.originalShadowColor, duration, easeInOutCubic),
+                tokenData.ref().shadowOffset(tokenData.originalShadowOffset, duration, easeInOutCubic),
+            ];
+        }
+
+        return [
+            tokenData.ref().shadowBlur(14, duration, easeInOutCubic),
+            tokenData.ref().shadowColor('rgba(255, 140, 163, 0.35)', duration, easeInOutCubic),
+            tokenData.ref().shadowOffset([0, 0], duration, easeInOutCubic),
+        ];
     }
 
     public *showBackground(color: string, duration: number = 0.4): ThreadGenerator {

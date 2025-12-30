@@ -60,7 +60,7 @@ const CELL_PX = 16;
 const TABLE_PADDING = 24;
 const TITLE_H = 24;
 const TITLE_FONT_SIZE = 14;
-const TITLE_COLOR = 'rgba(219, 213, 202, 0.72)';
+const TITLE_COLOR = 'rgba(244, 241, 235, 0.72)';
 const CELL_FILL_OFF = 'rgba(0, 0, 0, 0)';
 const CELL_HIGHLIGHT = 'rgba(255, 140, 163, 0.28)';
 
@@ -180,11 +180,11 @@ export default makeScene2D(function* (view) {
       padding={TABLE_PADDING}
       radius={28}
       fill={Colors.surface}
-      stroke={'rgba(255, 255, 255, 0.03)'}
-      lineWidth={2}
-      shadowColor={'rgba(0, 0, 0, 0.28)'}
-      shadowBlur={74}
-      shadowOffset={[0, 22]}
+      stroke={'#262A34'}
+      lineWidth={1}
+      shadowColor={'rgba(0, 0, 0, 0.50)'}
+      shadowBlur={44}
+      shadowOffset={[-16, 22]}
       opacity={0}
       clip
     >
@@ -230,7 +230,7 @@ export default makeScene2D(function* (view) {
                 fontFamily={FONT_FAMILY}
                 fontSize={FONT_SIZE}
                 fontWeight={600}
-                fill={'rgba(252, 251, 248, 0.5)'}
+                fill={'rgba(244, 241, 235, 0.5)'}
                 text={col.header}
               />
             </Rect>
@@ -315,11 +315,11 @@ export default makeScene2D(function* (view) {
       padding={TABLE_PADDING}
       radius={28}
       fill={Colors.surface}
-      stroke={'rgba(255, 255, 255, 0.03)'}
-      lineWidth={2}
-      shadowColor={'rgba(0, 0, 0, 0.28)'}
-      shadowBlur={74}
-      shadowOffset={[0, 22]}
+      stroke={'#262A34'}
+      lineWidth={1}
+      shadowColor={'rgba(0, 0, 0, 0.50)'}
+      shadowBlur={44}
+      shadowOffset={[-16, 22]}
       opacity={0}
       clip
     >
@@ -365,7 +365,7 @@ export default makeScene2D(function* (view) {
                 fontFamily={FONT_FAMILY}
                 fontSize={FONT_SIZE}
                 fontWeight={600}
-                fill={'rgba(252, 251, 248, 0.5)'}
+                fill={'rgba(244, 241, 235, 0.5)'}
                 text={col.header}
               />
             </Rect>

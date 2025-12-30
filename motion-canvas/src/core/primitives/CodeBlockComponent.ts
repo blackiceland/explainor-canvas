@@ -29,9 +29,9 @@ export class CodeBlockComponent extends AnimatedComponent {
         const isDark = this.props.theme !== 'light'; 
         
         // Colors
-        const bgColor = isDark ? '#111111' : '#F0F0F0'; // Deep dark vs Light gray
-        const shadow = isDark ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.1)';
-        const borderColor = isDark ? '#333' : 'transparent';
+        const bgColor = isDark ? '#13151A' : '#F0F0F0';
+        const shadow = isDark ? 'rgba(0,0,0,0.50)' : 'rgba(0,0,0,0.10)';
+        const borderColor = isDark ? '#262A34' : 'transparent';
 
         // Container Card
         ctx.createRect(
@@ -45,11 +45,12 @@ export class CodeBlockComponent extends AnimatedComponent {
                 fill: bgColor,
                 stroke: borderColor,
                 lineWidth: 1,
-                radius: 12,
+                radius: 28,
                 opacity: this.props.opacity ?? 0,
                 scale: this.props.scale ?? 0.95,
-                shadowBlur: 40,
+                shadowBlur: 44,
                 shadowColor: shadow,
+                shadowOffset: [-16, 22],
                 alignItems: 'start',
                 clip: true, // Clip content
             },

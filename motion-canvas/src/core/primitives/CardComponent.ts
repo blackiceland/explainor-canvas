@@ -28,7 +28,7 @@ export class CardComponent extends AnimatedComponent {
     }
 
     protected override onMount(ctx: RenderContext): void {
-        const fill = this.props.fill ?? '#111111';
+        const fill = this.props.fill ?? '#13151A';
         const showShadow = this.props.shadow !== false;
 
         ctx.createRect(
@@ -39,11 +39,14 @@ export class CardComponent extends AnimatedComponent {
                 height: this.props.height,
                 padding: this.props.padding ?? 40,
                 fill: fill,
-                radius: this.props.radius ?? 12,
+                radius: this.props.radius ?? 28,
+                stroke: '#262A34',
+                lineWidth: 1,
                 opacity: this.props.opacity ?? 0,
                 scale: this.props.scale ?? 0.95,
-                shadowBlur: showShadow ? 30 : 0,
-                shadowColor: showShadow ? 'rgba(0,0,0,0.4)' : 'rgba(0,0,0,0)',
+                shadowBlur: showShadow ? 44 : 0,
+                shadowColor: showShadow ? 'rgba(0,0,0,0.50)' : 'rgba(0,0,0,0)',
+                shadowOffset: showShadow ? [-16, 22] : [0, 0],
                 layout: true,
                 direction: 'column',
                 alignItems: 'start',
