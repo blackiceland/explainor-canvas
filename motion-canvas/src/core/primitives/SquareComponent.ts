@@ -22,7 +22,7 @@ export class SquareComponent extends AnimatedComponent {
         ctx.createRect(
             {
                 size: this.props.size,
-                fill: this.props.color ?? ctx.theme.colors.accent.blue,
+                fill: this.props.color ?? ctx.theme.colors.accent,
                 x: this.props.x ?? 0,
                 y: this.props.y ?? 0,
                 opacity: 0,

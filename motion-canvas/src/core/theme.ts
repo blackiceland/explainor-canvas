@@ -26,3 +26,21 @@ export const Timing = {
     normal: 0.6,
     slow: 1.1,
 };
+
+import type {Theme} from './types';
+
+export const StandardTheme: Theme = {
+    fonts: Fonts,
+    colors: {
+        background: Colors.background,
+        surface: Colors.surface,
+        text: Colors.text,
+        accent: Colors.accent,
+        stroke: {
+            primary: 'rgba(255,255,255,0.3)',
+        },
+    },
+    timing: {
+        medium: Timing.normal,
+    },
+};

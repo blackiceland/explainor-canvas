@@ -19,7 +19,7 @@ export class PacketComponent extends AnimatedComponent {
         ctx.createCircle(
             {
                 size: this.props.size ?? 24,
-                fill: this.props.color ?? ctx.theme.colors.accent.blue,
+                fill: this.props.color ?? ctx.theme.colors.accent,
                 opacity: 0,
                 position: [0, 0]
             },

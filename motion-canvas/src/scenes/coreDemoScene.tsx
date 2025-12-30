@@ -2,13 +2,14 @@ import {makeScene2D} from '@motion-canvas/2d';
 import {waitFor, all} from '@motion-canvas/core';
 import {RenderContext} from '../core/RenderContext';
 import {StandardTheme} from '../core/theme';
+import {applyBackground} from '../core/utils';
 import {CircleComponent} from '../core/primitives/CircleComponent';
 import {TextComponent} from '../core/primitives/TextComponent';
 import {ArrowComponent} from '../core/primitives/ArrowComponent';
 import {PacketComponent} from '../core/primitives/PacketComponent';
 
 export default makeScene2D(function* (view) {
-    view.fill(StandardTheme.colors.background);
+    applyBackground(view);
 
     const ctx = new RenderContext(view, StandardTheme);
 
@@ -73,12 +74,12 @@ export default makeScene2D(function* (view) {
 
     const requestPacket = new PacketComponent({
         size: 20,
-        color: StandardTheme.colors.accent.blue,
+        color: StandardTheme.colors.accent,
     });
 
     const responsePacket = new PacketComponent({
         size: 20,
-        color: StandardTheme.colors.accent.blue,
+        color: StandardTheme.colors.accent,
     });
 
     // --- Mounting ---

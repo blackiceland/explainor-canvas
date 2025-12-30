@@ -21,6 +21,7 @@ export interface CodeBlockConfig {
     cardStyle?: CodeCardStyle;
     customTypes?: string[];
     contentOffsetX?: number;
+    contentOffsetY?: number;
 }
 
 export interface CodeBlockPosition {
@@ -33,8 +34,14 @@ export interface LineGhostData {
     originWorld: Point;
 }
 
+export interface LineLayout {
+    y: number;
+    opacity: number;
+}
+
 export class CodeBlock {
     private readonly containerRef: Reference<Node> = createRef<Node>();
+    private readonly contentRef: Reference<Node> = createRef<Node>();
     private readonly lines: CodeLine[] = [];
     private readonly document: CodeDocument;
     private readonly config: Required<CodeBlockConfig>;
@@ -56,6 +63,7 @@ export class CodeBlock {
             cardStyle: config.cardStyle ?? {},
             customTypes: config.customTypes ?? [],
             contentOffsetX: config.contentOffsetX ?? 0,
+            contentOffsetY: config.contentOffsetY ?? 0,
         };
     }
 
@@ -113,6 +121,10 @@ export class CodeBlock {
         });
         container.add(clipContainer);
 
+        const contentContainer = new Node({y: this.config.contentOffsetY});
+        this.contentRef(contentContainer);
+        clipContainer.add(contentContainer);
+
         const centerOffset = (lineCount - 1) / 2;
         const leftEdge = this.getContentLeftEdge();
 
@@ -131,7 +143,7 @@ export class CodeBlock {
                 leftEdge,
             });
 
-            clipContainer.add(codeLine.build(localY));
+            contentContainer.add(codeLine.build(localY));
             this.lines.push(codeLine);
         }
 
@@ -272,5 +284,85 @@ export class CodeBlock {
 
     public get theme(): SyntaxTheme {
         return this.config.theme;
+    }
+
+    public getLineLayouts(): LineLayout[] {
+        return this.lines.map(line => ({
+            y: line.node.y(),
+            opacity: line.node.opacity(),
+        }));
+    }
+
+    public setLinePosition(lineIndex: number, y: number): void {
+        const line = this.lines[lineIndex];
+        if (!line) return;
+        line.node.y(y);
+    }
+
+    public setLineOpacity(lineIndex: number, opacity: number): void {
+        const line = this.lines[lineIndex];
+        if (!line) return;
+        line.node.opacity(opacity);
+    }
+
+    public setTokenOpacityAt(lineIndex: number, tokenIndex: number, opacity: number): void {
+        const line = this.lines[lineIndex];
+        if (!line) return;
+        line.setTokenOpacityAt(tokenIndex, opacity);
+    }
+
+    public *animateTokenOpacityAt(lineIndex: number, tokenIndex: number, opacity: number, duration: number = 0.4): ThreadGenerator {
+        const line = this.lines[lineIndex];
+        if (!line) return;
+        yield* line.animateTokenOpacityAt(tokenIndex, opacity, duration);
+    }
+
+    public *animateInsertLines(range: [number, number], currentY: number[], duration: number = 0.6): ThreadGenerator {
+        const [start, end] = range;
+        const count = Math.max(0, end - start + 1);
+        if (count === 0) return;
+
+        const lineHeight = this.config.lineHeight;
+        const animations: ThreadGenerator[] = [];
+
+        for (let i = start; i < this.lines.length; i++) {
+            const offset =
+                i <= end
+                    ? (i - start) * lineHeight
+                    : count * lineHeight;
+            currentY[i] += offset;
+            animations.push(this.lines[i].node.y(currentY[i], duration, easeInOutCubic));
+        }
+
+        for (let i = start; i <= end && i < this.lines.length; i++) {
+            animations.push(this.lines[i].node.opacity(1, duration, easeInOutCubic));
+        }
+
+        if (animations.length > 0) {
+            yield* all(...animations);
+        }
+    }
+
+    public setScrollY(value: number): void {
+        if (!this.mounted) return;
+        const content = this.contentRef();
+        content.y(this.config.contentOffsetY - value);
+    }
+
+    public *animateScrollY(deltaY: number, duration: number = 0.6): ThreadGenerator {
+        if (!this.mounted) return;
+        const content = this.contentRef();
+        const target = this.config.contentOffsetY - deltaY;
+        yield* content.y(target, duration, easeInOutCubic);
+    }
+
+    public setCardFill(color: string): void {
+        if (!this.card) return;
+        this.card.node.fill(color);
+    }
+
+    public *animateCardFill(color: string, duration: number = 0.6): ThreadGenerator {
+        if (!this.card) return;
+        yield* this.card.node.fill(color, duration, easeInOutCubic);
     }
 }

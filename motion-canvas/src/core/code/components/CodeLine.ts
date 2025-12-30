@@ -166,6 +166,27 @@ export class CodeLine {
         }
     }
 
+    public setTokenOpacityAt(index: number, opacity: number): void {
+        const resolved = this.resolveTokenIndex(index);
+        const token = this.tokensData[resolved];
+        if (!token) return;
+        token.ref().opacity(opacity);
+    }
+
+    public *animateTokenOpacityAt(index: number, opacity: number, duration: number = 0.4): ThreadGenerator {
+        const resolved = this.resolveTokenIndex(index);
+        const token = this.tokensData[resolved];
+        if (!token) return;
+        yield* token.ref().opacity(opacity, duration, easeInOutCubic);
+    }
+
+    private resolveTokenIndex(index: number): number {
+        if (index < 0) {
+            return Math.max(0, this.tokensData.length + index);
+        }
+        return Math.min(index, Math.max(0, this.tokensData.length - 1));
+    }
+
     private getGlowAnimations(tokenData: TokenData, color: string, duration: number): ThreadGenerator[] {
         if (color !== Colors.accent) {
             return [
