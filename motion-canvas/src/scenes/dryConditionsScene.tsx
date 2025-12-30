@@ -5,6 +5,7 @@ import {ExplainorCodeTheme} from '../core/code/model/SyntaxTheme';
 import {getCodePaddingX, getCodePaddingY} from '../core/code/shared/TextMeasure';
 import {SafeZone} from '../core/ScreenGrid';
 import {Colors, Fonts, Timing} from '../core/theme';
+import {PanelStyle} from '../core/panelStyle';
 import {applyBackground} from '../core/utils';
 import {textWidth} from '../core/utils/textMeasure';
 
@@ -92,7 +93,6 @@ const COMMON_CONDITIONS_CODE = `final class CommonConditions {
 }`;
 
 const DEP_BLUE = '#2C6BFF';
-const DEP_CARD_STROKE = 'rgba(255, 255, 255, 0.03)';
 const DEP_LINK_STROKE = 'rgba(219, 213, 202, 0.22)';
 const DEP_ALARM = '#E35B66';
 const DEP_ALARM_LINK = 'rgba(227, 91, 102, 0.55)';
@@ -572,13 +572,13 @@ export default makeScene2D(function* (view) {
         ref={hub}
         width={commonWidth}
         height={commonHeight}
-        radius={28}
+        radius={PanelStyle.radius}
         fill={DEP_BLUE}
-        stroke={DEP_CARD_STROKE}
-        lineWidth={2}
-        shadowColor={'rgba(0, 0, 0, 0.28)'}
-        shadowBlur={74}
-        shadowOffset={[0, 22]}
+        stroke={PanelStyle.stroke}
+        lineWidth={PanelStyle.lineWidth}
+        shadowColor={PanelStyle.shadowColor}
+        shadowBlur={PanelStyle.shadowBlur}
+        shadowOffset={PanelStyle.shadowOffset}
         opacity={1}
       />
 
@@ -588,13 +588,13 @@ export default makeScene2D(function* (view) {
         y={leftPos[1]}
         width={nodeW}
         height={nodeH}
-        radius={22}
+        radius={PanelStyle.radiusSmall}
         fill={Colors.surface}
-        stroke={DEP_CARD_STROKE}
-        lineWidth={2}
-        shadowColor={'rgba(0, 0, 0, 0.28)'}
-        shadowBlur={74}
-        shadowOffset={[0, 22]}
+        stroke={PanelStyle.stroke}
+        lineWidth={PanelStyle.lineWidth}
+        shadowColor={PanelStyle.shadowColor}
+        shadowBlur={PanelStyle.shadowBlur}
+        shadowOffset={PanelStyle.shadowOffset}
         opacity={0}
       >
         <Txt
@@ -602,7 +602,7 @@ export default makeScene2D(function* (view) {
           fontFamily={Fonts.primary}
           fontSize={22}
           fontWeight={600}
-          fill={'rgba(219, 213, 202, 0.78)'}
+          fill={PanelStyle.labelFill}
         />
       </Rect>
 
@@ -612,13 +612,13 @@ export default makeScene2D(function* (view) {
         y={rightPos[1]}
         width={nodeW}
         height={nodeH}
-        radius={22}
+        radius={PanelStyle.radiusSmall}
         fill={Colors.surface}
-        stroke={DEP_CARD_STROKE}
-        lineWidth={2}
-        shadowColor={'rgba(0, 0, 0, 0.28)'}
-        shadowBlur={74}
-        shadowOffset={[0, 22]}
+        stroke={PanelStyle.stroke}
+        lineWidth={PanelStyle.lineWidth}
+        shadowColor={PanelStyle.shadowColor}
+        shadowBlur={PanelStyle.shadowBlur}
+        shadowOffset={PanelStyle.shadowOffset}
         opacity={0}
       >
         <Txt
@@ -626,7 +626,7 @@ export default makeScene2D(function* (view) {
           fontFamily={Fonts.primary}
           fontSize={22}
           fontWeight={600}
-          fill={'rgba(219, 213, 202, 0.78)'}
+          fill={PanelStyle.labelFill}
         />
       </Rect>
 
@@ -636,13 +636,13 @@ export default makeScene2D(function* (view) {
         y={bottomPos[1]}
         width={nodeW}
         height={nodeH}
-        radius={22}
+        radius={PanelStyle.radiusSmall}
         fill={Colors.surface}
-        stroke={DEP_CARD_STROKE}
-        lineWidth={2}
-        shadowColor={'rgba(0, 0, 0, 0.28)'}
-        shadowBlur={74}
-        shadowOffset={[0, 22]}
+        stroke={PanelStyle.stroke}
+        lineWidth={PanelStyle.lineWidth}
+        shadowColor={PanelStyle.shadowColor}
+        shadowBlur={PanelStyle.shadowBlur}
+        shadowOffset={PanelStyle.shadowOffset}
         opacity={0}
       >
         <Txt
@@ -650,7 +650,7 @@ export default makeScene2D(function* (view) {
           fontFamily={Fonts.primary}
           fontSize={22}
           fontWeight={600}
-          fill={'rgba(219, 213, 202, 0.78)'}
+          fill={PanelStyle.labelFill}
         />
       </Rect>
     </>,
@@ -806,9 +806,9 @@ export default makeScene2D(function* (view) {
     );
 
     yield* all(
-      left().stroke(DEP_CARD_STROKE, 0.22, easeInOutCubic),
-      right().stroke(DEP_CARD_STROKE, 0.22, easeInOutCubic),
-      bottom().stroke(DEP_CARD_STROKE, 0.22, easeInOutCubic),
+      left().stroke(PanelStyle.stroke, 0.22, easeInOutCubic),
+      right().stroke(PanelStyle.stroke, 0.22, easeInOutCubic),
+      bottom().stroke(PanelStyle.stroke, 0.22, easeInOutCubic),
       linkL().opacity(0.75, 0.22, easeInOutCubic),
       linkR().opacity(0.75, 0.22, easeInOutCubic),
       linkB().opacity(0.75, 0.22, easeInOutCubic),

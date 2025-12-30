@@ -1,6 +1,7 @@
 import {Node, Rect} from '@motion-canvas/2d';
 import {createRef, Reference} from '@motion-canvas/core';
 import {Colors} from '../../theme';
+import {PanelStyle} from '../../panelStyle';
 
 export interface CodeCardStyle {
     radius?: number;
@@ -21,15 +22,15 @@ export interface CodeCardConfig {
 }
 
 const DEFAULT_STYLE: Required<CodeCardStyle> = {
-    radius: 28,
+    radius: PanelStyle.radius,
     fill: Colors.surface,
-    stroke: '#262A34',
-    strokeWidth: 1,
+    stroke: PanelStyle.stroke,
+    strokeWidth: PanelStyle.lineWidth,
     opacity: 1,
-    shadowColor: 'rgba(0, 0, 0, 0.50)',
-    shadowBlur: 44,
-    shadowOffsetX: -16,
-    shadowOffsetY: 22,
+    shadowColor: PanelStyle.shadowColor,
+    shadowBlur: PanelStyle.shadowBlur,
+    shadowOffsetX: PanelStyle.shadowOffset[0],
+    shadowOffsetY: PanelStyle.shadowOffset[1],
 };
 
 export class CodeCard {
