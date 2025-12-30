@@ -121,17 +121,20 @@ export class CodeBlock {
         });
         container.add(clipContainer);
 
-        const contentContainer = new Node({y: this.config.contentOffsetY});
+        const contentContainer = new Node({y: 0});
         this.contentRef(contentContainer);
         clipContainer.add(contentContainer);
 
-        const centerOffset = (lineCount - 1) / 2;
         const leftEdge = this.getContentLeftEdge();
+        const shouldTopAlign = this.config.height > 0 && cardHeight !== contentHeight;
+        const topAlignedStartY = -clipHeight / 2 + this.config.contentOffsetY + this.config.lineHeight / 2;
+        const centerAlignedStartY = -((lineCount - 1) / 2) * this.config.lineHeight;
+        const startY = shouldTopAlign ? topAlignedStartY : centerAlignedStartY;
 
         for (let i = 0; i < lineCount; i++) {
             const lineText = this.document.getLine(i) ?? '';
             const tokens = tokenizeLine(lineText, this.config.customTypes);
-            const localY = (i - centerOffset) * this.config.lineHeight;
+            const localY = startY + i * this.config.lineHeight;
 
             const codeLine = new CodeLine({
                 tokens,
@@ -346,13 +349,13 @@ export class CodeBlock {
     public setScrollY(value: number): void {
         if (!this.mounted) return;
         const content = this.contentRef();
-        content.y(this.config.contentOffsetY - value);
+        content.y(-value);
     }
 
     public *animateScrollY(deltaY: number, duration: number = 0.6): ThreadGenerator {
         if (!this.mounted) return;
         const content = this.contentRef();
-        const target = this.config.contentOffsetY - deltaY;
+        const target = -deltaY;
         yield* content.y(target, duration, easeInOutCubic);
     }
 

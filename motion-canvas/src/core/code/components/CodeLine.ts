@@ -197,8 +197,8 @@ export class CodeLine {
         }
 
         return [
-            tokenData.ref().shadowBlur(14, duration, easeInOutCubic),
-            tokenData.ref().shadowColor('rgba(255, 140, 163, 0.35)', duration, easeInOutCubic),
+            tokenData.ref().shadowBlur(8, duration, easeInOutCubic),
+            tokenData.ref().shadowColor('rgba(255, 140, 163, 0.30)', duration, easeInOutCubic),
             tokenData.ref().shadowOffset([0, 0], duration, easeInOutCubic),
         ];
     }
