@@ -62,6 +62,7 @@ function classifyWord(
     customTypes: Set<string> = new Set()
 ): TokenType {
     if (JAVA_KEYWORDS.has(word)) return 'keyword';
+    if (isConstant(word)) return 'constant';
     if (JAVA_TYPES.has(word) || customTypes.has(word)) return 'type';
     if (
         previousMeaningful &&
@@ -72,7 +73,6 @@ function classifyWord(
     }
     // Вызов метода: только после точки (obj.method())
     if (nextChar === '(' && previousMeaningful?.text === '.') return 'method';
-    if (isConstant(word)) return 'constant';
     return 'plain';
 }
 
