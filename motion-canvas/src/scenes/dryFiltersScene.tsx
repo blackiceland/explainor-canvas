@@ -590,5 +590,14 @@ export default makeScene2D(function* (view) {
     ),
   );
 
-  yield* waitFor(6);
+  yield* waitFor(1.2);
+
+  yield* all(
+    paymentRepo.disappear(Timing.slow),
+    orderRepo.disappear(Timing.slow),
+    paymentTableRef().opacity(0, Timing.slow, easeInOutCubic),
+    orderTableRef().opacity(0, Timing.slow, easeInOutCubic),
+  );
+
+  yield* waitFor(0.4);
 });
