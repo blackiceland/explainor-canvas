@@ -598,3 +598,17 @@ yield* all(
 - `node.cache(true)` + `node.cachePadding(...)` чтобы blur не обрезался по краям;
 - `node.filters(() => [blur(pxSignal())])`;
 - blur делаем только короткими отрезками (на переход), основной код должен быть резким.
+
+---
+
+## Render artifacts (git ignore)
+
+Артефакты рендера Motion Canvas (image sequence) складываются в `motion-canvas/output/**` и **не должны попадать в git**.
+
+Контракт:
+- в `.gitignore` есть `motion-canvas/output/` и `motion-canvas/output/**`.
+
+Если файлы уже попали в индекс:
+```bash
+git rm -r --cached motion-canvas/output
+```
