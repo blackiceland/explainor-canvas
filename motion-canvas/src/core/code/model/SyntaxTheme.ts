@@ -43,17 +43,17 @@ export const WhiteTheme: SyntaxTheme = {
 };
 
 export const ExplainorCodeTheme: SyntaxTheme = {
-    keyword: '#FF852E',
-    type: '#F4F1EB',
-    string: '#F4F1EB',
-    number: '#FF7A1A',
-    operator: '#F4F1EB',
-    punctuation: '#F4F1EB',
-    method: '#F4F1EB',
-    comment: '#70778A',
-    annotation: '#FF7A1A',
-    constant: '#F4F1EB',
-    plain: '#F4F1EB',
+    keyword: '#F2A25F',
+    type: '#C9D2E3',
+    string: '#F2C37B',
+    number: '#FF9A4A',
+    operator: '#D3CCBF',
+    punctuation: 'rgba(252,251,248,0.70)',
+    method: '#E8CFAE',
+    comment: '#6E7380',
+    annotation: '#F2A25F',
+    constant: '#A8D8C0',
+    plain: '#FCFBF8',
 };
 
 export function getTokenColor(type: TokenType, theme: SyntaxTheme = IntelliJDarkTheme): string {

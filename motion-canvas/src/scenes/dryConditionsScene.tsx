@@ -179,7 +179,7 @@ export default makeScene2D(function* (view) {
 
   const commonWidth = codeCardWidth(COMMON_CONDITIONS_CODE, Fonts.code, fontSize, paddingX);
   const commonHeight = 920;
-  const commonTopMargin = 28;
+  const commonTopMargin = Math.max(18, paddingY - 10);
   const commonBlock = CodeBlock.fromCode(COMMON_CONDITIONS_CODE, {
     x: 0,
     y: 0,

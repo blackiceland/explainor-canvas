@@ -230,7 +230,7 @@ export default makeScene2D(function* (view) {
                 fontFamily={FONT_FAMILY}
                 fontSize={FONT_SIZE}
                 fontWeight={600}
-                fill={'rgba(244, 241, 235, 0.5)'}
+                fill={ExplainorCodeTheme.method}
                 text={col.header}
               />
             </Rect>
@@ -365,7 +365,7 @@ export default makeScene2D(function* (view) {
                 fontFamily={FONT_FAMILY}
                 fontSize={FONT_SIZE}
                 fontWeight={600}
-                fill={'rgba(244, 241, 235, 0.5)'}
+                fill={ExplainorCodeTheme.method}
                 text={col.header}
               />
             </Rect>
@@ -506,6 +506,19 @@ export default makeScene2D(function* (view) {
   );
 
   yield* waitFor(0.6);
+
+  yield* all(
+    all(
+      paymentRepo.resetLineColors(conditionLineIndex, 0.45),
+      paymentRepo.resetLineColors(whereLineIndex, 0.45),
+      paymentRepo.showAllLines(0.45),
+    ),
+    all(
+      orderRepo.resetLineColors(conditionLineIndex, 0.45),
+      orderRepo.resetLineColors(whereLineIndex, 0.45),
+      orderRepo.showAllLines(0.45),
+    ),
+  );
 
   for (let c = 0; c < SCAN_CYCLES; c++) {
     // 1) Даты (created_at)
