@@ -4,6 +4,8 @@ build/
 target/
 node_modules/
 motion-canvas/node_modules/
+motion-canvas/output/
+motion-canvas/output/**
 
 ### STS ###
 .apt_generated

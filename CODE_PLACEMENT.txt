@@ -567,11 +567,14 @@ yield* all(
 |------|------------|
 | `motion-canvas/src/scenes/*.tsx` | Сцены видео |
 | `motion-canvas/src/core/ScreenGrid.ts` | placeCode, placeCodeStack, SafeZone |
+| `motion-canvas/src/core/panelStyle.ts` | Единый стиль панелей (PanelStyle) |
 | `motion-canvas/src/core/code/model/SyntaxTheme.ts` | Цветовая тема |
 | `motion-canvas/src/core/code/model/Tokenizer.ts` | Токенизатор (customTypes) |
 | `motion-canvas/src/core/code/components/CodeBlock.ts` | Компонент кода |
 | `motion-canvas/src/core/code/shared/TextMeasure.ts` | Расчёт размеров |
 | `motion-canvas/src/core/utils/textMeasure.ts` | Реальное измерение текста + ellipsis |
+| `motion-canvas/src/core/templates/TitleCard.tsx` | Шаблон интро (playTitleCard) |
+| `motion-canvas/src/core/templates/TableCard.tsx` | Шаблон таблицы (createTableCard) |
 
 ---
 
