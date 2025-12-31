@@ -55,7 +55,34 @@ export class CodeCard {
             shadowColor: this.style.shadowColor,
             shadowBlur: this.style.shadowBlur,
             shadowOffset: [this.style.shadowOffsetX, this.style.shadowOffsetY],
+            clip: true,
         });
+
+        rect.add(
+            new Rect({
+                width: '100%',
+                height: 2,
+                y: () => -rect.height() / 2 + 1,
+                fill: 'rgba(255,255,255,0.06)',
+                opacity: 0.7,
+                layout: false,
+            }),
+        );
+
+        const inset = 2;
+        const innerRadius = Math.max(0, this.style.radius - inset);
+        rect.add(
+            new Rect({
+                width: () => rect.width() - inset * 2,
+                height: () => rect.height() - inset * 2,
+                radius: innerRadius,
+                fill: 'rgba(0,0,0,0)',
+                stroke: 'rgba(255,255,255,0.045)',
+                lineWidth: 1,
+                layout: false,
+            }),
+        );
+
         this.rectRef(rect);
         return rect;
     }

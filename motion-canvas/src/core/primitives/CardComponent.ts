@@ -55,6 +55,35 @@ export class CardComponent extends AnimatedComponent {
             },
             this.ref
         );
+
+        const card = this.ref();
+        const shouldEdge = fill === PanelStyle.fill;
+        if (!shouldEdge) return;
+
+        const inset = 2;
+        const outerRadius = (this.props.radius ?? PanelStyle.radius);
+        const innerRadius = Math.max(0, outerRadius - inset);
+        card.add(
+            new Rect({
+                width: '100%',
+                height: 2,
+                y: () => -card.height() / 2 + 1,
+                fill: 'rgba(255,255,255,0.06)',
+                opacity: 0.7,
+                layout: false,
+            }),
+        );
+        card.add(
+            new Rect({
+                width: () => card.width() - inset * 2,
+                height: () => card.height() - inset * 2,
+                radius: innerRadius,
+                fill: 'rgba(0,0,0,0)',
+                stroke: 'rgba(255,255,255,0.045)',
+                lineWidth: 1,
+                layout: false,
+            }),
+        );
     }
 
     override *appear(duration?: number): ThreadGenerator {

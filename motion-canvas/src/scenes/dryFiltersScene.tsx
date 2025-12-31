@@ -200,6 +200,23 @@ export default makeScene2D(function* (view) {
       clip
     >
       <Rect
+        layout={false}
+        width={'100%'}
+        height={2}
+        y={-paymentLayout.height / 2 + 1}
+        fill={'rgba(255,255,255,0.06)'}
+        opacity={0.7}
+      />
+      <Rect
+        layout={false}
+        width={tableWidth - 4}
+        height={paymentLayout.height - 4}
+        radius={26}
+        fill={'rgba(0,0,0,0)'}
+        stroke={'rgba(255,255,255,0.045)'}
+        lineWidth={1}
+      />
+      <Rect
         layout
         direction={'row'}
         height={TITLE_H}
@@ -335,6 +352,23 @@ export default makeScene2D(function* (view) {
       opacity={0}
       clip
     >
+      <Rect
+        layout={false}
+        width={'100%'}
+        height={2}
+        y={-orderLayout.height / 2 + 1}
+        fill={'rgba(255,255,255,0.06)'}
+        opacity={0.7}
+      />
+      <Rect
+        layout={false}
+        width={tableWidth - 4}
+        height={orderLayout.height - 4}
+        radius={26}
+        fill={'rgba(0,0,0,0)'}
+        stroke={'rgba(255,255,255,0.045)'}
+        lineWidth={1}
+      />
       <Rect
         layout
         direction={'row'}

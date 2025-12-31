@@ -12,6 +12,8 @@ export interface PanelProps extends RectProps {
   labelFontWeight?: number;
   labelLetterSpacing?: number;
   labelY?: number;
+  children?: any;
+  edge?: boolean;
 }
 
 export function Panel({
@@ -30,8 +32,20 @@ export function Panel({
   shadowColor = PanelStyle.shadowColor,
   shadowBlur = PanelStyle.shadowBlur,
   shadowOffset = PanelStyle.shadowOffset,
+  edge = true,
+  clip,
+  width,
+  height,
+  children,
   ...rest
 }: PanelProps) {
+  const inset = 2;
+  const canEdge = edge && typeof width === 'number' && typeof height === 'number';
+  const w = canEdge ? (width as number) : 0;
+  const h = canEdge ? (height as number) : 0;
+  const r = typeof radius === 'number' ? radius : PanelStyle.radius;
+  const innerRadius = Math.max(0, r - inset);
+
   return (
     <Rect
       ref={rectRef}
@@ -42,8 +56,33 @@ export function Panel({
       shadowColor={shadowColor}
       shadowBlur={shadowBlur}
       shadowOffset={shadowOffset}
+      clip={clip ?? true}
+      width={width}
+      height={height}
       {...rest}
     >
+      {canEdge ? (
+        <>
+          <Rect
+            layout={false}
+            width={'100%'}
+            height={2}
+            y={-h / 2 + 1}
+            fill={'rgba(255,255,255,0.06)'}
+            opacity={0.7}
+          />
+          <Rect
+            layout={false}
+            width={w - inset * 2}
+            height={h - inset * 2}
+            radius={innerRadius}
+            fill={'rgba(0,0,0,0)'}
+            stroke={'rgba(255,255,255,0.045)'}
+            lineWidth={1}
+          />
+        </>
+      ) : null}
+      {children}
       {label ? (
         <Txt
           ref={labelRef}

@@ -33,6 +33,18 @@ DESIGN STYLE — Motion Canvas (тёплый минимализм)
 - Тень: мягкая и глубокая, без жёстких краёв.
 - Появление по умолчанию: только opacity (без scale).
 
+Материал карточек (кромка)
+- Цель: карточки не должны выглядеть как “плашки”, но и не должны иметь заметные градиенты/неон.
+- Решение: микро‑контраст по краю:
+  - верхняя кромка (тонкий highlight): 2px, `rgba(255,255,255,0.06)` с opacity ≈ 0.7;
+  - внутренняя обводка (inset): 1px, `rgba(255,255,255,0.045)`, смещена внутрь на 2px (чтобы не “шуметь” по пикселю основного stroke).
+- Важно: кромка должна применяться ко ВСЕМ типам карточек (код/таблица/узлы), иначе стиль расползётся.
+
+Анти‑артефакты (“нити/призраки” на границах)
+- Тонкие полупрозрачные линии на near‑black могут давать субпиксельные “нити”, особенно при масштабировании/ресайзе плеера.
+- Контракт: контейнер карточки должен быть `clip=true` (по умолчанию), а внутренняя обводка должна быть inset (не по внешнему краю).
+- Если артефакт проявился: первым делом проверяем `clip` и inset‑обводку, а не меняем палитру.
+
 Единый “материал” карточек:
 - `motion-canvas/src/core/panelStyle.ts` (`PanelStyle`) — stroke/тень/радиусы/заливка/цвет подписей.
 - Базовые компоненты должны использовать `PanelStyle` по умолчанию (карточки не должны “дрейфовать” по стилю).
@@ -68,11 +80,12 @@ Defocus (дорогой blur для второстепенного):
 - Тема подсветки кода: motion-canvas/src/core/code/model/SyntaxTheme.ts (ExplainorCodeTheme)
 - Карточка кода (форма/тень): motion-canvas/src/core/code/components/CodeCard.ts
 - Единый стиль панелей: motion-canvas/src/core/panelStyle.ts (PanelStyle)
+- Базовый контейнер панелей (контракт формы/label): motion-canvas/src/core/components/Panel.tsx
+- Шаблон таблицы: motion-canvas/src/core/templates/TableCard.tsx
 - Эталонная сцена “код + таблица + фильтр”: motion-canvas/src/scenes/dryFiltersScene.tsx
 - Эталонная сцена “монстр + связанность + тесты”: motion-canvas/src/scenes/dryConditionsScene.tsx
 - Ellipsis по реальному measureText: motion-canvas/src/core/utils/textMeasure.ts
 - Шаблон интро: motion-canvas/src/core/templates/TitleCard.tsx
-- Шаблон таблицы: motion-canvas/src/core/templates/TableCard.tsx
 
 Инженерные контракты (отдельный документ)
 - CODE_PLACEMENT.txt — safe zone, размещение, контракты функций и практические паттерны сборки.

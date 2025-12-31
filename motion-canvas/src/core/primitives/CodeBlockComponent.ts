@@ -59,6 +59,35 @@ export class CodeBlockComponent extends AnimatedComponent {
             this.cardRef
         );
 
+        if (isDark) {
+            const card = this.cardRef();
+            const inset = 2;
+            const innerRadius = Math.max(0, PanelStyle.radius - inset);
+
+            card.add(
+                new Rect({
+                    width: '100%',
+                    height: 2,
+                    y: () => -card.height() / 2 + 1,
+                    fill: 'rgba(255,255,255,0.06)',
+                    opacity: 0.7,
+                    layout: false,
+                }),
+            );
+
+            card.add(
+                new Rect({
+                    width: () => card.width() - inset * 2,
+                    height: () => card.height() - inset * 2,
+                    radius: innerRadius,
+                    fill: 'rgba(0,0,0,0)',
+                    stroke: 'rgba(255,255,255,0.045)',
+                    lineWidth: 1,
+                    layout: false,
+                }),
+            );
+        }
+
         const codeNode = new Code({
             code: this.props.code,
             fontFamily: ctx.theme.fonts.code,
