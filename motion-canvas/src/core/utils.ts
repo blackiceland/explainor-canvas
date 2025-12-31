@@ -26,7 +26,8 @@ export function applyBackground(view: Node): void {
         fromRadius: 0,
         toRadius: Screen.width * 0.95,
         stops: [
-            {offset: 0, color: 'rgba(255,255,255,0.05)'},
+            // Slightly warm highlight (adds "life" without warming the whole background)
+            {offset: 0, color: 'rgba(246,231,212,0.055)'},
             {offset: 1, color: 'rgba(255,255,255,0)'},
         ],
     });

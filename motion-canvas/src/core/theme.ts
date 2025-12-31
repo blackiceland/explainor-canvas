@@ -1,9 +1,9 @@
 export const Colors = {
     background: {
-        from: '#05060A',
-        to: '#0B0D12',
+        from: '#09090C',
+        to: '#101216',
     },
-    surface: '#13151A',
+    surface: '#1B1D24',
     text: {
         primary: '#F4F1EB',
         muted: '#9FA4B4',

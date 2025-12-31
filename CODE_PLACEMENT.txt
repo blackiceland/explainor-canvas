@@ -264,7 +264,7 @@ conditions = conditions.and(
 |-------|------|---------|
 | keyword | #F2A25F | `final`, `class`, `return`, `if` |
 | annotation | #F2A25F | `@Test` |
-| type | #C9D2E3 | `Condition`, `DSLContext`, + customTypes |
+| type | #D3DBEC | `Condition`, `DSLContext`, + customTypes |
 | constant | #A8D8C0 | `ORDERS`, `PAYMENTS`, `INVOICES` |
 | method | #E8CFAE | `.fromFilter()`, `.and()` |
 | string | #F2C37B | `"CAPTURED"` |

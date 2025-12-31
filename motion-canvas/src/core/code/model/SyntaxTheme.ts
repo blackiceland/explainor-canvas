@@ -44,7 +44,7 @@ export const WhiteTheme: SyntaxTheme = {
 
 export const ExplainorCodeTheme: SyntaxTheme = {
     keyword: '#F2A25F',
-    type: '#C9D2E3',
+    type: '#D3DBEC',
     string: '#F2C37B',
     number: '#FF9A4A',
     operator: '#D3CCBF',

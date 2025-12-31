@@ -1,6 +1,7 @@
 import {Rect} from '@motion-canvas/2d';
 import {all, createRef, ThreadGenerator} from '@motion-canvas/core';
 import {AnimatedComponent} from '../AnimatedComponent';
+import {PanelStyle} from '../panelStyle';
 import {RenderContext} from '../RenderContext';
 
 export interface CardProps {
@@ -28,7 +29,7 @@ export class CardComponent extends AnimatedComponent {
     }
 
     protected override onMount(ctx: RenderContext): void {
-        const fill = this.props.fill ?? '#13151A';
+        const fill = this.props.fill ?? PanelStyle.fill;
         const showShadow = this.props.shadow !== false;
 
         ctx.createRect(
@@ -39,14 +40,14 @@ export class CardComponent extends AnimatedComponent {
                 height: this.props.height,
                 padding: this.props.padding ?? 40,
                 fill: fill,
-                radius: this.props.radius ?? 28,
-                stroke: '#262A34',
-                lineWidth: 1,
+                radius: this.props.radius ?? PanelStyle.radius,
+                stroke: PanelStyle.stroke,
+                lineWidth: PanelStyle.lineWidth,
                 opacity: this.props.opacity ?? 0,
                 scale: this.props.scale ?? 0.95,
-                shadowBlur: showShadow ? 44 : 0,
-                shadowColor: showShadow ? 'rgba(0,0,0,0.50)' : 'rgba(0,0,0,0)',
-                shadowOffset: showShadow ? [-16, 22] : [0, 0],
+                shadowBlur: showShadow ? PanelStyle.shadowBlur : 0,
+                shadowColor: showShadow ? PanelStyle.shadowColor : 'rgba(0,0,0,0)',
+                shadowOffset: showShadow ? PanelStyle.shadowOffset : [0, 0],
                 layout: true,
                 direction: 'column',
                 alignItems: 'start',

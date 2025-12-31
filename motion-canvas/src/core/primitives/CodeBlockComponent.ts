@@ -2,6 +2,8 @@ import {Rect, Code} from '@motion-canvas/2d';
 import {all, createRef, ThreadGenerator} from '@motion-canvas/core';
 import {AnimatedComponent} from '../AnimatedComponent';
 import {RenderContext} from '../RenderContext';
+import {Colors} from '../theme';
+import {PanelStyle} from '../panelStyle';
 
 export interface CodeBlockProps {
     code: string;
@@ -29,9 +31,9 @@ export class CodeBlockComponent extends AnimatedComponent {
         const isDark = this.props.theme !== 'light'; 
         
         // Colors
-        const bgColor = isDark ? '#13151A' : '#F0F0F0';
-        const shadow = isDark ? 'rgba(0,0,0,0.50)' : 'rgba(0,0,0,0.10)';
-        const borderColor = isDark ? '#262A34' : 'transparent';
+        const bgColor = isDark ? Colors.surface : '#F0F0F0';
+        const shadow = isDark ? PanelStyle.shadowColor : 'rgba(0,0,0,0.10)';
+        const borderColor = isDark ? PanelStyle.stroke : 'transparent';
 
         // Container Card
         ctx.createRect(
@@ -45,12 +47,12 @@ export class CodeBlockComponent extends AnimatedComponent {
                 fill: bgColor,
                 stroke: borderColor,
                 lineWidth: 1,
-                radius: 28,
+                radius: PanelStyle.radius,
                 opacity: this.props.opacity ?? 0,
                 scale: this.props.scale ?? 0.95,
-                shadowBlur: 44,
+                shadowBlur: PanelStyle.shadowBlur,
                 shadowColor: shadow,
-                shadowOffset: [-16, 22],
+                shadowOffset: PanelStyle.shadowOffset,
                 alignItems: 'start',
                 clip: true, // Clip content
             },

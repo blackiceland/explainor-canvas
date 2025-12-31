@@ -858,11 +858,77 @@ export default makeScene2D(function* (view) {
     bottom().position([invoicesX, topY], 1.15, easeInOutCubic),
   );
 
-  const testW = 480;
-  const testH = 300;
-  const testY = 120;
+  const cardW = 480;
+  const cardH = 220;
+  const condY = -60;
+  const condFontSize = 16;
+  const condLineHeight = Math.round(condFontSize * 1.7 * 10) / 10;
+
+  const testW = cardW;
+  const testH = cardH;
+  const testY = 250;
   const testFontSize = 16;
   const testLineHeight = Math.round(testFontSize * 1.7 * 10) / 10;
+
+  const ORDERS_COND = `final class OrderConditions {
+
+  static Condition fromFilter(...) {
+    ...
+  }
+}`;
+
+  const INVOICES_COND = `final class InvoiceConditions {
+
+  static Condition fromFilter(...) {
+    ...
+  }
+}`;
+
+  const PAYMENTS_COND = `final class PaymentConditions {
+
+  static Condition fromFilter(...) {
+    ...
+  }
+}`;
+
+  const ordersCondBlock = CodeBlock.fromCode(ORDERS_COND, {
+    x: ordersX,
+    y: condY,
+    width: cardW,
+    height: cardH,
+    fontSize: condFontSize,
+    lineHeight: condLineHeight,
+    contentOffsetY: 18,
+    fontFamily: Fonts.code,
+    theme: ExplainorCodeTheme,
+    customTypes: ['Condition', 'OrderSearchFilter', 'OrderConditions', 'DSL'],
+  });
+
+  const invoicesCondBlock = CodeBlock.fromCode(INVOICES_COND, {
+    x: invoicesX,
+    y: condY,
+    width: cardW,
+    height: cardH,
+    fontSize: condFontSize,
+    lineHeight: condLineHeight,
+    contentOffsetY: 18,
+    fontFamily: Fonts.code,
+    theme: ExplainorCodeTheme,
+    customTypes: ['Condition', 'InvoiceSearchFilter', 'InvoiceConditions', 'DSL'],
+  });
+
+  const paymentsCondBlock = CodeBlock.fromCode(PAYMENTS_COND, {
+    x: paymentsX,
+    y: condY,
+    width: cardW,
+    height: cardH,
+    fontSize: condFontSize,
+    lineHeight: condLineHeight,
+    contentOffsetY: 18,
+    fontFamily: Fonts.code,
+    theme: ExplainorCodeTheme,
+    customTypes: ['Condition', 'PaymentSearchFilter', 'PaymentConditions', 'DSL'],
+  });
 
   const ORDERS_TEST = `@Test
 void orders_filter_combinations() {
@@ -918,10 +984,17 @@ void invoices_filter_combinations() {
     customTypes: ['Test', 'List', 'LocalDateTime', 'Condition', 'InvoiceSearchFilter', 'InvoiceConditions'],
   });
 
+  ordersCondBlock.mount(view);
+  invoicesCondBlock.mount(view);
+  paymentsCondBlock.mount(view);
+
   ordersTestBlock.mount(view);
   paymentsTestBlock.mount(view);
   invoicesTestBlock.mount(view);
 
+  const condLinkL = createRef<Line>();
+  const condLinkM = createRef<Line>();
+  const condLinkR = createRef<Line>();
   const testLinkL = createRef<Line>();
   const testLinkM = createRef<Line>();
   const testLinkR = createRef<Line>();
@@ -932,14 +1005,48 @@ void invoices_filter_combinations() {
   view.add(
     <>
       <Line
+        ref={condLinkL}
+        stroke={DEP_LINK_STROKE}
+        lineWidth={2}
+        end={0}
+        opacity={0.6}
+        points={() => [
+          edgePoint([ordersX, topY], [nodeW, nodeH], [ordersX, condY]),
+          edgePoint([ordersX, condY], [cardW, cardH], [ordersX, topY]),
+        ]}
+      />
+      <Line
+        ref={condLinkM}
+        stroke={DEP_LINK_STROKE}
+        lineWidth={2}
+        end={0}
+        opacity={0.6}
+        points={() => [
+          edgePoint([invoicesX, topY], [nodeW, nodeH], [invoicesX, condY]),
+          edgePoint([invoicesX, condY], [cardW, cardH], [invoicesX, topY]),
+        ]}
+      />
+      <Line
+        ref={condLinkR}
+        stroke={DEP_LINK_STROKE}
+        lineWidth={2}
+        end={0}
+        opacity={0.6}
+        points={() => [
+          edgePoint([paymentsX, topY], [nodeW, nodeH], [paymentsX, condY]),
+          edgePoint([paymentsX, condY], [cardW, cardH], [paymentsX, topY]),
+        ]}
+      />
+
+      <Line
         ref={testLinkL}
         stroke={DEP_LINK_STROKE}
         lineWidth={2}
         end={0}
         opacity={0.6}
         points={() => [
-          edgePoint([ordersX, topY], [nodeW, nodeH], [ordersX, testY]),
-          edgePoint([ordersX, testY], [testW, testH], [ordersX, topY]),
+          edgePoint([ordersX, condY], [cardW, cardH], [ordersX, testY]),
+          edgePoint([ordersX, testY], [testW, testH], [ordersX, condY]),
         ]}
       />
       <Line
@@ -949,8 +1056,8 @@ void invoices_filter_combinations() {
         end={0}
         opacity={0.6}
         points={() => [
-          edgePoint([invoicesX, topY], [nodeW, nodeH], [invoicesX, testY]),
-          edgePoint([invoicesX, testY], [testW, testH], [invoicesX, topY]),
+          edgePoint([invoicesX, condY], [cardW, cardH], [invoicesX, testY]),
+          edgePoint([invoicesX, testY], [testW, testH], [invoicesX, condY]),
         ]}
       />
       <Line
@@ -960,8 +1067,8 @@ void invoices_filter_combinations() {
         end={0}
         opacity={0.6}
         points={() => [
-          edgePoint([paymentsX, topY], [nodeW, nodeH], [paymentsX, testY]),
-          edgePoint([paymentsX, testY], [testW, testH], [paymentsX, topY]),
+          edgePoint([paymentsX, condY], [cardW, cardH], [paymentsX, testY]),
+          edgePoint([paymentsX, testY], [testW, testH], [paymentsX, condY]),
         ]}
       />
 
@@ -1000,6 +1107,17 @@ void invoices_filter_combinations() {
       />
     </>,
   );
+
+  yield* all(
+    ordersCondBlock.appear(Timing.slow),
+    invoicesCondBlock.appear(Timing.slow),
+    paymentsCondBlock.appear(Timing.slow),
+    condLinkL().end(1, 1.0, easeInOutCubic),
+    condLinkM().end(1, 1.0, easeInOutCubic),
+    condLinkR().end(1, 1.0, easeInOutCubic),
+  );
+
+  yield* waitFor(0.35);
 
   yield* all(
     ordersTestBlock.appear(Timing.slow),
