@@ -1,7 +1,8 @@
 export const Colors = {
     background: {
-        from: '#09090C',
-        to: '#101216',
+        // Slightly lifted graphite (prevents "true black" on phones / auto-brightness)
+        from: '#0B0C10',
+        to: '#12141A',
     },
     surface: '#1B1D24',
     text: {
