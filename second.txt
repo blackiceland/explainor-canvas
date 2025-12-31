@@ -1,0 +1,303 @@
+00:00–00:20
+На экране: тёмный фон. Две стрелки в один сервис: слева “Public API”, справа “Provider Webhook”. Между ними слово “Payment”.
+Текст/озвучка: «У сервиса два входа. Клиент спрашивает платеж: `GET /payments/{id}`. Провайдер присылает события: `POST /webhooks/payment`. И в начале кажется, что это одно и то же: один payment, одни поля, один DTO. Зачем плодить маппинги?»
+
+00:20–01:10
+На экране: появляется аккуратный DTO.
+Озвучка: «Команда делает универсальную модель. Один класс везде: вход, выход, внутренности. Красиво, сухо, DRY.»
+
+```java
+import java.math.BigDecimal;
+import java.time.Instant;
+
+record PaymentDto(
+    String id,
+    BigDecimal amount,
+    String currency,
+    String status,
+    Instant updatedAt
+) {}
+```
+
+На экране: контроллер “просто возвращает”.
+
+```java
+final class PaymentController {
+    private final PaymentService service;
+
+    PaymentController(PaymentService service) {
+        this.service = service;
+    }
+
+    PaymentDto getPayment(String id) {
+        return service.getPayment(id);
+    }
+}
+```
+
+Озвучка: «Слой сервиса возвращает DTO, и всё. Клиент доволен.»
+
+01:10–01:45
+На экране: второй контроллер, тоже “просто принимает”.
+Озвучка: «И вебхук тоже удобно принять таким же DTO. Одни и те же поля, одна модель — кажется логичным.»
+
+```java
+final class WebhookController {
+    private final PaymentService service;
+
+    WebhookController(PaymentService service) {
+        this.service = service;
+    }
+
+    void onWebhook(PaymentDto dto) {
+        service.handleWebhook(dto);
+    }
+}
+```
+
+01:45–02:10
+На экране: “1 month later”, появляется уведомление от провайдера: “Added retries, signatures, event_id, audit requirements”.
+Озвучка: «Проходит месяц. Приходит реальность. Вебхук теперь требует подпись. Повторы доставки. Идемпотентность. А ещё — хранить сырой payload для аудита. Это уже не “просто payment”. Это доставка события от провайдера.»
+
+02:10–03:00
+На экране: короткая нарезка проблем.
+Озвучка: «И тут универсальный DTO начинает тебя ломать. В него добавляют “пару полей для вебхука”.»
+
+```java
+import java.math.BigDecimal;
+import java.time.Instant;
+
+record PaymentDto(
+    String id,
+    BigDecimal amount,
+    String currency,
+    String status,
+    Instant updatedAt,
+    String eventId,
+    String signature,
+    Integer attempt,
+    String rawPayload
+) {}
+```
+
+Озвучка: «Теперь вопрос: что делать с этими полями в публичном API? Либо они начинают утекать наружу. Либо ты включаешь магию: скрываешь поля в сериализации, пишешь разные view, ветвишь формат ответа. И в этот момент домен начинает зависеть от транспорта.»
+
+На экране: “Public API must be stable” vs “Webhook must be verified & deduped”.
+
+03:00–03:35
+На экране: подсветка фразы “Webhook data ≠ Payment”.
+Озвучка: «Ключевой поворот простой. Webhook — это не Payment. Webhook — это событие доставки от провайдера: со своей подписью, попыткой, сырьём, дедупликацией, аудитом. Это другой смысл. А DRY тут делает ложное утверждение: будто это одно знание.»
+
+03:35–04:50
+На экране: четыре карточки, каждая со своим именем: “ProviderWebhookEvent”, “Payment”, “PaymentEntity”, “PaymentResponse”. Между ними стрелки и подпись “translation at the boundary”.
+Озвучка: «Нормальная модель — разделить смыслы. Да, поля повторятся. Но повторится текст, а не знание. И это цена за границы.»
+
+Webhook как факт доставки.
+
+```java
+import java.math.BigDecimal;
+import java.time.Instant;
+
+record ProviderWebhookEvent(
+    String eventId,
+    String signature,
+    int attempt,
+    String paymentId,
+    String providerStatus,
+    BigDecimal providerAmount,
+    String currency,
+    Instant occurredAt,
+    String rawPayload
+) {}
+```
+
+Публичный ответ клиенту.
+
+```java
+import java.math.BigDecimal;
+import java.time.Instant;
+
+record PaymentResponse(
+    String id,
+    BigDecimal amount,
+    String currency,
+    String status,
+    Instant updatedAt
+) {}
+```
+
+Доменный агрегат: без подписи, без raw, без attempt.
+
+```java
+import java.math.BigDecimal;
+import java.time.Instant;
+
+final class Payment {
+    private final String id;
+    private final BigDecimal amount;
+    private final String currency;
+    private String status;
+    private Instant updatedAt;
+
+    Payment(String id, BigDecimal amount, String currency, String status, Instant updatedAt) {
+        this.id = id;
+        this.amount = amount;
+        this.currency = currency;
+        this.status = status;
+        this.updatedAt = updatedAt;
+    }
+
+    void apply(PaymentEvent event) {
+        if (status.equals("CAPTURED") || status.equals("FAILED")) {
+            return;
+        }
+        if (event instanceof PaymentCaptured captured) {
+            status = "CAPTURED";
+            updatedAt = captured.occurredAt();
+            return;
+        }
+        if (event instanceof PaymentFailed failed) {
+            status = "FAILED";
+            updatedAt = failed.occurredAt();
+        }
+    }
+
+    String id() { return id; }
+    BigDecimal amount() { return amount; }
+    String currency() { return currency; }
+    String status() { return status; }
+    Instant updatedAt() { return updatedAt; }
+}
+
+sealed interface PaymentEvent permits PaymentCaptured, PaymentFailed {
+    Instant occurredAt();
+}
+
+record PaymentCaptured(Instant occurredAt) implements PaymentEvent {}
+record PaymentFailed(Instant occurredAt) implements PaymentEvent {}
+```
+
+Персистентность отдельно.
+
+```java
+import java.math.BigDecimal;
+import java.time.Instant;
+
+final class PaymentEntity {
+    String id;
+    BigDecimal amount;
+    String currency;
+    String status;
+    Instant updatedAt;
+    long version;
+}
+```
+
+04:50–05:40
+На экране: “boundary” увеличивается. Появляется “verify”, “dedupe”, “store raw”, “translate”.
+Озвучка: «Важное: вебхук сначала становится фактом доставки. Мы проверяем подпись по сырому телу. Мы делаем дедуп на уровне хранилища вебхуков — уникальность `eventId`. И только потом переводим это в доменное событие.»
+
+```java
+import java.util.Optional;
+
+final class WebhookTranslator {
+    Optional<PaymentEvent> toDomainEvent(ProviderWebhookEvent event) {
+        return switch (event.providerStatus()) {
+            case "SUCCEEDED" -> Optional.of(new PaymentCaptured(event.occurredAt()));
+            case "FAILED" -> Optional.of(new PaymentFailed(event.occurredAt()));
+            default -> Optional.empty();
+        };
+    }
+}
+```
+
+```java
+final class PaymentService {
+    private final PaymentRepository payments;
+    private final WebhookRepository webhooks;
+    private final SignatureVerifier signatures;
+    private final WebhookTranslator translator;
+
+    PaymentService(
+        PaymentRepository payments,
+        WebhookRepository webhooks,
+        SignatureVerifier signatures,
+        WebhookTranslator translator
+    ) {
+        this.payments = payments;
+        this.webhooks = webhooks;
+        this.signatures = signatures;
+        this.translator = translator;
+    }
+
+    void handleWebhook(ProviderWebhookEvent event) {
+        signatures.verify(event.signature(), event.rawPayload());
+
+        if (webhooks.alreadyProcessed(event.eventId())) {
+            return;
+        }
+        webhooks.save(event);
+
+        Payment payment = payments.load(event.paymentId());
+        translator.toDomainEvent(event).ifPresent(domainEvent -> {
+            payment.apply(domainEvent);
+            payments.save(payment);
+        });
+    }
+
+    PaymentResponse getPayment(String id) {
+        Payment payment = payments.load(id);
+        return new PaymentResponse(
+            payment.id(),
+            payment.amount(),
+            payment.currency(),
+            payment.status(),
+            payment.updatedAt()
+        );
+    }
+}
+
+interface SignatureVerifier {
+    void verify(String signature, String rawPayload);
+}
+
+interface WebhookRepository {
+    boolean alreadyProcessed(String eventId);
+    void save(ProviderWebhookEvent event);
+}
+
+interface PaymentRepository {
+    Payment load(String paymentId);
+    void save(Payment payment);
+}
+```
+
+05:40–06:00
+На экране: финальная фраза крупно.
+Озвучка: «Мораль здесь не про “люблю дублирование”. Мораль про границы. Универсальный DTO — это не DRY, это ложь: будто public API и provider webhook — одно знание. На деле это разные контракты и разные причины изменений. Поэтому повтор `amount/status` между `PaymentResponse`, `ProviderWebhookEvent`, `Payment`, `PaymentEntity` — нормальная цена за изоляцию смыслов, безопасность и стабильность внешнего контракта.»
+
+
+### В целом — да, согласен
+Сюжет **живой и “не дядюшка Боб”**: два входа с разными причинами изменений (public API vs provider webhook), и боль появляется естественно (подпись/ретраи/идемпотентность/аудит). Это ровно то, что сеньоры узнают.
+
+### Что особенно сильное
+- **Правильный поворот смысла**: *Webhook data ≠ Payment* — это ключ.
+- **Реалистичная эволюция требований**: signature + retries + raw payload + audit.
+- **Решение “translation at the boundary”** показано конкретно (verifier + dedupe + store raw + translator).
+
+### Где могут “прикопаться” и как усилить (простыми правками)
+- **`PaymentDto` как вход вебхука**: сейчас выглядит немного натянутым, потому что вебхук почти всегда приходит в формате провайдера (и часто это не “payment” объект). Чтобы было железобетонно, можно в 01:10–01:45 показать, что контроллер принимает *provider payload*, но команда “мапит в PaymentDto сразу” (вот это и есть ранняя ошибка).
+- **`signature.verify(signature, rawPayload)`**: хорошо, но ещё реалистичнее, если явно сказать, что подпись проверяется по **raw request body** *и заголовкам* (многие провайдеры так делают). Одной фразой.
+- **Idempotency**: добавь визуально/словами **unique constraint на `eventId`** (или `providerEventId`) — это самый “профессиональный” маркер, который снимает вопросы.
+- **Риск утечки полей**: кроме “утекут наружу”, упомяни 1 строкой реальную “магию”, которую начинают городить: `@JsonIgnore`, `JsonView`, разные сериализаторы, условная выдача полей. Это прям узнаваемая боль.
+- **Объём кода**: во второй половине много. Чтобы темп был плотнее, можно:
+  - домен `Payment` укоротить (оставить `apply` + 2 события, без геттеров/конструктора на весь экран);
+  - репозитории/интерфейсы оставить как “…” карточки, а полностью показать только `handleWebhook` + `getPayment`.
+
+### Мелкий дизайнерско‑сценарный совет
+В блоке 03:35–04:50 (4 карточки) сделай акцент не на “четыре модели”, а на **две границы**:
+- внешние контракты (PublicResponse, ProviderEvent)
+- внутренние модели (Payment, Entity)
+Тогда мысль “повторяется текст, а не знание” воспринимается легче и менее “проповеднически”.
+
+Если ты хочешь, я предложу сверхкраткую версию этого же сюжета на 3–4 минуты с теми же смыслами и меньшим количеством кода на экране.
