@@ -1,7 +1,7 @@
 import {Circle, Line, makeScene2D, Rect, Txt} from '@motion-canvas/2d';
-import {all, createRef, createSignal, easeInOutCubic, waitFor} from '@motion-canvas/core';
+import {all, createRef, createSignal, easeInOutCubic, linear, waitFor} from '@motion-canvas/core';
 import {applyBackground} from '../core/utils';
-import {Colors, Fonts, Timing} from '../core/theme';
+import {Colors, Fonts} from '../core/theme';
 import {SafeZone} from '../core/ScreenGrid';
 import {CodeBlockText, CodeBlockWithOverlay} from '../core/components/CodeBlockText';
 import {DebugOverlay} from '../core/components/DebugOverlay';
@@ -14,8 +14,6 @@ type Point = [number, number];
 export default makeScene2D(function* (view) {
   applyBackground(view);
 
-  // Global DEBUG imported from ../core/debug
-
   const leftOpacity = createSignal(0);
   const midOpacity = createSignal(0);
   const rightOpacity = createSignal(0);
@@ -26,6 +24,7 @@ export default makeScene2D(function* (view) {
   const dtoObjectOpacity = createSignal(0);
   const dtoValuesOpacity = createSignal(0);
   const stripeJsonOpacity = createSignal(0);
+  const stripeJsonValuesOpacity = createSignal(0);
   const packetT = createSignal(0);
   const packetOpacity = createSignal(0);
 
@@ -70,52 +69,54 @@ export default makeScene2D(function* (view) {
   const dtoText = Colors.text.primary;
   const dtoBlue = portBlue;
 
-  // Code blocks (DTO object + Stripe JSON) must match visually.
   const codeStyle = {
     fontSize: 26,
     lineHeight: 38,
     width: 600,
     fontWeight: 650,
   } as const;
-  // Absolute positioning (tuned via GridOverlay commands).
   const codeTopY = -450;
   const dtoCodeX = -250;
   const dtoValueFill = 'rgba(255,140,163,0.92)';
   const dtoKeyFill = Colors.text.primary;
 
-  // Build DTO keys + values with guaranteed alignment (no manual spacing guessing).
-  const dtoKeyLines = [
-    'PaymentDto {',
-    '  id:',
-    '  amount:',
-    '  currency:',
-    '  status:',
-    '  updatedAt:',
-    '}',
-  ];
+  const dtoHeaderType = 'PaymentDto';
+  const dtoHeaderRest = ' {';
+  const dtoBodyKeyLines = [' id:', ' amount:', ' currency:', ' status:', ' updatedAt:', '}'];
 
-  const dtoValueLines = [
-    '',
-    '"pay_550e8400"',
-    '99.00',
-    '"USD"',
-    '"CAPTURED"',
-    '"2024-12-15T14:32:00Z"',
-    '',
-  ];
+  const dtoBodyValueLines = ['"pay_550e8400"', '99.00', '"USD"', '"CAPTURED"', '"2024-12-15T14:32:00Z"', ''];
 
-  const dtoKeysText = dtoKeyLines.join('\n');
-  const dtoValuesText = dtoValueLines.join('\n');
+  const dtoKeysText = dtoBodyKeyLines.join('\n');
+  const dtoValuesText = dtoBodyValueLines.join('\n');
 
-  // Shift value overlay to a fixed "value column" to prevent overlap with keys.
-  const valueColChars = Math.max(
-    ...dtoKeyLines.map(l => {
-      const idx = l.indexOf(':');
-      return idx >= 0 ? idx + 2 : 0; // ': ' (space) gap
+  const dtoValuesDx = Math.max(
+    ...dtoBodyKeyLines.map(l => {
+      const norm = l.replace(/\s+/g, ' ');
+      const idx = norm.indexOf(':');
+      if (idx < 0) return 0;
+      const prefix = norm.slice(0, idx + 2);
+      return textWidth(prefix, Fonts.code, codeStyle.fontSize, codeStyle.fontWeight);
     }),
-  );
-  const monoCharW = textWidth('0', Fonts.code, codeStyle.fontSize, codeStyle.fontWeight);
-  const valuesDx = valueColChars * monoCharW;
+  ) + 25;
+
+  const dtoHeaderY = codeTopY;
+  const dtoBodyY = codeTopY + codeStyle.lineHeight;
+  const dtoHeaderRestX = dtoCodeX + textWidth(dtoHeaderType, Fonts.code, codeStyle.fontSize, codeStyle.fontWeight);
+
+  const dtoRightBoundX = 270;
+  const jsonRightBoundX = 900;
+  const dtoAvailW = Math.max(0, dtoRightBoundX - dtoCodeX);
+  const codeBorderStroke = 'rgba(110,168,255,0.32)';
+  const codeBorderWidth = 2;
+  const codeBorderRadius = 10;
+  const codeBorderPadX = 14;
+  const codeBorderPadY = 12;
+  const dtoLineCount = 1 + dtoBodyKeyLines.length;
+  const dtoTextW = Math.min(codeStyle.width, dtoAvailW);
+  const dtoBoxW = dtoTextW + codeBorderPadX * 2;
+  const dtoBoxH = dtoLineCount * codeStyle.lineHeight + codeBorderPadY * 2;
+  const dtoBoxX = dtoCodeX - codeBorderPadX;
+  const dtoBoxY = codeTopY - codeBorderPadY;
 
   const stripeJson = `{
   "id": "pay_550e8400",
@@ -124,13 +125,48 @@ export default makeScene2D(function* (view) {
   "status": "CAPTURED",
   "updatedAt": "2024-12-15T14:32:00Z"
 }`;
-  const stripeJsonX = rightC[0] - 260;
+  const stripeJsonX = jsonRightBoundX - dtoTextW;
   const stripeJsonY = codeTopY;
   const stripeJsonW = codeStyle.width;
 
   const dtoKeysRef = createRef<Txt>();
   const dtoValuesRef = createRef<Txt>();
   const stripeJsonRef = createRef<Txt>();
+  const stripeJsonValuesRef = createRef<Txt>();
+
+  const stripeJsonLines = stripeJson.split('\n').map(l => l.replace(/\s+/g, ' '));
+  const stripeJsonKeysText = stripeJsonLines
+    .map(line => {
+      const idx = line.indexOf(':');
+      if (idx < 0) return line;
+      return line.slice(0, idx + 2);
+    })
+    .join('\n');
+
+  const stripeJsonValuesText = stripeJsonLines
+    .map(line => {
+      const idx = line.indexOf(':');
+      if (idx < 0) return '';
+      return line.slice(idx + 2);
+    })
+    .join('\n');
+
+  const stripeJsonValuesDx = Math.max(
+    ...stripeJsonLines.map(line => {
+      const idx = line.indexOf(':');
+      if (idx < 0) return 0;
+      const prefix = line.slice(0, idx + 2);
+      return textWidth(prefix, Fonts.code, codeStyle.fontSize, 600);
+    }),
+  );
+
+  const jsonLineCount = stripeJsonLines.length;
+  const jsonAvailW = Math.max(0, jsonRightBoundX - stripeJsonX);
+  const jsonTextW = dtoTextW;
+  const jsonBoxW = jsonTextW + codeBorderPadX * 2;
+  const jsonBoxH = jsonLineCount * codeStyle.lineHeight + codeBorderPadY * 2;
+  const jsonBoxX = stripeJsonX - codeBorderPadX;
+  const jsonBoxY = stripeJsonY - codeBorderPadY;
 
   const leftWireY = leftC[1];
   const leftWireStartX = leftC[0] + leftR;
@@ -308,35 +344,92 @@ export default makeScene2D(function* (view) {
         />
       </Rect>
 
+      <Rect
+        x={dtoBoxX}
+        y={dtoBoxY}
+        width={dtoBoxW}
+        height={dtoBoxH}
+        radius={codeBorderRadius}
+        fill={'rgba(0,0,0,0)'}
+        stroke={codeBorderStroke}
+        lineWidth={codeBorderWidth}
+        offset={[-1, -1]}
+        opacity={() => midOpacity() * dtoObjectOpacity()}
+      />
+      <Txt
+        x={dtoCodeX}
+        y={dtoHeaderY}
+        text={dtoHeaderType}
+        fontFamily={Fonts.code}
+        fontSize={codeStyle.fontSize}
+        fontWeight={codeStyle.fontWeight}
+        lineHeight={codeStyle.lineHeight}
+        fill={dtoBlue}
+        textAlign={'left'}
+        offset={[-1, -1]}
+        opacity={() => midOpacity() * dtoObjectOpacity()}
+      />
+      <Txt
+        x={dtoHeaderRestX}
+        y={dtoHeaderY}
+        text={dtoHeaderRest}
+        fontFamily={Fonts.code}
+        fontSize={codeStyle.fontSize}
+        fontWeight={codeStyle.fontWeight}
+        lineHeight={codeStyle.lineHeight}
+        fill={dtoKeyFill}
+        textAlign={'left'}
+        offset={[-1, -1]}
+        opacity={() => midOpacity() * dtoObjectOpacity()}
+      />
+
       <CodeBlockWithOverlay
         x={dtoCodeX}
-        y={codeTopY}
-        style={codeStyle}
+        y={dtoBodyY}
+        style={{...codeStyle, width: dtoTextW}}
         keysText={dtoKeysText}
         valuesText={dtoValuesText}
         keysFill={dtoKeyFill}
         valuesFill={dtoValueFill}
         opacity={() => midOpacity() * dtoObjectOpacity()}
         valuesOpacity={dtoValuesOpacity}
-        valuesDx={valuesDx}
+        valuesDx={dtoValuesDx}
         ellipsis
         ellipsisText={'...'}
-        maxWidthPx={SafeZone.right - dtoCodeX}
+        maxWidthPx={dtoAvailW}
         keysRef={dtoKeysRef}
         valuesRef={dtoValuesRef}
       />
 
-      <CodeBlockText
-        ref={stripeJsonRef}
+      <CodeBlockWithOverlay
         x={stripeJsonX}
         y={stripeJsonY}
-        style={{...codeStyle, fontWeight: 600}}
-        text={stripeJson}
-        fill={Colors.text.primary}
+        style={{...codeStyle, fontWeight: 600, width: jsonTextW}}
+        keysText={stripeJsonKeysText}
+        valuesText={stripeJsonValuesText}
+        keysFill={Colors.text.primary}
+        valuesFill={pink}
         opacity={stripeJsonOpacity}
+        valuesOpacity={stripeJsonValuesOpacity}
+        valuesDx={stripeJsonValuesDx}
         ellipsis
         ellipsisText={'...'}
-        maxWidthPx={SafeZone.right - stripeJsonX}
+        maxWidthPx={jsonAvailW}
+        keysRef={stripeJsonRef}
+        valuesRef={stripeJsonValuesRef}
+      />
+
+      <Rect
+        x={jsonBoxX}
+        y={jsonBoxY}
+        width={jsonBoxW}
+        height={jsonBoxH}
+        radius={codeBorderRadius}
+        fill={'rgba(0,0,0,0)'}
+        stroke={codeBorderStroke}
+        lineWidth={codeBorderWidth}
+        offset={[-1, -1]}
+        opacity={stripeJsonOpacity}
       />
 
       <Circle
@@ -365,7 +458,6 @@ export default makeScene2D(function* (view) {
   );
 
   yield* all(leftOpacity(1, 1.6, easeInOutCubic), midOpacity(1, 1.6, easeInOutCubic), rightOpacity(1, 1.6, easeInOutCubic));
-
   yield* waitFor(1.8);
 
   yield* wiresOpacity(1, 0.9, easeInOutCubic);
@@ -374,23 +466,31 @@ export default makeScene2D(function* (view) {
   yield* all(leftPortOpacity(0.5, 0.28, easeInOutCubic), rightPortOpacity(0.5, 0.28, easeInOutCubic));
   yield* all(leftPortOpacity(1, 0.34, easeInOutCubic), rightPortOpacity(1, 0.34, easeInOutCubic));
 
-  yield* waitFor(0.25);
+  yield* waitFor(0.3);
   yield* dtoObjectOpacity(1, 1.2, easeInOutCubic);
+  yield* waitFor(0.8);
 
-  yield* waitFor(0.6);
-  yield* stripeJsonOpacity(1, 0.9, easeInOutCubic);
-  yield* packetOpacity(1, 0.22, easeInOutCubic);
+  yield* stripeJsonOpacity(1, 1.4, easeInOutCubic);
+  yield* waitFor(0.5);
 
-  yield* packetT(1, 1.6, easeInOutCubic);
+  yield* all(
+    packetOpacity(1, 0.8, easeInOutCubic),
+    stripeJsonValuesOpacity(1, 0.8, easeInOutCubic),
+  );
+  yield* waitFor(0.3);
 
-  yield* dtoValuesOpacity(1, 0.5, easeInOutCubic);
-  yield* packetOpacity(0, 0.22, easeInOutCubic);
+  yield* packetT(0.7, 0.6, linear);
 
-  yield* waitFor(1.3);
-  // Values disappear, keys remain. JSON stays visible.
-  yield* dtoValuesOpacity(0, 0.7, easeInOutCubic);
+  yield* all(
+    packetT(1, 0.4, linear),
+    packetOpacity(0, 0.4, easeInOutCubic),
+    stripeJsonValuesOpacity(0, 0.4, easeInOutCubic),
+    dtoValuesOpacity(1, 0.4, easeInOutCubic),
+  );
 
-  yield* waitFor(2.2);
+  yield* waitFor(2.0);
+  yield* dtoValuesOpacity(0, 1.2, easeInOutCubic);
+  yield* waitFor(2.0);
 });
 
 
