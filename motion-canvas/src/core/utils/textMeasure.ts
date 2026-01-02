@@ -33,9 +33,10 @@ export function ellipsizeEnd(
   maxPx: number,
   fontFamily: string,
   fontSize: number,
-  fontWeight: number = 400
+  fontWeight: number = 400,
+  ellipsis: string = '…',
 ): string {
-  const ell = '…';
+  const ell = ellipsis;
   if (textWidth(text, fontFamily, fontSize, fontWeight) <= maxPx) return text;
   if (textWidth(ell, fontFamily, fontSize, fontWeight) > maxPx) return '';
   
@@ -60,9 +61,10 @@ export function ellipsizeMiddle(
   maxPx: number,
   fontFamily: string,
   fontSize: number,
-  fontWeight: number = 400
+  fontWeight: number = 400,
+  ellipsis: string = '…',
 ): string {
-  const ell = '…';
+  const ell = ellipsis;
   if (textWidth(text, fontFamily, fontSize, fontWeight) <= maxPx) return text;
   if (textWidth(ell, fontFamily, fontSize, fontWeight) > maxPx) return ell;
 
@@ -92,11 +94,12 @@ export function fitText(
   mode: 'end' | 'middle',
   fontFamily: string,
   fontSize: number,
-  fontWeight: number = 400
+  fontWeight: number = 400,
+  ellipsis: string = '…',
 ): string {
   const w = Math.max(0, maxPx - SAFETY_PX);
   return mode === 'middle'
-    ? ellipsizeMiddle(text, w, fontFamily, fontSize, fontWeight)
-    : ellipsizeEnd(text, w, fontFamily, fontSize, fontWeight);
+    ? ellipsizeMiddle(text, w, fontFamily, fontSize, fontWeight, ellipsis)
+    : ellipsizeEnd(text, w, fontFamily, fontSize, fontWeight, ellipsis);
 }
 
