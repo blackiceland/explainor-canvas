@@ -23,10 +23,17 @@ export default makeScene2D(function* (view) {
   const wiresOpacity = createSignal(0);
   const dtoObjectOpacity = createSignal(0);
   const dtoValuesOpacity = createSignal(0);
+  const dtoPulse = createSignal(0);
+  const shadowOthers = createSignal(0);
   const stripeJsonOpacity = createSignal(0);
   const stripeJsonValuesOpacity = createSignal(0);
   const packetT = createSignal(0);
   const packetOpacity = createSignal(0);
+
+  const clientJsonOpacity = createSignal(0);
+  const clientJsonValuesOpacity = createSignal(0);
+  const packet2T = createSignal(0);
+  const packet2Opacity = createSignal(0);
 
   const leftR = 150;
   const midR = 175;
@@ -62,6 +69,7 @@ export default makeScene2D(function* (view) {
   const portBlue = 'rgba(110,168,255,0.95)';
   const pathFill = 'rgba(110,168,255,0.84)';
   const pink = Colors.accent;
+  const dimOthers = () => 1 - shadowOthers() * 0.78;
   const serviceFontSize = 34;
   const serviceFontWeight = 650;
   const midServiceFontSize = 30;
@@ -76,7 +84,6 @@ export default makeScene2D(function* (view) {
     fontWeight: 650,
   } as const;
   const codeTopY = -450;
-  const dtoCodeX = -250;
   const dtoValueFill = 'rgba(255,140,163,0.92)';
   const dtoKeyFill = Colors.text.primary;
 
@@ -101,22 +108,23 @@ export default makeScene2D(function* (view) {
 
   const dtoHeaderY = codeTopY;
   const dtoBodyY = codeTopY + codeStyle.lineHeight;
-  const dtoHeaderRestX = dtoCodeX + textWidth(dtoHeaderType, Fonts.code, codeStyle.fontSize, codeStyle.fontWeight);
 
-  const dtoRightBoundX = 270;
-  const jsonRightBoundX = 900;
-  const dtoAvailW = Math.max(0, dtoRightBoundX - dtoCodeX);
+  const codeCardShrinkW = 100;
+  const codeCardBaseW = 520;
   const codeBorderStroke = 'rgba(110,168,255,0.32)';
+  const dtoBorderStroke = () => `rgba(110,168,255,${0.22 + 0.42 * dtoPulse()})`;
   const codeBorderWidth = 2;
   const codeBorderRadius = 10;
   const codeBorderPadX = 14;
   const codeBorderPadY = 12;
   const dtoLineCount = 1 + dtoBodyKeyLines.length;
-  const dtoTextW = Math.min(codeStyle.width, dtoAvailW);
+  const dtoTextW = Math.max(0, Math.min(codeStyle.width, codeCardBaseW - codeCardShrinkW));
   const dtoBoxW = dtoTextW + codeBorderPadX * 2;
   const dtoBoxH = dtoLineCount * codeStyle.lineHeight + codeBorderPadY * 2;
-  const dtoBoxX = dtoCodeX - codeBorderPadX;
+  const dtoBoxX = c[0] - dtoBoxW / 2;
   const dtoBoxY = codeTopY - codeBorderPadY;
+  const dtoCodeX = dtoBoxX + codeBorderPadX;
+  const dtoHeaderRestX = dtoCodeX + textWidth(dtoHeaderType, Fonts.code, codeStyle.fontSize, codeStyle.fontWeight);
 
   const stripeJson = `{
   "id": "pay_550e8400",
@@ -125,9 +133,7 @@ export default makeScene2D(function* (view) {
   "status": "CAPTURED",
   "updatedAt": "2024-12-15T14:32:00Z"
 }`;
-  const stripeJsonX = jsonRightBoundX - dtoTextW;
   const stripeJsonY = codeTopY;
-  const stripeJsonW = codeStyle.width;
 
   const dtoKeysRef = createRef<Txt>();
   const dtoValuesRef = createRef<Txt>();
@@ -160,13 +166,13 @@ export default makeScene2D(function* (view) {
     }),
   );
 
-  const jsonLineCount = stripeJsonLines.length;
-  const jsonAvailW = Math.max(0, jsonRightBoundX - stripeJsonX);
   const jsonTextW = dtoTextW;
   const jsonBoxW = jsonTextW + codeBorderPadX * 2;
-  const jsonBoxH = jsonLineCount * codeStyle.lineHeight + codeBorderPadY * 2;
-  const jsonBoxX = stripeJsonX - codeBorderPadX;
+  const jsonBoxH = dtoBoxH;
+  const jsonBoxX = rightC[0] - jsonBoxW / 2;
   const jsonBoxY = stripeJsonY - codeBorderPadY;
+  const stripeJsonX = jsonBoxX + codeBorderPadX;
+  const jsonAvailW = jsonTextW;
 
   const leftWireY = leftC[1];
   const leftWireStartX = leftC[0] + leftR;
@@ -184,6 +190,52 @@ export default makeScene2D(function* (view) {
   const leftPort: Point = [leftWireEndX, c[1]];
   const rightPort: Point = [rightWireEndX, c[1]];
 
+  const packet2Start: Point = [leftWireEndX, leftWireY];
+  const packet2End: Point = [leftWireStartX, leftWireY];
+  const packet2X = () => packet2Start[0] + (packet2End[0] - packet2Start[0]) * packet2T();
+  const packet2Y = () => packet2Start[1] + (packet2End[1] - packet2Start[1]) * packet2T();
+
+  const clientJson = `{
+  "id": "pay_550e8400",
+  "amount": 99.00,
+  "currency": "USD",
+  "status": "CAPTURED"
+}`;
+  const clientJsonLines = clientJson.split('\n').map(l => l.replace(/\s+/g, ' '));
+  const clientJsonKeysText = clientJsonLines
+    .map(line => {
+      const idx = line.indexOf(':');
+      if (idx < 0) return line;
+      return line.slice(0, idx + 2);
+    })
+    .join('\n');
+  const clientJsonValuesText = clientJsonLines
+    .map(line => {
+      const idx = line.indexOf(':');
+      if (idx < 0) return '';
+      return line.slice(idx + 2);
+    })
+    .join('\n');
+  const clientJsonValuesDx = Math.max(
+    ...clientJsonLines.map(line => {
+      const idx = line.indexOf(':');
+      if (idx < 0) return 0;
+      const prefix = line.slice(0, idx + 2);
+      return textWidth(prefix, Fonts.code, codeStyle.fontSize, 600);
+    }),
+  );
+
+  const clientJsonY = codeTopY;
+  const clientJsonAvailW = dtoTextW;
+  const clientJsonBoxW = clientJsonAvailW + codeBorderPadX * 2;
+  const clientJsonBoxH = dtoBoxH;
+  const clientJsonBoxX = leftC[0] - clientJsonBoxW / 2;
+  const clientJsonBoxY = clientJsonY - codeBorderPadY;
+  const clientJsonX = clientJsonBoxX + codeBorderPadX;
+
+  const clientJsonRef = createRef<Txt>();
+  const clientJsonValuesRef = createRef<Txt>();
+
   view.add(
     <>
       <Rect>
@@ -194,7 +246,7 @@ export default makeScene2D(function* (view) {
           ]}
           stroke={wireStroke}
           lineWidth={3}
-          opacity={() => leftOpacity() * wiresOpacity()}
+          opacity={() => leftOpacity() * wiresOpacity() * dimOthers()}
         />
 
         <Circle
@@ -205,7 +257,7 @@ export default makeScene2D(function* (view) {
           fill={leftFill}
           stroke={leftStroke}
           lineWidth={strokeW}
-          opacity={leftOpacity}
+          opacity={() => leftOpacity() * dimOthers()}
         />
         <Txt
           x={leftC[0]}
@@ -216,7 +268,7 @@ export default makeScene2D(function* (view) {
           fontWeight={serviceFontWeight}
           letterSpacing={-0.1}
           fill={whiteText}
-          opacity={leftOpacity}
+          opacity={() => leftOpacity() * dimOthers()}
         />
 
         <Circle
@@ -235,7 +287,7 @@ export default makeScene2D(function* (view) {
           width={22}
           height={22}
           fill={portBlue}
-          opacity={() => midOpacity() * leftPortOpacity()}
+          opacity={() => midOpacity() * leftPortOpacity() * (0.55 + 0.45 * dtoPulse())}
         />
         <Circle
           x={rightPort[0]}
@@ -243,7 +295,7 @@ export default makeScene2D(function* (view) {
           width={22}
           height={22}
           fill={portBlue}
-          opacity={() => midOpacity() * rightPortOpacity()}
+          opacity={() => midOpacity() * rightPortOpacity() * (0.55 + 0.45 * dtoPulse())}
         />
         <Txt
           x={c[0]}
@@ -264,7 +316,7 @@ export default makeScene2D(function* (view) {
           ]}
           stroke={wireStroke}
           lineWidth={3}
-          opacity={() => rightOpacity() * wiresOpacity()}
+          opacity={() => rightOpacity() * wiresOpacity() * dimOthers()}
         />
 
         <Rect
@@ -274,7 +326,7 @@ export default makeScene2D(function* (view) {
           direction={'row'}
           alignItems={'center'}
           gap={10}
-          opacity={() => wiresOpacity() * leftOpacity()}
+          opacity={() => wiresOpacity() * leftOpacity() * dimOthers()}
         >
           <Txt
             text={'GET'}
@@ -301,7 +353,7 @@ export default makeScene2D(function* (view) {
           direction={'row'}
           alignItems={'center'}
           gap={10}
-          opacity={() => wiresOpacity() * rightOpacity()}
+          opacity={() => wiresOpacity() * rightOpacity() * dimOthers()}
         >
           <Txt
             text={'POST'}
@@ -329,7 +381,7 @@ export default makeScene2D(function* (view) {
           fill={rightFill}
           stroke={rightStroke}
           lineWidth={strokeW}
-          opacity={rightOpacity}
+          opacity={() => rightOpacity() * dimOthers()}
         />
         <Txt
           x={rightC[0]}
@@ -340,7 +392,7 @@ export default makeScene2D(function* (view) {
           fontWeight={serviceFontWeight}
           letterSpacing={-0.1}
           fill={whiteText}
-          opacity={rightOpacity}
+          opacity={() => rightOpacity() * dimOthers()}
         />
       </Rect>
 
@@ -351,7 +403,7 @@ export default makeScene2D(function* (view) {
         height={dtoBoxH}
         radius={codeBorderRadius}
         fill={'rgba(0,0,0,0)'}
-        stroke={codeBorderStroke}
+        stroke={dtoBorderStroke}
         lineWidth={codeBorderWidth}
         offset={[-1, -1]}
         opacity={() => midOpacity() * dtoObjectOpacity()}
@@ -396,7 +448,7 @@ export default makeScene2D(function* (view) {
         valuesDx={dtoValuesDx}
         ellipsis
         ellipsisText={'...'}
-        maxWidthPx={dtoAvailW}
+        maxWidthPx={dtoTextW}
         keysRef={dtoKeysRef}
         valuesRef={dtoValuesRef}
       />
@@ -409,7 +461,7 @@ export default makeScene2D(function* (view) {
         valuesText={stripeJsonValuesText}
         keysFill={Colors.text.primary}
         valuesFill={pink}
-        opacity={stripeJsonOpacity}
+        opacity={() => stripeJsonOpacity() * dimOthers()}
         valuesOpacity={stripeJsonValuesOpacity}
         valuesDx={stripeJsonValuesDx}
         ellipsis
@@ -429,7 +481,7 @@ export default makeScene2D(function* (view) {
         stroke={codeBorderStroke}
         lineWidth={codeBorderWidth}
         offset={[-1, -1]}
-        opacity={stripeJsonOpacity}
+        opacity={() => stripeJsonOpacity() * dimOthers()}
       />
 
       <Circle
@@ -439,6 +491,46 @@ export default makeScene2D(function* (view) {
         height={18}
         fill={pink}
         opacity={packetOpacity}
+      />
+
+      <CodeBlockWithOverlay
+        x={clientJsonX}
+        y={clientJsonY}
+        style={{...codeStyle, fontWeight: 600, width: clientJsonAvailW}}
+        keysText={clientJsonKeysText}
+        valuesText={clientJsonValuesText}
+        keysFill={Colors.text.primary}
+        valuesFill={pink}
+        opacity={() => clientJsonOpacity() * dimOthers()}
+        valuesOpacity={clientJsonValuesOpacity}
+        valuesDx={clientJsonValuesDx}
+        ellipsis
+        ellipsisText={'...'}
+        maxWidthPx={clientJsonAvailW}
+        keysRef={clientJsonRef}
+        valuesRef={clientJsonValuesRef}
+      />
+
+      <Rect
+        x={clientJsonBoxX}
+        y={clientJsonBoxY}
+        width={clientJsonBoxW}
+        height={clientJsonBoxH}
+        radius={codeBorderRadius}
+        fill={'rgba(0,0,0,0)'}
+        stroke={codeBorderStroke}
+        lineWidth={codeBorderWidth}
+        offset={[-1, -1]}
+        opacity={() => clientJsonOpacity() * dimOthers()}
+      />
+
+      <Circle
+        x={packet2X}
+        y={packet2Y}
+        width={18}
+        height={18}
+        fill={pink}
+        opacity={packet2Opacity}
       />
 
       {DEBUG && (
@@ -467,8 +559,16 @@ export default makeScene2D(function* (view) {
   yield* all(leftPortOpacity(1, 0.34, easeInOutCubic), rightPortOpacity(1, 0.34, easeInOutCubic));
 
   yield* waitFor(0.3);
-  yield* dtoObjectOpacity(1, 1.2, easeInOutCubic);
-  yield* waitFor(0.8);
+  yield* all(
+    dtoObjectOpacity(1, 1.05, easeInOutCubic),
+    shadowOthers(1, 1.05, easeInOutCubic),
+  );
+  for (let i = 0; i < 4; i++) {
+    yield* all(dtoPulse(1, 0.22, easeInOutCubic), leftPortOpacity(1, 0.22, easeInOutCubic), rightPortOpacity(1, 0.22, easeInOutCubic));
+    yield* all(dtoPulse(0.2, 0.22, easeInOutCubic), leftPortOpacity(0.55, 0.22, easeInOutCubic), rightPortOpacity(0.55, 0.22, easeInOutCubic));
+  }
+  yield* all(shadowOthers(0, 0.6, easeInOutCubic), dtoPulse(0, 0.6, easeInOutCubic));
+  yield* waitFor(0.35);
 
   yield* stripeJsonOpacity(1, 1.4, easeInOutCubic);
   yield* waitFor(0.5);
@@ -488,8 +588,27 @@ export default makeScene2D(function* (view) {
     dtoValuesOpacity(1, 0.4, easeInOutCubic),
   );
 
+  yield* waitFor(1.2);
+
+  yield* clientJsonOpacity(1, 1.0, easeInOutCubic);
+  yield* waitFor(0.3);
+
+  yield* all(
+    packet2Opacity(1, 0.6, easeInOutCubic),
+    dtoValuesOpacity(0, 0.6, easeInOutCubic),
+  );
+  yield* waitFor(0.2);
+
+  yield* packet2T(0.7, 0.6, linear);
+
+  yield* all(
+    packet2T(1, 0.4, linear),
+    packet2Opacity(0, 0.4, easeInOutCubic),
+    clientJsonValuesOpacity(1, 0.4, easeInOutCubic),
+  );
+
   yield* waitFor(2.0);
-  yield* dtoValuesOpacity(0, 1.2, easeInOutCubic);
+  yield* clientJsonValuesOpacity(0, 1.0, easeInOutCubic);
   yield* waitFor(2.0);
 });
 
