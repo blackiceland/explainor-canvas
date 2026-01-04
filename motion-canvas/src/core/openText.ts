@@ -1,12 +1,12 @@
 export const OpenText = {
   service: {
     fontSize: 32,
-    fontWeight: 600,
+    fontWeight: 520,
     letterSpacing: 0.6,
   },
   serviceMid: {
     fontSize: 28,
-    fontWeight: 600,
+    fontWeight: 520,
     letterSpacing: 0.55,
   },
   endpointVerb: {
