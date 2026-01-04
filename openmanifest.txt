@@ -1,0 +1,83 @@
+### Corrected request (EN)
+**“Write the final version of the style manifest.”**
+
+### Final “Open / Warm Minimalism” Style Manifest (v1)
+
+- **1) Treat the canvas like a page**
+  - Warm neutral background, generous margins, lots of negative space.
+  - Composition feels editorial, not “product UI”.
+
+- **2) Limit materials**
+  - Flat shapes; avoid gradients, glow, glass, heavy shadows.
+  - If a shadow exists: single, soft, low-opacity, almost imperceptible.
+
+- **3) Strict palette (semantic, not decorative)**
+  - 2–3 neutrals (background/card/ink) + 1 accent.
+  - Accent is small and meaningful (signal/flow), never a large fill.
+  - Reserve red strictly for danger/fail moments.
+
+- **4) Typography is the primary visual**
+  - Hierarchy via size/weight/spacing (tracking/leading), not effects.
+  - Consistent text roles: **Service Label / Endpoint Verb / Endpoint Path / Code**.
+  - Prefer CAPS for short labels/verbs only; never for code.
+
+- **5) Simple iconography**
+  - Primitive silhouettes (circle/rect/line/dot) that read instantly.
+  - No extra detail unless it carries meaning.
+
+- **6) Standardize geometry**
+  - One radius system, one stroke-weight system, one spacing scale.
+  - Dots/lines/cards snap to a consistent grid and safe margins.
+
+- **7) Motion is restrained and structural**
+  - Smooth easing, modest distances, clear phases.
+  - Motion reveals structure (enter/exit, grouping, focus), not “showmanship”.
+  - Avoid bouncy/elastic/flashy transitions.
+
+- **8) Code is typography**
+  - Short snippets (6–12 lines), controlled line length, airy line-height.
+  - Minimal highlighting: neutrals + one accent (used sparingly).
+  - Ellipsis for overflow; no “IDE screenshot” look.
+
+---
+
+### Исправленный запрос (RU)
+**«Напиши финальную версию манифеста стиля.»**
+
+### Финальный манифест стиля “Open / Тёплый минимализм” (v1)
+
+- **1) Кадр как страница**
+  - Тёплый нейтральный фон, большие поля, много воздуха.
+  - Ощущение “редакционности”, не “UI продукта”.
+
+- **2) Ограничь материалы**
+  - Плоские формы; без градиентов, свечений, “стекла”, тяжёлых теней.
+  - Если тень есть: одна, мягкая, с низкой прозрачностью, почти незаметная.
+
+- **3) Строгая палитра (семантика, не декор)**
+  - 2–3 нейтрали (фон/карточка/чернила) + 1 акцент.
+  - Акцент маленький и смысловой (сигнал/поток), не заливает большие площади.
+  - Красный — только для момента опасности/фейла.
+
+- **4) Типографика — главный визуал**
+  - Иерархия через размер/вес/интервалы (трекинг/интерлиньяж), не эффекты.
+  - Роли текста: **лейбл сервиса / verb эндпоинта / путь эндпоинта / код**.
+  - CAPS — только для коротких лейблов/verb; никогда для кода.
+
+- **5) Простая иконография**
+  - Примитивные формы (круг/прямоугольник/линия/точка), мгновенно считываемые.
+  - Никаких деталей без смысла.
+
+- **6) Стандартизируй геометрию**
+  - Одна система радиусов, одна система толщин, одна шкала отступов.
+  - Всё привязано к сетке и safe margins.
+
+- **7) Движение — сдержанное и структурное**
+  - Плавные easing, небольшие дистанции, ясные фазы.
+  - Анимация объясняет структуру (появление/уход, группировка, фокус), не “развлекает”.
+  - Без пружин/эластики/вспышек.
+
+- **8) Код = типографика**
+  - Короткие сниппеты (6–12 строк), контролируемая длина строки, “воздушный” line-height.
+  - Минимальная подсветка: нейтрали + один акцент (очень дозировано).
+  - Ellipsis при переполнении; никакого “скрина IDE”.

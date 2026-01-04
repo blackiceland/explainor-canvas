@@ -1,9 +1,11 @@
 import {Circle, Line, makeScene2D, Rect, Txt} from '@motion-canvas/2d';
 import {all, createRef, createSignal, easeInOutCubic, linear, waitFor} from '@motion-canvas/core';
-import {applyBackground} from '../core/utils';
-import {Colors, Fonts} from '../core/theme';
+import {OpenStyle} from '../core/openStyle';
+import {OpenText} from '../core/openText';
+import {OpenShapes} from '../core/openShapes';
+import {Fonts, Screen} from '../core/theme';
 import {SafeZone} from '../core/ScreenGrid';
-import {CodeBlockText, CodeBlockWithOverlay} from '../core/components/CodeBlockText';
+import {CodeBlockWithOverlay} from '../core/components/CodeBlockText';
 import {DebugOverlay} from '../core/components/DebugOverlay';
 import {GridOverlay} from '../core/components/GridOverlay';
 import {textWidth} from '../core/utils/textMeasure';
@@ -12,7 +14,13 @@ import {DEBUG} from '../core/debug';
 type Point = [number, number];
 
 export default makeScene2D(function* (view) {
-  applyBackground(view);
+  const S = OpenStyle;
+  const inkRgba = 'rgba(21,21,21,1)';
+  const mutedRgba = 'rgba(111,106,99,1)';
+  const borderRgba = 'rgba(207,198,186,1)';
+  const oliveRgba = 'rgba(47,58,46,1)';
+  const slateBlueRgba = 'rgba(58,90,137,1)';
+  const transparent = 'rgba(0,0,0,0)';
 
   const leftOpacity = createSignal(0);
   const midOpacity = createSignal(0);
@@ -33,11 +41,13 @@ export default makeScene2D(function* (view) {
   const riskScoreSig = createSignal('0.91');
   const stripeJsonOpacity = createSignal(0);
   const stripeJsonValuesOpacity = createSignal(0);
+  const stripeJsonBaseValuesOpacity = createSignal(0);
   const packetT = createSignal(0);
   const packetOpacity = createSignal(0);
 
   const clientJsonOpacity = createSignal(0);
   const clientJsonValuesOpacity = createSignal(0);
+  const clientJsonBaseValuesOpacity = createSignal(0);
   const packet2T = createSignal(0);
   const packet2Opacity = createSignal(0);
 
@@ -59,23 +69,21 @@ export default makeScene2D(function* (view) {
   const c: Point = [midCx, yBase];
   const leftC: Point = [leftCx, yBase];
   const rightC: Point = [rightCx, yBase];
-  const strokeW = 2.5;
-  const beigeFill = 'rgba(248,235,216,0.18)';
-  const softStroke = 'rgba(248,235,216,0.26)';
-  const leftStroke = softStroke;
-  const midStroke = softStroke;
-  const rightStroke = softStroke;
+  const strokeW = 0;
+  const leftStroke = inkRgba;
+  const midStroke = inkRgba;
+  const rightStroke = inkRgba;
 
-  const leftFill = beigeFill;
-  const midFill = beigeFill;
-  const rightFill = beigeFill;
+  const leftFill = inkRgba;
+  const midFill = inkRgba;
+  const rightFill = inkRgba;
 
-  const whiteText = Colors.text.primary;
+  const whiteText = S.colors.card;
 
-  const wireStroke = 'rgba(110,168,255,0.28)';
-  const portBlue = 'rgba(110,168,255,0.95)';
-  const pathFill = 'rgba(110,168,255,0.84)';
-  const pink = Colors.accent;
+  const wireStroke = 'rgba(207,198,186,0.9)';
+  const portBlue = slateBlueRgba;
+  const pathFill = 'rgba(58,90,137,0.84)';
+  const pink = S.colors.terracotta;
   const dimOthers = () => 1 - shadowOthers() * 0.78;
   const focusW = (k: number) => Math.max(0, 1 - Math.abs(focusX() - k));
   const dimRiskOthers = () => 1 - focusRisk() * 0.9;
@@ -95,22 +103,24 @@ export default makeScene2D(function* (view) {
     const aa = x.a + (y.a - x.a) * k;
     return `rgba(${Math.round(r)},${Math.round(g)},${Math.round(bb)},${aa})`;
   };
-  const serviceFontSize = 34;
-  const serviceFontWeight = 650;
-  const midServiceFontSize = 30;
+  const serviceFontSize = OpenText.service.fontSize;
+  const serviceFontWeight = OpenText.service.fontWeight;
+  const serviceLetterSpacing = OpenText.service.letterSpacing;
+  const midServiceFontSize = OpenText.serviceMid.fontSize;
+  const midServiceLetterSpacing = OpenText.serviceMid.letterSpacing;
 
-  const dtoText = Colors.text.primary;
-  const dtoBlue = portBlue;
+  const dtoText = S.colors.ink;
+  const dtoBlue = S.colors.blue;
 
   const codeStyle = {
-    fontSize: 26,
-    lineHeight: 38,
+    fontSize: OpenText.code.fontSize,
+    lineHeight: OpenText.code.lineHeight,
     width: 600,
-    fontWeight: 650,
+    fontWeight: OpenText.code.fontWeight,
   } as const;
   const codeTopY = -450 + sceneShiftY;
-  const dtoValueFill = 'rgba(255,140,163,0.92)';
-  const dtoKeyFill = Colors.text.primary;
+  const dtoValueFill = pink;
+  const dtoKeyFill = S.colors.ink;
 
   const dtoHeaderType = 'PaymentDto';
   const dtoHeaderRest = ' {';
@@ -147,14 +157,15 @@ export default makeScene2D(function* (view) {
   const dtoHeaderY = codeTopY;
   const dtoBodyY = codeTopY + codeStyle.lineHeight;
 
-  const codeCardShrinkW = 0;
+  const codeCardShrinkW = 100;
   const codeCardBaseW = 520;
-  const codeBorderStroke = 'rgba(110,168,255,0.32)';
-  const dtoBorderStroke = () => `rgba(110,168,255,${0.22 + 0.42 * dtoPulse()})`;
-  const codeBorderWidth = 2;
-  const codeBorderRadius = 10;
-  const codeBorderPadX = 14;
-  const codeBorderPadY = 12;
+  const codeBorderStroke = transparent;
+  const dtoBorderStroke = () => mixRgba(transparent, slateBlueRgba, dtoPulse());
+  const codeBorderWidth = 0;
+  const codeBorderRadius = OpenShapes.radius.card;
+  const codeBorderPadX = OpenShapes.padding.cardX;
+  const codeBorderPadY = OpenShapes.padding.cardY;
+  const dtoBorderWidth = 0;
   const dtoLineCount = 1 + dtoBodyKeyLines.length;
   const dtoTextW = Math.max(0, Math.min(codeStyle.width, codeCardBaseW - codeCardShrinkW));
   const dtoBoxW = dtoTextW + codeBorderPadX * 2;
@@ -195,6 +206,7 @@ export default makeScene2D(function* (view) {
   });
   const stripeJsonValuesText = stripeJsonValueLines.join('\n');
   const stripeJsonValuesTextSig = createSignal(stripeJsonValuesText);
+  const stripeJsonBlankKeysSig = createSignal(stripeJsonValueLines.map(() => '').join('\n'));
 
   const jsonGapTighten = 14;
   const stripeJsonValuesDx = Math.max(
@@ -255,6 +267,7 @@ export default makeScene2D(function* (view) {
     return line.slice(idx + 2);
   });
   const clientJsonValuesTextSig = createSignal(clientJsonValueLines.join('\n'));
+  const clientJsonBlankKeysSig = createSignal(clientJsonValueLines.map(() => '').join('\n'));
   const clientJsonValuesDx = Math.max(
     ...[...clientJsonLines.slice(0, -1), '  "riskScore": 0', clientJsonLines[clientJsonLines.length - 1]].map(line => {
       const idx = line.indexOf(':');
@@ -341,6 +354,7 @@ export default makeScene2D(function* (view) {
 
   view.add(
     <>
+      <Rect width={Screen.width} height={Screen.height} fill={S.colors.bg} />
       <Rect>
         <Line
           points={[
@@ -348,8 +362,8 @@ export default makeScene2D(function* (view) {
             [leftWireEndX, leftWireY],
           ]}
           stroke={wireStroke}
-          lineWidth={3}
-          opacity={() => leftOpacity() * wiresOpacity() * dimOthers() * dimRiskOthers()}
+          lineWidth={OpenShapes.stroke.connector}
+          opacity={() => leftOpacity() * wiresOpacity() * dimOthers() * dimRiskOthers() * 0.72}
         />
 
         <Circle
@@ -357,9 +371,9 @@ export default makeScene2D(function* (view) {
           y={leftC[1]}
           width={leftR * 2}
           height={leftR * 2}
-          fill={() => mixRgba(leftFill, 'rgba(255,0,0,0.22)', clientCircleRed())}
-          stroke={() => mixRgba(leftStroke, dangerRed, clientCircleRed())}
-          lineWidth={strokeW}
+          fill={() => mixRgba(leftFill, dangerRed, clientCircleRed())}
+          stroke={transparent}
+          lineWidth={0}
           opacity={() => leftOpacity() * dimOthers() * dimRiskOthers()}
         />
         <Circle
@@ -375,11 +389,11 @@ export default makeScene2D(function* (view) {
         <Txt
           x={leftC[0]}
           y={leftC[1] - 5}
-          text={'client'}
-          fontFamily={Fonts.primary}
+          text={'CLIENT'}
+          fontFamily={S.fonts.sans}
           fontSize={serviceFontSize}
           fontWeight={serviceFontWeight}
-          letterSpacing={-0.1}
+          letterSpacing={serviceLetterSpacing}
           fill={whiteText}
           opacity={() => leftOpacity() * dimOthers() * dimRiskOthers()}
         />
@@ -390,34 +404,34 @@ export default makeScene2D(function* (view) {
           width={midR * 2}
           height={midR * 2}
           fill={midFill}
-          stroke={midStroke}
-          lineWidth={strokeW}
+          stroke={transparent}
+          lineWidth={0}
           opacity={() => midOpacity() * dimRiskOthers()}
         />
         <Circle
           x={leftPort[0]}
           y={leftPort[1]}
-          width={22}
-          height={22}
+          width={OpenShapes.dots.port}
+          height={OpenShapes.dots.port}
           fill={portBlue}
           opacity={() => midOpacity() * leftPortOpacity() * (0.55 + 0.45 * dtoPulse()) * dimRiskOthers()}
         />
         <Circle
           x={rightPort[0]}
           y={rightPort[1]}
-          width={22}
-          height={22}
+          width={OpenShapes.dots.port}
+          height={OpenShapes.dots.port}
           fill={portBlue}
           opacity={() => midOpacity() * rightPortOpacity() * (0.55 + 0.45 * dtoPulse()) * dimRiskOthers()}
         />
         <Txt
           x={c[0]}
           y={c[1] - 6}
-          text={'payment-service'}
-          fontFamily={Fonts.primary}
+          text={'PAYMENT-SERVICE'}
+          fontFamily={S.fonts.sans}
           fontSize={midServiceFontSize}
           fontWeight={serviceFontWeight}
-          letterSpacing={-0.2}
+          letterSpacing={midServiceLetterSpacing}
           fill={whiteText}
           opacity={() => midOpacity() * dimRiskOthers()}
         />
@@ -428,60 +442,60 @@ export default makeScene2D(function* (view) {
             [rightWireEndX, rightWireY],
           ]}
           stroke={wireStroke}
-          lineWidth={3}
-          opacity={() => rightOpacity() * wiresOpacity() * dimOthers() * dimRiskOthers()}
+          lineWidth={OpenShapes.stroke.connector}
+          opacity={() => rightOpacity() * wiresOpacity() * dimOthers() * dimRiskOthers() * 0.72}
         />
 
         <Rect
           x={(leftWireStartX + leftWireEndX) / 2}
-          y={leftWireY - 46}
+          y={leftWireY - OpenShapes.spacing.endpointY}
           layout
           direction={'row'}
           alignItems={'center'}
-          gap={10}
+          gap={OpenShapes.spacing.labelGap}
           opacity={() => wiresOpacity() * leftOpacity() * dimOthers() * dimRiskOthers()}
         >
           <Txt
             text={'GET'}
-            fontFamily={Fonts.code}
-            fontSize={20}
-            fontWeight={700}
-            letterSpacing={-0.2}
-            fill={'rgba(244,241,235,0.82)'}
+            fontFamily={S.fonts.mono}
+            fontSize={OpenText.endpointVerb.fontSize}
+            fontWeight={OpenText.endpointVerb.fontWeight}
+            letterSpacing={OpenText.endpointVerb.letterSpacing}
+            fill={mutedRgba}
           />
           <Txt
             text={'/payments/{id}'}
-            fontFamily={Fonts.code}
-            fontSize={22}
-            fontWeight={650}
-            letterSpacing={-0.2}
+            fontFamily={S.fonts.mono}
+            fontSize={OpenText.endpointPath.fontSize}
+            fontWeight={OpenText.endpointPath.fontWeight}
+            letterSpacing={OpenText.endpointPath.letterSpacing}
             fill={pathFill}
           />
         </Rect>
 
         <Rect
           x={(rightWireStartX + rightWireEndX) / 2}
-          y={rightWireY - 46}
+          y={rightWireY - OpenShapes.spacing.endpointY}
           layout
           direction={'row'}
           alignItems={'center'}
-          gap={10}
+          gap={OpenShapes.spacing.labelGap}
           opacity={() => wiresOpacity() * rightOpacity() * dimOthers() * dimRiskOthers()}
         >
           <Txt
             text={'POST'}
-            fontFamily={Fonts.code}
-            fontSize={20}
-            fontWeight={700}
-            letterSpacing={-0.2}
-            fill={'rgba(244,241,235,0.82)'}
+            fontFamily={S.fonts.mono}
+            fontSize={OpenText.endpointVerb.fontSize}
+            fontWeight={OpenText.endpointVerb.fontWeight}
+            letterSpacing={OpenText.endpointVerb.letterSpacing}
+            fill={mutedRgba}
           />
           <Txt
             text={'/webhooks/payment'}
-            fontFamily={Fonts.code}
-            fontSize={22}
-            fontWeight={650}
-            letterSpacing={-0.2}
+            fontFamily={S.fonts.mono}
+            fontSize={OpenText.endpointPath.fontSize}
+            fontWeight={OpenText.endpointPath.fontWeight}
+            letterSpacing={OpenText.endpointPath.letterSpacing}
             fill={pathFill}
           />
         </Rect>
@@ -492,18 +506,18 @@ export default makeScene2D(function* (view) {
           width={rightR * 2}
           height={rightR * 2}
           fill={rightFill}
-          stroke={rightStroke}
-          lineWidth={strokeW}
+          stroke={transparent}
+          lineWidth={0}
           opacity={() => rightOpacity() * dimOthers() * dimRiskOthers()}
         />
         <Txt
           x={rightC[0]}
           y={rightC[1] - 5}
-          text={'stripe'}
-          fontFamily={Fonts.primary}
+          text={'STRIPE'}
+          fontFamily={S.fonts.sans}
           fontSize={serviceFontSize}
           fontWeight={serviceFontWeight}
-          letterSpacing={-0.1}
+          letterSpacing={serviceLetterSpacing}
           fill={whiteText}
           opacity={() => rightOpacity() * dimOthers() * dimRiskOthers()}
         />
@@ -515,9 +529,9 @@ export default makeScene2D(function* (view) {
         width={dtoBoxW}
         height={dtoBoxH}
         radius={codeBorderRadius}
-        fill={'rgba(0,0,0,0)'}
+        fill={S.colors.card}
         stroke={dtoBorderStroke}
-        lineWidth={codeBorderWidth}
+        lineWidth={dtoBorderWidth}
         offset={[-1, -1]}
         opacity={() => midOpacity() * dtoObjectOpacity() * dimRiskOthers()}
       />
@@ -525,7 +539,7 @@ export default makeScene2D(function* (view) {
         x={dtoCodeX}
         y={dtoHeaderY}
         text={dtoHeaderType}
-        fontFamily={Fonts.code}
+        fontFamily={S.fonts.mono}
         fontSize={codeStyle.fontSize}
         fontWeight={codeStyle.fontWeight}
         lineHeight={codeStyle.lineHeight}
@@ -538,7 +552,7 @@ export default makeScene2D(function* (view) {
         x={dtoHeaderRestX}
         y={dtoHeaderY}
         text={dtoHeaderRest}
-        fontFamily={Fonts.code}
+        fontFamily={S.fonts.mono}
         fontSize={codeStyle.fontSize}
         fontWeight={codeStyle.fontWeight}
         lineHeight={codeStyle.lineHeight}
@@ -566,16 +580,29 @@ export default makeScene2D(function* (view) {
         valuesRef={dtoValuesRef}
       />
 
+      <Rect
+        x={jsonBoxX}
+        y={jsonBoxY}
+        width={jsonBoxW}
+        height={jsonBoxH}
+        radius={codeBorderRadius}
+        fill={S.colors.card}
+        stroke={codeBorderStroke}
+        lineWidth={codeBorderWidth}
+        offset={[-1, -1]}
+        opacity={() => stripeJsonOpacity() * dimOthers() * dimRiskOthers()}
+      />
+
       <CodeBlockWithOverlay
         x={stripeJsonX}
         y={stripeJsonY}
         style={{...codeStyle, fontWeight: 600, width: jsonTextW}}
         keysText={stripeJsonKeysTextSig}
         valuesText={stripeJsonValuesTextSig}
-        keysFill={Colors.text.primary}
-        valuesFill={pink}
+        keysFill={S.colors.ink}
+        valuesFill={mutedRgba}
         opacity={() => stripeJsonOpacity() * dimOthers() * dimRiskOthers()}
-        valuesOpacity={stripeJsonValuesOpacity}
+        valuesOpacity={stripeJsonBaseValuesOpacity}
         valuesDx={stripeJsonValuesDx}
         ellipsis
         ellipsisText={'...'}
@@ -584,44 +611,29 @@ export default makeScene2D(function* (view) {
         valuesRef={stripeJsonValuesRef}
       />
 
-      <Rect
-        x={jsonBoxX}
-        y={jsonBoxY}
-        width={jsonBoxW}
-        height={jsonBoxH}
-        radius={codeBorderRadius}
-        fill={'rgba(0,0,0,0)'}
-        stroke={codeBorderStroke}
-        lineWidth={codeBorderWidth}
-        offset={[-1, -1]}
+      <CodeBlockWithOverlay
+        x={stripeJsonX}
+        y={stripeJsonY}
+        style={{...codeStyle, fontWeight: 600, width: jsonTextW}}
+        keysText={stripeJsonBlankKeysSig}
+        valuesText={stripeJsonValuesTextSig}
+        keysFill={transparent}
+        valuesFill={pink}
         opacity={() => stripeJsonOpacity() * dimOthers() * dimRiskOthers()}
+        valuesOpacity={stripeJsonValuesOpacity}
+        valuesDx={stripeJsonValuesDx}
+        ellipsis
+        ellipsisText={'...'}
+        maxWidthPx={jsonAvailW}
       />
 
       <Circle
         x={packetX}
         y={packetY}
-        width={18}
-        height={18}
+        width={OpenShapes.dots.packet}
+        height={OpenShapes.dots.packet}
         fill={pink}
         opacity={() => packetOpacity() * dimRiskOthers()}
-      />
-
-      <CodeBlockWithOverlay
-        x={clientJsonX}
-        y={clientJsonY}
-        style={{...codeStyle, fontWeight: 600, width: clientJsonAvailW}}
-        keysText={clientJsonKeysTextSig}
-        valuesText={clientJsonValuesTextSig}
-        keysFill={Colors.text.primary}
-        valuesFill={pink}
-        opacity={() => clientJsonOpacity() * dimOthers() * dimRiskOthers()}
-        valuesOpacity={clientJsonValuesOpacity}
-        valuesDx={clientJsonValuesDx}
-        ellipsis
-        ellipsisText={'...'}
-        maxWidthPx={clientJsonAvailW}
-        keysRef={clientJsonRef}
-        valuesRef={clientJsonValuesRef}
       />
 
       <Rect
@@ -630,18 +642,52 @@ export default makeScene2D(function* (view) {
         width={clientJsonBoxW}
         height={clientJsonBoxH}
         radius={codeBorderRadius}
-        fill={'rgba(0,0,0,0)'}
+        fill={S.colors.card}
         stroke={codeBorderStroke}
         lineWidth={codeBorderWidth}
         offset={[-1, -1]}
         opacity={() => clientJsonOpacity() * dimOthers() * dimRiskOthers()}
       />
 
+      <CodeBlockWithOverlay
+        x={clientJsonX}
+        y={clientJsonY}
+        style={{...codeStyle, fontWeight: 600, width: clientJsonAvailW}}
+        keysText={clientJsonKeysTextSig}
+        valuesText={clientJsonValuesTextSig}
+        keysFill={S.colors.ink}
+        valuesFill={mutedRgba}
+        opacity={() => clientJsonOpacity() * dimOthers() * dimRiskOthers()}
+        valuesOpacity={clientJsonBaseValuesOpacity}
+        valuesDx={clientJsonValuesDx}
+        ellipsis
+        ellipsisText={'...'}
+        maxWidthPx={clientJsonAvailW}
+        keysRef={clientJsonRef}
+        valuesRef={clientJsonValuesRef}
+      />
+
+      <CodeBlockWithOverlay
+        x={clientJsonX}
+        y={clientJsonY}
+        style={{...codeStyle, fontWeight: 600, width: clientJsonAvailW}}
+        keysText={clientJsonBlankKeysSig}
+        valuesText={clientJsonValuesTextSig}
+        keysFill={transparent}
+        valuesFill={pink}
+        opacity={() => clientJsonOpacity() * dimOthers() * dimRiskOthers()}
+        valuesOpacity={clientJsonValuesOpacity}
+        valuesDx={clientJsonValuesDx}
+        ellipsis
+        ellipsisText={'...'}
+        maxWidthPx={clientJsonAvailW}
+      />
+
       <Circle
         x={packet2X}
         y={packet2Y}
-        width={18}
-        height={18}
+        width={OpenShapes.dots.packet}
+        height={OpenShapes.dots.packet}
         fill={pink}
         opacity={() => packet2Opacity() * dimRiskOthers()}
       />
@@ -651,11 +697,11 @@ export default makeScene2D(function* (view) {
         y={() => stripeJsonY + codeStyle.lineHeight * 6}
         width={jsonTextW}
         text={'  "riskScore": '}
-        fontFamily={Fonts.code}
+        fontFamily={S.fonts.mono}
         fontSize={codeStyle.fontSize}
         fontWeight={650}
         lineHeight={codeStyle.lineHeight}
-        fill={Colors.text.primary}
+        fill={S.colors.ink}
         textAlign={'left'}
         offset={[-1, -1]}
         opacity={() => focusRisk() * focusW(0)}
@@ -665,7 +711,7 @@ export default makeScene2D(function* (view) {
         y={() => stripeJsonY + codeStyle.lineHeight * 6}
         width={jsonTextW}
         text={riskScoreSig}
-        fontFamily={Fonts.code}
+        fontFamily={S.fonts.mono}
         fontSize={codeStyle.fontSize}
         fontWeight={650}
         lineHeight={codeStyle.lineHeight}
@@ -680,7 +726,7 @@ export default makeScene2D(function* (view) {
         y={() => dtoBodyY + codeStyle.lineHeight * 5}
         width={dtoTextW}
         text={' riskScore:'}
-        fontFamily={Fonts.code}
+        fontFamily={S.fonts.mono}
         fontSize={codeStyle.fontSize}
         fontWeight={650}
         lineHeight={codeStyle.lineHeight}
@@ -694,7 +740,7 @@ export default makeScene2D(function* (view) {
         y={() => dtoBodyY + codeStyle.lineHeight * 5}
         width={dtoTextW}
         text={riskScoreSig}
-        fontFamily={Fonts.code}
+        fontFamily={S.fonts.mono}
         fontSize={codeStyle.fontSize}
         fontWeight={650}
         lineHeight={codeStyle.lineHeight}
@@ -709,11 +755,11 @@ export default makeScene2D(function* (view) {
         y={() => clientJsonY + codeStyle.lineHeight * 5}
         width={clientJsonAvailW}
         text={'  "riskScore": '}
-        fontFamily={Fonts.code}
+        fontFamily={S.fonts.mono}
         fontSize={codeStyle.fontSize}
         fontWeight={650}
         lineHeight={codeStyle.lineHeight}
-        fill={Colors.text.primary}
+        fill={S.colors.ink}
         textAlign={'left'}
         offset={[-1, -1]}
         opacity={() => focusRisk() * focusW(2)}
@@ -723,7 +769,7 @@ export default makeScene2D(function* (view) {
         y={() => clientJsonY + codeStyle.lineHeight * 5}
         width={clientJsonAvailW}
         text={riskScoreSig}
-        fontFamily={Fonts.code}
+        fontFamily={S.fonts.mono}
         fontSize={codeStyle.fontSize}
         fontWeight={650}
         lineHeight={codeStyle.lineHeight}
@@ -778,8 +824,10 @@ export default makeScene2D(function* (view) {
   packet2T(0);
   packet2Opacity(0);
   stripeJsonValuesOpacity(0);
+  stripeJsonBaseValuesOpacity(0);
   dtoValuesOpacity(0);
   clientJsonValuesOpacity(0);
+  clientJsonBaseValuesOpacity(0);
 
   const totalCycles = 20;
   const cycles = 9;
@@ -800,28 +848,45 @@ export default makeScene2D(function* (view) {
     clientCircleRed(0);
     focusRisk(0);
     focusX(0);
-    setCycleTexts(i + cycleOffset, {stripeNewField: isLast});
+    {
+      const d = makeCycleData(i + cycleOffset);
+      riskScoreSig(d.riskScore);
+      setStripePayload(d, isLast);
+    }
 
     packetT(0);
     packetOpacity(0);
     stripeJsonValuesOpacity(0);
+    if (i === 0) stripeJsonBaseValuesOpacity(0);
     dtoValuesOpacity(0);
-    clientJsonValuesOpacity(0);
+    if (i === 0) clientJsonValuesOpacity(0);
+    if (i === 0) clientJsonBaseValuesOpacity(0);
     packet2T(0);
     packet2Opacity(0);
 
     const isFirst = i === 0;
+    stripeJsonBaseValuesOpacity(isFirst ? 0 : 1);
+    clientJsonBaseValuesOpacity(isFirst ? 0 : 1);
     const fadeInSoft = isFirst ? Math.max(0.6, fadeIn * 1.9) : fadeIn;
     const preMove = Math.max(0.12, Math.min(0.28, fadeInSoft * 0.6));
-    yield* all(packetOpacity(1, fadeInSoft, easeInOutCubic), stripeJsonValuesOpacity(1, fadeInSoft, easeInOutCubic));
+    yield* all(
+      packetOpacity(1, fadeInSoft, easeInOutCubic),
+      stripeJsonValuesOpacity(1, fadeInSoft, easeInOutCubic),
+      i > 0 ? clientJsonValuesOpacity(0, fadeInSoft, easeInOutCubic) : waitFor(0),
+    );
     yield* waitFor(preMove);
 
     yield* packetT(0.7, travel * 0.7, linear);
-    if (isLast) setCycleTexts(i + cycleOffset, {stripeNewField: true, dtoNewField: true});
+    {
+      const d = makeCycleData(i + cycleOffset);
+      if (isLast) setDtoPayload(d, true);
+      else setDtoPayload(d, false);
+    }
     yield* all(
       packetT(1, travel * 0.3, linear),
       packetOpacity(0, travel * 0.3, easeInOutCubic),
       stripeJsonValuesOpacity(0, travel * 0.3, easeInOutCubic),
+      isFirst ? stripeJsonBaseValuesOpacity(1, travel * 0.3, easeInOutCubic) : waitFor(0),
       dtoValuesOpacity(1, travel * 0.3, easeInOutCubic),
     );
 
@@ -829,9 +894,11 @@ export default makeScene2D(function* (view) {
 
     yield* all(packet2Opacity(1, fadeX, easeInOutCubic), dtoValuesOpacity(1, 0));
     yield* packet2T(0.7, travel * 0.7, linear);
-    if (isLast) {
-      clientJsonExtraLines(1);
-      setCycleTexts(i + cycleOffset, {stripeNewField: true, dtoNewField: true, clientNewField: true});
+    {
+      const d = makeCycleData(i + cycleOffset);
+      if (isLast) clientJsonExtraLines(1);
+      if (isLast) setClientPayload(d, true);
+      else setClientPayload(d, false);
     }
     yield* all(
       packet2T(1, travel * 0.3, linear),
@@ -847,7 +914,6 @@ export default makeScene2D(function* (view) {
     }
 
     yield* waitFor(hold);
-    if (!isLast) yield* clientJsonValuesOpacity(0, fadeX, easeInOutCubic);
 
     if (i === cycles - 2) {
       const microTravel = Math.max(0.08, fastDur * 0.55);
@@ -861,18 +927,30 @@ export default makeScene2D(function* (view) {
         focusRisk(0);
         focusX(0);
 
-        setCycleTexts(i + cycleOffset + j + 1);
+        {
+          const d = makeCycleData(i + cycleOffset + j + 1);
+          riskScoreSig(d.riskScore);
+          setStripePayload(d, false);
+        }
 
         packetT(0);
         packetOpacity(0);
         stripeJsonValuesOpacity(0);
         dtoValuesOpacity(0);
-        clientJsonValuesOpacity(0);
+        if (j === 0) clientJsonValuesOpacity(0);
         packet2T(0);
         packet2Opacity(0);
 
-        yield* all(packetOpacity(1, microFade, easeInOutCubic), stripeJsonValuesOpacity(1, microFade, easeInOutCubic));
+        yield* all(
+          packetOpacity(1, microFade, easeInOutCubic),
+          stripeJsonValuesOpacity(1, microFade, easeInOutCubic),
+          j > 0 ? clientJsonValuesOpacity(0, microFade, easeInOutCubic) : waitFor(0),
+        );
         yield* packetT(1, microTravel, linear);
+        {
+          const d = makeCycleData(i + cycleOffset + j + 1);
+          setDtoPayload(d, false);
+        }
         yield* all(
           packetOpacity(0, microFade, easeInOutCubic),
           stripeJsonValuesOpacity(0, microFade, easeInOutCubic),
@@ -883,6 +961,10 @@ export default makeScene2D(function* (view) {
 
         yield* packet2Opacity(1, microFade, easeInOutCubic);
         yield* packet2T(1, microTravel, linear);
+        {
+          const d = makeCycleData(i + cycleOffset + j + 1);
+          setClientPayload(d, false);
+        }
         yield* all(
           packet2Opacity(0, microFade, easeInOutCubic),
           dtoValuesOpacity(0, microFade, easeInOutCubic),
@@ -890,7 +972,6 @@ export default makeScene2D(function* (view) {
         );
 
         yield* waitFor(microHold);
-        yield* clientJsonValuesOpacity(0, microFade, easeInOutCubic);
       }
     }
   }
