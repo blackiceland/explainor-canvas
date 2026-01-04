@@ -1,11 +1,14 @@
-import {Layout, makeScene2D, Rect, Txt} from '@motion-canvas/2d';
+import {makeScene2D, Rect, Txt} from '@motion-canvas/2d';
 import {all, createRef, easeInOutCubic, waitFor} from '@motion-canvas/core';
 import {CodeBlock} from '../core/code/components/CodeBlock';
-import {ExplainorCodeTheme} from '../core/code/model/SyntaxTheme';
+import {OpenDarkCodeTheme} from '../core/code/model/OpenDarkCodeTheme';
 import {placeCodeStack, SafeZone} from '../core/ScreenGrid';
-import {Colors, Fonts, Timing} from '../core/theme';
-import {applyBackground} from '../core/utils';
+import {Screen, Timing} from '../core/theme';
 import {fitText} from '../core/utils/textMeasure';
+import {OpenDarkStyle} from '../core/openDarkStyle';
+import {OpenShapes} from '../core/openShapes';
+import {OpenStyle} from '../core/openStyle';
+import {OpenText} from '../core/openText';
 
 const PAYMENT_REPO_CODE = `final class PaymentRepository {
 
@@ -52,17 +55,17 @@ interface Column {
   color?: (value: string) => string;
 }
 
-const FONT_FAMILY = Fonts.code;
+const FONT_FAMILY = OpenStyle.fonts.mono;
 const FONT_SIZE = 16;
 const FONT_WEIGHT = 400;
 const ROW_H = 48;
 const CELL_PX = 16;
-const TABLE_PADDING = 24;
+const TABLE_PADDING = OpenShapes.padding.cardX;
 const TITLE_H = 24;
 const TITLE_FONT_SIZE = 14;
-const TITLE_COLOR = 'rgba(244, 241, 235, 0.72)';
+const TITLE_COLOR = OpenDarkStyle.colors.muted;
 const CELL_FILL_OFF = 'rgba(0, 0, 0, 0)';
-const CELL_HIGHLIGHT = 'rgba(255, 140, 163, 0.28)';
+const CELL_HIGHLIGHT = 'rgba(200, 116, 143, 0.22)';
 
 const FILTER_FROM = '2024-12-10 00:00';
 const SCAN_PULSE_ON = 0.22;
@@ -78,7 +81,7 @@ const paymentColumns: Omit<Column, 'width'>[] = [
     header: 'status',
     ellipsis: 'end',
     align: 'left',
-    color: (v) => v === 'CAPTURED' ? '#A8D8C0' : v === 'PENDING' ? '#E6B47C' : Colors.text.muted,
+    color: () => OpenDarkStyle.colors.muted,
   },
   {key: 'amount', header: 'amount', ellipsis: 'end', align: 'left'},
   {key: 'created_at', header: 'created_at', ellipsis: 'end', align: 'left'},
@@ -99,7 +102,7 @@ const orderColumns: Omit<Column, 'width'>[] = [
     header: 'status',
     ellipsis: 'end',
     align: 'left',
-    color: (v) => v === 'SHIPPED' ? '#A8D8C0' : v === 'PROCESSING' ? '#E6B47C' : Colors.text.muted,
+    color: () => OpenDarkStyle.colors.muted,
   },
   {key: 'total', header: 'total', ellipsis: 'end', align: 'left'},
   {key: 'created_at', header: 'created_at', ellipsis: 'end', align: 'left'},
@@ -114,7 +117,7 @@ const orderRows: Row[] = [
 ];
 
 export default makeScene2D(function* (view) {
-  applyBackground(view);
+  view.add(<Rect width={Screen.width} height={Screen.height} fill={OpenDarkStyle.colors.bg} />);
 
   function* pulseCell(cell: Rect, on: number = SCAN_PULSE_ON, off: number = SCAN_PULSE_OFF) {
     yield* cell.fill(CELL_HIGHLIGHT, on, easeInOutCubic);
@@ -189,33 +192,16 @@ export default makeScene2D(function* (view) {
       direction={'column'}
       gap={0}
       padding={TABLE_PADDING}
-      radius={28}
-      fill={Colors.surface}
-      stroke={'#262A34'}
+      radius={OpenShapes.radius.card}
+      fill={OpenDarkStyle.colors.card}
+      stroke={OpenDarkStyle.colors.border}
       lineWidth={1}
-      shadowColor={'rgba(0, 0, 0, 0.50)'}
-      shadowBlur={44}
-      shadowOffset={[-16, 22]}
+      shadowColor={'rgba(0,0,0,0)'}
+      shadowBlur={0}
+      shadowOffset={[0, 0]}
       opacity={0}
       clip
     >
-      <Rect
-        layout={false}
-        width={'100%'}
-        height={2}
-        y={-paymentLayout.height / 2 + 1}
-        fill={'rgba(255,255,255,0.06)'}
-        opacity={0.7}
-      />
-      <Rect
-        layout={false}
-        width={tableWidth - 4}
-        height={paymentLayout.height - 4}
-        radius={26}
-        fill={'rgba(0,0,0,0)'}
-        stroke={'rgba(255,255,255,0.045)'}
-        lineWidth={1}
-      />
       <Rect
         layout
         direction={'row'}
@@ -227,9 +213,10 @@ export default makeScene2D(function* (view) {
         marginBottom={10}
       >
         <Txt
-          fontFamily={FONT_FAMILY}
+          fontFamily={OpenStyle.fonts.sans}
           fontSize={TITLE_FONT_SIZE}
-          fontWeight={600}
+          fontWeight={OpenText.service.fontWeight}
+          letterSpacing={OpenText.endpointVerb.letterSpacing}
           fill={TITLE_COLOR}
           text={'PAYMENTS'}
         />
@@ -258,12 +245,12 @@ export default makeScene2D(function* (view) {
                 fontFamily={FONT_FAMILY}
                 fontSize={FONT_SIZE}
                 fontWeight={600}
-                fill={ExplainorCodeTheme.method}
+                fill={OpenDarkStyle.colors.muted}
                 text={col.header}
               />
             </Rect>
             {i < paymentColumns.length - 1 && (
-              <Rect width={1} height={'100%'} fill={'rgba(255, 255, 255, 0.08)'} shrink={0} />
+              <Rect width={1} height={'100%'} fill={OpenDarkStyle.colors.divider} shrink={0} />
             )}
           </>
         ))}
@@ -285,7 +272,7 @@ export default makeScene2D(function* (view) {
             const cellWidth = contentWidth / paymentColumns.length;
             const avail = cellWidth - CELL_PX * 2;
             const shown = fitText(raw, avail, col.ellipsis ?? 'end', FONT_FAMILY, FONT_SIZE, FONT_WEIGHT);
-            const textColor = col.color ? col.color(raw) : Colors.text.primary;
+            const textColor = col.color ? col.color(raw) : OpenDarkStyle.colors.ink;
             const highlightRef =
               col.key === 'status' ? paymentHighlightCells[rowIndex].status :
               col.key === 'created_at' ? paymentHighlightCells[rowIndex].created_at :
@@ -321,7 +308,7 @@ export default makeScene2D(function* (view) {
                   />
                 </Rect>
                 {i < paymentColumns.length - 1 && (
-                  <Rect width={1} height={'100%'} fill={'rgba(255, 255, 255, 0.08)'} shrink={0} />
+                  <Rect width={1} height={'100%'} fill={OpenDarkStyle.colors.divider} shrink={0} />
                 )}
               </>
             );
@@ -342,33 +329,16 @@ export default makeScene2D(function* (view) {
       direction={'column'}
       gap={0}
       padding={TABLE_PADDING}
-      radius={28}
-      fill={Colors.surface}
-      stroke={'#262A34'}
+      radius={OpenShapes.radius.card}
+      fill={OpenDarkStyle.colors.card}
+      stroke={OpenDarkStyle.colors.border}
       lineWidth={1}
-      shadowColor={'rgba(0, 0, 0, 0.50)'}
-      shadowBlur={44}
-      shadowOffset={[-16, 22]}
+      shadowColor={'rgba(0,0,0,0)'}
+      shadowBlur={0}
+      shadowOffset={[0, 0]}
       opacity={0}
       clip
     >
-      <Rect
-        layout={false}
-        width={'100%'}
-        height={2}
-        y={-orderLayout.height / 2 + 1}
-        fill={'rgba(255,255,255,0.06)'}
-        opacity={0.7}
-      />
-      <Rect
-        layout={false}
-        width={tableWidth - 4}
-        height={orderLayout.height - 4}
-        radius={26}
-        fill={'rgba(0,0,0,0)'}
-        stroke={'rgba(255,255,255,0.045)'}
-        lineWidth={1}
-      />
       <Rect
         layout
         direction={'row'}
@@ -380,9 +350,10 @@ export default makeScene2D(function* (view) {
         marginBottom={10}
       >
         <Txt
-          fontFamily={FONT_FAMILY}
+          fontFamily={OpenStyle.fonts.sans}
           fontSize={TITLE_FONT_SIZE}
-          fontWeight={600}
+          fontWeight={OpenText.service.fontWeight}
+          letterSpacing={OpenText.endpointVerb.letterSpacing}
           fill={TITLE_COLOR}
           text={'ORDERS'}
         />
@@ -411,12 +382,12 @@ export default makeScene2D(function* (view) {
                 fontFamily={FONT_FAMILY}
                 fontSize={FONT_SIZE}
                 fontWeight={600}
-                fill={ExplainorCodeTheme.method}
+                fill={OpenDarkStyle.colors.muted}
                 text={col.header}
               />
             </Rect>
             {i < orderColumns.length - 1 && (
-              <Rect width={1} height={'100%'} fill={'rgba(255, 255, 255, 0.08)'} shrink={0} />
+              <Rect width={1} height={'100%'} fill={OpenDarkStyle.colors.divider} shrink={0} />
             )}
           </>
         ))}
@@ -438,7 +409,7 @@ export default makeScene2D(function* (view) {
             const cellWidth = contentWidth / orderColumns.length;
             const avail = cellWidth - CELL_PX * 2;
             const shown = fitText(raw, avail, col.ellipsis ?? 'end', FONT_FAMILY, FONT_SIZE, FONT_WEIGHT);
-            const textColor = col.color ? col.color(raw) : Colors.text.primary;
+            const textColor = col.color ? col.color(raw) : OpenDarkStyle.colors.ink;
             const highlightRef =
               col.key === 'status' ? orderHighlightCells[rowIndex].status :
               col.key === 'created_at' ? orderHighlightCells[rowIndex].created_at :
@@ -474,7 +445,7 @@ export default makeScene2D(function* (view) {
                   />
                 </Rect>
                 {i < orderColumns.length - 1 && (
-                  <Rect width={1} height={'100%'} fill={'rgba(255, 255, 255, 0.08)'} shrink={0} />
+                  <Rect width={1} height={'100%'} fill={OpenDarkStyle.colors.divider} shrink={0} />
                 )}
               </>
             );
@@ -490,8 +461,19 @@ export default makeScene2D(function* (view) {
     width: paymentLayout.width,
     height: paymentLayout.height,
     fontSize: paymentLayout.fontSize,
-    fontFamily: Fonts.code,
-    theme: ExplainorCodeTheme,
+    fontFamily: OpenStyle.fonts.mono,
+    theme: OpenDarkCodeTheme,
+    cardStyle: {
+      radius: OpenShapes.radius.card,
+      fill: OpenDarkStyle.colors.card,
+      stroke: OpenDarkStyle.colors.border,
+      strokeWidth: 1,
+      shadowColor: 'rgba(0,0,0,0)',
+      shadowBlur: 0,
+      shadowOffsetX: 0,
+      shadowOffsetY: 0,
+      edge: false,
+    },
     customTypes: [
       'PaymentRepository',
       'DSLContext',
@@ -508,8 +490,19 @@ export default makeScene2D(function* (view) {
     width: orderLayout.width,
     height: orderLayout.height,
     fontSize: orderLayout.fontSize,
-    fontFamily: Fonts.code,
-    theme: ExplainorCodeTheme,
+    fontFamily: OpenStyle.fonts.mono,
+    theme: OpenDarkCodeTheme,
+    cardStyle: {
+      radius: OpenShapes.radius.card,
+      fill: OpenDarkStyle.colors.card,
+      stroke: OpenDarkStyle.colors.border,
+      strokeWidth: 1,
+      shadowColor: 'rgba(0,0,0,0)',
+      shadowBlur: 0,
+      shadowOffsetX: 0,
+      shadowOffsetY: 0,
+      edge: false,
+    },
     customTypes: [
       'OrderRepository',
       'DSLContext',
@@ -542,13 +535,13 @@ export default makeScene2D(function* (view) {
   yield* all(
     all(
       paymentRepo.highlightLines([[conditionLineIndex, conditionLineIndex], [whereLineIndex, whereLineIndex]], Timing.slow),
-      paymentRepo.recolorLine(conditionLineIndex, Colors.accent, Timing.slow),
-      paymentRepo.recolorLine(whereLineIndex, Colors.accent, Timing.slow),
+      paymentRepo.recolorLine(conditionLineIndex, OpenDarkStyle.colors.rose, Timing.slow),
+      paymentRepo.recolorLine(whereLineIndex, OpenDarkStyle.colors.rose, Timing.slow),
     ),
     all(
       orderRepo.highlightLines([[conditionLineIndex, conditionLineIndex], [whereLineIndex, whereLineIndex]], Timing.slow),
-      orderRepo.recolorLine(conditionLineIndex, Colors.accent, Timing.slow),
-      orderRepo.recolorLine(whereLineIndex, Colors.accent, Timing.slow),
+      orderRepo.recolorLine(conditionLineIndex, OpenDarkStyle.colors.rose, Timing.slow),
+      orderRepo.recolorLine(whereLineIndex, OpenDarkStyle.colors.rose, Timing.slow),
     ),
   );
 
