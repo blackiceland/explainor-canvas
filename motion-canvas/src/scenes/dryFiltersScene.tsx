@@ -1,4 +1,4 @@
-import {makeScene2D, Rect, Txt} from '@motion-canvas/2d';
+import {makeScene2D, Node, Rect, Txt} from '@motion-canvas/2d';
 import {all, createRef, easeInOutCubic, waitFor} from '@motion-canvas/core';
 import {CodeBlock} from '../core/code/components/CodeBlock';
 import {OpenDarkCodeTheme} from '../core/code/model/OpenDarkCodeTheme';
@@ -117,7 +117,37 @@ const orderRows: Row[] = [
 ];
 
 export default makeScene2D(function* (view) {
-  view.add(<Rect width={Screen.width} height={Screen.height} fill={OpenDarkStyle.colors.bg} />);
+  const mulberry32 = (seed: number) => {
+    let a = seed >>> 0;
+    return () => {
+      a |= 0;
+      a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  };
+
+  const grainRef = createRef<Node>();
+  const grainRand = mulberry32(42);
+  const grainDots = Array.from({length: 3200}, () => {
+    const x = (grainRand() - 0.5) * Screen.width;
+    const y = (grainRand() - 0.5) * Screen.height;
+    const isLight = grainRand() < 0.5;
+    const alpha = 0.012;
+    const fill = isLight ? `rgba(255,255,255,${alpha})` : `rgba(0,0,0,${alpha})`;
+    return <Rect x={x} y={y} width={1} height={1} radius={0} fill={fill} />;
+  });
+
+  view.add(
+    <>
+      <Rect width={Screen.width} height={Screen.height} fill={OpenDarkStyle.colors.bg} />
+      <Node ref={grainRef} opacity={0.08}>
+        {grainDots}
+      </Node>
+    </>,
+  );
+  grainRef().cache(true);
 
   function* pulseCell(cell: Rect, on: number = SCAN_PULSE_ON, off: number = SCAN_PULSE_OFF) {
     yield* cell.fill(CELL_HIGHLIGHT, on, easeInOutCubic);
