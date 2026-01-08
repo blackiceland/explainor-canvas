@@ -1,4 +1,4 @@
-import {Circle, Line, makeScene2D, Rect, Txt} from '@motion-canvas/2d';
+  import {Circle, Line, makeScene2D, Rect, Txt} from '@motion-canvas/2d';
 import {all, createRef, createSignal, easeInOutCubic, linear, waitFor} from '@motion-canvas/core';
 import {OpenStyle} from '../core/openStyle';
 import {OpenText} from '../core/openText';
@@ -19,7 +19,7 @@ export default makeScene2D(function* (view) {
   const mutedRgba = 'rgba(111,106,99,1)';
   const borderRgba = 'rgba(207,198,186,1)';
   const oliveRgba = 'rgba(47,58,46,1)';
-  const slateBlueRgba = 'rgba(58,90,137,1)';
+  const slateBlueRgba = 'rgba(72,110,162,1)';
   const transparent = 'rgba(0,0,0,0)';
 
   const leftOpacity = createSignal(0);
@@ -32,6 +32,7 @@ export default makeScene2D(function* (view) {
   const dtoObjectOpacity = createSignal(0);
   const dtoValuesOpacity = createSignal(0);
   const dtoPulse = createSignal(0);
+  const riskDimEnabled = createSignal(1);
   const shadowOthers = createSignal(0);
   const stripeJsonExtraLines = createSignal(0);
   const clientJsonExtraLines = createSignal(0);
@@ -80,13 +81,16 @@ export default makeScene2D(function* (view) {
 
   const whiteText = S.colors.card;
 
-  const wireStroke = 'rgba(207,198,186,0.9)';
+  const wireStroke = 'rgba(21,21,21,0.62)';
   const portBlue = slateBlueRgba;
-  const pathFill = 'rgba(58,90,137,0.84)';
-  const pink = S.colors.terracotta;
+  const pathFill = 'rgba(72,110,162,0.92)';
+  const focusPink = 'rgba(205,118,145,1)';
+  const focusPinkUnderlay = 'rgba(200,116,143,0.18)';
+  const transportAccent = 'rgba(176,124,70,1)';
+  const dotAlpha = 0.78;
   const dimOthers = () => 1 - shadowOthers() * 0.78;
   const focusW = (k: number) => Math.max(0, 1 - Math.abs(focusX() - k));
-  const dimRiskOthers = () => 1 - focusRisk() * 0.9;
+  const dimRiskOthers = () => 1 - focusRisk() * 0.9 * riskDimEnabled();
   const dangerRed = 'rgba(255,0,0,1)';
   const parseRgba = (s: string) => {
     const m = s.replace(/\s+/g, '').match(/^rgba\((\d+),(\d+),(\d+),([0-9.]+)\)$/);
@@ -108,6 +112,8 @@ export default makeScene2D(function* (view) {
   const serviceLetterSpacing = OpenText.service.letterSpacing;
   const midServiceFontSize = OpenText.serviceMid.fontSize;
   const midServiceLetterSpacing = OpenText.serviceMid.letterSpacing;
+  const portDotSize = OpenShapes.dots.port * 1.35;
+  const packetDotSize = portDotSize * 0.82;
 
   const dtoText = S.colors.ink;
   const dtoBlue = S.colors.blue;
@@ -119,7 +125,7 @@ export default makeScene2D(function* (view) {
     fontWeight: OpenText.code.fontWeight,
   } as const;
   const codeTopY = -450 + sceneShiftY;
-  const dtoValueFill = pink;
+  const dtoValueFill = transportAccent;
   const dtoKeyFill = S.colors.ink;
 
   const dtoHeaderType = 'PaymentDto';
@@ -165,7 +171,10 @@ export default makeScene2D(function* (view) {
   const codeBorderRadius = OpenShapes.radius.card;
   const codeBorderPadX = OpenShapes.padding.cardX;
   const codeBorderPadY = OpenShapes.padding.cardY;
-  const dtoBorderWidth = 0;
+  const dtoBorderWidth = 2;
+  const cardShadowColor = 'rgba(21,21,21,0.14)';
+  const cardShadowBlur = 18;
+  const cardShadowOffset = [-6, 10] as [number, number];
   const dtoLineCount = 1 + dtoBodyKeyLines.length;
   const dtoTextW = Math.max(0, Math.min(codeStyle.width, codeCardBaseW - codeCardShrinkW));
   const dtoBoxW = dtoTextW + codeBorderPadX * 2;
@@ -234,13 +243,13 @@ export default makeScene2D(function* (view) {
   const rightWireStartX = rightC[0] - rightR;
   const rightWireEndX = c[0] + midR;
 
+  const leftPort: Point = [leftWireEndX, c[1]];
+  const rightPort: Point = [rightWireEndX, c[1]];
+
   const packetStart: Point = [rightWireStartX, rightWireY];
   const packetEnd: Point = [rightWireEndX, rightWireY];
   const packetX = () => packetStart[0] + (packetEnd[0] - packetStart[0]) * packetT();
   const packetY = () => packetStart[1] + (packetEnd[1] - packetStart[1]) * packetT();
-
-  const leftPort: Point = [leftWireEndX, c[1]];
-  const rightPort: Point = [rightWireEndX, c[1]];
 
   const packet2Start: Point = [leftWireEndX, leftWireY];
   const packet2End: Point = [leftWireStartX, leftWireY];
@@ -362,8 +371,9 @@ export default makeScene2D(function* (view) {
             [leftWireEndX, leftWireY],
           ]}
           stroke={wireStroke}
-          lineWidth={OpenShapes.stroke.connector}
-          opacity={() => leftOpacity() * wiresOpacity() * dimOthers() * dimRiskOthers() * 0.72}
+          lineWidth={OpenShapes.stroke.connector * 1.0}
+          lineCap="round"
+          opacity={() => leftOpacity() * wiresOpacity() * dimOthers() * dimRiskOthers()}
         />
 
         <Circle
@@ -411,18 +421,28 @@ export default makeScene2D(function* (view) {
         <Circle
           x={leftPort[0]}
           y={leftPort[1]}
-          width={OpenShapes.dots.port}
-          height={OpenShapes.dots.port}
+          width={portDotSize}
+          height={portDotSize}
           fill={portBlue}
-          opacity={() => midOpacity() * leftPortOpacity() * (0.55 + 0.45 * dtoPulse()) * dimRiskOthers()}
+          opacity={() =>
+            midOpacity() *
+            leftPortOpacity() *
+            dimRiskOthers() *
+            (dotAlpha + dtoPulse() * (1 - dotAlpha))
+          }
         />
         <Circle
           x={rightPort[0]}
           y={rightPort[1]}
-          width={OpenShapes.dots.port}
-          height={OpenShapes.dots.port}
+          width={portDotSize}
+          height={portDotSize}
           fill={portBlue}
-          opacity={() => midOpacity() * rightPortOpacity() * (0.55 + 0.45 * dtoPulse()) * dimRiskOthers()}
+          opacity={() =>
+            midOpacity() *
+            rightPortOpacity() *
+            dimRiskOthers() *
+            (dotAlpha + dtoPulse() * (1 - dotAlpha))
+          }
         />
         <Txt
           x={c[0]}
@@ -442,8 +462,9 @@ export default makeScene2D(function* (view) {
             [rightWireEndX, rightWireY],
           ]}
           stroke={wireStroke}
-          lineWidth={OpenShapes.stroke.connector}
-          opacity={() => rightOpacity() * wiresOpacity() * dimOthers() * dimRiskOthers() * 0.72}
+          lineWidth={OpenShapes.stroke.connector * 1.0}
+          lineCap="round"
+          opacity={() => rightOpacity() * wiresOpacity() * dimOthers() * dimRiskOthers()}
         />
 
         <Rect
@@ -532,6 +553,9 @@ export default makeScene2D(function* (view) {
         fill={S.colors.card}
         stroke={dtoBorderStroke}
         lineWidth={dtoBorderWidth}
+        shadowColor={cardShadowColor}
+        shadowBlur={cardShadowBlur}
+        shadowOffset={cardShadowOffset}
         offset={[-1, -1]}
         opacity={() => midOpacity() * dtoObjectOpacity() * dimRiskOthers()}
       />
@@ -589,6 +613,9 @@ export default makeScene2D(function* (view) {
         fill={S.colors.card}
         stroke={codeBorderStroke}
         lineWidth={codeBorderWidth}
+        shadowColor={cardShadowColor}
+        shadowBlur={cardShadowBlur}
+        shadowOffset={cardShadowOffset}
         offset={[-1, -1]}
         opacity={() => stripeJsonOpacity() * dimOthers() * dimRiskOthers()}
       />
@@ -618,7 +645,7 @@ export default makeScene2D(function* (view) {
         keysText={stripeJsonBlankKeysSig}
         valuesText={stripeJsonValuesTextSig}
         keysFill={transparent}
-        valuesFill={pink}
+        valuesFill={transportAccent}
         opacity={() => stripeJsonOpacity() * dimOthers() * dimRiskOthers()}
         valuesOpacity={stripeJsonValuesOpacity}
         valuesDx={stripeJsonValuesDx}
@@ -630,10 +657,10 @@ export default makeScene2D(function* (view) {
       <Circle
         x={packetX}
         y={packetY}
-        width={OpenShapes.dots.packet}
-        height={OpenShapes.dots.packet}
-        fill={pink}
-        opacity={() => packetOpacity() * dimRiskOthers()}
+        width={packetDotSize}
+        height={packetDotSize}
+        fill={transportAccent}
+        opacity={() => packetOpacity() * dimRiskOthers() * dotAlpha}
       />
 
       <Rect
@@ -645,6 +672,9 @@ export default makeScene2D(function* (view) {
         fill={S.colors.card}
         stroke={codeBorderStroke}
         lineWidth={codeBorderWidth}
+        shadowColor={cardShadowColor}
+        shadowBlur={cardShadowBlur}
+        shadowOffset={cardShadowOffset}
         offset={[-1, -1]}
         opacity={() => clientJsonOpacity() * dimOthers() * dimRiskOthers()}
       />
@@ -674,7 +704,7 @@ export default makeScene2D(function* (view) {
         keysText={clientJsonBlankKeysSig}
         valuesText={clientJsonValuesTextSig}
         keysFill={transparent}
-        valuesFill={pink}
+        valuesFill={transportAccent}
         opacity={() => clientJsonOpacity() * dimOthers() * dimRiskOthers()}
         valuesOpacity={clientJsonValuesOpacity}
         valuesDx={clientJsonValuesDx}
@@ -686,12 +716,22 @@ export default makeScene2D(function* (view) {
       <Circle
         x={packet2X}
         y={packet2Y}
-        width={OpenShapes.dots.packet}
-        height={OpenShapes.dots.packet}
-        fill={pink}
-        opacity={() => packet2Opacity() * dimRiskOthers()}
+        width={packetDotSize}
+        height={packetDotSize}
+        fill={transportAccent}
+        opacity={() => packet2Opacity() * dimRiskOthers() * dotAlpha}
       />
 
+      <Rect
+        x={() => stripeJsonX - 10}
+        y={() => stripeJsonY + codeStyle.lineHeight * 6 - 2}
+        width={() => jsonTextW + 20}
+        height={() => codeStyle.lineHeight + 4}
+        radius={10}
+        fill={focusPinkUnderlay}
+        offset={[-1, -1]}
+        opacity={() => focusRisk() * focusW(0)}
+      />
       <Txt
         x={stripeJsonX}
         y={() => stripeJsonY + codeStyle.lineHeight * 6}
@@ -715,12 +755,22 @@ export default makeScene2D(function* (view) {
         fontSize={codeStyle.fontSize}
         fontWeight={650}
         lineHeight={codeStyle.lineHeight}
-        fill={pink}
+        fill={focusPink}
         textAlign={'left'}
         offset={[-1, -1]}
         opacity={() => focusRisk() * focusW(0)}
       />
 
+      <Rect
+        x={() => dtoCodeX - 10}
+        y={() => dtoBodyY + codeStyle.lineHeight * 5 - 2}
+        width={() => dtoTextW + 20}
+        height={() => codeStyle.lineHeight + 4}
+        radius={10}
+        fill={focusPinkUnderlay}
+        offset={[-1, -1]}
+        opacity={() => focusRisk() * focusW(1)}
+      />
       <Txt
         x={dtoCodeX}
         y={() => dtoBodyY + codeStyle.lineHeight * 5}
@@ -744,12 +794,22 @@ export default makeScene2D(function* (view) {
         fontSize={codeStyle.fontSize}
         fontWeight={650}
         lineHeight={codeStyle.lineHeight}
-        fill={dtoValueFill}
+        fill={focusPink}
         textAlign={'left'}
         offset={[-1, -1]}
-        opacity={() => focusRisk() * focusW(1)}
+        opacity={() => 0}
       />
 
+      <Rect
+        x={() => clientJsonX - 10}
+        y={() => clientJsonY + codeStyle.lineHeight * 5 - 2}
+        width={() => clientJsonAvailW + 20}
+        height={() => codeStyle.lineHeight + 4}
+        radius={10}
+        fill={focusPinkUnderlay}
+        offset={[-1, -1]}
+        opacity={() => focusRisk() * focusW(2)}
+      />
       <Txt
         x={clientJsonX}
         y={() => clientJsonY + codeStyle.lineHeight * 5}
@@ -773,7 +833,7 @@ export default makeScene2D(function* (view) {
         fontSize={codeStyle.fontSize}
         fontWeight={650}
         lineHeight={codeStyle.lineHeight}
-        fill={pink}
+        fill={focusPink}
         textAlign={'left'}
         offset={[-1, -1]}
         opacity={() => focusRisk() * focusW(2)}
@@ -801,19 +861,22 @@ export default makeScene2D(function* (view) {
   yield* wiresOpacity(1, 0.9, easeInOutCubic);
 
   yield* all(leftPortOpacity(1, 0.42, easeInOutCubic), rightPortOpacity(1, 0.42, easeInOutCubic));
-  yield* all(leftPortOpacity(0.5, 0.28, easeInOutCubic), rightPortOpacity(0.5, 0.28, easeInOutCubic));
-  yield* all(leftPortOpacity(1, 0.34, easeInOutCubic), rightPortOpacity(1, 0.34, easeInOutCubic));
 
   yield* waitFor(0.3);
   yield* all(
     dtoObjectOpacity(1, 1.05, easeInOutCubic),
     shadowOthers(1, 1.05, easeInOutCubic),
   );
-  for (let i = 0; i < 4; i++) {
-    yield* all(dtoPulse(1, 0.28, easeInOutCubic), leftPortOpacity(1, 0.28, easeInOutCubic), rightPortOpacity(1, 0.28, easeInOutCubic));
-    yield* all(dtoPulse(0.2, 0.28, easeInOutCubic), leftPortOpacity(0.55, 0.28, easeInOutCubic), rightPortOpacity(0.55, 0.28, easeInOutCubic));
+  for (let k = 0; k < 3; k++) {
+    yield* dtoPulse(1, 0.26, easeInOutCubic);
+    yield* waitFor(0.06);
+    yield* dtoPulse(0, 0.34, easeInOutCubic);
+    yield* waitFor(0.10);
   }
-  yield* all(shadowOthers(0, 0.6, easeInOutCubic), dtoPulse(0, 0.6, easeInOutCubic));
+  yield* all(
+    shadowOthers(0, 0.6, easeInOutCubic),
+    dtoPulse(0, 0.6, easeInOutCubic),
+  );
   yield* waitFor(0.35);
 
   yield* all(stripeJsonOpacity(1, 1.1, easeInOutCubic), clientJsonOpacity(1, 1.1, easeInOutCubic));
@@ -847,6 +910,7 @@ export default makeScene2D(function* (view) {
     clientJsonExtraLines(0);
     clientCircleRed(0);
     focusRisk(0);
+    riskDimEnabled(1);
     focusX(0);
     {
       const d = makeCycleData(i + cycleOffset);
@@ -882,13 +946,14 @@ export default makeScene2D(function* (view) {
       if (isLast) setDtoPayload(d, true);
       else setDtoPayload(d, false);
     }
+    const packetFadeAfter = Math.max(0.06, Math.min(0.12, travel * 0.12));
     yield* all(
       packetT(1, travel * 0.3, linear),
-      packetOpacity(0, travel * 0.3, easeInOutCubic),
       stripeJsonValuesOpacity(0, travel * 0.3, easeInOutCubic),
       isFirst ? stripeJsonBaseValuesOpacity(1, travel * 0.3, easeInOutCubic) : waitFor(0),
       dtoValuesOpacity(1, travel * 0.3, easeInOutCubic),
     );
+    yield* packetOpacity(0, packetFadeAfter, easeInOutCubic);
 
     yield* waitFor(hold);
 
@@ -902,16 +967,23 @@ export default makeScene2D(function* (view) {
     }
     yield* all(
       packet2T(1, travel * 0.3, linear),
-      packet2Opacity(0, travel * 0.3, easeInOutCubic),
       dtoValuesOpacity(0, travel * 0.3, easeInOutCubic),
       clientJsonValuesOpacity(1, travel * 0.3, easeInOutCubic),
     );
-
     if (isLast) {
-      yield* clientCircleRed(1, 0.55, easeInOutCubic);
-      yield* focusRisk(1, 1.15, easeInOutCubic);
+      yield* all(
+        clientCircleRed(1, 0.55, easeInOutCubic),
+        packet2Opacity(0, packetFadeAfter, easeInOutCubic),
+        waitFor(1),
+      );
+      yield* all(
+        riskDimEnabled(0.5, 0.35, easeInOutCubic),
+        focusRisk(1, 1.15, easeInOutCubic),
+      );
       break;
     }
+
+    yield* packet2Opacity(0, packetFadeAfter, easeInOutCubic);
 
     yield* waitFor(hold);
 
@@ -981,6 +1053,12 @@ export default makeScene2D(function* (view) {
     yield* focusX(1, 0.9, easeInOutCubic);
     yield* waitFor(0.35);
     yield* focusX(2, 0.9, easeInOutCubic);
+    yield* waitFor(0.45);
+    yield* all(
+      focusRisk(0, 0.65, easeInOutCubic),
+      riskDimEnabled(0, 0.65, easeInOutCubic),
+      focusX(0, 0.65, easeInOutCubic),
+    );
   }
 
   yield* waitFor(1.5);
