@@ -858,9 +858,11 @@ export default makeScene2D(function* (view) {
   yield* all(leftOpacity(1, 1.6, easeInOutCubic), midOpacity(1, 1.6, easeInOutCubic), rightOpacity(1, 1.6, easeInOutCubic));
   yield* waitFor(1.8);
 
-  yield* wiresOpacity(1, 0.9, easeInOutCubic);
-
-  yield* all(leftPortOpacity(1, 0.42, easeInOutCubic), rightPortOpacity(1, 0.42, easeInOutCubic));
+  yield* all(
+    wiresOpacity(1, 0.9, easeInOutCubic),
+    leftPortOpacity(1, 0.9, easeInOutCubic),
+    rightPortOpacity(1, 0.9, easeInOutCubic),
+  );
 
   yield* waitFor(0.3);
   yield* all(
