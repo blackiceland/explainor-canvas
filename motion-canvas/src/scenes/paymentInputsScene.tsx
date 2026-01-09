@@ -52,18 +52,23 @@ export default makeScene2D(function* (view) {
   const packet2T = createSignal(0);
   const packet2Opacity = createSignal(0);
 
-  // Data leakage phase: 0 = normal, 1 = all components dimmed except client
   const leakPhase = createSignal(0);
-  // Hide riskScore row in client JSON during leak phase (others cleared via text)
-  const leakHideRisk = createSignal(0);
-  // Sensitive fields opacity signals
   const leak0 = createSignal(0);
   const leak1 = createSignal(0);
   const leak2 = createSignal(0);
-  // Sensitive field keys for dx calculation
+  const leakRiskOut = createSignal(0);
   const leakKey0 = '  "internalStatus": ';
   const leakKey1 = '  "fraudReason": ';
   const leakKey2 = '  "stripeId": ';
+
+  const clientDtoOpacity = createSignal(0);
+  const webhookDtoOpacity = createSignal(0);
+  const clientDtoValuesOpacity = createSignal(0);
+  const webhookDtoValuesOpacity = createSignal(0);
+  const splitDtoHi = createSignal(0);
+  const splitDtoHiOn = createSignal(0);
+  const rightPortYellow = createSignal(0);
+  const splitDtoY = createSignal(0);
 
   const leftR = 150;
   const midR = 175;
@@ -104,13 +109,13 @@ export default makeScene2D(function* (view) {
   const dimOthers = () => 1 - shadowOthers() * 0.78;
   const leakDim = () => 1 - leakPhase() * 0.92;
   const focusW = (k: number) => Math.max(0, 1 - Math.abs(focusX() - k));
+  const splitDtoW = (k: number) => Math.max(0, 1 - Math.abs(splitDtoHi() - k));
   const dimRiskOthers = () => 1 - focusRisk() * 0.9 * riskDimEnabled();
   const dangerRed = 'rgba(255,0,0,1)';
   const parseRgba = (s: string) => {
     const raw = String(s ?? '').trim();
     const t = raw.replace(/\s+/g, '');
 
-    // #RRGGBB / #RGB
     if (t.startsWith('#')) {
       const hex = t.slice(1);
       if (hex.length === 3) {
@@ -127,15 +132,12 @@ export default makeScene2D(function* (view) {
       }
     }
 
-    // rgb(r,g,b)
     const rgb = t.match(/^rgb\((\d+),(\d+),(\d+)\)$/);
     if (rgb) return {r: Number(rgb[1]), g: Number(rgb[2]), b: Number(rgb[3]), a: 1};
 
-    // rgba(r,g,b,a)
     const rgba = t.match(/^rgba\((\d+),(\d+),(\d+),([0-9.]+)\)$/);
     if (rgba) return {r: Number(rgba[1]), g: Number(rgba[2]), b: Number(rgba[3]), a: Number(rgba[4])};
 
-    // Fallback: white (keeps scene readable if unexpected input)
     return {r: 255, g: 255, b: 255, a: 1};
   };
   const mixRgba = (a: string, b: string, t: number) => {
@@ -225,6 +227,65 @@ export default makeScene2D(function* (view) {
   const dtoBoxY = codeTopY - codeBorderPadY;
   const dtoCodeX = dtoBoxX + codeBorderPadX;
   const dtoHeaderRestX = dtoCodeX + textWidth(dtoHeaderType, Fonts.code, codeStyle.fontSize, codeStyle.fontWeight);
+
+  const solutionYellow = '#D4A04A';
+  const splitDtoGap = 32;
+  const splitDtoBoxW = Math.min(dtoBoxW, (safeW - splitDtoGap) / 2);
+  const splitDtoLeftX = c[0] - splitDtoGap / 2 - splitDtoBoxW;
+  const splitDtoRightX = c[0] + splitDtoGap / 2;
+  const splitDtoStartY = dtoBoxY;
+  splitDtoY(splitDtoStartY);
+
+  const clientDtoHeaderType = 'ClientDto';
+  const clientDtoBodyKeyLines = [' id:', ' amount:', ' currency:', ' status:', '}'];
+  
+  const webhookDtoHeaderType = 'WebhookDto';
+  const webhookDtoBodyKeyLinesNoUpdatedAt = [' id:', ' amount:', ' currency:', ' status:', '}'];
+  const webhookDtoBodyKeyLinesWithUpdatedAt = [' id:', ' amount:', ' currency:', ' status:', ' updatedAt:', '}'];
+  const webhookDtoBodyKeyLinesWithRisk = [
+    ...webhookDtoBodyKeyLinesWithUpdatedAt.slice(0, -1),
+    ' riskScore:',
+    webhookDtoBodyKeyLinesWithUpdatedAt[webhookDtoBodyKeyLinesWithUpdatedAt.length - 1],
+  ];
+  
+  const clientDtoBoxX = splitDtoLeftX;
+  const clientDtoBoxY = () => splitDtoY();
+  const clientDtoCodeX = clientDtoBoxX + codeBorderPadX;
+  const clientDtoHeaderY = () => clientDtoBoxY() + codeBorderPadY;
+  const clientDtoBodyY = () => clientDtoHeaderY() + codeStyle.lineHeight;
+  const clientDtoHeaderRestX =
+    clientDtoCodeX + textWidth(clientDtoHeaderType, Fonts.code, codeStyle.fontSize, codeStyle.fontWeight);
+
+  const webhookDtoBoxX = splitDtoRightX;
+  const webhookDtoBoxY = () => splitDtoY();
+  const webhookDtoCodeX = webhookDtoBoxX + codeBorderPadX;
+  const webhookDtoHeaderY = () => webhookDtoBoxY() + codeBorderPadY;
+  const webhookDtoBodyY = () => webhookDtoHeaderY() + codeStyle.lineHeight;
+  const webhookDtoHeaderRestX =
+    webhookDtoCodeX + textWidth(webhookDtoHeaderType, Fonts.code, codeStyle.fontSize, codeStyle.fontWeight);
+
+  const calcDx = (keyLines: string[]) =>
+    Math.max(
+      ...keyLines.map(l => {
+        const norm = l.replace(/\s+/g, ' ');
+        const idx = norm.indexOf(':');
+        if (idx < 0) return 0;
+        const prefix = norm.slice(0, idx + 2);
+        return textWidth(prefix, Fonts.code, codeStyle.fontSize, codeStyle.fontWeight);
+      }),
+    ) + 25;
+
+  const clientDtoValuesDx = calcDx(clientDtoBodyKeyLines);
+  const webhookDtoValuesDx = Math.max(
+    calcDx(webhookDtoBodyKeyLinesNoUpdatedAt),
+    calcDx(webhookDtoBodyKeyLinesWithUpdatedAt),
+    calcDx(webhookDtoBodyKeyLinesWithRisk),
+  );
+
+  const clientDtoKeysSig = createSignal(clientDtoBodyKeyLines.join('\n'));
+  const clientDtoValuesSig = createSignal(['', '', '', '', ''].join('\n'));
+  const webhookDtoKeysSig = createSignal(webhookDtoBodyKeyLinesNoUpdatedAt.join('\n'));
+  const webhookDtoValuesSig = createSignal(['', '', '', '', '', '', ''].join('\n'));
 
   const stripeJson = `{
   "id": "550e8400-e29b-41d4-a716-446655440000",
@@ -338,14 +399,12 @@ export default makeScene2D(function* (view) {
   const clientJsonRef = createRef<Txt>();
   const clientJsonValuesRef = createRef<Txt>();
 
-  // Dx offsets for sensitive field values
   const leakDx0 = textWidth(leakKey0, Fonts.code, codeStyle.fontSize, 600);
   const leakDx1 = textWidth(leakKey1, Fonts.code, codeStyle.fontSize, 600);
   const leakDx2 = textWidth(leakKey2, Fonts.code, codeStyle.fontSize, 600);
 
   const pad2 = (n: number) => String(n).padStart(2, '0');
   const makeCycleData = (i: number) => {
-    // Вариативность UUID в начале (первые 8 hex-символов), чтобы различия читались сразу
     const head = ((0x550e8400 + i * 0x11111) >>> 0).toString(16).padStart(8, '0');
     const id = `${head}-e29b-41d4-a716-446655440000`;
     const amount = (49 + i * 3.5).toFixed(2);
@@ -409,21 +468,23 @@ export default makeScene2D(function* (view) {
     setClientPayload(d, Boolean(opts?.clientNewField));
   };
 
-  // Clear riskScore text without changing card size
+  const reserveClientLeakRow = (d: {id: string; amount: string; status: string}) => {
+    const clientKeys = [...clientJsonKeyLines.slice(0, -1), '', clientJsonKeyLines[clientJsonKeyLines.length - 1]];
+    clientJsonKeysTextSig(clientKeys.join('\n'));
+    clientJsonValuesTextSig(['', `"${d.id}",`, `${d.amount},`, `"USD",`, `"${d.status}",`, '', ''].join('\n'));
+  };
+
   const clearRiskScoreText = (d: {id: string; amount: string; status: string; updatedAt: string}) => {
-    // Stripe: keep last line as closing brace, clear riskScore line
     const stripeKeys = [...stripeJsonKeyLines.slice(0, -1), '', stripeJsonKeyLines[stripeJsonKeyLines.length - 1]];
     stripeJsonKeysTextSig(stripeKeys.join('\n'));
     stripeJsonValuesTextSig(['', `"${d.id}",`, `${d.amount},`, `"USD",`, `"${d.status}",`, `"${d.updatedAt}"`, '', ''].join('\n'));
     
-    // DTO: keep structure, clear riskScore line
     dtoKeyLinesSig([...dtoBodyKeyLines.slice(0, -1), '', dtoBodyKeyLines[dtoBodyKeyLines.length - 1]].join('\n'));
     dtoValuesText([`"${d.id}"`, d.amount, `"USD"`, `"${d.status}"`, `"${d.updatedAt}"`, '', ''].join('\n'));
     
-    // Client: keep structure, clear riskScore line
     const clientKeys = [...clientJsonKeyLines.slice(0, -1), '', clientJsonKeyLines[clientJsonKeyLines.length - 1]];
     clientJsonKeysTextSig(clientKeys.join('\n'));
-    clientJsonValuesTextSig(['', `"${d.id}",`, `${d.amount},`, `"USD",`, `"${d.status}"`, '', ''].join('\n'));
+    clientJsonValuesTextSig(['', `"${d.id}",`, `${d.amount},`, `"USD",`, `"${d.status}",`, '', ''].join('\n'));
   };
 
   view.add(
@@ -502,7 +563,7 @@ export default makeScene2D(function* (view) {
           y={rightPort[1]}
           width={portDotSize}
           height={portDotSize}
-          fill={portBlue}
+          fill={() => mixRgba(portBlue, solutionYellow, rightPortYellow())}
           opacity={() =>
             midOpacity() *
             rightPortOpacity() *
@@ -669,6 +730,200 @@ export default makeScene2D(function* (view) {
         maxWidthPx={dtoTextW}
         keysRef={dtoKeysRef}
         valuesRef={dtoValuesRef}
+      />
+
+      <Rect
+        x={clientDtoBoxX}
+        y={clientDtoBoxY}
+        width={splitDtoBoxW}
+        height={dtoBoxH}
+        radius={codeBorderRadius}
+        fill={S.colors.card}
+        stroke={borderRgba}
+        lineWidth={dtoBorderWidth}
+        shadowColor={cardShadowColor}
+        shadowBlur={cardShadowBlur}
+        shadowOffset={cardShadowOffset}
+        offset={[-1, -1]}
+        opacity={clientDtoOpacity}
+      />
+      <Txt
+        x={clientDtoCodeX}
+        y={clientDtoHeaderY}
+        text={clientDtoHeaderType}
+        fontFamily={S.fonts.mono}
+        fontSize={codeStyle.fontSize}
+        fontWeight={codeStyle.fontWeight}
+        lineHeight={codeStyle.lineHeight}
+        fill={dtoBlue}
+        textAlign={'left'}
+        offset={[-1, -1]}
+        opacity={clientDtoOpacity}
+      />
+      <Txt
+        x={clientDtoHeaderRestX}
+        y={clientDtoHeaderY}
+        text={dtoHeaderRest}
+        fontFamily={S.fonts.mono}
+        fontSize={codeStyle.fontSize}
+        fontWeight={codeStyle.fontWeight}
+        lineHeight={codeStyle.lineHeight}
+        fill={dtoKeyFill}
+        textAlign={'left'}
+        offset={[-1, -1]}
+        opacity={clientDtoOpacity}
+      />
+      <Rect
+        x={() => clientDtoCodeX - 10}
+        y={() => clientDtoBodyY() + codeStyle.lineHeight * 0 - 2}
+        width={() => splitDtoBoxW - codeBorderPadX * 2 + 20}
+        height={() => codeStyle.lineHeight + 4}
+        radius={10}
+        fill={focusPinkUnderlay}
+        offset={[-1, -1]}
+        opacity={() => splitDtoHiOn() * splitDtoW(0) * clientDtoOpacity()}
+      />
+      <Rect
+        x={() => clientDtoCodeX - 10}
+        y={() => clientDtoBodyY() + codeStyle.lineHeight * 1 - 2}
+        width={() => splitDtoBoxW - codeBorderPadX * 2 + 20}
+        height={() => codeStyle.lineHeight + 4}
+        radius={10}
+        fill={focusPinkUnderlay}
+        offset={[-1, -1]}
+        opacity={() => splitDtoHiOn() * splitDtoW(1) * clientDtoOpacity()}
+      />
+      <Rect
+        x={() => clientDtoCodeX - 10}
+        y={() => clientDtoBodyY() + codeStyle.lineHeight * 2 - 2}
+        width={() => splitDtoBoxW - codeBorderPadX * 2 + 20}
+        height={() => codeStyle.lineHeight + 4}
+        radius={10}
+        fill={focusPinkUnderlay}
+        offset={[-1, -1]}
+        opacity={() => splitDtoHiOn() * splitDtoW(2) * clientDtoOpacity()}
+      />
+      <Rect
+        x={() => clientDtoCodeX - 10}
+        y={() => clientDtoBodyY() + codeStyle.lineHeight * 3 - 2}
+        width={() => splitDtoBoxW - codeBorderPadX * 2 + 20}
+        height={() => codeStyle.lineHeight + 4}
+        radius={10}
+        fill={focusPinkUnderlay}
+        offset={[-1, -1]}
+        opacity={() => splitDtoHiOn() * splitDtoW(3) * clientDtoOpacity()}
+      />
+      <CodeBlockWithOverlay
+        x={clientDtoCodeX}
+        y={clientDtoBodyY}
+        style={{...codeStyle, width: splitDtoBoxW - codeBorderPadX * 2}}
+        keysText={clientDtoKeysSig}
+        valuesText={clientDtoValuesSig}
+        keysFill={dtoKeyFill}
+        valuesFill={dtoValueFill}
+        opacity={clientDtoOpacity}
+        valuesOpacity={clientDtoValuesOpacity}
+        valuesDx={clientDtoValuesDx}
+        ellipsis
+        ellipsisText={'...'}
+        maxWidthPx={splitDtoBoxW - codeBorderPadX * 2}
+      />
+
+      <Rect
+        x={webhookDtoBoxX}
+        y={webhookDtoBoxY}
+        width={splitDtoBoxW}
+        height={() => (1 + webhookDtoBodyKeyLinesWithRisk.length) * codeStyle.lineHeight + codeBorderPadY * 2}
+        radius={codeBorderRadius}
+        fill={S.colors.card}
+        stroke={borderRgba}
+        lineWidth={dtoBorderWidth}
+        shadowColor={cardShadowColor}
+        shadowBlur={cardShadowBlur}
+        shadowOffset={cardShadowOffset}
+        offset={[-1, -1]}
+        opacity={webhookDtoOpacity}
+      />
+      <Txt
+        x={webhookDtoCodeX}
+        y={webhookDtoHeaderY}
+        text={webhookDtoHeaderType}
+        fontFamily={S.fonts.mono}
+        fontSize={codeStyle.fontSize}
+        fontWeight={codeStyle.fontWeight}
+        lineHeight={codeStyle.lineHeight}
+        fill={solutionYellow}
+        textAlign={'left'}
+        offset={[-1, -1]}
+        opacity={webhookDtoOpacity}
+      />
+      <Txt
+        x={webhookDtoHeaderRestX}
+        y={webhookDtoHeaderY}
+        text={dtoHeaderRest}
+        fontFamily={S.fonts.mono}
+        fontSize={codeStyle.fontSize}
+        fontWeight={codeStyle.fontWeight}
+        lineHeight={codeStyle.lineHeight}
+        fill={dtoKeyFill}
+        textAlign={'left'}
+        offset={[-1, -1]}
+        opacity={webhookDtoOpacity}
+      />
+      <Rect
+        x={() => webhookDtoCodeX - 10}
+        y={() => webhookDtoBodyY() + codeStyle.lineHeight * 0 - 2}
+        width={() => splitDtoBoxW - codeBorderPadX * 2 + 20}
+        height={() => codeStyle.lineHeight + 4}
+        radius={10}
+        fill={focusPinkUnderlay}
+        offset={[-1, -1]}
+        opacity={() => splitDtoHiOn() * splitDtoW(0) * webhookDtoOpacity()}
+      />
+      <Rect
+        x={() => webhookDtoCodeX - 10}
+        y={() => webhookDtoBodyY() + codeStyle.lineHeight * 1 - 2}
+        width={() => splitDtoBoxW - codeBorderPadX * 2 + 20}
+        height={() => codeStyle.lineHeight + 4}
+        radius={10}
+        fill={focusPinkUnderlay}
+        offset={[-1, -1]}
+        opacity={() => splitDtoHiOn() * splitDtoW(1) * webhookDtoOpacity()}
+      />
+      <Rect
+        x={() => webhookDtoCodeX - 10}
+        y={() => webhookDtoBodyY() + codeStyle.lineHeight * 2 - 2}
+        width={() => splitDtoBoxW - codeBorderPadX * 2 + 20}
+        height={() => codeStyle.lineHeight + 4}
+        radius={10}
+        fill={focusPinkUnderlay}
+        offset={[-1, -1]}
+        opacity={() => splitDtoHiOn() * splitDtoW(2) * webhookDtoOpacity()}
+      />
+      <Rect
+        x={() => webhookDtoCodeX - 10}
+        y={() => webhookDtoBodyY() + codeStyle.lineHeight * 3 - 2}
+        width={() => splitDtoBoxW - codeBorderPadX * 2 + 20}
+        height={() => codeStyle.lineHeight + 4}
+        radius={10}
+        fill={focusPinkUnderlay}
+        offset={[-1, -1]}
+        opacity={() => splitDtoHiOn() * splitDtoW(3) * webhookDtoOpacity()}
+      />
+      <CodeBlockWithOverlay
+        x={webhookDtoCodeX}
+        y={webhookDtoBodyY}
+        style={{...codeStyle, width: splitDtoBoxW - codeBorderPadX * 2}}
+        keysText={webhookDtoKeysSig}
+        valuesText={webhookDtoValuesSig}
+        keysFill={dtoKeyFill}
+        valuesFill={dtoValueFill}
+        opacity={webhookDtoOpacity}
+        valuesOpacity={webhookDtoValuesOpacity}
+        valuesDx={webhookDtoValuesDx}
+        ellipsis
+        ellipsisText={'...'}
+        maxWidthPx={splitDtoBoxW - codeBorderPadX * 2}
       />
 
       <Rect
@@ -877,7 +1132,7 @@ export default makeScene2D(function* (view) {
         radius={10}
         fill={focusPinkUnderlay}
         offset={[-1, -1]}
-        opacity={() => focusRisk() * focusW(2) * (1 - leakHideRisk())}
+        opacity={() => focusRisk() * focusW(2)}
       />
       <Txt
         x={clientJsonX}
@@ -891,7 +1146,7 @@ export default makeScene2D(function* (view) {
         fill={S.colors.ink}
         textAlign={'left'}
         offset={[-1, -1]}
-        opacity={() => focusRisk() * focusW(2) * (1 - leakHideRisk())}
+        opacity={() => focusRisk() * focusW(2)}
       />
       <Txt
         x={() => clientJsonX + clientJsonValuesDx}
@@ -905,22 +1160,31 @@ export default makeScene2D(function* (view) {
         fill={S.colors.ink}
         textAlign={'left'}
         offset={[-1, -1]}
-        opacity={() => focusRisk() * focusW(2) * (1 - leakHideRisk())}
+        opacity={() => focusRisk() * focusW(2)}
       />
 
-      {/* White overlay to hide riskScore row during leak phase */}
       <Rect
         x={() => clientJsonX - 10}
         y={() => clientJsonY + codeStyle.lineHeight * 5 - 2}
         width={() => clientJsonAvailW + 20}
         height={() => codeStyle.lineHeight + 4}
-        radius={6}
+        radius={10}
         fill={S.colors.card}
         offset={[-1, -1]}
-        opacity={leakHideRisk}
+        opacity={leakRiskOut}
       />
 
       {/* Sensitive field 0: internalStatus */}
+      <Rect
+        x={() => clientJsonX - 10}
+        y={() => clientJsonY + codeStyle.lineHeight * 5 - 2}
+        width={() => clientJsonAvailW + 20}
+        height={() => codeStyle.lineHeight + 4}
+        radius={10}
+        fill={S.colors.card}
+        offset={[-1, -1]}
+        opacity={leak0}
+      />
       <Rect
         x={() => clientJsonX - 10}
         y={() => clientJsonY + codeStyle.lineHeight * 5 - 2}
@@ -967,6 +1231,16 @@ export default makeScene2D(function* (view) {
         width={() => clientJsonAvailW + 20}
         height={() => codeStyle.lineHeight + 4}
         radius={10}
+        fill={S.colors.card}
+        offset={[-1, -1]}
+        opacity={leak1}
+      />
+      <Rect
+        x={() => clientJsonX - 10}
+        y={() => clientJsonY + codeStyle.lineHeight * 5 - 2}
+        width={() => clientJsonAvailW + 20}
+        height={() => codeStyle.lineHeight + 4}
+        radius={10}
         fill={'rgba(255,80,80,0.18)'}
         offset={[-1, -1]}
         opacity={leak1}
@@ -1001,6 +1275,16 @@ export default makeScene2D(function* (view) {
       />
 
       {/* Sensitive field 2: stripeAccountId */}
+      <Rect
+        x={() => clientJsonX - 10}
+        y={() => clientJsonY + codeStyle.lineHeight * 5 - 2}
+        width={() => clientJsonAvailW + 20}
+        height={() => codeStyle.lineHeight + 4}
+        radius={10}
+        fill={S.colors.card}
+        offset={[-1, -1]}
+        opacity={leak2}
+      />
       <Rect
         x={() => clientJsonX - 10}
         y={() => clientJsonY + codeStyle.lineHeight * 5 - 2}
@@ -1257,28 +1541,27 @@ export default makeScene2D(function* (view) {
     yield* waitFor(0.35);
     yield* focusX(2, 0.9, easeInOutCubic);
     yield* waitFor(0.45);
-    // Keep riskScore visible, just reduce dimming
-    yield* riskDimEnabled(0, 0.65, easeInOutCubic);
-    // Hold riskScore visible
-    yield* waitFor(1.5);
+    yield* all(
+      focusRisk(0, Timing.slow, easeInOutCubic),
+      riskDimEnabled(0, Timing.slow, easeInOutCubic),
+    );
+    focusX(0);
   }
 
   yield* waitFor(0.5);
 
-  // === DATA LEAKAGE PHASE ===
-  // Dim all components except client JSON card, hide riskScore everywhere
   const leakData = makeCycleData(cycleOffset + cycles - 1);
   yield* all(
     leakPhase(1, Timing.slow, easeInOutCubic),
-    leakHideRisk(1, Timing.slow, easeInOutCubic),
-    focusRisk(0, Timing.slow, easeInOutCubic),
   );
   focusX(0);
-  // Clear riskScore text from all cards (keep card size)
-  clearRiskScoreText(leakData);
   yield* waitFor(0.4);
 
-  // Show sensitive fields one by one with smooth crossfade
+  leakRiskOut(0);
+  yield* leakRiskOut(1, Timing.slow * 1.6, easeInOutCubic);
+  reserveClientLeakRow(leakData);
+  yield* waitFor(0.15);
+
   yield* leak0(1, Timing.normal, easeInOutCubic);
   yield* waitFor(0.8);
   yield* leak0(0, Timing.normal, easeInOutCubic);
@@ -1290,13 +1573,106 @@ export default makeScene2D(function* (view) {
   yield* leak2(1, Timing.normal, easeInOutCubic);
   yield* waitFor(0.8);
 
-  // Restore everything smoothly (keep riskScore hidden)
   yield* all(
     leakPhase(0, Timing.slow, easeInOutCubic),
     leak2(0, Timing.slow, easeInOutCubic),
+    leakRiskOut(0, Timing.slow, easeInOutCubic),
   );
 
-  yield* waitFor(1.5);
+  yield* waitFor(0.8);
+
+  splitDtoY(splitDtoStartY);
+
+  yield* all(
+    clientCircleRed(0, Timing.slow, easeInOutCubic),
+    dtoObjectOpacity(0, Timing.slow, easeInOutCubic),
+    stripeJsonOpacity(0, Timing.slow, easeInOutCubic),
+    clientJsonOpacity(0, Timing.slow, easeInOutCubic),
+  );
+  clearRiskScoreText(leakData);
+
+  yield* waitFor(0.2);
+
+  yield* all(
+    clientDtoOpacity(1, Timing.slow, easeInOutCubic),
+    webhookDtoOpacity(1, Timing.slow, easeInOutCubic),
+    rightPortYellow(1, Timing.slow, easeInOutCubic),
+  );
+
+  {
+    webhookDtoValuesOpacity(0);
+    clientDtoValuesOpacity(0);
+    packetT(0);
+    packetOpacity(0);
+    packet2T(0);
+    packet2Opacity(0);
+
+    const d1 = makeCycleData(cycleOffset + cycles);
+    const d2 = makeCycleData(cycleOffset + cycles + 1);
+    const d3 = makeCycleData(cycleOffset + cycles + 2);
+
+    // Transport #1: DTOs are identical (no updatedAt, no riskScore)
+    webhookDtoKeysSig(webhookDtoBodyKeyLinesNoUpdatedAt.join('\n'));
+    webhookDtoValuesSig([`"${d1.id}"`, d1.amount, `"USD"`, `"${d1.status}"`, ''].join('\n'));
+    clientDtoValuesSig([`"${d1.id}"`, d1.amount, `"USD"`, `"${d1.status}"`, ''].join('\n'));
+
+    yield* all(
+      packetOpacity(1, Timing.fast, easeInOutCubic),
+      webhookDtoValuesOpacity(1, Timing.fast, easeInOutCubic),
+    );
+    yield* packetT(1, Timing.normal, linear);
+    yield* packetOpacity(0, Timing.fast, easeInOutCubic);
+
+    yield* all(
+      packet2Opacity(1, Timing.fast, easeInOutCubic),
+      clientDtoValuesOpacity(1, Timing.fast, easeInOutCubic),
+    );
+    yield* packet2T(1, Timing.normal, linear);
+    yield* packet2Opacity(0, Timing.fast, easeInOutCubic);
+
+    yield* waitFor(0.35);
+
+    // Transport #2: update values + updatedAt only on WebhookDto. Right updates only when the dot approaches the payment service.
+    packetT(0);
+    yield* packetOpacity(1, Timing.fast, easeInOutCubic);
+    yield* packetT(0.7, Timing.normal * 0.7, linear);
+    webhookDtoKeysSig(webhookDtoBodyKeyLinesWithUpdatedAt.join('\n'));
+    webhookDtoValuesSig([`"${d2.id}"`, d2.amount, `"USD"`, `"${d2.status}"`, `"${d2.updatedAt}"`, ''].join('\n'));
+    yield* packetT(1, Timing.normal * 0.3, linear);
+    yield* packetOpacity(0, Timing.fast, easeInOutCubic);
+
+    packet2T(0);
+    yield* packet2Opacity(1, Timing.fast, easeInOutCubic);
+    yield* packet2T(1, Timing.normal, linear);
+    clientDtoValuesSig([`"${d2.id}"`, d2.amount, `"USD"`, `"${d2.status}"`, ''].join('\n'));
+    yield* packet2Opacity(0, Timing.fast, easeInOutCubic);
+
+    yield* waitFor(0.35);
+
+    // Transport #3: update values + add riskScore (and keep updatedAt) only to WebhookDto, then sync safe fields to ClientDto.
+    packetT(0);
+    yield* packetOpacity(1, Timing.fast, easeInOutCubic);
+    yield* packetT(0.7, Timing.normal * 0.7, linear);
+    webhookDtoKeysSig(webhookDtoBodyKeyLinesWithRisk.join('\n'));
+    webhookDtoValuesSig([`"${d3.id}"`, d3.amount, `"USD"`, `"${d3.status}"`, `"${d3.updatedAt}"`, d3.riskScore, ''].join('\n'));
+    yield* packetT(1, Timing.normal * 0.3, linear);
+    yield* packetOpacity(0, Timing.fast, easeInOutCubic);
+
+    packet2T(0);
+    yield* packet2Opacity(1, Timing.fast, easeInOutCubic);
+    yield* packet2T(1, Timing.normal, linear);
+    clientDtoValuesSig([`"${d3.id}"`, d3.amount, `"USD"`, `"${d3.status}"`, ''].join('\n'));
+    yield* packet2Opacity(0, Timing.fast, easeInOutCubic);
+
+    splitDtoHi(0);
+    yield* splitDtoHiOn(1, 0.45, easeInOutCubic);
+    yield* splitDtoHi(1, 0.5, easeInOutCubic);
+    yield* splitDtoHi(2, 0.5, easeInOutCubic);
+    yield* splitDtoHi(3, 0.55, easeInOutCubic);
+    yield* splitDtoHiOn(0, 0.85, easeInOutCubic);
+  }
+
+  yield* waitFor(2);
 });
 
 
