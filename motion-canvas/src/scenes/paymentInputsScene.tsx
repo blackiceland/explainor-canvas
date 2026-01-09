@@ -1672,7 +1672,22 @@ export default makeScene2D(function* (view) {
     yield* splitDtoHiOn(0, 0.85, easeInOutCubic);
   }
 
-  yield* waitFor(2);
+  yield* waitFor(1.2);
+
+  yield* all(
+    leftOpacity(0, Timing.slow, easeInOutCubic),
+    rightOpacity(0, Timing.slow, easeInOutCubic),
+    wiresOpacity(0, Timing.slow, easeInOutCubic),
+    leftPortOpacity(0, Timing.slow, easeInOutCubic),
+    rightPortOpacity(0, Timing.slow, easeInOutCubic),
+    clientDtoOpacity(0, Timing.slow, easeInOutCubic),
+    webhookDtoOpacity(0, Timing.slow, easeInOutCubic),
+    rightPortYellow(0, Timing.slow, easeInOutCubic),
+    packetOpacity(0, Timing.slow, easeInOutCubic),
+    packet2Opacity(0, Timing.slow, easeInOutCubic),
+  );
+
+  yield* waitFor(1.5);
 });
 
 
