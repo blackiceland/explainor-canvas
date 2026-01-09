@@ -7,44 +7,20 @@ import {OpenShapes} from '../core/openShapes';
 import {OpenText} from '../core/openText';
 
 export default makeScene2D(function* (view) {
-  const opacity = createSignal(0);
+  const leftReveal = createSignal(0);
+  const leftContentOpacity = createSignal(0);
+  const rightContentOpacity = createSignal(0);
   const S = OpenStyle;
 
-  const leftBg = new Gradient({
-    type: 'linear',
-    from: [0, -Screen.height / 2],
-    to: [0, Screen.height / 2],
-    stops: [
-      // keep left side in the same warm neutral as other light system scenes
-      {offset: 0, color: S.colors.bg},
-      {offset: 1, color: S.colors.bg},
-    ],
-  });
-
-  const rightBg = new Gradient({
-    type: 'linear',
-    from: [0, -Screen.height / 2],
-    to: [0, Screen.height / 2],
-    stops: [
-      {offset: 0, color: Colors.background.from},
-      {offset: 1, color: Colors.background.to},
-    ],
-  });
-
-  const spotlight = new Gradient({
-    type: 'radial',
-    from: [Screen.width * 0.12, -Screen.height * 0.12],
-    to: [Screen.width * 0.12, -Screen.height * 0.12],
-    fromRadius: 0,
-    toRadius: Screen.width * 0.95,
-    stops: [
-      {offset: 0, color: 'rgba(246,231,212,0.045)'},
-      {offset: 1, color: 'rgba(255,255,255,0)'},
-    ],
-  });
+  // Must match the final shade at the end of paymentInputsScene.
+  const darkBg = '#0B0B0B';
 
   const halfW = Screen.width / 2;
   const halfH = Screen.height;
+  const leftRevealW = () => halfW * leftReveal();
+  const leftRevealX = () => -Screen.width / 2 + leftRevealW() / 2;
+  const dividerX = () => -Screen.width / 2 + leftRevealW();
+
   const leftX = -Screen.width / 4;
   const rightX = Screen.width / 4;
 
@@ -78,10 +54,16 @@ export default makeScene2D(function* (view) {
 
   view.add(
     <>
-      <Rect x={leftX} width={halfW} height={halfH} fill={leftBg} />
-      <Rect x={rightX} width={halfW} height={halfH} fill={rightBg} />
-      <Rect x={rightX} width={halfW} height={halfH} fill={spotlight} />
-      <Rect x={0} width={1} height={halfH} fill={S.colors.border} />
+      <Rect width={Screen.width} height={halfH} fill={darkBg} />
+      {/* Light half reveal (overlay on top of the dark background) */}
+      <Rect
+        x={leftRevealX}
+        width={leftRevealW}
+        height={halfH}
+        fill={S.colors.bg}
+        opacity={leftReveal}
+      />
+      <Rect x={dividerX} width={1} height={halfH} fill={S.colors.border} opacity={leftReveal} />
 
       <Rect
         x={leftX}
@@ -92,7 +74,7 @@ export default makeScene2D(function* (view) {
         alignItems={'start'}
         justifyContent={'space-between'}
         padding={[leftPadY, leftPadX]}
-        opacity={opacity}
+        opacity={leftContentOpacity}
       >
         <Rect
           width={cardW}
@@ -185,13 +167,21 @@ export default makeScene2D(function* (view) {
         lineHeight={64}
         fill={Colors.text.primary}
         offset={[-1, -1]}
-        opacity={opacity}
+        opacity={rightContentOpacity}
       />
     </>,
   );
 
-  yield* opacity(1, Timing.slow, easeInOutCubic);
-  yield* waitFor(12);
+  // Transition:
+  // 1) Start on the same dark background as previous scene.
+  // 2) Reveal the light half.
+  // 3) Show right-side content first, then left-side.
+  yield* leftReveal(1, Timing.slow * 1.35, easeInOutCubic);
+  yield* waitFor(0.15);
+  yield* rightContentOpacity(1, Timing.slow, easeInOutCubic);
+  yield* waitFor(0.25);
+  yield* leftContentOpacity(1, Timing.slow, easeInOutCubic);
+  yield* waitFor(10);
 });
 
 
