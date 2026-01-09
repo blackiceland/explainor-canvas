@@ -15,11 +15,11 @@ type Point = [number, number];
 
 export default makeScene2D(function* (view) {
   const S = OpenStyle;
-  const inkRgba = 'rgba(21,21,21,1)';
-  const mutedRgba = 'rgba(111,106,99,1)';
-  const borderRgba = 'rgba(207,198,186,1)';
-  const oliveRgba = 'rgba(47,58,46,1)';
-  const slateBlueRgba = 'rgba(72,110,162,1)';
+  const inkRgba = S.colors.ink;
+  const mutedRgba = S.colors.muted;
+  const borderRgba = S.colors.border;
+  const oliveRgba = S.colors.olive;
+  const slateBlueRgba = S.colors.blue;
   const transparent = 'rgba(0,0,0,0)';
 
   const leftOpacity = createSignal(0);
@@ -81,21 +81,48 @@ export default makeScene2D(function* (view) {
 
   const whiteText = S.colors.card;
 
-  const wireStroke = 'rgba(21,21,21,0.62)';
+  const wireStroke = 'rgba(21,21,21,0.55)';
   const portBlue = slateBlueRgba;
-  const pathFill = 'rgba(72,110,162,0.92)';
-  const focusPink = 'rgba(205,118,145,1)';
-  const focusPinkUnderlay = 'rgba(200,116,143,0.18)';
-  const transportAccent = 'rgba(176,124,70,1)';
+  const pathFill = S.colors.blue;
+  const focusPink = S.colors.accent;
+  const focusPinkUnderlay = S.colors.accentSubtle;
+  const transportAccent = S.colors.transport;
   const dotAlpha = 0.78;
   const dimOthers = () => 1 - shadowOthers() * 0.78;
   const focusW = (k: number) => Math.max(0, 1 - Math.abs(focusX() - k));
   const dimRiskOthers = () => 1 - focusRisk() * 0.9 * riskDimEnabled();
   const dangerRed = 'rgba(255,0,0,1)';
   const parseRgba = (s: string) => {
-    const m = s.replace(/\s+/g, '').match(/^rgba\((\d+),(\d+),(\d+),([0-9.]+)\)$/);
-    if (!m) return {r: 255, g: 255, b: 255, a: 1};
-    return {r: Number(m[1]), g: Number(m[2]), b: Number(m[3]), a: Number(m[4])};
+    const raw = String(s ?? '').trim();
+    const t = raw.replace(/\s+/g, '');
+
+    // #RRGGBB / #RGB
+    if (t.startsWith('#')) {
+      const hex = t.slice(1);
+      if (hex.length === 3) {
+        const r = parseInt(hex[0] + hex[0], 16);
+        const g = parseInt(hex[1] + hex[1], 16);
+        const b = parseInt(hex[2] + hex[2], 16);
+        return {r, g, b, a: 1};
+      }
+      if (hex.length === 6) {
+        const r = parseInt(hex.slice(0, 2), 16);
+        const g = parseInt(hex.slice(2, 4), 16);
+        const b = parseInt(hex.slice(4, 6), 16);
+        return {r, g, b, a: 1};
+      }
+    }
+
+    // rgb(r,g,b)
+    const rgb = t.match(/^rgb\((\d+),(\d+),(\d+)\)$/);
+    if (rgb) return {r: Number(rgb[1]), g: Number(rgb[2]), b: Number(rgb[3]), a: 1};
+
+    // rgba(r,g,b,a)
+    const rgba = t.match(/^rgba\((\d+),(\d+),(\d+),([0-9.]+)\)$/);
+    if (rgba) return {r: Number(rgba[1]), g: Number(rgba[2]), b: Number(rgba[3]), a: Number(rgba[4])};
+
+    // Fallback: white (keeps scene readable if unexpected input)
+    return {r: 255, g: 255, b: 255, a: 1};
   };
   const mixRgba = (a: string, b: string, t: number) => {
     const x = parseRgba(a);
@@ -299,8 +326,9 @@ export default makeScene2D(function* (view) {
 
   const pad2 = (n: number) => String(n).padStart(2, '0');
   const makeCycleData = (i: number) => {
-    const suffix = `${pad2(i)}${pad2((i * 7) % 100)}`;
-    const id = `550e8400-e29b-41d4-a716-4466${suffix}00`;
+    // Вариативность UUID в начале (первые 8 hex-символов), чтобы различия читались сразу
+    const head = ((0x550e8400 + i * 0x11111) >>> 0).toString(16).padStart(8, '0');
+    const id = `${head}-e29b-41d4-a716-446655440000`;
     const amount = (49 + i * 3.5).toFixed(2);
     const status = i % 5 === 0 ? 'FAILED' : i % 3 === 0 ? 'PENDING' : 'CAPTURED';
     const mm = (32 + i) % 60;
@@ -756,7 +784,7 @@ export default makeScene2D(function* (view) {
         fontSize={codeStyle.fontSize}
         fontWeight={650}
         lineHeight={codeStyle.lineHeight}
-        fill={focusPink}
+        fill={S.colors.ink}
         textAlign={'left'}
         offset={[-1, -1]}
         opacity={() => focusRisk() * focusW(0)}
@@ -795,7 +823,7 @@ export default makeScene2D(function* (view) {
         fontSize={codeStyle.fontSize}
         fontWeight={650}
         lineHeight={codeStyle.lineHeight}
-        fill={focusPink}
+        fill={S.colors.ink}
         textAlign={'left'}
         offset={[-1, -1]}
         opacity={() => 0}
@@ -834,7 +862,7 @@ export default makeScene2D(function* (view) {
         fontSize={codeStyle.fontSize}
         fontWeight={650}
         lineHeight={codeStyle.lineHeight}
-        fill={focusPink}
+        fill={S.colors.ink}
         textAlign={'left'}
         offset={[-1, -1]}
         opacity={() => focusRisk() * focusW(2)}
@@ -1057,11 +1085,12 @@ export default makeScene2D(function* (view) {
     yield* waitFor(0.35);
     yield* focusX(2, 0.9, easeInOutCubic);
     yield* waitFor(0.45);
+    // Avoid highlight flicker while fading out: keep focusX fixed, fade focusRisk to 0, then reset focusX instantly.
     yield* all(
       focusRisk(0, 0.65, easeInOutCubic),
       riskDimEnabled(0, 0.65, easeInOutCubic),
-      focusX(0, 0.65, easeInOutCubic),
     );
+    focusX(0);
   }
 
   yield* waitFor(1.5);
