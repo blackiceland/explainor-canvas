@@ -2,17 +2,22 @@ import {Gradient, makeScene2D, Rect, Txt} from '@motion-canvas/2d';
 import {createSignal, easeInOutCubic, waitFor} from '@motion-canvas/core';
 import {Colors, Fonts, Screen, Timing} from '../core/theme';
 import {PanelStyle} from '../core/panelStyle';
+import {OpenStyle} from '../core/openStyle';
+import {OpenShapes} from '../core/openShapes';
+import {OpenText} from '../core/openText';
 
 export default makeScene2D(function* (view) {
   const opacity = createSignal(0);
+  const S = OpenStyle;
 
   const leftBg = new Gradient({
     type: 'linear',
     from: [0, -Screen.height / 2],
     to: [0, Screen.height / 2],
     stops: [
-      {offset: 0, color: '#F7F5F2'},
-      {offset: 1, color: '#EFEAE3'},
+      // keep left side in the same warm neutral as other light system scenes
+      {offset: 0, color: S.colors.bg},
+      {offset: 1, color: S.colors.bg},
     ],
   });
 
@@ -43,9 +48,10 @@ export default makeScene2D(function* (view) {
   const leftX = -Screen.width / 4;
   const rightX = Screen.width / 4;
 
-  const leftPadX = 56;
-  const leftPadY = 56;
-  const codePadX = 96;
+  // align spacing to base rhythm (16/32/48)
+  const leftPadX = 48;
+  const leftPadY = 48;
+  const codePadX = 72;
   const codePadY = 56;
   const dtoX = 0 + codePadX;
   const dtoY = -Screen.height / 2 + codePadY;
@@ -60,21 +66,22 @@ export default makeScene2D(function* (view) {
 
   const cardW = halfW / 2 - leftPadX * 2;
   const cardH = 220;
-  const cardRadius = 22;
-  const cardFill = 'rgba(27,29,36,0.96)';
-  const cardStroke = 'rgba(0,0,0,0.10)';
-  const cardShadowColor = 'rgba(0,0,0,0.55)';
-  const cardShadowBlur = PanelStyle.shadowBlur * 1.35;
-  const cardShadowOffset = [PanelStyle.shadowOffset[0] * 1.15, PanelStyle.shadowOffset[1] * 1.15] as [number, number];
+  const cardRadius = OpenShapes.radius.card;
+  // light system cards must match the OpenStyle material
+  const cardFill = S.colors.card;
+  const cardStroke = S.colors.border;
+  const cardShadowColor = OpenShapes.shadow.color;
+  const cardShadowBlur = OpenShapes.shadow.blur;
+  const cardShadowOffset = OpenShapes.shadow.offset;
 
-  const labelFill = Colors.text.primary;
+  const labelFill = S.colors.ink;
 
   view.add(
     <>
       <Rect x={leftX} width={halfW} height={halfH} fill={leftBg} />
       <Rect x={rightX} width={halfW} height={halfH} fill={rightBg} />
       <Rect x={rightX} width={halfW} height={halfH} fill={spotlight} />
-      <Rect x={0} width={1} height={halfH} fill={'rgba(0,0,0,0.10)'} />
+      <Rect x={0} width={1} height={halfH} fill={S.colors.border} />
 
       <Rect
         x={leftX}
@@ -104,10 +111,10 @@ export default makeScene2D(function* (view) {
         >
           <Txt
             text={'CLIENT'}
-            fontFamily={Fonts.primary}
-            fontSize={30}
-            fontWeight={650}
-            letterSpacing={0.6}
+            fontFamily={S.fonts.sans}
+            fontSize={OpenText.service.fontSize}
+            fontWeight={OpenText.service.fontWeight}
+            letterSpacing={OpenText.service.letterSpacing}
             fill={labelFill}
             textAlign={'center'}
           />
@@ -130,10 +137,10 @@ export default makeScene2D(function* (view) {
         >
           <Txt
             text={'PAYMENT-SERVICE'}
-            fontFamily={Fonts.primary}
-            fontSize={30}
-            fontWeight={650}
-            letterSpacing={0.6}
+            fontFamily={S.fonts.sans}
+            fontSize={OpenText.serviceMid.fontSize}
+            fontWeight={OpenText.serviceMid.fontWeight}
+            letterSpacing={OpenText.serviceMid.letterSpacing}
             fill={labelFill}
             textAlign={'center'}
           />
@@ -156,10 +163,10 @@ export default makeScene2D(function* (view) {
         >
           <Txt
             text={'STRIPE'}
-            fontFamily={Fonts.primary}
-            fontSize={30}
-            fontWeight={650}
-            letterSpacing={0.6}
+            fontFamily={S.fonts.sans}
+            fontSize={OpenText.service.fontSize}
+            fontWeight={OpenText.service.fontWeight}
+            letterSpacing={OpenText.service.letterSpacing}
             fill={labelFill}
             textAlign={'center'}
           />
@@ -172,9 +179,10 @@ export default makeScene2D(function* (view) {
         width={halfW - codePadX * 2}
         text={dtoCode}
         fontFamily={Fonts.code}
-        fontSize={64}
+        // keep code large enough for readability, but consistent with other code scenes
+        fontSize={44}
         fontWeight={600}
-        lineHeight={92}
+        lineHeight={64}
         fill={Colors.text.primary}
         offset={[-1, -1]}
         opacity={opacity}
