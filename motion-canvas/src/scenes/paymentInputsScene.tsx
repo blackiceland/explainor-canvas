@@ -54,7 +54,7 @@ export default makeScene2D(function* (view) {
 
   // Data leakage phase: 0 = normal, 1 = all components dimmed except client
   const leakPhase = createSignal(0);
-  // Hide riskScore row in client JSON during leak phase
+  // Hide riskScore row in client JSON during leak phase (others cleared via text)
   const leakHideRisk = createSignal(0);
   // Sensitive fields opacity signals
   const leak0 = createSignal(0);
@@ -407,6 +407,23 @@ export default makeScene2D(function* (view) {
     setStripePayload(d, Boolean(opts?.stripeNewField));
     setDtoPayload(d, Boolean(opts?.dtoNewField));
     setClientPayload(d, Boolean(opts?.clientNewField));
+  };
+
+  // Clear riskScore text without changing card size
+  const clearRiskScoreText = (d: {id: string; amount: string; status: string; updatedAt: string}) => {
+    // Stripe: keep last line as closing brace, clear riskScore line
+    const stripeKeys = [...stripeJsonKeyLines.slice(0, -1), '', stripeJsonKeyLines[stripeJsonKeyLines.length - 1]];
+    stripeJsonKeysTextSig(stripeKeys.join('\n'));
+    stripeJsonValuesTextSig(['', `"${d.id}",`, `${d.amount},`, `"USD",`, `"${d.status}",`, `"${d.updatedAt}"`, '', ''].join('\n'));
+    
+    // DTO: keep structure, clear riskScore line
+    dtoKeyLinesSig([...dtoBodyKeyLines.slice(0, -1), '', dtoBodyKeyLines[dtoBodyKeyLines.length - 1]].join('\n'));
+    dtoValuesText([`"${d.id}"`, d.amount, `"USD"`, `"${d.status}"`, `"${d.updatedAt}"`, '', ''].join('\n'));
+    
+    // Client: keep structure, clear riskScore line
+    const clientKeys = [...clientJsonKeyLines.slice(0, -1), '', clientJsonKeyLines[clientJsonKeyLines.length - 1]];
+    clientJsonKeysTextSig(clientKeys.join('\n'));
+    clientJsonValuesTextSig(['', `"${d.id}",`, `${d.amount},`, `"USD",`, `"${d.status}"`, '', ''].join('\n'));
   };
 
   view.add(
@@ -811,6 +828,7 @@ export default makeScene2D(function* (view) {
         opacity={() => focusRisk() * focusW(0) * leakDim()}
       />
 
+
       <Rect
         x={() => dtoCodeX - 10}
         y={() => dtoBodyY + codeStyle.lineHeight * 5 - 2}
@@ -849,6 +867,7 @@ export default makeScene2D(function* (view) {
         offset={[-1, -1]}
         opacity={() => 0}
       />
+
 
       <Rect
         x={() => clientJsonX - 10}
@@ -1247,13 +1266,16 @@ export default makeScene2D(function* (view) {
   yield* waitFor(0.5);
 
   // === DATA LEAKAGE PHASE ===
-  // Dim all components except client JSON card, hide riskScore together with focusRisk
+  // Dim all components except client JSON card, hide riskScore everywhere
+  const leakData = makeCycleData(cycleOffset + cycles - 1);
   yield* all(
     leakPhase(1, Timing.slow, easeInOutCubic),
     leakHideRisk(1, Timing.slow, easeInOutCubic),
     focusRisk(0, Timing.slow, easeInOutCubic),
   );
   focusX(0);
+  // Clear riskScore text from all cards (keep card size)
+  clearRiskScoreText(leakData);
   yield* waitFor(0.4);
 
   // Show sensitive fields one by one with smooth crossfade
