@@ -133,7 +133,7 @@ export default makeScene2D(function* (view) {
   const dtoBodyKeyLines = [' id:', ' amount:', ' currency:', ' status:', ' updatedAt:', '}'];
   const dtoKeyLinesSig = createSignal(dtoBodyKeyLines.join('\n'));
 
-  const dtoBodyValueLines = ['"pay_550e8400"', '99.00', '"USD"', '"CAPTURED"', '"2024-12-15T14:32:00Z"', ''];
+  const dtoBodyValueLines = ['"550e8400-e29b-41d4-a716-446655440000"', '99.00', '"USD"', '"CAPTURED"', '"2024-12-15T14:32:00Z"', ''];
 
   const dtoKeysText = dtoBodyKeyLines.join('\n');
   const dtoValuesText = createSignal(dtoBodyValueLines.join('\n'));
@@ -165,16 +165,16 @@ export default makeScene2D(function* (view) {
 
   const codeCardShrinkW = 100;
   const codeCardBaseW = 520;
-  const codeBorderStroke = transparent;
-  const dtoBorderStroke = () => mixRgba(transparent, slateBlueRgba, dtoPulse());
-  const codeBorderWidth = 0;
+  const codeBorderStroke = borderRgba;
+  const dtoBorderStroke = () => mixRgba(borderRgba, slateBlueRgba, dtoPulse());
+  const codeBorderWidth = OpenShapes.stroke.card;
   const codeBorderRadius = OpenShapes.radius.card;
   const codeBorderPadX = OpenShapes.padding.cardX;
   const codeBorderPadY = OpenShapes.padding.cardY;
-  const dtoBorderWidth = 2;
-  const cardShadowColor = 'rgba(21,21,21,0.14)';
-  const cardShadowBlur = 18;
-  const cardShadowOffset = [-6, 10] as [number, number];
+  const dtoBorderWidth = OpenShapes.stroke.card;
+  const cardShadowColor = OpenShapes.shadow.color;
+  const cardShadowBlur = OpenShapes.shadow.blur;
+  const cardShadowOffset = OpenShapes.shadow.offset;
   const dtoLineCount = 1 + dtoBodyKeyLines.length;
   const dtoTextW = Math.max(0, Math.min(codeStyle.width, codeCardBaseW - codeCardShrinkW));
   const dtoBoxW = dtoTextW + codeBorderPadX * 2;
@@ -186,7 +186,7 @@ export default makeScene2D(function* (view) {
   const dtoHeaderRestX = dtoCodeX + textWidth(dtoHeaderType, Fonts.code, codeStyle.fontSize, codeStyle.fontWeight);
 
   const stripeJson = `{
-  "id": "pay_550e8400",
+  "id": "550e8400-e29b-41d4-a716-446655440000",
   "amount": 99.00,
   "currency": "USD",
   "status": "CAPTURED",
@@ -257,7 +257,7 @@ export default makeScene2D(function* (view) {
   const packet2Y = () => packet2Start[1] + (packet2End[1] - packet2Start[1]) * packet2T();
 
   const clientJson = `{
-  "id": "pay_550e8400",
+  "id": "550e8400-e29b-41d4-a716-446655440000",
   "amount": 99.00,
   "currency": "USD",
   "status": "CAPTURED"
@@ -299,7 +299,8 @@ export default makeScene2D(function* (view) {
 
   const pad2 = (n: number) => String(n).padStart(2, '0');
   const makeCycleData = (i: number) => {
-    const id = `pay_550e84${pad2(i)}${pad2((i * 7) % 100)}`;
+    const suffix = `${pad2(i)}${pad2((i * 7) % 100)}`;
+    const id = `550e8400-e29b-41d4-a716-4466${suffix}00`;
     const amount = (49 + i * 3.5).toFixed(2);
     const status = i % 5 === 0 ? 'FAILED' : i % 3 === 0 ? 'PENDING' : 'CAPTURED';
     const mm = (32 + i) % 60;

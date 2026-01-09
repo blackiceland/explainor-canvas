@@ -10,7 +10,7 @@ export const OpenStyle = {
     terracotta: '#C8748F',
   },
   fonts: {
-    sans: 'Manrope, Inter, sans-serif',
+    sans: 'Space Grotesk, Inter, sans-serif',
     mono: 'JetBrains Mono, IBM Plex Mono, monospace',
   },
 } as const;
