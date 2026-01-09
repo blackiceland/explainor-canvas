@@ -69,6 +69,8 @@ export default makeScene2D(function* (view) {
   const splitDtoHiOn = createSignal(0);
   const rightPortYellow = createSignal(0);
   const splitDtoY = createSignal(0);
+  const endZoom = createSignal(0);
+  const endDark = createSignal(0);
 
   const leftR = 150;
   const midR = 175;
@@ -112,6 +114,7 @@ export default makeScene2D(function* (view) {
   const splitDtoW = (k: number) => Math.max(0, 1 - Math.abs(splitDtoHi() - k));
   const dimRiskOthers = () => 1 - focusRisk() * 0.9 * riskDimEnabled();
   const dangerRed = 'rgba(255,0,0,1)';
+  const endZoomK = () => 1 + endZoom() * 28;
   const parseRgba = (s: string) => {
     const raw = String(s ?? '').trim();
     const t = raw.replace(/\s+/g, '');
@@ -489,7 +492,7 @@ export default makeScene2D(function* (view) {
 
   view.add(
     <>
-      <Rect width={Screen.width} height={Screen.height} fill={S.colors.bg} />
+      <Rect width={Screen.width} height={Screen.height} fill={() => mixRgba(S.colors.bg, '#0B0B0B', endDark())} />
       <Rect>
         <Line
           points={[
@@ -537,9 +540,9 @@ export default makeScene2D(function* (view) {
         <Circle
           x={c[0]}
           y={c[1]}
-          width={midR * 2}
-          height={midR * 2}
-          fill={midFill}
+          width={() => midR * 2 * endZoomK()}
+          height={() => midR * 2 * endZoomK()}
+          fill={() => mixRgba(midFill, '#0B0B0B', endDark())}
           stroke={transparent}
           lineWidth={0}
           opacity={() => midOpacity() * dimRiskOthers() * leakDim()}
@@ -581,7 +584,7 @@ export default makeScene2D(function* (view) {
           fontWeight={serviceFontWeight}
           letterSpacing={midServiceLetterSpacing}
           fill={whiteText}
-          opacity={() => midOpacity() * dimRiskOthers() * leakDim()}
+          opacity={() => midOpacity() * dimRiskOthers() * leakDim() * (1 - endZoom())}
         />
 
         <Line
@@ -1687,7 +1690,12 @@ export default makeScene2D(function* (view) {
     packet2Opacity(0, Timing.slow, easeInOutCubic),
   );
 
-  yield* waitFor(1.5);
+  yield* waitFor(0.45);
+  yield* all(
+    endDark(1, 2.8, easeInOutCubic),
+    endZoom(1, 3.2, easeInOutCubic),
+  );
+  yield* waitFor(0.25);
 });
 
 
