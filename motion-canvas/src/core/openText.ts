@@ -1,4 +1,9 @@
 export const OpenText = {
+  title: {
+    fontSize: 22,
+    fontWeight: 600,
+    letterSpacing: 0,
+  },
   service: {
     fontSize: 32,
     fontWeight: 520,

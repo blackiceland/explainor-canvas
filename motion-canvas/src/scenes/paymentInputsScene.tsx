@@ -3,7 +3,7 @@ import {all, createRef, createSignal, easeInOutCubic, linear, waitFor} from '@mo
 import {OpenStyle} from '../core/openStyle';
 import {OpenText} from '../core/openText';
 import {OpenShapes} from '../core/openShapes';
-import {Fonts, Screen} from '../core/theme';
+import {Fonts, Screen, Timing} from '../core/theme';
 import {SafeZone} from '../core/ScreenGrid';
 import {CodeBlockWithOverlay} from '../core/components/CodeBlockText';
 import {DebugOverlay} from '../core/components/DebugOverlay';
@@ -52,6 +52,19 @@ export default makeScene2D(function* (view) {
   const packet2T = createSignal(0);
   const packet2Opacity = createSignal(0);
 
+  // Data leakage phase: 0 = normal, 1 = all components dimmed except client
+  const leakPhase = createSignal(0);
+  // Hide riskScore row in client JSON during leak phase
+  const leakHideRisk = createSignal(0);
+  // Sensitive fields opacity signals
+  const leak0 = createSignal(0);
+  const leak1 = createSignal(0);
+  const leak2 = createSignal(0);
+  // Sensitive field keys for dx calculation
+  const leakKey0 = '  "internalStatus": ';
+  const leakKey1 = '  "fraudReason": ';
+  const leakKey2 = '  "stripeId": ';
+
   const leftR = 150;
   const midR = 175;
   const rightR = 150;
@@ -89,6 +102,7 @@ export default makeScene2D(function* (view) {
   const transportAccent = S.colors.transport;
   const dotAlpha = 0.78;
   const dimOthers = () => 1 - shadowOthers() * 0.78;
+  const leakDim = () => 1 - leakPhase() * 0.92;
   const focusW = (k: number) => Math.max(0, 1 - Math.abs(focusX() - k));
   const dimRiskOthers = () => 1 - focusRisk() * 0.9 * riskDimEnabled();
   const dangerRed = 'rgba(255,0,0,1)';
@@ -324,6 +338,11 @@ export default makeScene2D(function* (view) {
   const clientJsonRef = createRef<Txt>();
   const clientJsonValuesRef = createRef<Txt>();
 
+  // Dx offsets for sensitive field values
+  const leakDx0 = textWidth(leakKey0, Fonts.code, codeStyle.fontSize, 600);
+  const leakDx1 = textWidth(leakKey1, Fonts.code, codeStyle.fontSize, 600);
+  const leakDx2 = textWidth(leakKey2, Fonts.code, codeStyle.fontSize, 600);
+
   const pad2 = (n: number) => String(n).padStart(2, '0');
   const makeCycleData = (i: number) => {
     // Вариативность UUID в начале (первые 8 hex-символов), чтобы различия читались сразу
@@ -402,7 +421,7 @@ export default makeScene2D(function* (view) {
           stroke={wireStroke}
           lineWidth={OpenShapes.stroke.connector * 1.0}
           lineCap="round"
-          opacity={() => leftOpacity() * wiresOpacity() * dimOthers() * dimRiskOthers()}
+          opacity={() => leftOpacity() * wiresOpacity() * dimOthers() * dimRiskOthers() * leakDim()}
         />
 
         <Circle
@@ -413,7 +432,7 @@ export default makeScene2D(function* (view) {
           fill={() => mixRgba(leftFill, dangerRed, clientCircleRed())}
           stroke={transparent}
           lineWidth={0}
-          opacity={() => leftOpacity() * dimOthers() * dimRiskOthers()}
+          opacity={() => leftOpacity() * dimOthers() * dimRiskOthers() * leakDim()}
         />
         <Circle
           x={leftC[0]}
@@ -423,7 +442,7 @@ export default makeScene2D(function* (view) {
           fill={'rgba(0,0,0,0)'}
           stroke={dangerRed}
           lineWidth={18}
-          opacity={() => leftOpacity() * dimOthers() * dimRiskOthers() * clientCircleRed() * 0.22}
+          opacity={() => leftOpacity() * dimOthers() * dimRiskOthers() * clientCircleRed() * 0.22 * leakDim()}
         />
         <Txt
           x={leftC[0]}
@@ -434,7 +453,7 @@ export default makeScene2D(function* (view) {
           fontWeight={serviceFontWeight}
           letterSpacing={serviceLetterSpacing}
           fill={whiteText}
-          opacity={() => leftOpacity() * dimOthers() * dimRiskOthers()}
+          opacity={() => leftOpacity() * dimOthers() * dimRiskOthers() * leakDim()}
         />
 
         <Circle
@@ -445,7 +464,7 @@ export default makeScene2D(function* (view) {
           fill={midFill}
           stroke={transparent}
           lineWidth={0}
-          opacity={() => midOpacity() * dimRiskOthers()}
+          opacity={() => midOpacity() * dimRiskOthers() * leakDim()}
         />
         <Circle
           x={leftPort[0]}
@@ -457,7 +476,8 @@ export default makeScene2D(function* (view) {
             midOpacity() *
             leftPortOpacity() *
             dimRiskOthers() *
-            (dotAlpha + dtoPulse() * (1 - dotAlpha))
+            (dotAlpha + dtoPulse() * (1 - dotAlpha)) *
+            leakDim()
           }
         />
         <Circle
@@ -470,7 +490,8 @@ export default makeScene2D(function* (view) {
             midOpacity() *
             rightPortOpacity() *
             dimRiskOthers() *
-            (dotAlpha + dtoPulse() * (1 - dotAlpha))
+            (dotAlpha + dtoPulse() * (1 - dotAlpha)) *
+            leakDim()
           }
         />
         <Txt
@@ -482,7 +503,7 @@ export default makeScene2D(function* (view) {
           fontWeight={serviceFontWeight}
           letterSpacing={midServiceLetterSpacing}
           fill={whiteText}
-          opacity={() => midOpacity() * dimRiskOthers()}
+          opacity={() => midOpacity() * dimRiskOthers() * leakDim()}
         />
 
         <Line
@@ -493,7 +514,7 @@ export default makeScene2D(function* (view) {
           stroke={wireStroke}
           lineWidth={OpenShapes.stroke.connector * 1.0}
           lineCap="round"
-          opacity={() => rightOpacity() * wiresOpacity() * dimOthers() * dimRiskOthers()}
+          opacity={() => rightOpacity() * wiresOpacity() * dimOthers() * dimRiskOthers() * leakDim()}
         />
 
         <Rect
@@ -503,7 +524,7 @@ export default makeScene2D(function* (view) {
           direction={'row'}
           alignItems={'center'}
           gap={OpenShapes.spacing.labelGap}
-          opacity={() => wiresOpacity() * leftOpacity() * dimOthers() * dimRiskOthers()}
+          opacity={() => wiresOpacity() * leftOpacity() * dimOthers() * dimRiskOthers() * leakDim()}
         >
           <Txt
             text={'GET'}
@@ -530,7 +551,7 @@ export default makeScene2D(function* (view) {
           direction={'row'}
           alignItems={'center'}
           gap={OpenShapes.spacing.labelGap}
-          opacity={() => wiresOpacity() * rightOpacity() * dimOthers() * dimRiskOthers()}
+          opacity={() => wiresOpacity() * rightOpacity() * dimOthers() * dimRiskOthers() * leakDim()}
         >
           <Txt
             text={'POST'}
@@ -558,7 +579,7 @@ export default makeScene2D(function* (view) {
           fill={rightFill}
           stroke={transparent}
           lineWidth={0}
-          opacity={() => rightOpacity() * dimOthers() * dimRiskOthers()}
+          opacity={() => rightOpacity() * dimOthers() * dimRiskOthers() * leakDim()}
         />
         <Txt
           x={rightC[0]}
@@ -569,7 +590,7 @@ export default makeScene2D(function* (view) {
           fontWeight={serviceFontWeight}
           letterSpacing={serviceLetterSpacing}
           fill={whiteText}
-          opacity={() => rightOpacity() * dimOthers() * dimRiskOthers()}
+          opacity={() => rightOpacity() * dimOthers() * dimRiskOthers() * leakDim()}
         />
       </Rect>
 
@@ -586,7 +607,7 @@ export default makeScene2D(function* (view) {
         shadowBlur={cardShadowBlur}
         shadowOffset={cardShadowOffset}
         offset={[-1, -1]}
-        opacity={() => midOpacity() * dtoObjectOpacity() * dimRiskOthers()}
+        opacity={() => midOpacity() * dtoObjectOpacity() * dimRiskOthers() * leakDim()}
       />
       <Txt
         x={dtoCodeX}
@@ -599,7 +620,7 @@ export default makeScene2D(function* (view) {
         fill={dtoBlue}
         textAlign={'left'}
         offset={[-1, -1]}
-        opacity={() => midOpacity() * dtoObjectOpacity() * dimRiskOthers()}
+        opacity={() => midOpacity() * dtoObjectOpacity() * dimRiskOthers() * leakDim()}
       />
       <Txt
         x={dtoHeaderRestX}
@@ -612,7 +633,7 @@ export default makeScene2D(function* (view) {
         fill={dtoKeyFill}
         textAlign={'left'}
         offset={[-1, -1]}
-        opacity={() => midOpacity() * dtoObjectOpacity() * dimRiskOthers()}
+        opacity={() => midOpacity() * dtoObjectOpacity() * dimRiskOthers() * leakDim()}
       />
 
       <CodeBlockWithOverlay
@@ -623,7 +644,7 @@ export default makeScene2D(function* (view) {
         valuesText={dtoValuesText}
         keysFill={dtoKeyFill}
         valuesFill={dtoValueFill}
-        opacity={() => midOpacity() * dtoObjectOpacity() * dimRiskOthers()}
+        opacity={() => midOpacity() * dtoObjectOpacity() * dimRiskOthers() * leakDim()}
         valuesOpacity={dtoValuesOpacity}
         valuesDx={dtoValuesDx}
         ellipsis
@@ -646,7 +667,7 @@ export default makeScene2D(function* (view) {
         shadowBlur={cardShadowBlur}
         shadowOffset={cardShadowOffset}
         offset={[-1, -1]}
-        opacity={() => stripeJsonOpacity() * dimOthers() * dimRiskOthers()}
+        opacity={() => stripeJsonOpacity() * dimOthers() * dimRiskOthers() * leakDim()}
       />
 
       <CodeBlockWithOverlay
@@ -657,7 +678,7 @@ export default makeScene2D(function* (view) {
         valuesText={stripeJsonValuesTextSig}
         keysFill={S.colors.ink}
         valuesFill={mutedRgba}
-        opacity={() => stripeJsonOpacity() * dimOthers() * dimRiskOthers()}
+        opacity={() => stripeJsonOpacity() * dimOthers() * dimRiskOthers() * leakDim()}
         valuesOpacity={stripeJsonBaseValuesOpacity}
         valuesDx={stripeJsonValuesDx}
         ellipsis
@@ -675,7 +696,7 @@ export default makeScene2D(function* (view) {
         valuesText={stripeJsonValuesTextSig}
         keysFill={transparent}
         valuesFill={transportAccent}
-        opacity={() => stripeJsonOpacity() * dimOthers() * dimRiskOthers()}
+        opacity={() => stripeJsonOpacity() * dimOthers() * dimRiskOthers() * leakDim()}
         valuesOpacity={stripeJsonValuesOpacity}
         valuesDx={stripeJsonValuesDx}
         ellipsis
@@ -689,7 +710,7 @@ export default makeScene2D(function* (view) {
         width={packetDotSize}
         height={packetDotSize}
         fill={transportAccent}
-        opacity={() => packetOpacity() * dimRiskOthers() * dotAlpha}
+        opacity={() => packetOpacity() * dimRiskOthers() * dotAlpha * leakDim()}
       />
 
       <Rect
@@ -748,7 +769,7 @@ export default makeScene2D(function* (view) {
         width={packetDotSize}
         height={packetDotSize}
         fill={transportAccent}
-        opacity={() => packet2Opacity() * dimRiskOthers() * dotAlpha}
+        opacity={() => packet2Opacity() * dimRiskOthers() * dotAlpha * leakDim()}
       />
 
       <Rect
@@ -759,7 +780,7 @@ export default makeScene2D(function* (view) {
         radius={10}
         fill={focusPinkUnderlay}
         offset={[-1, -1]}
-        opacity={() => focusRisk() * focusW(0)}
+        opacity={() => focusRisk() * focusW(0) * leakDim()}
       />
       <Txt
         x={stripeJsonX}
@@ -773,7 +794,7 @@ export default makeScene2D(function* (view) {
         fill={S.colors.ink}
         textAlign={'left'}
         offset={[-1, -1]}
-        opacity={() => focusRisk() * focusW(0)}
+        opacity={() => focusRisk() * focusW(0) * leakDim()}
       />
       <Txt
         x={() => stripeJsonX + stripeJsonValuesDx}
@@ -787,7 +808,7 @@ export default makeScene2D(function* (view) {
         fill={S.colors.ink}
         textAlign={'left'}
         offset={[-1, -1]}
-        opacity={() => focusRisk() * focusW(0)}
+        opacity={() => focusRisk() * focusW(0) * leakDim()}
       />
 
       <Rect
@@ -798,7 +819,7 @@ export default makeScene2D(function* (view) {
         radius={10}
         fill={focusPinkUnderlay}
         offset={[-1, -1]}
-        opacity={() => focusRisk() * focusW(1)}
+        opacity={() => focusRisk() * focusW(1) * leakDim()}
       />
       <Txt
         x={dtoCodeX}
@@ -812,7 +833,7 @@ export default makeScene2D(function* (view) {
         fill={dtoKeyFill}
         textAlign={'left'}
         offset={[-1, -1]}
-        opacity={() => focusRisk() * focusW(1)}
+        opacity={() => focusRisk() * focusW(1) * leakDim()}
       />
       <Txt
         x={() => dtoCodeX + dtoValuesDxRisk}
@@ -837,7 +858,7 @@ export default makeScene2D(function* (view) {
         radius={10}
         fill={focusPinkUnderlay}
         offset={[-1, -1]}
-        opacity={() => focusRisk() * focusW(2)}
+        opacity={() => focusRisk() * focusW(2) * (1 - leakHideRisk())}
       />
       <Txt
         x={clientJsonX}
@@ -851,7 +872,7 @@ export default makeScene2D(function* (view) {
         fill={S.colors.ink}
         textAlign={'left'}
         offset={[-1, -1]}
-        opacity={() => focusRisk() * focusW(2)}
+        opacity={() => focusRisk() * focusW(2) * (1 - leakHideRisk())}
       />
       <Txt
         x={() => clientJsonX + clientJsonValuesDx}
@@ -865,7 +886,139 @@ export default makeScene2D(function* (view) {
         fill={S.colors.ink}
         textAlign={'left'}
         offset={[-1, -1]}
-        opacity={() => focusRisk() * focusW(2)}
+        opacity={() => focusRisk() * focusW(2) * (1 - leakHideRisk())}
+      />
+
+      {/* White overlay to hide riskScore row during leak phase */}
+      <Rect
+        x={() => clientJsonX - 10}
+        y={() => clientJsonY + codeStyle.lineHeight * 5 - 2}
+        width={() => clientJsonAvailW + 20}
+        height={() => codeStyle.lineHeight + 4}
+        radius={6}
+        fill={S.colors.card}
+        offset={[-1, -1]}
+        opacity={leakHideRisk}
+      />
+
+      {/* Sensitive field 0: internalStatus */}
+      <Rect
+        x={() => clientJsonX - 10}
+        y={() => clientJsonY + codeStyle.lineHeight * 5 - 2}
+        width={() => clientJsonAvailW + 20}
+        height={() => codeStyle.lineHeight + 4}
+        radius={10}
+        fill={'rgba(255,80,80,0.18)'}
+        offset={[-1, -1]}
+        opacity={leak0}
+      />
+      <Txt
+        x={clientJsonX}
+        y={() => clientJsonY + codeStyle.lineHeight * 5}
+        width={clientJsonAvailW}
+        text={leakKey0}
+        fontFamily={S.fonts.mono}
+        fontSize={codeStyle.fontSize}
+        fontWeight={650}
+        lineHeight={codeStyle.lineHeight}
+        fill={S.colors.ink}
+        textAlign={'left'}
+        offset={[-1, -1]}
+        opacity={leak0}
+      />
+      <Txt
+        x={() => clientJsonX + leakDx0}
+        y={() => clientJsonY + codeStyle.lineHeight * 5}
+        width={clientJsonAvailW}
+        text={'"REVIEW"'}
+        fontFamily={S.fonts.mono}
+        fontSize={codeStyle.fontSize}
+        fontWeight={650}
+        lineHeight={codeStyle.lineHeight}
+        fill={'rgba(200,60,60,1)'}
+        textAlign={'left'}
+        offset={[-1, -1]}
+        opacity={leak0}
+      />
+
+      {/* Sensitive field 1: fraudReason */}
+      <Rect
+        x={() => clientJsonX - 10}
+        y={() => clientJsonY + codeStyle.lineHeight * 5 - 2}
+        width={() => clientJsonAvailW + 20}
+        height={() => codeStyle.lineHeight + 4}
+        radius={10}
+        fill={'rgba(255,80,80,0.18)'}
+        offset={[-1, -1]}
+        opacity={leak1}
+      />
+      <Txt
+        x={clientJsonX}
+        y={() => clientJsonY + codeStyle.lineHeight * 5}
+        width={clientJsonAvailW}
+        text={leakKey1}
+        fontFamily={S.fonts.mono}
+        fontSize={codeStyle.fontSize}
+        fontWeight={650}
+        lineHeight={codeStyle.lineHeight}
+        fill={S.colors.ink}
+        textAlign={'left'}
+        offset={[-1, -1]}
+        opacity={leak1}
+      />
+      <Txt
+        x={() => clientJsonX + leakDx1}
+        y={() => clientJsonY + codeStyle.lineHeight * 5}
+        width={clientJsonAvailW}
+        text={'"velocity"'}
+        fontFamily={S.fonts.mono}
+        fontSize={codeStyle.fontSize}
+        fontWeight={650}
+        lineHeight={codeStyle.lineHeight}
+        fill={'rgba(200,60,60,1)'}
+        textAlign={'left'}
+        offset={[-1, -1]}
+        opacity={leak1}
+      />
+
+      {/* Sensitive field 2: stripeAccountId */}
+      <Rect
+        x={() => clientJsonX - 10}
+        y={() => clientJsonY + codeStyle.lineHeight * 5 - 2}
+        width={() => clientJsonAvailW + 20}
+        height={() => codeStyle.lineHeight + 4}
+        radius={10}
+        fill={'rgba(255,80,80,0.18)'}
+        offset={[-1, -1]}
+        opacity={leak2}
+      />
+      <Txt
+        x={clientJsonX}
+        y={() => clientJsonY + codeStyle.lineHeight * 5}
+        width={clientJsonAvailW}
+        text={'  "stripeId": '}
+        fontFamily={S.fonts.mono}
+        fontSize={codeStyle.fontSize}
+        fontWeight={650}
+        lineHeight={codeStyle.lineHeight}
+        fill={S.colors.ink}
+        textAlign={'left'}
+        offset={[-1, -1]}
+        opacity={leak2}
+      />
+      <Txt
+        x={() => clientJsonX + leakDx2}
+        y={() => clientJsonY + codeStyle.lineHeight * 5}
+        width={clientJsonAvailW}
+        text={'"acct_1Pq9u0...'}
+        fontFamily={S.fonts.mono}
+        fontSize={codeStyle.fontSize}
+        fontWeight={650}
+        lineHeight={codeStyle.lineHeight}
+        fill={'rgba(200,60,60,1)'}
+        textAlign={'left'}
+        offset={[-1, -1]}
+        opacity={leak2}
       />
 
       {DEBUG && (
@@ -1085,13 +1238,41 @@ export default makeScene2D(function* (view) {
     yield* waitFor(0.35);
     yield* focusX(2, 0.9, easeInOutCubic);
     yield* waitFor(0.45);
-    // Avoid highlight flicker while fading out: keep focusX fixed, fade focusRisk to 0, then reset focusX instantly.
-    yield* all(
-      focusRisk(0, 0.65, easeInOutCubic),
-      riskDimEnabled(0, 0.65, easeInOutCubic),
-    );
-    focusX(0);
+    // Keep riskScore visible, just reduce dimming
+    yield* riskDimEnabled(0, 0.65, easeInOutCubic);
+    // Hold riskScore visible
+    yield* waitFor(1.5);
   }
+
+  yield* waitFor(0.5);
+
+  // === DATA LEAKAGE PHASE ===
+  // Dim all components except client JSON card, hide riskScore together with focusRisk
+  yield* all(
+    leakPhase(1, Timing.slow, easeInOutCubic),
+    leakHideRisk(1, Timing.slow, easeInOutCubic),
+    focusRisk(0, Timing.slow, easeInOutCubic),
+  );
+  focusX(0);
+  yield* waitFor(0.4);
+
+  // Show sensitive fields one by one with smooth crossfade
+  yield* leak0(1, Timing.normal, easeInOutCubic);
+  yield* waitFor(0.8);
+  yield* leak0(0, Timing.normal, easeInOutCubic);
+
+  yield* leak1(1, Timing.normal, easeInOutCubic);
+  yield* waitFor(0.8);
+  yield* leak1(0, Timing.normal, easeInOutCubic);
+
+  yield* leak2(1, Timing.normal, easeInOutCubic);
+  yield* waitFor(0.8);
+
+  // Restore everything smoothly (keep riskScore hidden)
+  yield* all(
+    leakPhase(0, Timing.slow, easeInOutCubic),
+    leak2(0, Timing.slow, easeInOutCubic),
+  );
 
   yield* waitFor(1.5);
 });
