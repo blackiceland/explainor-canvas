@@ -3,6 +3,7 @@ import {all, createSignal, easeInOutCubic, Vector2, waitFor} from '@motion-canva
 import {Colors, Fonts, Screen, Timing} from '../core/theme';
 import {CodeBlock} from '../core/code/components/CodeBlock';
 import {ExplainorCodeTheme} from '../core/code/model/SyntaxTheme';
+import {getCodePaddingY, getLineHeight} from '../core/code/shared/TextMeasure';
 import {OpenStyle} from '../core/openStyle';
 import {OpenShapes} from '../core/openShapes';
 import {OpenText} from '../core/openText';
@@ -40,7 +41,7 @@ export default makeScene2D(function* (view) {
 
   const labelFill = S.colors.ink;
   const sepStroke = S.colors.transport;
-  const annotationYellow = '#D4A04A';
+  const annotationYellow = '#FFD166';
 
   const slotTopY = -Screen.height / 2 + leftPadY + cardH / 2;
   const slotMidY = 0;
@@ -344,12 +345,16 @@ export default makeScene2D(function* (view) {
   const codeCardW = rightHalfW - rightPadX * 2;
   const codeCardX = rightHalfCenterX;
   const codeCardY = slotMidY;
+  const codeFontSize = 20;
+  const repoCardH =
+    paymentsPersistenceCode.split('\n').length * getLineHeight(codeFontSize) + getCodePaddingY(codeFontSize) * 2;
 
   const persistenceCodeCard = CodeBlock.fromCode(paymentsPersistenceCode, {
     x: codeCardX,
     y: codeCardY,
     width: codeCardW,
-    fontSize: 20,
+    height: repoCardH,
+    fontSize: codeFontSize,
     fontFamily: Fonts.code,
     theme: ExplainorCodeTheme,
     customTypes: ['PaymentsRepository', 'DSLContext', 'PaymentDto', 'UUID', 'PAYMENTS', 'BigDecimal'],
@@ -361,7 +366,8 @@ export default makeScene2D(function* (view) {
     x: codeCardX,
     y: codeCardY,
     width: codeCardW,
-    fontSize: 20,
+    height: repoCardH,
+    fontSize: codeFontSize,
     fontFamily: Fonts.code,
     theme: ExplainorCodeTheme,
     customTypes: ['PaymentsService', 'PaymentsRepository', 'PaymentDto', 'UUID'],
@@ -373,7 +379,8 @@ export default makeScene2D(function* (view) {
     x: codeCardX,
     y: codeCardY,
     width: codeCardW,
-    fontSize: 20,
+    height: repoCardH,
+    fontSize: codeFontSize,
     fontFamily: Fonts.code,
     theme: ExplainorCodeTheme,
     customTypes: ['PaymentsController', 'PaymentsService', 'PaymentDto', 'UUID', 'GetMapping', 'PathVariable'],
@@ -381,9 +388,11 @@ export default makeScene2D(function* (view) {
   controllerCodeCard.mount(view);
   controllerCodeCard.node.opacity(() => darkThemeOn() * controllerCodeOn());
   // Make annotations consistently yellow
+  const annotationTokens = ['@GetMapping', '@PathVariable', 'GetMapping', 'PathVariable'];
   yield* all(
-    controllerCodeCard.recolorTokens(8, ['@GetMapping', 'GetMapping'], annotationYellow, 0),
-    controllerCodeCard.recolorTokens(9, ['@PathVariable', 'PathVariable'], annotationYellow, 0),
+    ...Array.from({length: controllerCodeCard.lineCount}, (_, i) =>
+      controllerCodeCard.recolorTokens(i, annotationTokens, annotationYellow, 0),
+    ),
   );
 
   yield* all(
