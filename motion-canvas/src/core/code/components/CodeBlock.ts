@@ -236,6 +236,25 @@ export class CodeBlock {
         }
     }
 
+    public *setLineTokensOpacity(lineIndex: number, opacity: number, duration: number = 0.4): ThreadGenerator {
+        const line = this.lines[lineIndex];
+        if (line) {
+            yield* line.setAllTokensOpacity(opacity, duration);
+        }
+    }
+
+    public *setLineTokensOpacityMatching(
+        lineIndex: number,
+        patterns: string[],
+        opacity: number,
+        duration: number = 0.4,
+    ): ThreadGenerator {
+        const line = this.lines[lineIndex];
+        if (line) {
+            yield* line.setTokensOpacity(patterns, opacity, duration);
+        }
+    }
+
     public *recolorTokens(lineIndex: number, patterns: string[], color: string, duration: number = 0.4): ThreadGenerator {
         const line = this.lines[lineIndex];
         if (line) {

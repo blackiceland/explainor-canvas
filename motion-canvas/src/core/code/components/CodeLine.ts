@@ -166,6 +166,28 @@ export class CodeLine {
         }
     }
 
+    public *setAllTokensOpacity(opacity: number, duration: number = 0.4): ThreadGenerator {
+        const animations: ThreadGenerator[] = [];
+        for (const tokenData of this.tokensData) {
+            animations.push(tokenData.ref().opacity(opacity, duration, easeInOutCubic));
+        }
+        if (animations.length > 0) {
+            yield* all(...animations);
+        }
+    }
+
+    public *setTokensOpacity(patterns: string[], opacity: number, duration: number = 0.4): ThreadGenerator {
+        const animations: ThreadGenerator[] = [];
+        for (const tokenData of this.tokensData) {
+            if (patterns.some(p => tokenData.text.includes(p))) {
+                animations.push(tokenData.ref().opacity(opacity, duration, easeInOutCubic));
+            }
+        }
+        if (animations.length > 0) {
+            yield* all(...animations);
+        }
+    }
+
     public setTokenOpacityAt(index: number, opacity: number): void {
         const resolved = this.resolveTokenIndex(index);
         const token = this.tokensData[resolved];

@@ -321,9 +321,20 @@ export default makeScene2D(function* (view) {
     disableOtherLayers(1, Timing.slow * 0.9, easeInOutCubic),
   );
   yield* waitFor(0.2);
-  // Dim all code and highlight only the DTO token in the method signature (not the whole line)
-  yield* persistenceCodeCard.dimLines(0, persistenceCodeCard.lineCount - 1, 0.25, Timing.slow * 0.7);
-  yield* persistenceCodeCard.recolorTokens(8, ['PaymentDto'], Colors.accent, Timing.slow * 0.7);
+  // Dim all code via per-token opacity (keeps theme colors, incl. constants) and highlight DTO token immediately (no intermediate state).
+  const dimOpacity = 0.22;
+  const dimDur = Timing.slow * 0.7;
+  const dimOtherLines = Array.from({length: persistenceCodeCard.lineCount}, (_, i) =>
+    i === 8 ? waitFor(0) : persistenceCodeCard.setLineTokensOpacity(i, dimOpacity, dimDur),
+  );
+  yield* all(
+    ...dimOtherLines,
+    // Signature line: dim everything first...
+    persistenceCodeCard.setLineTokensOpacity(8, dimOpacity, dimDur),
+    // ...but keep PaymentDto fully visible and pink during the same transition.
+    persistenceCodeCard.setLineTokensOpacityMatching(8, ['PaymentDto'], 1, dimDur),
+    persistenceCodeCard.recolorTokens(8, ['PaymentDto'], Colors.accent, dimDur),
+  );
   yield* waitFor(10);
 });
 
