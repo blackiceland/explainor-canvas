@@ -1,6 +1,8 @@
 import {Gradient, Line, makeScene2D, Rect, Txt} from '@motion-canvas/2d';
 import {all, createSignal, easeInOutCubic, Vector2, waitFor} from '@motion-canvas/core';
-import {Colors, Screen, Timing} from '../core/theme';
+import {Colors, Fonts, Screen, Timing} from '../core/theme';
+import {CodeBlock} from '../core/code/components/CodeBlock';
+import {ExplainorCodeTheme} from '../core/code/model/SyntaxTheme';
 import {OpenStyle} from '../core/openStyle';
 import {OpenShapes} from '../core/openShapes';
 import {OpenText} from '../core/openText';
@@ -8,6 +10,8 @@ import {OpenText} from '../core/openText';
 export default makeScene2D(function* (view) {
   const leftReveal = createSignal(0);
   const darkThemeOn = createSignal(0);
+  const codeCardOn = createSignal(0);
+  const disableOtherLayers = createSignal(0);
   const S = OpenStyle;
 
   const darkBg = '#0B0B0B';
@@ -42,6 +46,7 @@ export default makeScene2D(function* (view) {
   const dbOn = createSignal(0);
   const serviceOn = createSignal(0);
   const apiOn = createSignal(0);
+  const dimmedLayerOpacity = (base: number) => base * (1 - disableOtherLayers() * 0.82);
 
   const sep1On = createSignal(0);
   const sep1End = createSignal(0);
@@ -74,6 +79,21 @@ export default makeScene2D(function* (view) {
   const sepX2 = () => dividerX();
   const sepY1 = (slotTopY + cardH / 2 + (slotMidY - cardH / 2)) / 2;
   const sepY2 = (slotMidY + cardH / 2 + (slotBotY - cardH / 2)) / 2;
+
+  const paymentsPersistenceCode = `final class PaymentsRepository {
+
+  private final DSLContext dsl;
+
+  PaymentsRepository(DSLContext dsl) {
+    this.dsl = dsl;
+  }
+
+  public PaymentDto findById(UUID id) {
+    return dsl.selectFrom(PAYMENTS)
+      .where(PAYMENTS.ID.eq(id))
+      .fetchOneInto(PaymentDto.class);
+  }
+}`;
 
   view.add(
     <>
@@ -140,10 +160,12 @@ export default makeScene2D(function* (view) {
         layout
         alignItems={'center'}
         justifyContent={'center'}
+        direction={'column'}
+        gap={4}
         opacity={dbOn}
       >
         <Txt
-          text={'PERSISTENCE\nDB LAYER'}
+          text={'PERSISTENCE'}
           fontFamily={S.fonts.sans}
           fontSize={46}
           fontWeight={OpenText.service.fontWeight}
@@ -151,6 +173,16 @@ export default makeScene2D(function* (view) {
           fill={labelFill}
           textAlign={'center'}
           lineHeight={52}
+        />
+        <Txt
+          text={'DB LAYER'}
+          fontFamily={S.fonts.sans}
+          fontSize={36}
+          fontWeight={OpenText.service.fontWeight}
+          letterSpacing={OpenText.service.letterSpacing}
+          fill={sepStroke}
+          textAlign={'center'}
+          lineHeight={42}
         />
       </Rect>
 
@@ -170,10 +202,12 @@ export default makeScene2D(function* (view) {
         layout
         alignItems={'center'}
         justifyContent={'center'}
-        opacity={serviceOn}
+        direction={'column'}
+        gap={4}
+        opacity={() => dimmedLayerOpacity(serviceOn())}
       >
         <Txt
-          text={'SERVICE\nDOMAIN LAYER'}
+          text={'SERVICE'}
           fontFamily={S.fonts.sans}
           fontSize={46}
           fontWeight={OpenText.service.fontWeight}
@@ -181,6 +215,16 @@ export default makeScene2D(function* (view) {
           fill={labelFill}
           textAlign={'center'}
           lineHeight={52}
+        />
+        <Txt
+          text={'DOMAIN LAYER'}
+          fontFamily={S.fonts.sans}
+          fontSize={36}
+          fontWeight={OpenText.service.fontWeight}
+          letterSpacing={OpenText.service.letterSpacing}
+          fill={sepStroke}
+          textAlign={'center'}
+          lineHeight={42}
         />
       </Rect>
 
@@ -200,10 +244,12 @@ export default makeScene2D(function* (view) {
         layout
         alignItems={'center'}
         justifyContent={'center'}
-        opacity={apiOn}
+        direction={'column'}
+        gap={4}
+        opacity={() => dimmedLayerOpacity(apiOn())}
       >
         <Txt
-          text={'API LAYER\nTRANSPORT'}
+          text={'API LAYER'}
           fontFamily={S.fonts.sans}
           fontSize={46}
           fontWeight={OpenText.service.fontWeight}
@@ -212,9 +258,39 @@ export default makeScene2D(function* (view) {
           textAlign={'center'}
           lineHeight={52}
         />
+        <Txt
+          text={'TRANSPORT'}
+          fontFamily={S.fonts.sans}
+          fontSize={36}
+          fontWeight={OpenText.service.fontWeight}
+          letterSpacing={OpenText.service.letterSpacing}
+          fill={sepStroke}
+          textAlign={'center'}
+          lineHeight={42}
+        />
       </Rect>
     </>,
   );
+
+  // Right side: code cards (match dryFiltersScene styling via CodeBlock/CodeCard)
+  const rightPadX = 72;
+  const rightHalfW = Screen.width / 2;
+  const rightHalfCenterX = Screen.width / 4;
+  const codeCardW = rightHalfW - rightPadX * 2;
+  const codeCardX = rightHalfCenterX;
+  const codeCardY = slotMidY;
+
+  const persistenceCodeCard = CodeBlock.fromCode(paymentsPersistenceCode, {
+    x: codeCardX,
+    y: codeCardY,
+    width: codeCardW,
+    fontSize: 18,
+    fontFamily: Fonts.code,
+    theme: ExplainorCodeTheme,
+    customTypes: ['PaymentsRepository', 'DSLContext', 'PaymentDto', 'UUID', 'PAYMENTS', 'BigDecimal'],
+  });
+  persistenceCodeCard.mount(view);
+  persistenceCodeCard.node.opacity(() => darkThemeOn() * codeCardOn());
 
   yield* all(
     leftReveal(1, Timing.slow * 1.35, easeInOutCubic),
@@ -237,6 +313,19 @@ export default makeScene2D(function* (view) {
   yield* serviceOn(1, Timing.slow * 0.95, easeInOutCubic);
   yield* waitFor(0.12);
   yield* dbOn(1, Timing.slow * 0.95, easeInOutCubic);
+
+  // After the layer cards are in, reveal the right-side code card and "disable" non-persistence layers.
+  yield* waitFor(0.25);
+  yield* all(
+    codeCardOn(1, Timing.slow * 0.9, easeInOutCubic),
+    disableOtherLayers(1, Timing.slow * 0.9, easeInOutCubic),
+  );
+  yield* waitFor(0.2);
+  // Highlight the return value in pink (like dryFiltersScene)
+  yield* all(
+    persistenceCodeCard.highlightLines([[9, 11]], Timing.slow * 0.7),
+    persistenceCodeCard.recolorLine(11, Colors.accent, Timing.slow * 0.7),
+  );
   yield* waitFor(10);
 });
 
