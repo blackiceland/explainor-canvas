@@ -284,7 +284,7 @@ export default makeScene2D(function* (view) {
     x: codeCardX,
     y: codeCardY,
     width: codeCardW,
-    fontSize: 18,
+    fontSize: 20,
     fontFamily: Fonts.code,
     theme: ExplainorCodeTheme,
     customTypes: ['PaymentsRepository', 'DSLContext', 'PaymentDto', 'UUID', 'PAYMENTS', 'BigDecimal'],
@@ -321,11 +321,9 @@ export default makeScene2D(function* (view) {
     disableOtherLayers(1, Timing.slow * 0.9, easeInOutCubic),
   );
   yield* waitFor(0.2);
-  // Highlight the return value in pink (like dryFiltersScene)
-  yield* all(
-    persistenceCodeCard.highlightLines([[9, 11]], Timing.slow * 0.7),
-    persistenceCodeCard.recolorLine(11, Colors.accent, Timing.slow * 0.7),
-  );
+  // Dim all code and highlight only the DTO token in the method signature (not the whole line)
+  yield* persistenceCodeCard.dimLines(0, persistenceCodeCard.lineCount - 1, 0.25, Timing.slow * 0.7);
+  yield* persistenceCodeCard.recolorTokens(8, ['PaymentDto'], Colors.accent, Timing.slow * 0.7);
   yield* waitFor(10);
 });
 
