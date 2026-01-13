@@ -11,7 +11,11 @@ export default makeScene2D(function* (view) {
   const leftReveal = createSignal(0);
   const darkThemeOn = createSignal(0);
   const codeCardOn = createSignal(0);
+  const serviceCodeOn = createSignal(0);
+  const controllerCodeOn = createSignal(0);
   const disableOtherLayers = createSignal(0);
+  const dtoOn = createSignal(0);
+  const dtoY = createSignal(0);
   const S = OpenStyle;
 
   const darkBg = '#0B0B0B';
@@ -36,10 +40,12 @@ export default makeScene2D(function* (view) {
 
   const labelFill = S.colors.ink;
   const sepStroke = S.colors.transport;
+  const annotationYellow = '#D4A04A';
 
   const slotTopY = -Screen.height / 2 + leftPadY + cardH / 2;
   const slotMidY = 0;
   const slotBotY = Screen.height / 2 - leftPadY - cardH / 2;
+  dtoY(slotBotY);
 
   const layerX = -Screen.width / 2 + leftPadX + cardW / 2;
 
@@ -95,6 +101,33 @@ export default makeScene2D(function* (view) {
   }
 }`;
 
+  const paymentsServiceCode = `final class PaymentsService {
+
+  private final PaymentsRepository repository;
+
+  PaymentsService(PaymentsRepository repository) {
+    this.repository = repository;
+  }
+
+  public PaymentDto getById(UUID id) {
+    return repository.findById(id);
+  }
+}`;
+
+  const paymentsControllerCode = `final class PaymentsController {
+
+  private final PaymentsService service;
+
+  PaymentsController(PaymentsService service) {
+    this.service = service;
+  }
+
+  @GetMapping("/payments/{id}")
+  public PaymentDto get(@PathVariable UUID id) {
+    return service.getById(id);
+  }
+}`;
+
   view.add(
     <>
       <Rect width={Screen.width} height={halfH} fill={darkBg} />
@@ -143,6 +176,37 @@ export default makeScene2D(function* (view) {
         end={sep2End}
         opacity={() => sep2On() * leftReveal()}
       />
+
+      {/* DTO card on the white side (shows the same DTO used across layers) */}
+      <Rect
+        x={() => Math.min(dividerX() - leftPadX - cardW / 2, layerX + cardW + 52)}
+        y={dtoY}
+        width={cardW}
+        height={cardH}
+        radius={cardRadius}
+        fill={cardFill}
+        stroke={cardStroke}
+        lineWidth={1}
+        shadowColor={cardShadowColor}
+        shadowBlur={cardShadowBlur}
+        shadowOffset={cardShadowOffset}
+        layout
+        direction={'column'}
+        alignItems={'center'}
+        justifyContent={'center'}
+        gap={0}
+        opacity={() => dtoOn() * leftReveal()}
+      >
+        <Txt
+          text={'PAYMENT DTO'}
+          fontFamily={S.fonts.sans}
+          fontSize={46}
+          fontWeight={OpenText.service.fontWeight}
+          letterSpacing={OpenText.service.letterSpacing}
+          fill={labelFill}
+          textAlign={'center'}
+        />
+      </Rect>
 
       <Rect
         x={layerX}
@@ -273,6 +337,7 @@ export default makeScene2D(function* (view) {
   );
 
   // Right side: code cards (match dryFiltersScene styling via CodeBlock/CodeCard)
+  // Keep a bit of side padding like before (otherwise the card feels too wide).
   const rightPadX = 72;
   const rightHalfW = Screen.width / 2;
   const rightHalfCenterX = Screen.width / 4;
@@ -291,6 +356,35 @@ export default makeScene2D(function* (view) {
   });
   persistenceCodeCard.mount(view);
   persistenceCodeCard.node.opacity(() => darkThemeOn() * codeCardOn());
+
+  const serviceCodeCard = CodeBlock.fromCode(paymentsServiceCode, {
+    x: codeCardX,
+    y: codeCardY,
+    width: codeCardW,
+    fontSize: 20,
+    fontFamily: Fonts.code,
+    theme: ExplainorCodeTheme,
+    customTypes: ['PaymentsService', 'PaymentsRepository', 'PaymentDto', 'UUID'],
+  });
+  serviceCodeCard.mount(view);
+  serviceCodeCard.node.opacity(() => darkThemeOn() * serviceCodeOn());
+
+  const controllerCodeCard = CodeBlock.fromCode(paymentsControllerCode, {
+    x: codeCardX,
+    y: codeCardY,
+    width: codeCardW,
+    fontSize: 20,
+    fontFamily: Fonts.code,
+    theme: ExplainorCodeTheme,
+    customTypes: ['PaymentsController', 'PaymentsService', 'PaymentDto', 'UUID', 'GetMapping', 'PathVariable'],
+  });
+  controllerCodeCard.mount(view);
+  controllerCodeCard.node.opacity(() => darkThemeOn() * controllerCodeOn());
+  // Make annotations consistently yellow
+  yield* all(
+    controllerCodeCard.recolorTokens(8, ['@GetMapping', 'GetMapping'], annotationYellow, 0),
+    controllerCodeCard.recolorTokens(9, ['@PathVariable', 'PathVariable'], annotationYellow, 0),
+  );
 
   yield* all(
     leftReveal(1, Timing.slow * 1.35, easeInOutCubic),
@@ -321,20 +415,55 @@ export default makeScene2D(function* (view) {
     disableOtherLayers(1, Timing.slow * 0.9, easeInOutCubic),
   );
   yield* waitFor(0.2);
-  // Dim all code via per-token opacity (keeps theme colors, incl. constants) and highlight DTO token immediately (no intermediate state).
+
+  // Highlight animation (repo card only) + DTO card fade-in must start together.
   const dimOpacity = 0.22;
-  const dimDur = Timing.slow * 0.7;
-  const dimOtherLines = Array.from({length: persistenceCodeCard.lineCount}, (_, i) =>
-    i === 8 ? waitFor(0) : persistenceCodeCard.setLineTokensOpacity(i, dimOpacity, dimDur),
+  const highlightDur = Timing.slow * 0.9;
+  const dimAllOtherLines = Array.from({length: persistenceCodeCard.lineCount}, (_, i) =>
+    i === 8 ? waitFor(0) : persistenceCodeCard.setLineTokensOpacity(i, dimOpacity, highlightDur),
   );
   yield* all(
-    ...dimOtherLines,
-    // Signature line: dim everything first...
-    persistenceCodeCard.setLineTokensOpacity(8, dimOpacity, dimDur),
-    // ...but keep PaymentDto fully visible and pink during the same transition.
-    persistenceCodeCard.setLineTokensOpacityMatching(8, ['PaymentDto'], 1, dimDur),
-    persistenceCodeCard.recolorTokens(8, ['PaymentDto'], Colors.accent, dimDur),
+    dtoOn(1, Timing.slow * 1.05, easeInOutCubic),
+    ...dimAllOtherLines,
+    persistenceCodeCard.setLineTokensOpacity(8, dimOpacity, highlightDur),
+    persistenceCodeCard.setLineTokensOpacityMatching(8, ['PaymentDto'], 1, highlightDur),
+    persistenceCodeCard.recolorTokens(8, ['PaymentDto'], Colors.accent, highlightDur),
   );
+
+  // Before the DTO card starts moving, the repository (persistence) code card must fade out.
+  yield* all(
+    codeCardOn(0, Timing.slow * 0.65, easeInOutCubic),
+    disableOtherLayers(0, Timing.slow * 0.65, easeInOutCubic),
+  );
+
+  // Move DTO card up through layers; right-side code cards switch.
+  const travel = Timing.slow * 1.05;
+  const serviceFadeIn = Timing.slow * 0.75;
+  // Must fully disappear before controller starts to appear, and still be fully visible at arrival.
+  const serviceFadeOut = Math.max(0.2, Math.min(Timing.fast, travel - (Timing.slow * 0.75) - 0.03));
+  const controllerFadeIn = Timing.slow * 0.75;
+
+  // 1) DB -> SERVICE: continuous move; service card fades in shortly before arrival (no pauses).
+  yield* all(
+    dtoY(slotMidY, travel, easeInOutCubic),
+    (function* () {
+      // Start fade-in so it's fully visible exactly at arrival.
+      yield* waitFor(Math.max(0, travel - serviceFadeIn));
+      yield* serviceCodeOn(1, serviceFadeIn, easeInOutCubic);
+    })(),
+  );
+
+  // 2) SERVICE -> API: service fades out at start, controller fades in before arrival (continuous move).
+  yield* all(
+    dtoY(slotTopY, travel, easeInOutCubic),
+    (function* () {
+      yield* serviceCodeOn(0, serviceFadeOut, easeInOutCubic);
+      // Start fade-in so it's fully visible exactly at arrival (and only after service is gone).
+      yield* waitFor(Math.max(serviceFadeOut, travel - controllerFadeIn));
+      yield* controllerCodeOn(1, controllerFadeIn, easeInOutCubic);
+    })(),
+  );
+
   yield* waitFor(10);
 });
 
