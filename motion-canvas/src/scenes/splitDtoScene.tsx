@@ -1,5 +1,5 @@
 import {Gradient, Line, makeScene2D, Rect, Txt} from '@motion-canvas/2d';
-import {all, createSignal, easeInOutCubic, Vector2, waitFor} from '@motion-canvas/core';
+import {all, createRef, createSignal, easeInOutCubic, Vector2, waitFor} from '@motion-canvas/core';
 import {Colors, Fonts, Screen, Timing} from '../core/theme';
 import {CodeBlock} from '../core/code/components/CodeBlock';
 import {ExplainorCodeTheme} from '../core/code/model/SyntaxTheme';
@@ -42,6 +42,14 @@ export default makeScene2D(function* (view) {
   const labelFill = S.colors.ink;
   const sepStroke = S.colors.transport;
   const annotationYellow = '#FFD166';
+  const highlightBlue = S.colors.blue;
+  const outlineW = 3;
+  const outlineDur = Timing.slow * 0.8;
+
+  const dtoCardRef = createRef<Rect>();
+  const dbCardRef = createRef<Rect>();
+  const serviceCardRef = createRef<Rect>();
+  const apiCardRef = createRef<Rect>();
 
   const slotTopY = -Screen.height / 2 + leftPadY + cardH / 2;
   const slotMidY = 0;
@@ -180,6 +188,7 @@ export default makeScene2D(function* (view) {
 
       {/* DTO card on the white side (shows the same DTO used across layers) */}
       <Rect
+        ref={dtoCardRef}
         x={() => Math.min(dividerX() - leftPadX - cardW / 2, layerX + cardW + 52)}
         y={dtoY}
         width={cardW}
@@ -210,6 +219,7 @@ export default makeScene2D(function* (view) {
       </Rect>
 
       <Rect
+        ref={dbCardRef}
         x={layerX}
         y={slotBotY}
         width={cardW}
@@ -252,6 +262,7 @@ export default makeScene2D(function* (view) {
       </Rect>
 
       <Rect
+        ref={serviceCardRef}
         x={layerX}
         y={slotMidY}
         width={cardW}
@@ -294,6 +305,7 @@ export default makeScene2D(function* (view) {
       </Rect>
 
       <Rect
+        ref={apiCardRef}
         x={layerX}
         y={slotTopY}
         width={cardW}
@@ -357,7 +369,7 @@ export default makeScene2D(function* (view) {
     fontSize: codeFontSize,
     fontFamily: Fonts.code,
     theme: ExplainorCodeTheme,
-    customTypes: ['PaymentsRepository', 'DSLContext', 'PaymentDto', 'UUID', 'PAYMENTS', 'BigDecimal'],
+    customTypes: ['PaymentsRepository', 'DSLContext', 'PaymentDto', 'UUID', 'BigDecimal'],
   });
   persistenceCodeCard.mount(view);
   persistenceCodeCard.node.opacity(() => darkThemeOn() * codeCardOn());
@@ -471,6 +483,29 @@ export default makeScene2D(function* (view) {
       yield* waitFor(Math.max(serviceFadeOut, travel - controllerFadeIn));
       yield* controllerCodeOn(1, controllerFadeIn, easeInOutCubic);
     })(),
+  );
+
+  // After DTO reaches API: outline all light-side cards in blue to show coupling, then fade back.
+  yield* all(
+    dtoCardRef().stroke(highlightBlue, outlineDur, easeInOutCubic),
+    dbCardRef().stroke(highlightBlue, outlineDur, easeInOutCubic),
+    serviceCardRef().stroke(highlightBlue, outlineDur, easeInOutCubic),
+    apiCardRef().stroke(highlightBlue, outlineDur, easeInOutCubic),
+    dtoCardRef().lineWidth(outlineW, outlineDur, easeInOutCubic),
+    dbCardRef().lineWidth(outlineW, outlineDur, easeInOutCubic),
+    serviceCardRef().lineWidth(outlineW, outlineDur, easeInOutCubic),
+    apiCardRef().lineWidth(outlineW, outlineDur, easeInOutCubic),
+  );
+  yield* waitFor(1);
+  yield* all(
+    dtoCardRef().stroke(cardStroke, Timing.slow * 0.7, easeInOutCubic),
+    dbCardRef().stroke(cardStroke, Timing.slow * 0.7, easeInOutCubic),
+    serviceCardRef().stroke(cardStroke, Timing.slow * 0.7, easeInOutCubic),
+    apiCardRef().stroke(cardStroke, Timing.slow * 0.7, easeInOutCubic),
+    dtoCardRef().lineWidth(1, Timing.slow * 0.7, easeInOutCubic),
+    dbCardRef().lineWidth(1, Timing.slow * 0.7, easeInOutCubic),
+    serviceCardRef().lineWidth(1, Timing.slow * 0.7, easeInOutCubic),
+    apiCardRef().lineWidth(1, Timing.slow * 0.7, easeInOutCubic),
   );
 
   yield* waitFor(10);
