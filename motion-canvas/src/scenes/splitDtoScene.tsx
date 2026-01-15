@@ -14,6 +14,7 @@ export default makeScene2D(function* (view) {
   const codeCardOn = createSignal(0);
   const serviceCodeOn = createSignal(0);
   const controllerCodeOn = createSignal(0);
+  const dtoCodeOn = createSignal(0);
   const disableOtherLayers = createSignal(0);
   const dtoOn = createSignal(0);
   const dtoY = createSignal(0);
@@ -106,11 +107,14 @@ export default makeScene2D(function* (view) {
   public PaymentDto findById(UUID id) {
     return dsl.selectFrom(PAYMENTS)
       .where(PAYMENTS.ID.eq(id))
-      .fetchOneInto(PaymentDto.class);
+      .and(PAYMENTS.DELETED_AT.isNull())
+      .fetchOptionalInto(PaymentDto.class)
+      .orElse(null);
   }
 }`;
 
-  const paymentsServiceCode = `final class PaymentsService {
+  const paymentsServiceCode = `@Service
+final class PaymentsService {
 
   private final PaymentsRepository repository;
 
@@ -118,12 +122,19 @@ export default makeScene2D(function* (view) {
     this.repository = repository;
   }
 
+  @Transactional(readOnly = true)
   public PaymentDto getById(UUID id) {
-    return repository.findById(id);
+    PaymentDto dto = repository.findById(id);
+    if (dto == null) {
+      throw new PaymentNotFoundException(id);
+    }
+    return dto;
   }
 }`;
 
-  const paymentsControllerCode = `final class PaymentsController {
+  const paymentsControllerCode = `@RestController
+@RequestMapping("/payments")
+final class PaymentsController {
 
   private final PaymentsService service;
 
@@ -131,11 +142,19 @@ export default makeScene2D(function* (view) {
     this.service = service;
   }
 
-  @GetMapping("/payments/{id}")
-  public PaymentDto get(@PathVariable UUID id) {
-    return service.getById(id);
+  @GetMapping("/{id}")
+  public ResponseEntity<PaymentDto> get(@PathVariable UUID id) {
+    return ResponseEntity.ok(service.getById(id));
   }
 }`;
+
+  const paymentDtoCode = `public record PaymentDto(
+  UUID id,
+  BigDecimal amount,
+  String currency,
+  String status,
+  Instant updatedAt
+) {}`;
 
   view.add(
     <>
@@ -358,8 +377,9 @@ export default makeScene2D(function* (view) {
   const codeCardX = rightHalfCenterX;
   const codeCardY = slotMidY;
   const codeFontSize = 20;
-  const repoCardH =
-    paymentsPersistenceCode.split('\n').length * getLineHeight(codeFontSize) + getCodePaddingY(codeFontSize) * 2;
+  // Repository card is the size reference: all right-side cards match its height.
+  const repoLineCount = paymentsPersistenceCode.split('\n').length;
+  const repoCardH = repoLineCount * getLineHeight(codeFontSize) + getCodePaddingY(codeFontSize) * 2;
 
   const persistenceCodeCard = CodeBlock.fromCode(paymentsPersistenceCode, {
     x: codeCardX,
@@ -387,6 +407,19 @@ export default makeScene2D(function* (view) {
   serviceCodeCard.mount(view);
   serviceCodeCard.node.opacity(() => darkThemeOn() * serviceCodeOn());
 
+  const dtoCodeCard = CodeBlock.fromCode(paymentDtoCode, {
+    x: codeCardX,
+    y: codeCardY,
+    width: codeCardW,
+    height: repoCardH,
+    fontSize: codeFontSize,
+    fontFamily: Fonts.code,
+    theme: ExplainorCodeTheme,
+    customTypes: ['PaymentDto', 'UUID', 'BigDecimal'],
+  });
+  dtoCodeCard.mount(view);
+  dtoCodeCard.node.opacity(() => darkThemeOn() * dtoCodeOn());
+
   const controllerCodeCard = CodeBlock.fromCode(paymentsControllerCode, {
     x: codeCardX,
     y: codeCardY,
@@ -399,9 +432,26 @@ export default makeScene2D(function* (view) {
   });
   controllerCodeCard.mount(view);
   controllerCodeCard.node.opacity(() => darkThemeOn() * controllerCodeOn());
-  // Make annotations consistently yellow
-  const annotationTokens = ['@GetMapping', '@PathVariable', 'GetMapping', 'PathVariable'];
+  // Make annotations consistently yellow (service + controller)
+  const annotationTokens = [
+    '@Service',
+    '@Transactional',
+    '@RestController',
+    '@RequestMapping',
+    '@GetMapping',
+    '@PathVariable',
+    // keep both spellings so it works whether '@' is included in the token text
+    'Service',
+    'Transactional',
+    'RestController',
+    'RequestMapping',
+    'GetMapping',
+    'PathVariable',
+  ];
   yield* all(
+    ...Array.from({length: serviceCodeCard.lineCount}, (_, i) =>
+      serviceCodeCard.recolorTokens(i, annotationTokens, annotationYellow, 0),
+    ),
     ...Array.from({length: controllerCodeCard.lineCount}, (_, i) =>
       controllerCodeCard.recolorTokens(i, annotationTokens, annotationYellow, 0),
     ),
@@ -484,6 +534,13 @@ export default makeScene2D(function* (view) {
       yield* controllerCodeOn(1, controllerFadeIn, easeInOutCubic);
     })(),
   );
+
+  // Show DTO code card on right after controller fades (as requested).
+  yield* controllerCodeOn(0, Timing.slow * 0.6, easeInOutCubic);
+  yield* waitFor(0.25);
+  yield* dtoCodeOn(1, Timing.slow * 0.45, easeInOutCubic);
+  // Give time to read the DTO code before outlining the left side.
+  yield* waitFor(0.9);
 
   // After DTO reaches API: outline all light-side cards in blue to show coupling, then fade back.
   yield* all(
