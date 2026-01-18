@@ -380,6 +380,12 @@ final class PaymentsController {
   // Repository card is the size reference: all right-side cards match its height.
   const repoLineCount = paymentsPersistenceCode.split('\n').length;
   const repoCardH = repoLineCount * getLineHeight(codeFontSize) + getCodePaddingY(codeFontSize) * 2;
+  const codePadY = getCodePaddingY(codeFontSize);
+  const centerOffsetYFor = (lineCount: number) => {
+    const clipH = repoCardH - codePadY * 2;
+    const contentH = lineCount * getLineHeight(codeFontSize);
+    return Math.max(0, (clipH - contentH) / 2);
+  };
 
   const persistenceCodeCard = CodeBlock.fromCode(paymentsPersistenceCode, {
     x: codeCardX,
@@ -412,7 +418,9 @@ final class PaymentsController {
     y: codeCardY,
     width: codeCardW,
     height: repoCardH,
-    fontSize: codeFontSize,
+    // Top-left alignment: no extra vertical offset, just the card's native padding.
+    contentOffsetY: 0,
+    fontSize: 24,
     fontFamily: Fonts.code,
     theme: ExplainorCodeTheme,
     customTypes: ['PaymentDto', 'UUID', 'BigDecimal'],

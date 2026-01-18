@@ -39,3 +39,4 @@ export function deltaVector(from: Point, to: Point): Point {
         y: to.y - from.y,
     };
 }
+
