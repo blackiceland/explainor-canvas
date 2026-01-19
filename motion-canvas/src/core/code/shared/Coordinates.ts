@@ -40,3 +40,5 @@ export function deltaVector(from: Point, to: Point): Point {
     };
 }
 
+
+

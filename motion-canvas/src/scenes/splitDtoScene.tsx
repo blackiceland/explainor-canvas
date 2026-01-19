@@ -105,11 +105,16 @@ export default makeScene2D(function* (view) {
   }
 
   public PaymentDto findById(UUID id) {
-    return dsl.selectFrom(PAYMENTS)
+    return dsl.select(
+        PAYMENTS.ID,
+        PAYMENTS.AMOUNT,
+        PAYMENTS.CURRENCY,
+        PAYMENTS.STATUS,
+        PAYMENTS.UPDATED_AT
+      )
+      .from(PAYMENTS)
       .where(PAYMENTS.ID.eq(id))
-      .and(PAYMENTS.DELETED_AT.isNull())
-      .fetchOptionalInto(PaymentDto.class)
-      .orElse(null);
+      .fetchOneInto(PaymentDto.class);
   }
 }`;
 
@@ -125,9 +130,11 @@ final class PaymentsService {
   @Transactional(readOnly = true)
   public PaymentDto getById(UUID id) {
     PaymentDto dto = repository.findById(id);
+
     if (dto == null) {
       throw new PaymentNotFoundException(id);
     }
+
     return dto;
   }
 }`;
@@ -143,7 +150,9 @@ final class PaymentsController {
   }
 
   @GetMapping("/{id}")
-  public ResponseEntity<PaymentDto> get(@PathVariable UUID id) {
+  public ResponseEntity<PaymentDto> get(
+    @PathVariable UUID id
+  ) {
     return ResponseEntity.ok(service.getById(id));
   }
 }`;
@@ -377,15 +386,20 @@ final class PaymentsController {
   const codeCardX = rightHalfCenterX;
   const codeCardY = slotMidY;
   const codeFontSize = 20;
-  // Repository card is the size reference: all right-side cards match its height.
-  const repoLineCount = paymentsPersistenceCode.split('\n').length;
-  const repoCardH = repoLineCount * getLineHeight(codeFontSize) + getCodePaddingY(codeFontSize) * 2;
-  const codePadY = getCodePaddingY(codeFontSize);
-  const centerOffsetYFor = (lineCount: number) => {
-    const clipH = repoCardH - codePadY * 2;
-    const contentH = lineCount * getLineHeight(codeFontSize);
-    return Math.max(0, (clipH - contentH) / 2);
-  };
+  // Make all right-side code cards taller (same height) so Service/Controller can be more realistic.
+  // Keep top alignment (no extra offsets) so increasing height doesn't break layout.
+  const rightCardLineCount = Math.max(
+    paymentsPersistenceCode.split('\n').length,
+    paymentsServiceCode.split('\n').length,
+    paymentsControllerCode.split('\n').length,
+    paymentDtoCode.split('\n').length,
+  );
+  // Add headroom so the Service/Controller can grow without resizing again.
+  const extraLines = 6;
+  const repoCardH = (rightCardLineCount + extraLines) * getLineHeight(codeFontSize) + getCodePaddingY(codeFontSize) * 2;
+
+  const serviceSigLine = paymentsServiceCode.split('\n').findIndex(l => l.includes('public') && l.includes('PaymentDto'));
+  const controllerSigLine = paymentsControllerCode.split('\n').findIndex(l => l.includes('public') && l.includes('PaymentDto'));
 
   const persistenceCodeCard = CodeBlock.fromCode(paymentsPersistenceCode, {
     x: codeCardX,
@@ -418,12 +432,11 @@ final class PaymentsController {
     y: codeCardY,
     width: codeCardW,
     height: repoCardH,
-    // Top-left alignment: no extra vertical offset, just the card's native padding.
-    contentOffsetY: 0,
     fontSize: 24,
+    lineHeight: getLineHeight(24),
     fontFamily: Fonts.code,
     theme: ExplainorCodeTheme,
-    customTypes: ['PaymentDto', 'UUID', 'BigDecimal'],
+    customTypes: ['PaymentDto', 'UUID', 'BigDecimal', 'Instant'],
   });
   dtoCodeCard.mount(view);
   dtoCodeCard.node.opacity(() => darkThemeOn() * dtoCodeOn());
@@ -441,21 +454,7 @@ final class PaymentsController {
   controllerCodeCard.mount(view);
   controllerCodeCard.node.opacity(() => darkThemeOn() * controllerCodeOn());
   // Make annotations consistently yellow (service + controller)
-  const annotationTokens = [
-    '@Service',
-    '@Transactional',
-    '@RestController',
-    '@RequestMapping',
-    '@GetMapping',
-    '@PathVariable',
-    // keep both spellings so it works whether '@' is included in the token text
-    'Service',
-    'Transactional',
-    'RestController',
-    'RequestMapping',
-    'GetMapping',
-    'PathVariable',
-  ];
+  const annotationTokens = ['@Service', '@Transactional', '@RestController', '@RequestMapping', '@GetMapping', '@PathVariable'];
   yield* all(
     ...Array.from({length: serviceCodeCard.lineCount}, (_, i) =>
       serviceCodeCard.recolorTokens(i, annotationTokens, annotationYellow, 0),
@@ -464,6 +463,14 @@ final class PaymentsController {
       controllerCodeCard.recolorTokens(i, annotationTokens, annotationYellow, 0),
     ),
   );
+
+  // Pink accent: highlight PaymentDto only in method signatures (no dimming, no body highlight).
+  if (serviceSigLine >= 0) {
+    yield* serviceCodeCard.recolorTokens(serviceSigLine, ['PaymentDto'], Colors.accent, 0);
+  }
+  if (controllerSigLine >= 0) {
+    yield* controllerCodeCard.recolorTokens(controllerSigLine, ['PaymentDto'], Colors.accent, 0);
+  }
 
   yield* all(
     leftReveal(1, Timing.slow * 1.35, easeInOutCubic),
@@ -543,11 +550,10 @@ final class PaymentsController {
     })(),
   );
 
-  // Show DTO code card on right after controller fades (as requested).
+  // After controller: fade it out, then show DTO code on the right before the blue outline.
   yield* controllerCodeOn(0, Timing.slow * 0.6, easeInOutCubic);
   yield* waitFor(0.25);
   yield* dtoCodeOn(1, Timing.slow * 0.45, easeInOutCubic);
-  // Give time to read the DTO code before outlining the left side.
   yield* waitFor(0.9);
 
   // After DTO reaches API: outline all light-side cards in blue to show coupling, then fade back.
