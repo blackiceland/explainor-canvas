@@ -44,7 +44,7 @@ export default makeScene2D(function* (view) {
   const sepStroke = S.colors.transport;
   const annotationYellow = '#FFD166';
   const highlightBlue = S.colors.blue;
-  const outlineW = 3;
+  const outlineW = 2;
   const outlineDur = Timing.slow * 0.8;
 
   const dtoCardRef = createRef<Rect>();
@@ -162,6 +162,8 @@ final class PaymentsController {
   BigDecimal amount,
   String currency,
   String status,
+  String fraudReason,
+  String stripeId,
   Instant updatedAt
 ) {}`;
 
@@ -434,12 +436,49 @@ final class PaymentsController {
     height: repoCardH,
     fontSize: 24,
     lineHeight: getLineHeight(24),
+    // Keep the same top-left alignment as other code cards.
+    contentOffsetY: 0,
     fontFamily: Fonts.code,
     theme: ExplainorCodeTheme,
     customTypes: ['PaymentDto', 'UUID', 'BigDecimal', 'Instant'],
   });
   dtoCodeCard.mount(view);
   dtoCodeCard.node.opacity(() => darkThemeOn() * dtoCodeOn());
+
+  // DTO leak animation (no second card, no holes):
+  // start state looks like DTO without leak fields, then leak lines appear and push the tail down.
+  const dtoFontSize = 24;
+  const dtoLineH = getLineHeight(dtoFontSize);
+  const dtoFraudIndex = paymentDtoCode.split('\n').findIndex(l => l.includes('fraudReason'));
+  const dtoStripeIndex = paymentDtoCode.split('\n').findIndex(l => l.includes('stripeId'));
+  const dtoUpdatedIndex = paymentDtoCode.split('\n').findIndex(l => l.includes('Instant updatedAt'));
+  const dtoLineCount = paymentDtoCode.split('\n').length;
+
+  const dtoFraudLine = dtoFraudIndex >= 0 ? dtoCodeCard.getLine(dtoFraudIndex) : null;
+  const dtoStripeLine = dtoStripeIndex >= 0 ? dtoCodeCard.getLine(dtoStripeIndex) : null;
+  const dtoUpdatedLine = dtoUpdatedIndex >= 0 ? dtoCodeCard.getLine(dtoUpdatedIndex) : null;
+
+  const dtoTailLines =
+    dtoUpdatedIndex >= 0
+      ? Array.from({length: dtoLineCount - dtoUpdatedIndex}, (_, k) => dtoCodeCard.getLine(dtoUpdatedIndex + k))
+          .filter(Boolean)
+      : [];
+  const dtoTailOriginalY = dtoTailLines.map(l => l!.node.y());
+  const dtoFraudTargetY = dtoFraudLine?.node.y() ?? 0;
+  const dtoStripeTargetY = dtoStripeLine?.node.y() ?? 0;
+
+  if (dtoUpdatedLine && dtoFraudLine && dtoStripeLine) {
+    const collapsedY = dtoUpdatedLine.node.y() - 2 * dtoLineH;
+    // Hide leak lines and collapse tail so the DTO looks "clean" at first.
+    dtoFraudLine.node.opacity(0);
+    dtoStripeLine.node.opacity(0);
+    dtoFraudLine.node.y(collapsedY);
+    dtoStripeLine.node.y(collapsedY);
+    for (let i = 0; i < dtoTailLines.length; i++) {
+      const line = dtoTailLines[i]!;
+      line.node.y(dtoTailOriginalY[i] - 2 * dtoLineH);
+    }
+  }
 
   const controllerCodeCard = CodeBlock.fromCode(paymentsControllerCode, {
     x: codeCardX,
@@ -553,11 +592,9 @@ final class PaymentsController {
   // After controller: fade it out, then show DTO code on the right before the blue outline.
   yield* controllerCodeOn(0, Timing.slow * 0.6, easeInOutCubic);
   yield* waitFor(0.25);
-  yield* dtoCodeOn(1, Timing.slow * 0.45, easeInOutCubic);
-  yield* waitFor(0.9);
-
-  // After DTO reaches API: outline all light-side cards in blue to show coupling, then fade back.
+  // DTO code card appears at the same moment as the blue outline on light cards.
   yield* all(
+    dtoCodeOn(1, Timing.slow * 0.85, easeInOutCubic),
     dtoCardRef().stroke(highlightBlue, outlineDur, easeInOutCubic),
     dbCardRef().stroke(highlightBlue, outlineDur, easeInOutCubic),
     serviceCardRef().stroke(highlightBlue, outlineDur, easeInOutCubic),
@@ -578,6 +615,24 @@ final class PaymentsController {
     serviceCardRef().lineWidth(1, Timing.slow * 0.7, easeInOutCubic),
     apiCardRef().lineWidth(1, Timing.slow * 0.7, easeInOutCubic),
   );
+
+  // After the highlight: leak lines appear and push the tail down (no blinking).
+  if (dtoFraudLine && dtoStripeLine && dtoUpdatedLine && dtoTailLines.length > 0) {
+    const dur = Timing.slow * 0.55;
+    // 1) Reveal fraudReason and push tail down by 1 line
+    yield* all(
+      dtoFraudLine.node.opacity(1, dur, easeInOutCubic),
+      dtoFraudLine.node.y(dtoFraudTargetY, dur, easeInOutCubic),
+      ...dtoTailLines.map((l, i) => l!.node.y(dtoTailOriginalY[i] - 1 * dtoLineH, dur, easeInOutCubic)),
+    );
+    yield* waitFor(0.12);
+    // 2) Reveal stripeId and push tail down by 1 more line
+    yield* all(
+      dtoStripeLine.node.opacity(1, dur, easeInOutCubic),
+      dtoStripeLine.node.y(dtoStripeTargetY, dur, easeInOutCubic),
+      ...dtoTailLines.map((l, i) => l!.node.y(dtoTailOriginalY[i], dur, easeInOutCubic)),
+    );
+  }
 
   yield* waitFor(10);
 });
