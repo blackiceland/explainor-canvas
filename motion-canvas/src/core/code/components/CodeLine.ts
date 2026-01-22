@@ -209,6 +209,7 @@ export class CodeLine {
         return Math.min(index, Math.max(0, this.tokensData.length - 1));
     }
 
+
     private getGlowAnimations(tokenData: TokenData, color: string, duration: number): ThreadGenerator[] {
         if (color !== Colors.accent) {
             return [

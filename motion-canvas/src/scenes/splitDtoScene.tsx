@@ -18,6 +18,10 @@ export default makeScene2D(function* (view) {
   const disableOtherLayers = createSignal(0);
   const dtoOn = createSignal(0);
   const dtoY = createSignal(0);
+  const dtoServiceEntityCodeOn = createSignal(0);
+  const dtoDbEntityCodeOn = createSignal(0);
+  const dtoServiceEntityCardOn = createSignal(0);
+  const dtoDbEntityCardOn = createSignal(0);
   const S = OpenStyle;
 
   const darkBg = '#0B0B0B';
@@ -167,6 +171,22 @@ final class PaymentsController {
   Instant updatedAt
 ) {}`;
 
+  const dtoServiceEntityCode = `final class Payment {
+  UUID id;
+  BigDecimal amount;
+  String currency;
+  String status;
+  Instant updatedAt;
+}`;
+
+  const dtoDbEntityCode = `final class PaymentEntity {
+  UUID id;
+  BigDecimal amount;
+  String currency;
+  String status;
+  Instant updatedAt;
+}`;
+
   view.add(
     <>
       <Rect width={Screen.width} height={halfH} fill={darkBg} />
@@ -241,6 +261,66 @@ final class PaymentsController {
           text={'PAYMENT DTO'}
           fontFamily={S.fonts.sans}
           fontSize={46}
+          fontWeight={OpenText.service.fontWeight}
+          letterSpacing={OpenText.service.letterSpacing}
+          fill={labelFill}
+          textAlign={'center'}
+        />
+      </Rect>
+
+      {/* Service entity card on the white side (appears with service entity code) */}
+      <Rect
+        x={() => Math.min(dividerX() - leftPadX - cardW / 2, layerX + cardW + 52)}
+        y={slotMidY}
+        width={cardW}
+        height={cardH}
+        radius={cardRadius}
+        fill={cardFill}
+        stroke={cardStroke}
+        lineWidth={1}
+        shadowColor={cardShadowColor}
+        shadowBlur={cardShadowBlur}
+        shadowOffset={cardShadowOffset}
+        layout
+        direction={'column'}
+        alignItems={'center'}
+        justifyContent={'center'}
+        opacity={() => dtoServiceEntityCardOn() * leftReveal()}
+      >
+        <Txt
+          text={'PAYMENT'}
+          fontFamily={S.fonts.sans}
+          fontSize={46}
+          fontWeight={OpenText.service.fontWeight}
+          letterSpacing={OpenText.service.letterSpacing}
+          fill={labelFill}
+          textAlign={'center'}
+        />
+      </Rect>
+
+      {/* DB entity card on the white side (appears with DB entity code) */}
+      <Rect
+        x={() => Math.min(dividerX() - leftPadX - cardW / 2, layerX + cardW + 52)}
+        y={slotBotY}
+        width={cardW}
+        height={cardH}
+        radius={cardRadius}
+        fill={cardFill}
+        stroke={cardStroke}
+        lineWidth={1}
+        shadowColor={cardShadowColor}
+        shadowBlur={cardShadowBlur}
+        shadowOffset={cardShadowOffset}
+        layout
+        direction={'column'}
+        alignItems={'center'}
+        justifyContent={'center'}
+        opacity={() => dtoDbEntityCardOn() * leftReveal()}
+      >
+        <Txt
+          text={'PAYMENT ENTITY'}
+          fontFamily={S.fonts.sans}
+          fontSize={40}
           fontWeight={OpenText.service.fontWeight}
           letterSpacing={OpenText.service.letterSpacing}
           fill={labelFill}
@@ -480,6 +560,61 @@ final class PaymentsController {
     }
   }
 
+  // Entities under the DTO: CodeBlock overlays with the same theme; fade in one-by-one.
+  const dtoClipH = repoCardH - getCodePaddingY(dtoFontSize) * 2;
+  const dtoLastLine = dtoCodeCard.getLine(dtoLineCount - 1);
+  const dtoBelowStartY = (dtoLastLine?.node.y() ?? 0) + dtoLineH * 1.35; // Payment a touch lower
+  const dtoServiceFirstLineY = dtoBelowStartY;
+  const serviceLines = dtoServiceEntityCode.split('\n').length;
+  const dtoDbFirstLineY = dtoServiceFirstLineY + serviceLines * dtoLineH + dtoLineH * 0.25; // Entity a touch higher / tighter gap
+
+  const dtoServiceOffsetY = dtoServiceFirstLineY + dtoClipH / 2 - dtoLineH / 2;
+  const dtoDbOffsetY = dtoDbFirstLineY + dtoClipH / 2 - dtoLineH / 2;
+
+  const overlayCardStyle = {
+    fill: 'rgba(0,0,0,0)',
+    stroke: 'rgba(0,0,0,0)',
+    strokeWidth: 0,
+    shadowColor: 'rgba(0,0,0,0)',
+    shadowBlur: 0,
+    shadowOffsetX: 0,
+    shadowOffsetY: 0,
+    edge: false,
+    opacity: 0,
+  } as const;
+
+  const dtoServiceEntityCodeCard = CodeBlock.fromCode(dtoServiceEntityCode, {
+    x: codeCardX,
+    y: codeCardY,
+    width: codeCardW,
+    height: repoCardH,
+    fontSize: dtoFontSize,
+    lineHeight: dtoLineH,
+    contentOffsetY: dtoServiceOffsetY,
+    fontFamily: Fonts.code,
+    theme: ExplainorCodeTheme,
+    customTypes: ['Payment', 'UUID', 'BigDecimal', 'Instant'],
+    cardStyle: overlayCardStyle,
+  });
+  dtoServiceEntityCodeCard.mount(view);
+  dtoServiceEntityCodeCard.node.opacity(() => darkThemeOn() * dtoCodeOn() * dtoServiceEntityCodeOn());
+
+  const dtoDbEntityCodeCard = CodeBlock.fromCode(dtoDbEntityCode, {
+    x: codeCardX,
+    y: codeCardY,
+    width: codeCardW,
+    height: repoCardH,
+    fontSize: dtoFontSize,
+    lineHeight: dtoLineH,
+    contentOffsetY: dtoDbOffsetY,
+    fontFamily: Fonts.code,
+    theme: ExplainorCodeTheme,
+    customTypes: ['PaymentEntity', 'UUID', 'BigDecimal', 'Instant'],
+    cardStyle: overlayCardStyle,
+  });
+  dtoDbEntityCodeCard.mount(view);
+  dtoDbEntityCodeCard.node.opacity(() => darkThemeOn() * dtoCodeOn() * dtoDbEntityCodeOn());
+
   const controllerCodeCard = CodeBlock.fromCode(paymentsControllerCode, {
     x: codeCardX,
     y: codeCardY,
@@ -655,6 +790,18 @@ final class PaymentsController {
       dtoFraudLine.node.opacity(0, retractDur, easeInOutCubic),
       dtoFraudLine.node.y(collapsedY, retractDur, easeInOutCubic),
       ...dtoTailLines.map((l, i) => l!.node.y(dtoTailOriginalY[i] - 2 * dtoLineH, retractDur, easeInOutCubic)),
+    );
+
+    // Entities appear under the DTO: smooth, one-by-one (no typing), synced with light cards.
+    yield* waitFor(0.2);
+    yield* all(
+      dtoServiceEntityCodeOn(1, Timing.slow * 0.8, easeInOutCubic),
+      dtoServiceEntityCardOn(1, Timing.slow * 0.8, easeInOutCubic),
+    );
+    yield* waitFor(0.16);
+    yield* all(
+      dtoDbEntityCodeOn(1, Timing.slow * 0.8, easeInOutCubic),
+      dtoDbEntityCardOn(1, Timing.slow * 0.8, easeInOutCubic),
     );
   }
 
