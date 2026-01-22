@@ -24,7 +24,8 @@ export default makeScene2D(function* (view) {
   const dtoDbEntityCardOn = createSignal(0);
   const S = OpenStyle;
 
-  const darkBg = '#0B0B0B';
+  // Match dryFiltersScene background base (applyBackground uses Colors.background gradient).
+  const darkBg = Colors.background.from;
 
   const halfW = Screen.width / 2;
   const halfH = Screen.height;
@@ -805,7 +806,34 @@ final class PaymentsController {
     );
   }
 
-  yield* waitFor(10);
+  // Scene outro: fade everything out together, while dark half "pushes" the light half away.
+  yield* waitFor(2.2);
+  const componentsDur = Timing.slow * 0.75;
+  const bgDur = Timing.slow * 1.1;
+  yield* all(
+    // left half content
+    apiOn(0, componentsDur, easeInOutCubic),
+    serviceOn(0, componentsDur, easeInOutCubic),
+    dbOn(0, componentsDur, easeInOutCubic),
+    sep1On(0, componentsDur, easeInOutCubic),
+    sep2On(0, componentsDur, easeInOutCubic),
+    dtoOn(0, componentsDur, easeInOutCubic),
+    dtoServiceEntityCardOn(0, componentsDur, easeInOutCubic),
+    dtoDbEntityCardOn(0, componentsDur, easeInOutCubic),
+
+    // right half code overlays
+    codeCardOn(0, componentsDur, easeInOutCubic),
+    serviceCodeOn(0, componentsDur, easeInOutCubic),
+    controllerCodeOn(0, componentsDur, easeInOutCubic),
+    dtoCodeOn(0, componentsDur, easeInOutCubic),
+    dtoServiceEntityCodeOn(0, componentsDur, easeInOutCubic),
+    dtoDbEntityCodeOn(0, componentsDur, easeInOutCubic),
+
+    // background transition: dark expands + gradients disappear
+    leftReveal(0, bgDur, easeInOutCubic),
+  );
+
+  yield* waitFor(0.4);
 });
 
 
