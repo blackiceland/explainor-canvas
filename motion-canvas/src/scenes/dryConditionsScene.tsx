@@ -1136,7 +1136,38 @@ void invoices_filter_combinations() {
   yield* waitFor(0.2);
   yield* testOutlineR().stroke('rgba(227, 91, 102, 0.95)', 0.55, easeInOutCubic);
 
-  yield* waitFor(16);
+  // Outro: after outlines light up, fade everything out so the next scene (dryKnowledgeScene) starts clean.
+  yield* waitFor(0.55);
+  const fadeDur = Timing.slow * 0.9;
+  yield* all(
+    ordersCondBlock.disappear(fadeDur),
+    invoicesCondBlock.disappear(fadeDur),
+    paymentsCondBlock.disappear(fadeDur),
+    ordersTestBlock.disappear(fadeDur),
+    paymentsTestBlock.disappear(fadeDur),
+    invoicesTestBlock.disappear(fadeDur),
+
+    condLinkL().opacity(0, fadeDur, easeInOutCubic),
+    condLinkM().opacity(0, fadeDur, easeInOutCubic),
+    condLinkR().opacity(0, fadeDur, easeInOutCubic),
+    testLinkL().opacity(0, fadeDur, easeInOutCubic),
+    testLinkM().opacity(0, fadeDur, easeInOutCubic),
+    testLinkR().opacity(0, fadeDur, easeInOutCubic),
+
+    testOutlineL().opacity(0, fadeDur, easeInOutCubic),
+    testOutlineM().opacity(0, fadeDur, easeInOutCubic),
+    testOutlineR().opacity(0, fadeDur, easeInOutCubic),
+
+    hub().opacity(0, fadeDur, easeInOutCubic),
+    left().opacity(0, fadeDur, easeInOutCubic),
+    right().opacity(0, fadeDur, easeInOutCubic),
+    bottom().opacity(0, fadeDur, easeInOutCubic),
+    linkL().opacity(0, fadeDur, easeInOutCubic),
+    linkR().opacity(0, fadeDur, easeInOutCubic),
+    linkB().opacity(0, fadeDur, easeInOutCubic),
+  );
+
+  yield* waitFor(0.2);
 });
 
 

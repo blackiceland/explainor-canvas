@@ -49,7 +49,7 @@ export default makeScene2D(function* (view) {
   const sepStroke = S.colors.transport;
   const annotationYellow = '#FFD166';
   const highlightBlue = S.colors.blue;
-  const outlineW = 2;
+  const outlineW = 2.5;
   const outlineDur = Timing.slow * 0.8;
 
   const dtoCardRef = createRef<Rect>();
@@ -807,9 +807,10 @@ final class PaymentsController {
   }
 
   // Scene outro: fade everything out together, while dark half "pushes" the light half away.
-  yield* waitFor(2.2);
-  const componentsDur = Timing.slow * 0.75;
-  const bgDur = Timing.slow * 1.1;
+  yield* waitFor(1.6);
+
+  const componentsDur = Timing.slow * 0.65;
+  const bgDur = Timing.slow * 0.95;
   yield* all(
     // left half content
     apiOn(0, componentsDur, easeInOutCubic),
@@ -820,6 +821,7 @@ final class PaymentsController {
     dtoOn(0, componentsDur, easeInOutCubic),
     dtoServiceEntityCardOn(0, componentsDur, easeInOutCubic),
     dtoDbEntityCardOn(0, componentsDur, easeInOutCubic),
+    disableOtherLayers(0, componentsDur, easeInOutCubic),
 
     // right half code overlays
     codeCardOn(0, componentsDur, easeInOutCubic),
@@ -829,11 +831,11 @@ final class PaymentsController {
     dtoServiceEntityCodeOn(0, componentsDur, easeInOutCubic),
     dtoDbEntityCodeOn(0, componentsDur, easeInOutCubic),
 
-    // background transition: dark expands + gradients disappear
+    // background: collapse the split so next dark scene starts seamlessly
     leftReveal(0, bgDur, easeInOutCubic),
   );
 
-  yield* waitFor(0.4);
+  yield* waitFor(0.25);
 });
 
 

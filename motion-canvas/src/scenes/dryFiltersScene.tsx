@@ -55,6 +55,16 @@ interface Column {
   color?: (value: string) => string;
 }
 
+function statusTextColor(statusRaw: string): string {
+  const s = (statusRaw ?? '').toUpperCase();
+  // Gentle tints (closer to labelFillMuted) — avoids "bright badges" feel.
+  if (['CAPTURED', 'SHIPPED', 'PAID', 'SUCCEEDED', 'COMPLETED'].includes(s)) return 'rgba(176, 216, 202, 0.72)'; // soft green
+  if (['PENDING', 'PROCESSING', 'CREATED', 'NEW'].includes(s)) return 'rgba(184, 205, 236, 0.72)'; // soft blue
+  if (['DECLINED', 'FAILED', 'CANCELLED', 'CANCELED'].includes(s)) return 'rgba(222, 186, 192, 0.72)'; // soft rose
+  if (['REFUNDED', 'CHARGEBACK', 'REVERSED'].includes(s)) return 'rgba(203, 190, 226, 0.72)'; // soft violet
+  return PanelStyle.labelFillMuted;
+}
+
 const FONT_FAMILY = Fonts.code;
 const FONT_SIZE = 16;
 const FONT_WEIGHT = 400;
@@ -81,7 +91,7 @@ const paymentColumns: Omit<Column, 'width'>[] = [
     header: 'status',
     ellipsis: 'end',
     align: 'left',
-    color: () => PanelStyle.labelFillMuted,
+    color: statusTextColor,
   },
   {key: 'amount', header: 'amount', ellipsis: 'end', align: 'left'},
   {key: 'created_at', header: 'created_at', ellipsis: 'end', align: 'left'},
@@ -102,7 +112,7 @@ const orderColumns: Omit<Column, 'width'>[] = [
     header: 'status',
     ellipsis: 'end',
     align: 'left',
-    color: () => PanelStyle.labelFillMuted,
+    color: statusTextColor,
   },
   {key: 'total', header: 'total', ellipsis: 'end', align: 'left'},
   {key: 'created_at', header: 'created_at', ellipsis: 'end', align: 'left'},
