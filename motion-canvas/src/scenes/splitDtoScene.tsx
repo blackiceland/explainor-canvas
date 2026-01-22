@@ -619,6 +619,9 @@ final class PaymentsController {
   // After the highlight: leak lines appear and push the tail down (no blinking).
   if (dtoFraudLine && dtoStripeLine && dtoUpdatedLine && dtoTailLines.length > 0) {
     const dur = Timing.slow * 0.55;
+    // Focus on DB layer while leak fields appear (disable other layer cards).
+    yield* disableOtherLayers(1, Timing.slow * 0.55, easeInOutCubic);
+
     // 1) Reveal fraudReason and push tail down by 1 line
     yield* all(
       dtoFraudLine.node.opacity(1, dur, easeInOutCubic),
@@ -631,6 +634,27 @@ final class PaymentsController {
       dtoStripeLine.node.opacity(1, dur, easeInOutCubic),
       dtoStripeLine.node.y(dtoStripeTargetY, dur, easeInOutCubic),
       ...dtoTailLines.map((l, i) => l!.node.y(dtoTailOriginalY[i], dur, easeInOutCubic)),
+    );
+
+    // Hold leak state for a few seconds, then revert smoothly and re-enable cards.
+    yield* waitFor(2.0);
+    const retractDur = Timing.slow * 0.55;
+    const collapsedY = dtoUpdatedLine.node.y() - 2 * dtoLineH;
+
+    // Retract stripeId and pull tail up by 1 line, while restoring layer emphasis.
+    yield* all(
+      disableOtherLayers(0, Timing.slow * 0.75, easeInOutCubic),
+      dtoStripeLine.node.opacity(0, retractDur, easeInOutCubic),
+      dtoStripeLine.node.y(collapsedY, retractDur, easeInOutCubic),
+      ...dtoTailLines.map((l, i) => l!.node.y(dtoTailOriginalY[i] - 1 * dtoLineH, retractDur, easeInOutCubic)),
+    );
+    yield* waitFor(0.10);
+
+    // Retract fraudReason and return the tail to the original "clean" position.
+    yield* all(
+      dtoFraudLine.node.opacity(0, retractDur, easeInOutCubic),
+      dtoFraudLine.node.y(collapsedY, retractDur, easeInOutCubic),
+      ...dtoTailLines.map((l, i) => l!.node.y(dtoTailOriginalY[i] - 2 * dtoLineH, retractDur, easeInOutCubic)),
     );
   }
 
