@@ -754,9 +754,9 @@ final class PaymentsController {
 
   // After the highlight: leak lines appear and push the tail down (no blinking).
   if (dtoFraudLine && dtoStripeLine && dtoUpdatedLine && dtoTailLines.length > 0) {
-    const dur = Timing.slow * 0.55;
+    const dur = Timing.slow * 0.85;
     // Focus on DB layer while leak fields appear (disable other layer cards).
-    yield* disableOtherLayers(1, Timing.slow * 0.55, easeInOutCubic);
+    yield* disableOtherLayers(1, Timing.slow * 0.75, easeInOutCubic);
 
     // 1) Reveal fraudReason and push tail down by 1 line
     yield* all(
@@ -764,7 +764,7 @@ final class PaymentsController {
       dtoFraudLine.node.y(dtoFraudTargetY, dur, easeInOutCubic),
       ...dtoTailLines.map((l, i) => l!.node.y(dtoTailOriginalY[i] - 1 * dtoLineH, dur, easeInOutCubic)),
     );
-    yield* waitFor(0.12);
+    yield* waitFor(0.18);
     // 2) Reveal stripeId and push tail down by 1 more line
     yield* all(
       dtoStripeLine.node.opacity(1, dur, easeInOutCubic),
@@ -773,18 +773,18 @@ final class PaymentsController {
     );
 
     // Hold leak state for a few seconds, then revert smoothly and re-enable cards.
-    yield* waitFor(2.0);
-    const retractDur = Timing.slow * 0.55;
+    yield* waitFor(2.4);
+    const retractDur = Timing.slow * 0.85;
     const collapsedY = dtoUpdatedLine.node.y() - 2 * dtoLineH;
 
     // Retract stripeId and pull tail up by 1 line, while restoring layer emphasis.
     yield* all(
-      disableOtherLayers(0, Timing.slow * 0.75, easeInOutCubic),
+      disableOtherLayers(0, Timing.slow * 0.9, easeInOutCubic),
       dtoStripeLine.node.opacity(0, retractDur, easeInOutCubic),
       dtoStripeLine.node.y(collapsedY, retractDur, easeInOutCubic),
       ...dtoTailLines.map((l, i) => l!.node.y(dtoTailOriginalY[i] - 1 * dtoLineH, retractDur, easeInOutCubic)),
     );
-    yield* waitFor(0.10);
+    yield* waitFor(0.16);
 
     // Retract fraudReason and return the tail to the original "clean" position.
     yield* all(
@@ -794,15 +794,15 @@ final class PaymentsController {
     );
 
     // Entities appear under the DTO: smooth, one-by-one (no typing), synced with light cards.
-    yield* waitFor(0.2);
+    yield* waitFor(0.32);
     yield* all(
-      dtoServiceEntityCodeOn(1, Timing.slow * 0.8, easeInOutCubic),
-      dtoServiceEntityCardOn(1, Timing.slow * 0.8, easeInOutCubic),
+      dtoServiceEntityCodeOn(1, Timing.slow * 1.05, easeInOutCubic),
+      dtoServiceEntityCardOn(1, Timing.slow * 1.05, easeInOutCubic),
     );
-    yield* waitFor(0.16);
+    yield* waitFor(0.22);
     yield* all(
-      dtoDbEntityCodeOn(1, Timing.slow * 0.8, easeInOutCubic),
-      dtoDbEntityCardOn(1, Timing.slow * 0.8, easeInOutCubic),
+      dtoDbEntityCodeOn(1, Timing.slow * 1.05, easeInOutCubic),
+      dtoDbEntityCardOn(1, Timing.slow * 1.05, easeInOutCubic),
     );
   }
 
