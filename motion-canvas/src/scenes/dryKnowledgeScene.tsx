@@ -1,39 +1,7 @@
 import {makeScene2D, Node, Txt} from '@motion-canvas/2d';
-import {all, createRef, easeInOutCubic, waitFor} from '@motion-canvas/core';
+import {all, createRef, easeInOutCubic, Vector2, waitFor} from '@motion-canvas/core';
 import {Colors, Fonts, Timing} from '../core/theme';
 import {applyBackground} from '../core/utils';
-import {playQuadCode} from '../core/templates/QuadCodeScene';
-
-const INVOICE_CODE = `class InvoiceService {
-
-  BigDecimal calculateTotal(BigDecimal amount) {
-    return amount.multiply(new BigDecimal("0.20"));
-  }
-}`;
-
-const CHECKOUT_CODE = `class CheckoutService {
-
-  BigDecimal calculateTax(BigDecimal price) {
-    return price.multiply(new BigDecimal("0.20"));
-  }
-}`;
-
-const FISCAL_CODE = `class FiscalExport {
-
-  BigDecimal exportVat(BigDecimal revenue) {
-    return revenue.multiply(new BigDecimal("0.20"));
-  }
-}`;
-
-const COMMON_CODE = `class TaxCalculator {
-
-  private static final BigDecimal VAT = 
-      new BigDecimal("0.20");
-
-  public BigDecimal calculate(BigDecimal v) {
-    return v.multiply(VAT);
-  }
-}`;
 
 export default makeScene2D(function* (view) {
     applyBackground(view);
@@ -102,48 +70,18 @@ export default makeScene2D(function* (view) {
     yield* waitFor(2);
 
     const wordPos = knowledgeWord().absolutePosition();
-    knowledgeClone().absolutePosition(wordPos);
+    // Snap to full pixels to avoid tiny "jitter" during fade-out.
+    knowledgeClone().absolutePosition(new Vector2(Math.round(wordPos.x), Math.round(wordPos.y)));
     knowledgeClone().opacity(1);
     knowledgeWord().opacity(0);
 
+    // Fade out the quote, but keep the extracted word on screen.
     yield* quoteContainer().opacity(0, Timing.slow, easeInOutCubic);
 
-    yield* waitFor(2);
+    // Keep the word in-place for a beat, then fade it out (no movement).
+    yield* waitFor(2.2);
 
     yield* knowledgeClone().opacity(0, Timing.slow, easeInOutCubic);
 
-    const codeBlocks = yield* playQuadCode(view, {
-        blocks: [
-            {code: INVOICE_CODE},
-            {code: CHECKOUT_CODE},
-            {code: FISCAL_CODE},
-            {code: COMMON_CODE},
-        ],
-        visibleIndices: [0, 1, 2],
-    });
-
-    const sourceBlocks = [codeBlocks[0], codeBlocks[1], codeBlocks[2]];
-    const commonBlock = codeBlocks[3];
-
-    yield* waitFor(0.5);
-
-    const highlightLineIndex = 3;
-
-    yield* all(
-        ...sourceBlocks.map(b =>
-            all(
-                b.highlightLines([[highlightLineIndex, highlightLineIndex]], Timing.slow),
-                b.recolorLine(highlightLineIndex, Colors.accent, Timing.slow),
-            ),
-        ),
-    );
-
-    yield* waitFor(1);
-
-    yield* all(
-        ...sourceBlocks.map(b => b.node.opacity(0.3, Timing.slow, easeInOutCubic)),
-        commonBlock.appear(Timing.slow),
-    );
-
-    yield* waitFor(2);
+    yield* waitFor(0.3);
 });
