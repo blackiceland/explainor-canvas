@@ -11,7 +11,7 @@ const RETRY_POLICY_CODE = `class PaymentRetryPolicy {
 
   boolean shouldRetry(PspCode code) {
     return switch (code) {
-      case TIMEOUT, SOFT_DECLINE, DO_NOT_HONOR -> true;
+      case TIMEOUT, TEMPORARY_FAILURE -> true;
       default -> false;
     };
   }
@@ -19,26 +19,26 @@ const RETRY_POLICY_CODE = `class PaymentRetryPolicy {
 
 const STATUS_MAPPER_CODE = `class PaymentStatusMapper {
 
-  PaymentStatus map(PspCode code) {
+  PaymentStatus toPaymentStatus(PspCode code) {
     return switch (code) {
       case TIMEOUT -> PaymentStatus.PENDING;
-      case SOFT_DECLINE -> PaymentStatus.RETRYING;
-      case DO_NOT_HONOR -> PaymentStatus.DECLINED;
-      case THREE_DS_REQUIRED -> PaymentStatus.REQUIRES_3DS;
+      case TEMPORARY_FAILURE -> PaymentStatus.RETRYING;
+      case PERMANENT_FAILURE -> PaymentStatus.DECLINED;
+      case ACTION_REQUIRED -> PaymentStatus.REQUIRES_ACTION;
       default -> PaymentStatus.FAILED;
     };
   }
 }`;
 
-const USER_MESSAGE_CODE = `class CheckoutUserMessage {
+const USER_MESSAGE_CODE = `class CheckoutNextStepMapper {
 
-  CheckoutHint message(PspCode code) {
+  CheckoutNextStep toNextStep(PspCode code) {
     return switch (code) {
-      case SOFT_DECLINE -> CheckoutHint.TRY_AGAIN;
-      case DO_NOT_HONOR -> CheckoutHint.TRY_ANOTHER_CARD;
-      case THREE_DS_REQUIRED -> CheckoutHint.CONFIRM_3DS;
-      case TIMEOUT -> CheckoutHint.RETRY_LATER;
-      default -> CheckoutHint.GENERIC_FAIL;
+      case TEMPORARY_FAILURE -> CheckoutNextStep.RETRY;
+      case PERMANENT_FAILURE -> CheckoutNextStep.USE_OTHER_CARD;
+      case ACTION_REQUIRED -> CheckoutNextStep.CONFIRM_ACTION;
+      case TIMEOUT -> CheckoutNextStep.WAIT;
+      default -> CheckoutNextStep.FAIL;
     };
   }
 }`;
@@ -132,7 +132,7 @@ export default makeScene2D(function* (view) {
     const codeX = SafeZone.left + cardWidth / 2;
     const tableX = SafeZone.right - cardWidth / 2;
 
-    const fontSize = 16;
+    const fontSize = 18;
     const stackGap = 60; // Same as STACK_GAP in ScreenGrid.ts
     const targetLines = 14; // Matches the "tall" cards feel from dryFiltersScene.
     const lineHeight = getLineHeight(fontSize);
@@ -176,11 +176,16 @@ export default makeScene2D(function* (view) {
         fontSize,
         fontFamily: Fonts.code,
         theme: ExplainorCodeTheme,
-        customTypes: ['CheckoutHint', 'CheckoutUserMessage', 'PspCode'],
+        customTypes: ['CheckoutNextStep', 'CheckoutNextStepMapper', 'PspCode'],
     });
     messageCard.mount(view);
 
-    yield* all(retryCard.appear(Timing.slow), statusCard.appear(Timing.slow), messageCard.appear(Timing.slow));
+    // Appear one-by-one for readability.
+    yield* retryCard.appear(Timing.slow);
+    yield* waitFor(0.15);
+    yield* statusCard.appear(Timing.slow);
+    yield* waitFor(0.15);
+    yield* messageCard.appear(Timing.slow);
 
     yield* waitFor(3);
 });
