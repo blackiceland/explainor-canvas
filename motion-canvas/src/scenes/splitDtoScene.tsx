@@ -24,8 +24,8 @@ export default makeScene2D(function* (view) {
   const dtoDbEntityCardOn = createSignal(0);
   const S = OpenStyle;
 
-  // Match dryFiltersScene background base (applyBackground uses Colors.background gradient).
-  const darkBg = Colors.background.from;
+  // Match chapter3IntroScene: pure black base, then we morph into the project gradient via darkThemeOn.
+  const darkBg = '#0B0B0B';
 
   const halfW = Screen.width / 2;
   const halfH = Screen.height;
@@ -79,7 +79,8 @@ export default makeScene2D(function* (view) {
     from: new Vector2(0, -Screen.height / 2),
     to: new Vector2(0, Screen.height / 2),
     stops: [
-      {offset: 0, color: Colors.background.from},
+      // Start from the same base as the intro, so the transition is seamless.
+      {offset: 0, color: darkBg},
       {offset: 1, color: Colors.background.to},
     ],
   });
