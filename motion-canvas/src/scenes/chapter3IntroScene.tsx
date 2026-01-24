@@ -1,18 +1,19 @@
-import {makeScene2D, Node, Txt} from '@motion-canvas/2d';
+import {makeScene2D, Node, Rect, Txt} from '@motion-canvas/2d';
 import {createRef, easeInOutCubic, waitFor} from '@motion-canvas/core';
-import {applyBackground} from '../core/utils';
 import {Colors, Fonts, Screen} from '../core/theme';
 import {textWidth} from '../core/utils/textMeasure';
 
 export default makeScene2D(function* (view) {
-  applyBackground(view);
+  // Exception: match the end background tone from paymentInputsScene.
+  view.add(<Rect width={Screen.width} height={Screen.height} fill={'#0B0B0B'} />);
 
   const fill = '#F6E7D4';
   const fontWeight = 700;
   const marginX = 90;
   const marginY = 80;
   const leftBias = 70;
-  const baseSize = 300;
+  // Slightly larger type for chapter 3 intro.
+  const baseSize = 320;
   const lineHeightFactor = 0.84;
   const letterSpacingFactor = 0.03;
   const fadeIn = 0.8;
@@ -20,9 +21,9 @@ export default makeScene2D(function* (view) {
   const fadeOut = 0.8;
 
   const chapterPrefix = 'CHAPTER ';
-  const chapterNum = '1';
+  const chapterNum = '3';
   const chapter = `${chapterPrefix}${chapterNum}`;
-  const restLines = ['COMMON', 'CONDITIONS', 'TRAP'];
+  const restLines = ['ONE DTO,', 'THREE', 'LAYERS'];
   const allLines = [chapter, ...restLines];
 
   const maxWidth = Screen.width - marginX * 2;
@@ -30,21 +31,17 @@ export default makeScene2D(function* (view) {
   const left = -Screen.width / 2 + marginX;
   const top = -Screen.height / 2 + marginY;
 
-  // Compute the "base" font size the old TitleCard would use for ALL lines together.
-  // This keeps "CHAPTER 1" looking exactly like it did after the previous adjustment.
   const baseMaxLine = Math.max(
     ...allLines.map(l => textWidth(l, Fonts.primary, baseSize, fontWeight)),
   );
   const scaleW = baseMaxLine > 0 ? maxWidth / baseMaxLine : 1;
   const scaleH = maxHeight / (allLines.length * baseSize * lineHeightFactor);
   const scale = Math.min(scaleW, scaleH);
+  // Match chapter1IntroScene sizing scheme.
   const chapterSize = Math.max(64, Math.floor(baseSize * scale));
-
-  // Make the rest slightly smaller for hierarchy.
   const restSize = Math.max(48, Math.floor(chapterSize * 0.82));
 
   const chapterLineHeight = Math.floor(chapterSize * lineHeightFactor);
-  // Slightly looser leading for the body (COMMON/CONDITIONS/TRAP), keep the title as-is.
   const restLineHeight = Math.floor(restSize * (lineHeightFactor + 0.08));
   const chapterLetterSpacing = Math.max(1, Math.round(chapterSize * letterSpacingFactor));
   const restLetterSpacing = Math.max(1, Math.round(restSize * letterSpacingFactor));
@@ -62,6 +59,7 @@ export default makeScene2D(function* (view) {
     Math.max(0, text.length - 1) * letterSpacing;
 
   const blockLeftX = x - maxWidth / 2;
+  const chapterNumExtraGap = () => Math.round(chapterSize * 0.12);
 
   const container = createRef<Node>();
   view.add(
@@ -85,7 +83,11 @@ export default makeScene2D(function* (view) {
         fontSize={chapterSize}
         lineHeight={chapterLineHeight}
         letterSpacing={chapterLetterSpacing}
-        x={() => blockLeftX + measureWithLetterSpacing(chapterPrefix, chapterSize, chapterLetterSpacing)}
+        x={() =>
+          blockLeftX +
+          measureWithLetterSpacing(chapterPrefix, chapterSize, chapterLetterSpacing) +
+          chapterNumExtraGap()
+        }
         y={yTop + chapterLineHeight / 2}
         fill={Colors.accent}
         textAlign={'left'}
