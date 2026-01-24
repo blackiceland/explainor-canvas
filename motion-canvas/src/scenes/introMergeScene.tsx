@@ -251,7 +251,17 @@ export default makeScene2D(function* (view) {
     },
   ];
 
-  function* playMerge(pair: MergePair, duration: number, hold: number) {
+  function* playMerge(
+    pair: MergePair,
+    duration: number,
+    hold: number,
+    opts?: {
+      /** Extra pause after fade-in, before the merge movement starts (seconds). */
+      preMergeHold?: number;
+      /** Override fade-in duration (seconds). */
+      fadeIn?: number;
+    },
+  ) {
     leftText(pair.left);
     rightText(pair.right);
 
@@ -272,12 +282,17 @@ export default makeScene2D(function* (view) {
     leftOn(0);
     rightOn(0);
 
-    const fadeIn = Math.max(0.08, duration * 0.22);
+    const fadeIn = opts?.fadeIn ?? Math.max(0.08, duration * 0.22);
     const travel = duration;
     const fuse = Math.max(0.08, duration * 0.28);
 
     // Appear
     yield* all(leftOn(1, fadeIn, easeInOutCubic), rightOn(1, fadeIn, easeInOutCubic));
+
+    // Pause before merge (only used for the very first line, per intro pacing).
+    if (opts?.preMergeHold && opts.preMergeHold > 0) {
+      yield* waitFor(opts.preMergeHold);
+    }
 
     // Move to center and fully overlap (becomes one line visually).
     yield* all(leftX(0, travel, easeInOutCubic), rightX(0, travel, easeInOutCubic));
@@ -291,7 +306,12 @@ export default makeScene2D(function* (view) {
   let dur = 0.9;
   for (let i = 0; i < pairs.length; i++) {
     const hold = i < 3 ? 0.25 : 0.18;
-    yield* playMerge(pairs[i], dur, hold);
+    if (i === 0) {
+      // First line: smoother reveal + a couple seconds before the first merge starts.
+      yield* playMerge(pairs[i], dur, hold, {fadeIn: 0.9, preMergeHold: 2.0});
+    } else {
+      yield* playMerge(pairs[i], dur, hold);
+    }
     dur *= 0.82;
     yield* waitFor(0.06);
   }
