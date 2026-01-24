@@ -57,11 +57,11 @@ interface Column {
 
 function statusTextColor(statusRaw: string): string {
   const s = (statusRaw ?? '').toUpperCase();
-  // Gentle tints (closer to labelFillMuted) — avoids "bright badges" feel.
-  if (['CAPTURED', 'SHIPPED', 'PAID', 'SUCCEEDED', 'COMPLETED'].includes(s)) return 'rgba(176, 216, 202, 0.72)'; // soft green
-  if (['PENDING', 'PROCESSING', 'CREATED', 'NEW'].includes(s)) return 'rgba(184, 205, 236, 0.72)'; // soft blue
-  if (['DECLINED', 'FAILED', 'CANCELLED', 'CANCELED'].includes(s)) return 'rgba(222, 186, 192, 0.72)'; // soft rose
-  if (['REFUNDED', 'CHARGEBACK', 'REVERSED'].includes(s)) return 'rgba(203, 190, 226, 0.72)'; // soft violet
+  // Clean, readable tints — avoid "muddy" greys, but still not full-on badges.
+  if (['CAPTURED', 'SHIPPED', 'PAID', 'SUCCEEDED', 'COMPLETED'].includes(s)) return 'rgba(155, 227, 197, 0.86)'; // mint
+  if (['PENDING', 'PROCESSING', 'CREATED', 'NEW'].includes(s)) return 'rgba(163, 205, 255, 0.86)'; // sky
+  if (['DECLINED', 'FAILED', 'CANCELLED', 'CANCELED'].includes(s)) return 'rgba(255, 170, 185, 0.86)'; // rose
+  if (['REFUNDED', 'CHARGEBACK', 'REVERSED'].includes(s)) return 'rgba(201, 180, 255, 0.86)'; // violet
   return PanelStyle.labelFillMuted;
 }
 
