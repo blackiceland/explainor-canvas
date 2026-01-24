@@ -62,6 +62,7 @@ export default makeScene2D(function* (view) {
     Math.max(0, text.length - 1) * letterSpacing;
 
   const blockLeftX = x - maxWidth / 2;
+  const chapterNumExtraGap = () => Math.round(chapterSize * 0.12);
 
   const container = createRef<Node>();
   view.add(
@@ -85,7 +86,11 @@ export default makeScene2D(function* (view) {
         fontSize={chapterSize}
         lineHeight={chapterLineHeight}
         letterSpacing={chapterLetterSpacing}
-        x={() => blockLeftX + measureWithLetterSpacing(chapterPrefix, chapterSize, chapterLetterSpacing)}
+        x={() =>
+          blockLeftX +
+          measureWithLetterSpacing(chapterPrefix, chapterSize, chapterLetterSpacing) +
+          chapterNumExtraGap()
+        }
         y={yTop + chapterLineHeight / 2}
         fill={Colors.accent}
         textAlign={'left'}

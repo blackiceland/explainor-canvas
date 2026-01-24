@@ -186,6 +186,8 @@ final class PaymentsController {
   String currency;
   String status;
   Instant updatedAt;
+  String fraudReason;
+  String stripeId;
 }`;
 
   view.add(
@@ -634,6 +636,30 @@ final class PaymentsController {
   dtoDbEntityCodeCard.mount(view);
   dtoDbEntityCodeCard.node.opacity(() => darkThemeOn() * dtoCodeOn() * dtoDbEntityCodeOn());
 
+  // Final accent: new fields appear inside PaymentEntity at the end (entity "grows").
+  const entityLines = dtoDbEntityCode.split('\n');
+  const entityFraudIndex = entityLines.findIndex(l => l.includes('fraudReason'));
+  const entityStripeIndex = entityLines.findIndex(l => l.includes('stripeId'));
+  const entityCloseIndex = entityLines.length - 1;
+
+  const entityFraudLine = entityFraudIndex >= 0 ? dtoDbEntityCodeCard.getLine(entityFraudIndex) : null;
+  const entityStripeLine = entityStripeIndex >= 0 ? dtoDbEntityCodeCard.getLine(entityStripeIndex) : null;
+  const entityCloseLine = dtoDbEntityCodeCard.getLine(entityCloseIndex);
+
+  const entityCloseOriginalY = entityCloseLine?.node.y() ?? 0;
+  const entityFraudTargetY = entityFraudLine?.node.y() ?? 0;
+  const entityStripeTargetY = entityStripeLine?.node.y() ?? 0;
+
+  if (entityCloseLine && entityFraudLine && entityStripeLine) {
+    const collapsedY = entityCloseOriginalY - 2 * dtoLineH;
+    // Start "collapsed": new fields hidden; closing brace moved up by 2 lines.
+    entityFraudLine.node.opacity(0);
+    entityStripeLine.node.opacity(0);
+    entityFraudLine.node.y(collapsedY);
+    entityStripeLine.node.y(collapsedY);
+    entityCloseLine.node.y(entityCloseOriginalY - 2 * dtoLineH);
+  }
+
   const controllerCodeCard = CodeBlock.fromCode(paymentsControllerCode, {
     x: codeCardX,
     y: codeCardY,
@@ -822,6 +848,25 @@ final class PaymentsController {
       dtoDbEntityCodeOn(1, Timing.slow * 1.05, easeInOutCubic),
       dtoDbEntityCardOn(1, Timing.slow * 1.05, easeInOutCubic),
     );
+
+    // End: reveal two extra fields in PaymentEntity (right dark code card).
+    if (entityCloseLine && entityFraudLine && entityStripeLine) {
+      yield* waitFor(0.55);
+      const dur = Timing.slow * 0.7;
+      // 1) Reveal fraudReason, push the closing brace down by 1 line.
+      yield* all(
+        entityFraudLine.node.opacity(1, dur, easeInOutCubic),
+        entityFraudLine.node.y(entityFraudTargetY, dur, easeInOutCubic),
+        entityCloseLine.node.y(entityCloseOriginalY - 1 * dtoLineH, dur, easeInOutCubic),
+      );
+      yield* waitFor(0.18);
+      // 2) Reveal stripeId, push the closing brace down by 1 more line (back to original).
+      yield* all(
+        entityStripeLine.node.opacity(1, dur, easeInOutCubic),
+        entityStripeLine.node.y(entityStripeTargetY, dur, easeInOutCubic),
+        entityCloseLine.node.y(entityCloseOriginalY, dur, easeInOutCubic),
+      );
+    }
   }
 
   // Scene outro: fade everything out together, while dark half "pushes" the light half away.
