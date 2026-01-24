@@ -463,23 +463,40 @@ final class PaymentsController {
   // Right side: code cards (match dryFiltersScene styling via CodeBlock/CodeCard)
   // Keep a bit of side padding like before (otherwise the card feels too wide).
   const rightPadX = 72;
+  const rightPadY = leftPadY; // match top/bottom margin of the light cards on the left
   const rightHalfW = Screen.width / 2;
   const rightHalfCenterX = Screen.width / 4;
   const codeCardW = rightHalfW - rightPadX * 2;
   const codeCardX = rightHalfCenterX;
-  const codeCardY = slotMidY;
-  const codeFontSize = 20;
-  // Make all right-side code cards taller (same height) so Service/Controller can be more realistic.
-  // Keep top alignment (no extra offsets) so increasing height doesn't break layout.
-  const rightCardLineCount = Math.max(
+  const codeCardY = 0;
+
+  // Match vertical margins with the left-side cards: same top + bottom padding from the frame.
+  // This makes the right-side dark cards feel aligned with the left column.
+  const codeCardH = Screen.height - rightPadY * 2;
+
+  // Fit font size to the fixed card height (so code never clips when we make the card taller).
+  const maxLineCount = Math.max(
     paymentsPersistenceCode.split('\n').length,
     paymentsServiceCode.split('\n').length,
     paymentsControllerCode.split('\n').length,
     paymentDtoCode.split('\n').length,
   );
-  // Add headroom so the Service/Controller can grow without resizing again.
+  // Keep some headroom so Service/Controller feel realistic without reflow.
   const extraLines = 6;
-  const repoCardH = (rightCardLineCount + extraLines) * getLineHeight(codeFontSize) + getCodePaddingY(codeFontSize) * 2;
+  const targetLines = maxLineCount + extraLines;
+
+  const fitCodeFontSize = (start: number, min: number) => {
+    for (let fs = start; fs >= min; fs--) {
+      const paddingY = getCodePaddingY(fs) * 2;
+      const available = Math.floor((codeCardH - paddingY) / getLineHeight(fs));
+      if (available >= targetLines) return fs;
+    }
+    return min;
+  };
+
+  const codeFontSize = fitCodeFontSize(20, 16);
+  // Fixed height (aligned to left column margins).
+  const repoCardH = codeCardH;
 
   const serviceSigLine = paymentsServiceCode.split('\n').findIndex(l => l.includes('public') && l.includes('PaymentDto'));
   const controllerSigLine = paymentsControllerCode.split('\n').findIndex(l => l.includes('public') && l.includes('PaymentDto'));
@@ -564,10 +581,11 @@ final class PaymentsController {
   // Entities under the DTO: CodeBlock overlays with the same theme; fade in one-by-one.
   const dtoClipH = repoCardH - getCodePaddingY(dtoFontSize) * 2;
   const dtoLastLine = dtoCodeCard.getLine(dtoLineCount - 1);
-  const dtoBelowStartY = (dtoLastLine?.node.y() ?? 0) + dtoLineH * 1.35; // Payment a touch lower
+  // Slightly larger spacing between the three type blocks inside the dark DTO card.
+  const dtoBelowStartY = (dtoLastLine?.node.y() ?? 0) + dtoLineH * 1.7;
   const dtoServiceFirstLineY = dtoBelowStartY;
   const serviceLines = dtoServiceEntityCode.split('\n').length;
-  const dtoDbFirstLineY = dtoServiceFirstLineY + serviceLines * dtoLineH + dtoLineH * 0.25; // Entity a touch higher / tighter gap
+  const dtoDbFirstLineY = dtoServiceFirstLineY + serviceLines * dtoLineH + dtoLineH * 0.55;
 
   const dtoServiceOffsetY = dtoServiceFirstLineY + dtoClipH / 2 - dtoLineH / 2;
   const dtoDbOffsetY = dtoDbFirstLineY + dtoClipH / 2 - dtoLineH / 2;
