@@ -1,84 +1,107 @@
-import {makeScene2D, Rect, Txt} from '@motion-canvas/2d';
-import {createSignal, easeInOutCubic, waitFor} from '@motion-canvas/core';
+import {makeScene2D, Txt} from '@motion-canvas/2d';
+import {all, createSignal, easeInOutCubic, waitFor} from '@motion-canvas/core';
 import {applyBackground} from '../core/utils';
 import {Fonts, Screen, Timing} from '../core/theme';
-import {PanelStyle} from '../core/panelStyle';
+import {SafeZone} from '../core/ScreenGrid';
+import {textWidth} from '../core/utils/textMeasure';
 
-const CODE = `@Service
-final class PaymentsService {
-
-  private final PaymentsRepository repository;
-
-  PaymentsService(PaymentsRepository repository) {
-    this.repository = repository;
-  }
-
-  @Transactional(readOnly = true)
-  public PaymentDto getById(UUID id) {
-    return repository.findById(id);
-  }
-}`;
+const QUOTE = `“Duplication is cheaper than the wrong abstraction.”\n— Sandi Metz`;
 
 export default makeScene2D(function* (view) {
   applyBackground(view);
 
   const typed = createSignal('');
-  const cursorOn = createSignal(1);
+  const textOn = createSignal(1);
+  const cursorOpacity = createSignal(1);
 
-  const cardW = 1180;
-  const cardH = 640;
-  const pad = 44;
+  const fontSize = 44;
+  const lineHeight = 58;
+  const fontWeight = 400;
+  const fill = '#F6E7D4';
+
+  const x = SafeZone.left + 140;
+  const width = SafeZone.right - SafeZone.left - 280;
+  const y = -40;
 
   view.add(
-    <Rect
-      width={cardW}
-      height={cardH}
-      radius={PanelStyle.radius}
-      fill={PanelStyle.fill}
-      stroke={PanelStyle.stroke}
-      lineWidth={PanelStyle.lineWidth}
-      shadowColor={PanelStyle.shadowColor}
-      shadowBlur={PanelStyle.shadowBlur}
-      shadowOffset={PanelStyle.shadowOffset}
-      clip
-      layout={false}
-    >
+    <>
       <Txt
-        x={() => -cardW / 2 + pad}
-        y={() => -cardH / 2 + pad}
-        width={() => cardW - pad * 2}
-        text={() => typed() + (cursorOn() ? '▍' : '')}
+        x={x}
+        y={y}
+        width={width}
+        text={typed}
         fontFamily={Fonts.code}
-        fontSize={28}
-        lineHeight={42}
-        fontWeight={400}
-        fill={PanelStyle.labelFill}
+        fontSize={fontSize}
+        lineHeight={lineHeight}
+        fontWeight={fontWeight}
+        fill={fill}
         textAlign={'left'}
         offset={[-1, -1]}
+        opacity={textOn}
       />
-    </Rect>,
+      <Txt
+        x={() => {
+          const lines = typed().split('\n');
+          const last = lines[lines.length - 1] ?? '';
+          return x + textWidth(last, Fonts.code, fontSize, fontWeight);
+        }}
+        y={() => {
+          const lines = typed().split('\n');
+          const idx = Math.max(0, lines.length - 1);
+          return y + idx * lineHeight;
+        }}
+        text={'▍'}
+        fontFamily={Fonts.code}
+        fontSize={fontSize}
+        lineHeight={lineHeight}
+        fontWeight={fontWeight}
+        fill={fill}
+        textAlign={'left'}
+        offset={[-1, -1]}
+        opacity={() => cursorOpacity()}
+      />
+    </>,
   );
 
   yield* waitFor(0.35);
 
   // Typewriter: simple per-character reveal.
-  for (let i = 0; i <= CODE.length; i++) {
-    typed(CODE.slice(0, i));
-    const ch = CODE[i] ?? '';
+  for (let i = 0; i <= QUOTE.length; i++) {
+    typed(QUOTE.slice(0, i));
+    const ch = QUOTE[i] ?? '';
     const dt =
-      ch === '\n' ? 0.05 :
-      ch === ' ' ? 0.012 :
-      /[{}();]/.test(ch) ? 0.02 :
-      0.015;
+      ch === '\n' ? 0.09 :
+      ch === ' ' ? 0.02 :
+      /[“”"—–.,:;!?]/.test(ch) ? 0.05 :
+      0.024;
     yield* waitFor(dt);
   }
 
-  // Cursor blink at the end (subtle).
-  yield* waitFor(0.25);
-  for (let i = 0; i < 6; i++) {
-    yield* cursorOn(0, 0.12, easeInOutCubic);
-    yield* cursorOn(1, 0.12, easeInOutCubic);
-  }
+  // Culmination:
+  // - Cursor keeps blinking ~5s
+  // - Text fades out smoothly
+  // - Cursor continues blinking on empty space
+  // - Cursor fades out at the very end
+  yield* waitFor(0.35);
+
+  const blink = function* (seconds: number) {
+    const step = 0.26;
+    let t = 0;
+    while (t < seconds) {
+      yield* cursorOpacity(0, step, easeInOutCubic);
+      t += step;
+      if (t >= seconds) break;
+      yield* cursorOpacity(1, step, easeInOutCubic);
+      t += step;
+    }
+  };
+
+  yield* all(
+    textOn(0, 1.25, easeInOutCubic),
+    blink(5.0),
+  );
+
+  yield* cursorOpacity(0, 0.7, easeInOutCubic);
 
   yield* waitFor(Timing.slow);
 });
