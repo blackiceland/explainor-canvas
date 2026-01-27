@@ -1,0 +1,19 @@
+{
+  "name": "daedalus-scripts",
+  "type": "module",
+  "scripts": {
+    "init-db": "npx tsx init-db.ts",
+    "embeddings": "npx tsx generate-embeddings.ts",
+    "embeddings:mock": "npx tsx generate-embeddings.ts --mock"
+  },
+  "dependencies": {
+    "pg": "^8.11.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/pg": "^8.10.9",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
+  }
+}
+

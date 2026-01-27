@@ -1,0 +1,464 @@
+================================================================================
+DAEDALUS — Video Factory System
+================================================================================
+Named after the legendary architect of Greek mythology.
+Project: motion-canvas
+Purpose: Scalable video production for code design education
+
+RELATED DOCUMENTS:
+  DESIGN_SYSTEM.txt  — Philosophy + RAG query guide
+  COOKBOOK.txt       — Ready-to-use code examples
+
+================================================================================
+ARCHITECTURE
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  LAYER 1: FOUNDATION                                                        │
+│  core/layouts/   — Positioning presets (getSlots)                           │
+│  core/beats/     — Animation functions (appear, highlight, scan)            │
+│  core/themes/    — Color/font tokens (DarkTheme, LightTheme)                │
+│  core/validators/— Validation rules (SafeZone, minFont, timing)             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  LAYER 2: DSL                                                               │
+│  core/dsl/       — Scene configuration parser and runtime                   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  LAYER 3: KNOWLEDGE (RAG)                                                   │
+│  db/             — PostgreSQL + pgvector schema                             │
+│  rag/            — Retrieval API for context injection                      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  LAYER 4: CONTENT                                                           │
+│  content/        — Multilingual content loader (EN/RU)                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+================================================================================
+RAG — SINGLE SOURCE OF TRUTH
+================================================================================
+
+All concrete values (colors, sizes, timings) live in:
+  1. Code tokens (OpenStyle, Colors, Timing, etc.)
+  2. RAG database (db/seed.sql → knowledge table)
+
+NEVER hardcode values in scenes. ALWAYS query RAG or import tokens.
+
+--------------------------------------------------------------------------------
+RAG QUERIES
+--------------------------------------------------------------------------------
+
+RULES:
+  rag.search("safe zone")               → screen bounds, SafeZone limits
+  rag.search("timing")                  → Timing.fast/normal/slow values
+  rag.search("easing")                  → easeInOutCubic vs linear
+  rag.search("font size rule")          → minimum size, per-card guidelines
+  rag.search("light theme colors")      → OpenStyle tokens
+  rag.search("dark theme colors")       → Colors/PanelStyle tokens
+  rag.search("typography fonts")        → font families
+  rag.search("typography scale light")  → sizes, weights, letterSpacing
+
+GEOMETRY:
+  rag.search("light theme services")    → circle radius, fill, text
+  rag.search("light theme cards")       → card styling
+  rag.search("dark theme cards")        → dark card styling
+  rag.search("light theme wires")       → connectors, port dots
+
+ANIMATIONS:
+  rag.search("highlight animation")     → dimming, recolor
+  rag.search("transport animation")     → packet movement
+  rag.search("timing ratios")           → hold before/after, stagger
+
+ANTI-PATTERNS:
+  rag.search("color antipatterns")
+  rag.search("typography antipatterns")
+  rag.search("geometry antipatterns")
+  rag.search("animation antipatterns")
+
+SCENE EXAMPLES:
+  rag.search("code comparison scene")
+  rag.search("chapter intro scene")
+  rag.search("knowledge scan scene")
+  rag.search("service diagram scene")
+
+LAYOUTS:
+  rag.search("layout presets")          → list of available presets
+  db.layouts.find("2L-1R")              → slot coordinates
+
+BEATS:
+  rag.search("beat functions")          → list of animation functions
+  db.beats.find("appear-staggered")     → params and example
+
+================================================================================
+SOURCE TOKEN FILES
+================================================================================
+
+Import tokens, don't hardcode:
+
+  import {OpenStyle} from 'core/openStyle';      // light theme
+  import {Colors, Fonts, Timing} from 'core/theme';  // dark theme
+  import {PanelStyle} from 'core/panelStyle';    // dark cards
+  import {OpenShapes} from 'core/openShapes';    // geometry
+  import {OpenText} from 'core/openText';        // typography
+  import {SafeZone} from 'core/ScreenGrid';      // positioning
+  import {getSlots} from 'core/layouts';         // layout presets
+
+When in doubt, grep the codebase:
+  grep "accent:" motion-canvas/src/core/
+
+================================================================================
+DSL FORMAT
+================================================================================
+
+SceneConfig:
+  id: string              — Unique scene identifier
+  layout: PresetName      — Layout preset name
+  theme: 'dark' | 'light' — Theme name
+  cards: Record<name, CardConfig>
+  content: Record<key, string>
+  timeline: TimelineStep[]
+
+CardConfig:
+  slot: string            — Slot from layout preset
+  content: string         — Code or content key
+  fontSize?: number
+  customTypes?: string[]
+
+TimelineStep:
+  beat: BeatConfig
+
+BeatConfig:
+  type: BeatType
+  targets?: string[]
+  duration?: number
+  delay?: number
+  lines?: number[]
+  tokens?: string[]
+  color?: string
+  scale?: number
+  direction?: string
+
+================================================================================
+VALIDATORS
+================================================================================
+
+import {validateScene} from 'core/validators';
+
+const result = validateScene(elements, timings, {
+  checkSafeZone: true,
+  checkFontSize: true,
+  checkTiming: true,
+});
+
+if (!result.valid) {
+  console.error(result.errors);
+}
+
+================================================================================
+RULES FOR AI
+================================================================================
+
+DO:
+  ✓ Query RAG for any concrete values
+  ✓ Use getSlots() for all positioning
+  ✓ Use Timing constants for all durations
+  ✓ Use beat functions from core/beats
+  ✓ Validate scenes before render
+  ✓ Use CodeBlock for code display
+  ✓ Use English-only strings in code examples
+  ✓ Add blank line between class and first method
+
+DON'T:
+  ✗ Hardcode colors, sizes, or timings
+  ✗ Write raw x/y coordinates
+  ✗ Use magic numbers
+  ✗ Position elements outside SafeZone
+  ✗ Mix themes in single scene
+  ✗ Write comments in code
+
+================================================================================
+QUICK START
+================================================================================
+
+1. Start PostgreSQL:
+   docker compose -f docker-compose.daedalus.yml up -d
+
+2. Initialize database (optional, auto-runs on first start):
+   cd scripts && npm install && npm run init-db
+
+3. Generate embeddings:
+   npm run embeddings        # with OpenAI API key
+   npm run embeddings:mock   # without API key (random vectors)
+
+4. Use in code:
+   import {initDaedalus, getDaedalus} from 'rag';
+
+   await initDaedalus();
+   const {rag} = getDaedalus();
+
+   const context = await rag.getRelevantContext('highlight code');
+
+================================================================================
+ENVIRONMENT VARIABLES
+================================================================================
+
+POSTGRES_HOST     = localhost
+POSTGRES_PORT     = 5433
+POSTGRES_USER     = daedalus
+POSTGRES_PASSWORD = daedalus
+POSTGRES_DB       = daedalus
+
+OPENAI_API_KEY    = sk-...  (optional, for real embeddings)
+EMBEDDING_MODEL   = text-embedding-3-small
+
+================================================================================
+OPERATING REGIMENT
+================================================================================
+
+DAEDALUS stays useful only if it stays consistent. Follow this process.
+
+--------------------------------------------------------------------------------
+DAILY WORKFLOW (Writing scenes)
+--------------------------------------------------------------------------------
+
+Before writing a new scene:
+  □ Pick theme (light/dark) and layout preset
+  □ Query RAG for a closest existing pattern (scene example)
+  □ Use tokens (OpenStyle/Colors/Timing/OpenText/OpenShapes) and presets (getSlots)
+
+While implementing:
+  □ No hardcoded x/y if a preset can express it
+  □ No magic timing numbers (use Timing.fast/normal/slow)
+  □ No non-English strings inside code snippets
+
+Before committing:
+  □ Run validators (SafeZone, min font size, timing rules)
+  □ Visually preview: nothing outside frame, rhythm has holds, no clutter
+
+--------------------------------------------------------------------------------
+ADDING A NEW PATTERN (Beat / Layout / Rule)
+--------------------------------------------------------------------------------
+
+Definition of done:
+  □ Implemented in code (core/*)
+  □ Registered in db/seed.sql (beats/layouts/knowledge)
+  □ Embeddings regenerated (so RAG can retrieve it)
+
+When to add what:
+  - Add a BEAT when the same animation appears 2+ times across scenes
+  - Add a LAYOUT when the same slot structure appears 2+ times
+  - Add a RULE when the same constraint causes mistakes (SafeZone, spacing, typography)
+  - Add an EXAMPLE when a scene becomes the canonical reference for a pattern
+
+--------------------------------------------------------------------------------
+EMBEDDINGS POLICY
+--------------------------------------------------------------------------------
+
+Two modes:
+  - Dev mode (fast iteration): embeddings:mock is OK
+  - Production mode (real retrieval): embeddings must be real
+
+Rules:
+  □ After any change to db/seed.sql, run embeddings
+  □ After adding a new scene pattern worth reusing, run embeddings
+  □ Keep the embedding model constant unless you plan a rebuild
+
+Commands:
+  cd scripts
+  npm run embeddings        # requires OPENAI_API_KEY
+  npm run embeddings:mock   # for quick local iteration
+
+--------------------------------------------------------------------------------
+DATABASE LIFECYCLE (Docker)
+--------------------------------------------------------------------------------
+
+First bootstrap:
+  docker compose -f docker-compose.daedalus.yml up -d
+
+Important:
+  - schema.sql + seed.sql run only on first volume creation
+  - if you edit seed.sql later, apply changes manually or reset the volume
+
+Reset (destructive, for local only):
+  docker compose -f docker-compose.daedalus.yml down -v
+  docker compose -f docker-compose.daedalus.yml up -d
+
+Recommended discipline:
+  □ Treat db/seed.sql as the canonical baseline
+  □ Avoid forking knowledge in docs (docs must point to RAG queries)
+
+--------------------------------------------------------------------------------
+SINGLE SOURCE OF TRUTH RULE
+--------------------------------------------------------------------------------
+
+If you change a token (OpenStyle, Timing, etc.):
+  1) Change code token
+  2) Update db/seed.sql knowledge entry that describes it
+  3) Regenerate embeddings
+
+Never duplicate concrete values in docs.
+
+--------------------------------------------------------------------------------
+SCALING TO THOUSANDS OF SCENES
+--------------------------------------------------------------------------------
+
+Scaling rules:
+  - Prefer a small set of canonical presets over many near-duplicates
+  - Prefer beats over copy-pasting animation blocks
+  - Keep DSL narrow (layout + cards + beats)
+
+Periodic (weekly/monthly):
+  □ Scan new scenes and extract reusable patterns
+  □ Deduplicate knowledge entries and tighten tags
+  □ Review antipatterns based on recent mistakes
+
+--------------------------------------------------------------------------------
+CONTENT (Two languages)
+--------------------------------------------------------------------------------
+
+Rule:
+  - Code examples: English only
+  - On-screen narration/text: stored in content layer (EN/RU)
+
+Whenever you add a new user-facing string:
+  □ Store it in content (content loader / content table)
+  □ Verify it fits the layout constraints in both languages
+
+================================================================================
+EXTENDING DAEDALUS
+================================================================================
+
+When you discover a new pattern, add it to the system so future scenes benefit.
+
+--------------------------------------------------------------------------------
+ADD NEW BEAT
+--------------------------------------------------------------------------------
+
+1. Implement function in core/beats/index.ts:
+
+   export function* newBeat(ref: Reference<Node>, params: NewBeatParams) {
+     yield* ref().opacity(0, params.duration ?? Timing.normal, easeInOutCubic);
+   }
+
+2. Register in db/seed.sql (or run INSERT):
+
+   INSERT INTO beats (name, description, params, category, example_yaml) VALUES
+   ('new-beat', 'Description of what it does', '{"duration": "number"}', 'category',
+    'beat: {type: new-beat, targets: [card1], duration: 0.6}');
+
+3. Re-run embeddings:
+   npm run embeddings
+
+--------------------------------------------------------------------------------
+ADD NEW LAYOUT PRESET
+--------------------------------------------------------------------------------
+
+1. Add to core/layouts/presets.ts:
+
+   export const PRESETS: Record<PresetName, LayoutPreset> = {
+     // ...existing
+     'new-preset': {
+       name: 'new-preset',
+       slots: {
+         A: { x: -400, y: 0, width: 700, height: 800 },
+         B: { x: 400, y: 0, width: 700, height: 800 },
+       },
+     },
+   };
+
+2. Register in db/seed.sql:
+
+   INSERT INTO layouts (name, slots, description, example_yaml) VALUES
+   ('new-preset', '{"A": {...}, "B": {...}}', 'Description', 'layout: new-preset');
+
+3. Re-run embeddings.
+
+--------------------------------------------------------------------------------
+ADD NEW RULE / PATTERN
+--------------------------------------------------------------------------------
+
+1. Add to db/seed.sql:
+
+   INSERT INTO knowledge (category, title, content, tags) VALUES
+   ('rule', 'Title', 'Rule description with concrete values.', 
+    ARRAY['tag1', 'tag2']);
+
+2. Categories:
+   - 'rule'        — Strict requirements (SafeZone, fonts, etc.)
+   - 'philosophy'  — Design principles
+   - 'example'     — Scene patterns
+   - 'antipattern' — What NOT to do
+
+3. Tags: used for search relevance. Include theme, component type, category.
+
+4. Re-run embeddings.
+
+--------------------------------------------------------------------------------
+ADD NEW TOKEN
+--------------------------------------------------------------------------------
+
+1. Add to appropriate token file:
+   - Colors → core/theme.ts or core/openStyle.ts
+   - Typography → core/openText.ts
+   - Geometry → core/openShapes.ts
+
+2. Document in db/seed.sql (knowledge table) so RAG can find it.
+
+3. Re-run embeddings.
+
+--------------------------------------------------------------------------------
+EXTRACT PATTERN FROM EXISTING SCENE
+--------------------------------------------------------------------------------
+
+When a scene works well:
+
+1. Identify reusable elements:
+   - Layout structure
+   - Animation sequence
+   - Component styling
+
+2. Abstract into:
+   - Beat function (if animation is reusable)
+   - Layout preset (if structure is reusable)
+   - Knowledge rule (if styling/timing is notable)
+
+3. Register in database and re-run embeddings.
+
+--------------------------------------------------------------------------------
+MAINTENANCE CHECKLIST
+--------------------------------------------------------------------------------
+
+After adding to the system:
+  □ Code compiles without errors
+  □ Database entry has appropriate tags
+  □ Re-ran npm run embeddings
+  □ Tested RAG search finds new content
+
+Periodic:
+  □ Review scenes for unextracted patterns
+  □ Check for duplicated knowledge
+  □ Verify token files match seed.sql
+
+================================================================================
+FILE STRUCTURE
+================================================================================
+
+motion-canvas/
+├── DAEDALUS.txt              — This documentation
+├── DESIGN_SYSTEM.txt         — Philosophy + RAG query guide
+├── COOKBOOK.txt              — Code examples and patterns
+├── db/
+│   ├── schema.sql            — Database schema
+│   └── seed.sql              — Initial data (source of truth)
+├── src/
+│   ├── core/
+│   │   ├── layouts/          — Layout presets
+│   │   ├── beats/            — Animation functions
+│   │   ├── themes/           — Theme definitions
+│   │   ├── validators/       — Validation rules
+│   │   └── dsl/              — Scene DSL
+│   ├── rag/                  — RAG client
+│   ├── content/              — Content loader
+│   └── scenes/               — Scene implementations
+└── content/                  — Multilingual content files
+
+================================================================================
+END
+================================================================================

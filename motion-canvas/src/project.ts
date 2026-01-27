@@ -9,8 +9,9 @@ import dryConditionsScene from './scenes/dryConditionsScene?scene';
 import dryKnowledgeScene from './scenes/dryKnowledgeScene?scene';
 import splitDtoScene from './scenes/splitDtoScene?scene';
 import typewriterCodeScene from './scenes/typewriterCodeScene?scene';
+import pilotScene from './scenes/pilotScene?scene';
 
 export default makeProject({
     experimentalFeatures: true,
-    scenes: [introMergeScene, chapter1IntroScene, chapter2IntroScene, paymentInputsScene, chapter3IntroScene, splitDtoScene, dryFiltersScene, dryConditionsScene, dryKnowledgeScene, typewriterCodeScene]
+    scenes: [pilotScene, introMergeScene, chapter1IntroScene, chapter2IntroScene, paymentInputsScene, chapter3IntroScene, splitDtoScene, dryFiltersScene, dryConditionsScene, dryKnowledgeScene, typewriterCodeScene]
 });

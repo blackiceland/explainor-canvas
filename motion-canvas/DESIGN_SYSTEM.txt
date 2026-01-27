@@ -1,0 +1,137 @@
+================================================================================
+DAEDALUS DESIGN SYSTEM
+================================================================================
+
+RELATED DOCUMENTS:
+  DAEDALUS.txt  — Architecture + API + extending guide
+  COOKBOOK.txt  — Ready-to-use code examples
+
+================================================================================
+PART 1: PHILOSOPHY
+================================================================================
+
+MINIMALISM
+  Every element must earn its place on screen.
+  Prefer emptiness over decoration.
+  White space is not "empty" — it creates rhythm and focus.
+  Remove until it breaks, then add one thing back.
+
+CONTRAST THROUGH INVERSION
+  Light theme: DARK shapes on warm background
+  Dark theme: LIGHT cards on deep gradient
+  Never mix — commit fully to one approach per scene.
+
+INFORMATION, NOT DECORATION
+  Color = meaning (status, type, emphasis)
+  Shape = role (circle=service, rect=data/code)
+  Animation = narrative (reveals knowledge, not just "looks cool")
+
+SUBTLE DEPTH
+  Shadows are for hierarchy, not 3D illusion.
+  Gradients suggest atmosphere, not glossiness.
+  Everything should feel "flat but layered".
+
+EMOTIONAL TONE
+  Professional but warm. Technical but accessible.
+  Think: architecture monograph, not startup landing page.
+  Think: Dieter Rams, not Dribbble trending.
+
+================================================================================
+PART 2: RAG QUERIES
+================================================================================
+
+For concrete values, ALWAYS query RAG. Never hardcode.
+
+COLORS
+  rag.search("light theme colors")      → OpenStyle tokens (bg, card, ink, etc.)
+  rag.search("dark theme colors")       → Colors/PanelStyle tokens
+  rag.search("status colors tables")    → mint/sky/rose/violet for statuses
+
+TYPOGRAPHY
+  rag.search("typography fonts")        → font families (sans, mono)
+  rag.search("typography scale light")  → font sizes, weights, letterSpacing
+  rag.search("font size rule")          → minimum size, per-card guidelines
+
+GEOMETRY
+  rag.search("light theme services")    → circle radius, fill, text
+  rag.search("light theme cards")       → radius, fill, stroke, shadow, padding
+  rag.search("dark theme cards")        → dark card styling
+  rag.search("light theme wires")       → connector stroke, port/packet dots
+  rag.search("safe zone")               → screen bounds, SafeZone limits
+
+TIMING
+  rag.search("timing")                  → Timing.fast/normal/slow values
+  rag.search("timing ratios")           → hold before/after, stagger delays
+  rag.search("easing")                  → easeInOutCubic, linear usage
+
+ANIMATIONS
+  rag.search("highlight animation")     → dimming, recolor, durations
+  rag.search("transport animation")     → packet movement, fade patterns
+  rag.search("pulse animation")         → fill toggle timing
+  rag.search("scan animation")          → row-by-row, per-row delays
+
+ANTI-PATTERNS
+  rag.search("color antipatterns")      → what NOT to do with colors
+  rag.search("typography antipatterns") → font mistakes to avoid
+  rag.search("geometry antipatterns")   → shape/shadow mistakes
+  rag.search("animation antipatterns")  → easing/timing mistakes
+
+SCENE EXAMPLES
+  rag.search("code comparison scene")   → layout + beats for code scenes
+  rag.search("chapter intro scene")     → title scenes pattern
+  rag.search("knowledge scan scene")    → multi-card highlight pattern
+  rag.search("service diagram scene")   → light theme microservices
+
+LAYOUTS
+  rag.search("layout presets")          → available presets (2-col, 2L-1R, etc.)
+  db.layouts.find(name)                 → slot coordinates for specific preset
+
+BEATS
+  rag.search("beat functions")          → available animation functions
+  db.beats.find(name)                   → params and example for specific beat
+
+================================================================================
+PART 3: SOURCE FILES
+================================================================================
+
+Token definitions live in code. Import, don't hardcode:
+
+  import {OpenStyle} from 'core/openStyle';      // light theme tokens
+  import {Colors, Fonts, Timing} from 'core/theme';  // dark theme tokens
+  import {PanelStyle} from 'core/panelStyle';    // dark card tokens
+  import {OpenShapes} from 'core/openShapes';    // geometry tokens
+  import {OpenText} from 'core/openText';        // typography tokens
+  import {SafeZone} from 'core/ScreenGrid';      // positioning
+
+When in doubt, grep the token in the codebase:
+  grep "accent:" motion-canvas/src/core/
+  grep "Timing." motion-canvas/src/scenes/
+
+================================================================================
+PART 4: SCENE CREATION WORKFLOW
+================================================================================
+
+1. QUERY RAG for relevant patterns
+   - Similar scene examples
+   - Theme tokens (light vs dark)
+   - Layout preset
+
+2. CHECK LAYOUT
+   - Pick preset from db.layouts
+   - Verify all content fits in slots
+   - Respect SafeZone boundaries
+
+3. VALIDATE BEFORE RENDER
+   - Font sizes ≥ 14px
+   - All positions within SafeZone
+   - Timing uses constants, not magic numbers
+   - Easing is easeInOutCubic (or linear for transport)
+
+4. TEST VISUALLY
+   - Browser preview
+   - Check rhythm (hold before/after actions)
+   - Verify nothing outside frame
+
+================================================================================
+END
+================================================================================
