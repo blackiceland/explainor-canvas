@@ -3,6 +3,9 @@
   "type": "module",
   "scripts": {
     "init-db": "npx tsx init-db.ts",
+    "daedalus:up": "npx tsx daedalus-up.ts",
+    "healthcheck": "npx tsx healthcheck.ts",
+    "healthcheck:warn": "npx tsx healthcheck.ts --warn",
     "embeddings": "npx tsx generate-embeddings.ts",
     "embeddings:mock": "npx tsx generate-embeddings.ts --mock"
   },

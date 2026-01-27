@@ -8,3 +8,9 @@ C:\Users\anton\IdeaProjects\canvas\motion-canvas\DAEDALUS.txt
 C:\Users\anton\IdeaProjects\canvas\motion-canvas\DESIGN_SYSTEM.txt
 C:\Users\anton\IdeaProjects\canvas\motion-canvas\COOKBOOK.txt
 и напиши ок.
+
+
+
+
+cd scripts
+npm run daedalus:up

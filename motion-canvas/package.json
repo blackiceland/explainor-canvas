@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "npm --prefix ../scripts run -s healthcheck:warn",
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview"
