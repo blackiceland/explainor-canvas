@@ -27,7 +27,7 @@ export function* disappear(
 
 export function* appearStaggered(
   components: (Node | CodeBlock)[],
-  delay: number = 0.3,
+  delay: number = Timing.fast,
   duration: number = Timing.slow,
 ): ThreadGenerator {
   for (let i = 0; i < components.length; i++) {
@@ -120,8 +120,8 @@ export function* pulseCell(
   cell: Rect,
   highlightColor: string = 'rgba(200, 116, 143, 0.22)',
   offColor: string = 'rgba(0, 0, 0, 0)',
-  onDuration: number = 0.22,
-  offDuration: number = 0.22,
+  onDuration: number = Timing.beat,
+  offDuration: number = Timing.beat,
 ): ThreadGenerator {
   yield* cell.fill(highlightColor, onDuration, easeInOutCubic);
   yield* cell.fill(offColor, offDuration, easeInOutCubic);
@@ -130,7 +130,7 @@ export function* pulseCell(
 export function* scanTableColumn(
   cells: Rect[],
   highlightColor: string = 'rgba(200, 116, 143, 0.22)',
-  rowDelay: number = 0.08,
+  rowDelay: number = Timing.micro,
 ): ThreadGenerator {
   for (const cell of cells) {
     yield* pulseCell(cell, highlightColor);
@@ -141,7 +141,7 @@ export function* scanTableColumn(
 export function* filterRows(
   rows: Rect[],
   shouldShow: (index: number) => boolean,
-  duration: number = 0.7,
+  duration: number = Timing.slow,
 ): ThreadGenerator {
   const animations: ThreadGenerator[] = [];
   for (let i = 0; i < rows.length; i++) {
@@ -190,9 +190,9 @@ export function* scaleTo(
 export function* typewriter(
   textSignal: SimpleSignal<string>,
   text: string,
-  charDelay: number = 0.024,
-  punctuationDelay: number = 0.05,
-  newlineDelay: number = 0.09,
+  charDelay: number = Timing.micro,
+  punctuationDelay: number = Timing.beat,
+  newlineDelay: number = Timing.fast,
 ): ThreadGenerator {
   for (let i = 0; i <= text.length; i++) {
     textSignal(text.slice(0, i));
@@ -208,9 +208,9 @@ export function* typewriter(
 
 export function* titleFade(
   container: Node,
-  fadeIn: number = 0.8,
-  hold: number = 1.4,
-  fadeOut: number = 0.8,
+  fadeIn: number = Timing.slow,
+  hold: number = Timing.normal,
+  fadeOut: number = Timing.slow,
 ): ThreadGenerator {
   yield* container.opacity(1, fadeIn, easeInOutCubic);
   yield* waitFor(hold);
@@ -220,7 +220,7 @@ export function* titleFade(
 export function* cursorBlink(
   cursorOpacity: SimpleSignal<number>,
   duration: number,
-  step: number = 0.26,
+  step: number = Timing.fast,
 ): ThreadGenerator {
   let t = 0;
   while (t < duration) {
@@ -236,7 +236,7 @@ export function* swipeReveal(
   overlay: Rect,
   direction: 'left' | 'right' | 'up' | 'down' = 'right',
   distance: number = 1920 * 1.2,
-  duration: number = 0.95,
+  duration: number = Timing.slow,
 ): ThreadGenerator {
   const current = overlay.position();
   let targetX = current.x;
@@ -264,7 +264,7 @@ export function* knowledgeScan(
   blocks: CodeBlock[],
   lineIndices: number[],
   highlightDuration: number = Timing.slow,
-  holdDuration: number = 0.3,
+  holdDuration: number = Timing.fast,
 ): ThreadGenerator {
   for (const lineIndex of lineIndices) {
     yield* all(
@@ -288,8 +288,26 @@ export function* zoomReveal(
 
 export function* cardStackReveal(
   cards: (Node | CodeBlock)[],
-  delay: number = 0.3,
+  delay: number = Timing.fast,
   duration: number = Timing.slow,
 ): ThreadGenerator {
   yield* appearStaggered(cards, delay, duration);
+}
+
+export function* focus(
+  active: Node | CodeBlock,
+  inactive: Node | CodeBlock,
+  activeOpacity: number = 1,
+  inactiveOpacity: number = 0.55,
+  duration: number = Timing.normal,
+): ThreadGenerator {
+  const setOpacity = (c: Node | CodeBlock, o: number) =>
+    c instanceof CodeBlock
+      ? c.node.opacity(o, duration, easeInOutCubic)
+      : c.opacity(o, duration, easeInOutCubic);
+
+  yield* all(
+    setOpacity(active, activeOpacity),
+    setOpacity(inactive, inactiveOpacity),
+  );
 }

@@ -50,14 +50,16 @@ INSERT INTO beats (name, description, params, category, example_yaml) VALUES
 
 ('swipe-reveal', 'Slide overlay to reveal background', '{"direction": "string", "duration": "number"}', 'transition', 'beat: {type: swipe-reveal, targets: [overlay], direction: "right"}'),
 
-('title-fade', 'Fade in, hold, fade out for titles', '{"fadeIn": "number", "hold": "number", "fadeOut": "number"}', 'title', 'beat: {type: title-fade, fadeIn: 0.8, hold: 1.4, fadeOut: 0.8}');
+('title-fade', 'Fade in, hold, fade out for titles', '{"fadeIn": "number", "hold": "number", "fadeOut": "number"}', 'title', 'beat: {type: title-fade, fadeIn: 0.8, hold: 1.4, fadeOut: 0.8}'),
+
+('focus', 'Emphasize one target and de-emphasize another', '{"activeOpacity": "number", "inactiveOpacity": "number", "duration": "number"}', 'transition', 'beat: {type: focus, targets: [active, inactive], inactiveOpacity: 0.55, duration: 0.6}');
 
 INSERT INTO knowledge (category, title, content, tags) VALUES
 ('rule', 'Safe Zone', 'Screen: 1920x1080, center at (0,0). SafeZone boundaries: top=-480, bottom=480, left=-840, right=840. Never position elements outside SafeZone.', ARRAY['layout', 'positioning', 'boundaries']),
 
 ('rule', 'Font Size', 'Minimum font size is 14px. Code font sizes: small cards 14-16, medium cards 18-20, large cards 22-24.', ARRAY['typography', 'font', 'code']),
 
-('rule', 'Timing', 'Use Timing constants: Timing.fast=0.3, Timing.normal=0.6, Timing.slow=1.1. Never use raw numbers for durations.', ARRAY['animation', 'timing', 'duration']),
+('rule', 'Timing', 'Use Timing tokens. Timing.micro=0.08, Timing.beat=0.22, Timing.fast=0.3, Timing.normal=0.6, Timing.slow=1.1. Never use raw numbers for durations.', ARRAY['animation', 'timing', 'duration']),
 
 ('rule', 'Colors', 'Dark theme: background.from=#0B0C10, background.to=#12141A, surface=#1B1D24, text.primary=#F4F1EB, accent=#FF8CA3. Light theme uses OpenStyle colors.', ARRAY['colors', 'theme', 'design']),
 
@@ -65,7 +67,7 @@ INSERT INTO knowledge (category, title, content, tags) VALUES
 
 ('rule', 'Code Content', 'Use only English strings in code examples. Add blank line between class declaration and first method. Use customTypes for syntax highlighting.', ARRAY['code', 'content', 'style']),
 
-('rule', 'Beat Functions', 'Use beat functions from core/beats for animations. Available: appear, disappear, highlightLines, recolorLine, scanTableColumn, titleFade, typewriter.', ARRAY['animation', 'beats', 'functions']),
+('rule', 'Beat Functions', 'Use beat functions from core/beats for animations. Prefer beats over ad-hoc opacity/position tweens. Available includes: appear, disappear, highlightLines, recolorLine, scanTableColumn, titleFade, typewriter, focus.', ARRAY['animation', 'beats', 'functions']),
 
 ('philosophy', 'Minimalism', 'Every element must earn its place. Prefer emptiness over decoration. White space creates rhythm and focus. Remove until it breaks, then add one thing back.', ARRAY['philosophy', 'design', 'principles']),
 
@@ -97,9 +99,9 @@ INSERT INTO knowledge (category, title, content, tags) VALUES
 
 ('rule', 'Transport Animation', 'Packet moves at constant velocity (linear easing). Fade in at start (Timing.fast), fade out at end. Values appear with packet arrival.', ARRAY['animation', 'transport', 'data-flow']),
 
-('rule', 'Pulse Animation', 'Fill to highlight, then back. On: 0.22s, Off: 0.22s. Maximum 3 pulses. Used for table cell scanning.', ARRAY['animation', 'pulse', 'emphasis']),
+('rule', 'Pulse Animation', 'Fill to highlight, then back. Use Timing.beat for on/off. Maximum 3 pulses. Used for table cell scanning.', ARRAY['animation', 'pulse', 'emphasis']),
 
-('rule', 'Scan Animation', 'Row-by-row highlight. Per-row delay: 0.08s. Between passes: 0.28s. Used for table filtering visualization.', ARRAY['animation', 'scan', 'tables']),
+('rule', 'Scan Animation', 'Row-by-row highlight. Per-row delay: Timing.micro. Between passes: Timing.normal. Used for table filtering visualization.', ARRAY['animation', 'scan', 'tables']),
 
 ('antipattern', 'Color Antipatterns', 'NEVER: bright saturated backgrounds, rainbow schemes, pure black (#000), cold/blue whites, gradient fills on shapes (only bg gradients).', ARRAY['antipattern', 'colors']),
 

@@ -60,9 +60,16 @@ GEOMETRY
   rag.search("safe zone")               → screen bounds, SafeZone limits
 
 TIMING
-  rag.search("timing")                  → Timing.fast/normal/slow values
+  rag.search("timing")                  → Timing tokens (micro/beat/fast/normal/slow)
   rag.search("timing ratios")           → hold before/after, stagger delays
   rag.search("easing")                  → easeInOutCubic, linear usage
+
+DEFAULT TIMING MAP
+  Timing.micro  → scan step (row-by-row), typewriter ticks
+  Timing.beat   → pulse on/off, micro accents
+  Timing.fast   → small UI transitions
+  Timing.normal → focus switching, between-act holds
+  Timing.slow   → enter/exit large blocks
 
 ANIMATIONS
   rag.search("highlight animation")     → dimming, recolor, durations

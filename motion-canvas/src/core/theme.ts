@@ -23,6 +23,8 @@ export const Screen = {
 };
 
 export const Timing = {
+    micro: 0.08,
+    beat: 0.22,
     fast: 0.3,
     normal: 0.6,
     slow: 1.1,

@@ -33,12 +33,14 @@ export function isValidTiming(duration: number): boolean {
 }
 
 export function isStandardTiming(duration: number): boolean {
-  const standardValues = [Timing.fast, Timing.normal, Timing.slow];
+  const standardValues = [Timing.micro, Timing.beat, Timing.fast, Timing.normal, Timing.slow];
   const tolerance = 0.001;
   return standardValues.some(v => Math.abs(v - duration) < tolerance);
 }
 
 export function suggestTiming(duration: number): string {
+  if (duration <= 0.12) return 'Timing.micro';
+  if (duration <= 0.26) return 'Timing.beat';
   if (duration <= 0.45) return 'Timing.fast';
   if (duration <= 0.85) return 'Timing.normal';
   return 'Timing.slow';
