@@ -1,5 +1,6 @@
 import {makeProject} from '@motion-canvas/core';
 import introMergeScene from './scenes/introMergeScene?scene';
+import introMergeSceneV2 from './scenes/introMergeSceneV2?scene';
 import chapter1IntroScene from './scenes/chapter1IntroScene?scene';
 import chapter2IntroScene from './scenes/chapter2IntroScene?scene';
 import paymentInputsScene from './scenes/paymentInputsScene?scene';
@@ -13,5 +14,5 @@ import pilotScene from './scenes/pilotScene?scene';
 
 export default makeProject({
     experimentalFeatures: true,
-    scenes: [pilotScene, introMergeScene, chapter1IntroScene, chapter2IntroScene, paymentInputsScene, chapter3IntroScene, splitDtoScene, dryFiltersScene, dryConditionsScene, dryKnowledgeScene, typewriterCodeScene]
+    scenes: [pilotScene, introMergeScene, introMergeSceneV2, chapter1IntroScene, chapter2IntroScene, paymentInputsScene, chapter3IntroScene, splitDtoScene, dryFiltersScene, dryConditionsScene, dryKnowledgeScene, typewriterCodeScene]
 });

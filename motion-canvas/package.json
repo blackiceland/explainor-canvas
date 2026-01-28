@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "predev": "npm --prefix ../scripts run -s healthcheck:warn",
+    "predev": "node -e \"const {existsSync}=require('fs'); const {spawnSync}=require('child_process'); if(existsSync('../scripts/package.json')){const r=spawnSync('npm',['--prefix','../scripts','run','-s','healthcheck:warn'],{stdio:'inherit'}); process.exit(r.status??0)}\"",
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview"
