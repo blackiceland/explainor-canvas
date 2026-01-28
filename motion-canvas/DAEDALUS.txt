@@ -77,6 +77,11 @@ TRIGGERS: YOU MUST QUERY RAG BEFORE CHOOSING
   - Layout decisions (gaps, margins, card/table sizing, SafeZone constraints)
   - Any reusable pattern/beat (scan, filter, focus, merge, reveal)
 
+NOTE: STYLE IMPLEMENTATION FLOW
+  1) Use RAG to choose the design decision (rules/examples/antipatterns).
+  2) Then confirm the concrete token/module exists in code (core/*) before implementing.
+  RAG chooses "what is correct", code confirms "what is available".
+
 NO-HARDCODE RULE (SCENES)
   In src/scenes/**:
     - Forbidden: new raw colors (rgba/#hex) and new raw timing numbers.
