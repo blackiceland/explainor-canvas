@@ -1,6 +1,7 @@
 import {Code, Line, makeScene2D, Rect, Txt} from '@motion-canvas/2d';
 import {all, createRef, createSignal, easeInOutCubic, map, waitFor} from '@motion-canvas/core';
 import {getSlots} from '../core/layouts';
+import {SafeZone} from '../core/ScreenGrid';
 import {Colors, Fonts, Screen, Timing} from '../core/theme';
 import {applyBackground} from '../core/utils';
 import {fitText, textWidth} from '../core/utils/textMeasure';
@@ -74,6 +75,11 @@ const HEADER_H = 28;
 const HEADER_FONT = 18;
 const HEADER_TRACKING = 2.2;
 const QUAD_INSET = 44;
+// getSlots() размечает контент внутри SafeZone, но визуально “верхняя граница кадра”
+// — это верх экрана (а для нижних квадрантов — центральная линия y=0).
+// Чтобы отступы выглядели симметрично, добавляем safe-margin только нижним квадрантам.
+const SCREEN_TOP = -Screen.height / 2;
+const SAFE_MARGIN_TOP = SafeZone.top - SCREEN_TOP; // ожидаемо 60px при SafeZone.top=-480 и Screen.height=1080
 const GRID_STROKE = hexToRgba(Colors.text.primary, 0.12);
 const GRID_W = 1;
 const CELL_FILL_OFF = 'rgba(0, 0, 0, 0)';
@@ -149,6 +155,8 @@ export default makeScene2D(function* (view) {
   const rightBottom = slots.R2;
   const tableDx = -48;
 
+  const quadTopInset = (slot: {y: number}) => QUAD_INSET + (slot.y > 0 ? SAFE_MARGIN_TOP : 0);
+
   const paymentTableRef = createRef<Rect>();
   const orderTableRef = createRef<Rect>();
 
@@ -187,13 +195,14 @@ export default makeScene2D(function* (view) {
       layout
       direction={'column'}
       gap={0}
-      padding={0}
+      paddingTop={quadTopInset(slot)}
+      paddingLeft={CELL_PX}
+      paddingRight={CELL_PX}
       fill={'rgba(0,0,0,0)'}
       opacity={0}
       clip
     >
-      <Rect layout width={1} height={QUAD_INSET} fill={'rgba(0,0,0,0)'} />
-      <Rect layout direction={'row'} height={HEADER_H} width={slot.width} justifyContent={'start'} alignItems={'center'} paddingLeft={CELL_PX} paddingRight={CELL_PX} clip>
+      <Rect layout direction={'row'} height={HEADER_H} width={slot.width} justifyContent={'start'} alignItems={'center'} clip>
         <Txt
           fontFamily={Fonts.primary}
           fontSize={HEADER_FONT}
@@ -344,15 +353,7 @@ export default makeScene2D(function* (view) {
   const topBlock = blockSize(PAYMENT_FILTER_CODE);
   const bottomBlock = blockSize(ORDER_FILTER_CODE);
 
-  const alignInSlot = (slot: {width: number; height: number}, w: number, h: number) => ({
-    x: -slot.width / 2 + QUAD_INSET + w / 2,
-    y: -slot.height / 2 + QUAD_INSET + h / 2,
-  });
-
   const unifiedW = Math.max(topBlock.w, bottomBlock.w);
-  const unifiedH = Math.max(topBlock.h, bottomBlock.h);
-  const topPos = alignInSlot(rightTop, unifiedW, unifiedH);
-  const bottomPos = alignInSlot(rightBottom, unifiedW, unifiedH);
 
   const codeClipTop = createRef<Rect>();
   const codeClipBottom = createRef<Rect>();
@@ -368,16 +369,22 @@ export default makeScene2D(function* (view) {
         fill={'rgba(0,0,0,0)'}
         clip
         opacity={() => codeTopOn()}
+        layout
+        direction={'column'}
+        gap={0}
+        paddingTop={quadTopInset(rightTop)}
+        paddingLeft={QUAD_INSET}
       >
-      <Code
-        code={PAYMENT_FILTER_CODE}
-        fontFamily={Fonts.code}
-        fontSize={fontSize}
-        lineHeight={lineHeight}
-        opacity={1}
-        x={topPos.x}
-        y={topPos.y}
-        drawHooks={{
+      <Rect layout width={rightTop.width} fill={'rgba(0,0,0,0)'}>
+        <Code
+          code={PAYMENT_FILTER_CODE}
+          fontFamily={Fonts.code}
+          fontSize={fontSize}
+          lineHeight={lineHeight}
+          opacity={1}
+          x={unifiedW / 2}
+          y={0}
+          drawHooks={{
           token: (
             canvasCtx: CanvasRenderingContext2D,
             text: string,
@@ -429,7 +436,8 @@ export default makeScene2D(function* (view) {
             canvasCtx.globalAlpha = prevAlpha;
           },
         }}
-      />
+        />
+      </Rect>
       </Rect>
       <Rect
         ref={codeClipBottom}
@@ -440,16 +448,22 @@ export default makeScene2D(function* (view) {
         fill={'rgba(0,0,0,0)'}
         clip
         opacity={() => codeBottomOn()}
+        layout
+        direction={'column'}
+        gap={0}
+        paddingTop={quadTopInset(rightBottom)}
+        paddingLeft={QUAD_INSET}
       >
-      <Code
-        code={ORDER_FILTER_CODE}
-        fontFamily={Fonts.code}
-        fontSize={fontSize}
-        lineHeight={lineHeight}
-        opacity={1}
-        x={bottomPos.x}
-        y={bottomPos.y}
-        drawHooks={{
+      <Rect layout width={rightBottom.width} fill={'rgba(0,0,0,0)'}>
+        <Code
+          code={ORDER_FILTER_CODE}
+          fontFamily={Fonts.code}
+          fontSize={fontSize}
+          lineHeight={lineHeight}
+          opacity={1}
+          x={unifiedW / 2}
+          y={0}
+          drawHooks={{
           token: (
             canvasCtx: CanvasRenderingContext2D,
             text: string,
@@ -501,7 +515,8 @@ export default makeScene2D(function* (view) {
             canvasCtx.globalAlpha = prevAlpha;
           },
         }}
-      />
+        />
+      </Rect>
       </Rect>
     </>,
   );

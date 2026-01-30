@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Motion Canvas Still Export</title>
+    <style>
+      html, body { margin: 0; padding: 0; background: #0B0C10; color: #F4F1EB; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+      .wrap { padding: 16px; opacity: 0.85; }
+      .muted { opacity: 0.7; font-size: 12px; }
+      .ok { color: #9BE3C5; }
+      .err { color: #FF8CA3; white-space: pre-wrap; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div id="status">Exporting…</div>
+      <div class="muted" id="details"></div>
+      <pre class="err" id="error" style="display:none"></pre>
+    </div>
+    <script type="module" src="/src/stillRunner.ts"></script>
+  </body>
+</html>
+
+

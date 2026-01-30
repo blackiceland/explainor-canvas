@@ -79,7 +79,7 @@ export class RagClient {
     if (this.config.embeddingProvider === 'openai' && this.config.apiKey) {
       return this.getOpenAIEmbedding(text);
     }
-    return this.getMockEmbedding();
+    return this.getMockEmbedding(text);
   }
 
   private async getOpenAIEmbedding(text: string): Promise<number[]> {
@@ -103,8 +103,31 @@ export class RagClient {
     return data.data[0].embedding;
   }
 
-  private getMockEmbedding(): number[] {
-    return new Array(1536).fill(0).map(() => Math.random() - 0.5);
+  private getMockEmbedding(text: string): number[] {
+    // Deterministic mock embeddings: stable across runs, so RAG results don't "jump".
+    // Not semantically meaningful, but good enough for repeatable local dev/tests.
+    const DIM = 1536;
+
+    // FNV-1a 32-bit hash
+    let h = 2166136261 >>> 0;
+    for (let i = 0; i < text.length; i++) {
+      h ^= text.charCodeAt(i);
+      h = Math.imul(h, 16777619) >>> 0;
+    }
+
+    // xorshift32 PRNG from seed
+    let x = (h || 1) >>> 0;
+    const out = new Array<number>(DIM);
+    for (let i = 0; i < DIM; i++) {
+      x ^= x << 13;
+      x ^= x >>> 17;
+      x ^= x << 5;
+      // Map uint32 -> [-1, 1]
+      const u = (x >>> 0) / 0xffffffff;
+      out[i] = u * 2 - 1;
+    }
+
+    return out;
   }
 
   async searchKnowledge(

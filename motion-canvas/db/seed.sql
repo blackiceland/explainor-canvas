@@ -119,3 +119,11 @@ INSERT INTO knowledge (category, title, content, tags) VALUES
 
 ('example', 'Service Diagram Scene', 'Light theme. Services: dark circles R=150-175. Wires: semi-transparent, horizontal. Labels above wires. Port dots where data enters/exits.', ARRAY['scene', 'example', 'services', 'light-theme']);
 
+-- =============================================================================
+-- PRODUCTION RECIPES (DAEDALUS)
+-- =============================================================================
+
+INSERT INTO knowledge (category, title, content, tags) VALUES
+('rule', 'Still Export (Composition Feedback Loop)', 'When layout is disputed, export a PNG still and measure on pixels instead of guessing. Use scripts/still (Playwright + Vite dev server) to export a single frame into motion-canvas/output/still/<project>/<frame>.png, then iterate. This makes AI work measurable and reduces token burn.', ARRAY['production', 'workflow', 'still', 'layout']),
+('rule', 'Deterministic Mock Embeddings', 'Mock embeddings must be deterministic (seeded hash), otherwise RAG results jump between runs and become unusable for production. Determinism is required for repeatable queries and stable iteration.', ARRAY['rag', 'embeddings', 'workflow']);
+

@@ -58,8 +58,24 @@ class OpenAIEmbedding implements EmbeddingProvider {
 }
 
 class MockEmbedding implements EmbeddingProvider {
-  async generate(_text: string): Promise<number[]> {
-    return Array.from({length: EMBEDDING_DIM}, () => Math.random() * 2 - 1);
+  async generate(text: string): Promise<number[]> {
+    // Deterministic mock embeddings so local RAG is stable/repeatable.
+    // FNV-1a 32-bit hash
+    let h = 2166136261 >>> 0;
+    for (let i = 0; i < text.length; i++) {
+      h ^= text.charCodeAt(i);
+      h = Math.imul(h, 16777619) >>> 0;
+    }
+
+    // xorshift32 PRNG
+    let x = (h || 1) >>> 0;
+    return Array.from({length: EMBEDDING_DIM}, () => {
+      x ^= x << 13;
+      x ^= x >>> 17;
+      x ^= x << 5;
+      const u = (x >>> 0) / 0xffffffff;
+      return u * 2 - 1;
+    });
   }
 }
 

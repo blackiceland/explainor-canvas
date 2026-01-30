@@ -1,184 +1,112 @@
 ================================================================================
-DAEDALUS — Video Factory System
+DAEDALUS — Video Factory System (production)
 ================================================================================
 
-See also: DESIGN_SYSTEM.txt (philosophy), COOKBOOK.txt (code examples)
+Назначение: ускорить производство сцен и снизить цену итераций.
+
+DAEDALUS = 2 контура:
+  1) RAG → “что правильно” (правила/рецепты/токены)
+  2) STILL → “что реально на экране” (PNG кадр для проверки композиции)
+
+Если нет STILL — мы угадываем и жжём токены.
+
+См. также:
+  - DESIGN_SYSTEM.txt (философия и принципы)
+  - COOKBOOK.txt (готовые примеры)
 
 ================================================================================
-ARCHITECTURE
+ГДЕ ЧТО ЛЕЖИТ
 ================================================================================
 
-core/layouts/    → getSlots('2-col') for positioning
-core/beats/      → animation functions (appear, highlight, etc.)
-core/themes/     → color/font tokens (OpenStyle, Colors, Timing)
-core/validators/ → SafeZone, minFont, timing checks
-db/seed.sql      → RAG knowledge (source of truth)
+- src/core/layouts/       → getSlots() пресеты
+- src/core/beats/         → переиспользуемые анимации
+- src/core/theme.ts       → Colors/Fonts/Timing/Screen
+- src/core/ScreenGrid.ts  → SafeZone
+- db/seed.sql             → знания для RAG (single source of truth)
+- scripts/                → утилиты (DB/embeddings/query/still)
 
 ================================================================================
-RAG QUERIES (use instead of hardcoding)
+ПРАВИЛА ДЛЯ СЦЕН (МИНИМУМ)
 ================================================================================
 
-rag.search("safe zone")           → screen bounds
-rag.search("timing")              → Timing tokens (micro/beat/fast/normal/slow)
-rag.search("light theme colors")  → OpenStyle tokens
-rag.search("dark theme cards")    → PanelStyle tokens
-rag.search("status colors")       → table status text colors
-rag.search("scan animation")      → row-by-row scanning rhythm
-rag.search("pulse animation")     → cell pulse rhythm
-rag.search("beat functions")      → available animations
-rag.search("layout presets")      → 2-col, 2L-1R, center, etc.
+1) Никаких “магических” чисел:
+   - тайминги только Timing.*
+   - цвета только Colors/OpenStyle/PanelStyle (кроме rgba(0,0,0,0))
+
+2) Никаких ручных координат:
+   - позиционирование через getSlots()
+   - выравнивание/отступы делай внутри слота (layout/padding)
+
+3) Любой спор про композицию → делаем STILL и меряем на PNG.
 
 ================================================================================
-IMPORTS (don't hardcode values)
+RAG: БЫСТРЫЕ ЗАПРОСЫ (CLI)
 ================================================================================
 
-import {OpenStyle} from 'core/openStyle';       // light theme
-import {Colors, Timing} from 'core/theme';      // dark theme
-import {PanelStyle} from 'core/panelStyle';     // dark cards
-import {OpenShapes} from 'core/openShapes';     // geometry
-import {SafeZone} from 'core/ScreenGrid';       // bounds
+Скрипт: scripts/query-rag.ts
+
+Запуск:
+  cd scripts
+  npm run query-rag -- "your query" [options]
+
+Примеры:
+  npm run query-rag -- "safe zone" --category rule
+  npm run query-rag -- "layout 2L-2R padding symmetry"
+  npm run query-rag -- "scan animation tables" --category rule
+  npm run query-rag -- "code comparison scene" --category example
+
+Важно:
+  - mock embeddings теперь ДЕТЕРМИНИРОВАННЫЕ → выдача не “прыгает”.
 
 ================================================================================
-RULES FOR AI
+STILL: АВТО-ЭКСПОРТ PNG (ЧТОБЫ AI ВИДЕЛ КОМПОЗИЦИЮ)
 ================================================================================
 
-DO:
-  ✓ Query RAG for concrete values
-  ✓ Use getSlots() for positioning
-  ✓ Use Timing tokens (micro/beat/fast/normal/slow)
-  ✓ Use beat functions from core/beats
-  ✓ English-only code examples
+Зачем: получить PNG прямо в репозитории, без ручного экспорта из UI.
+Вывод: motion-canvas/output/still/<project>/<frame>.png
 
-DON'T:
-  ✗ Hardcode colors/sizes/timings
-TIMING MAP (default)
-  micro  → per-row scan step, typewriter ticks
-  beat   → pulse on/off, short emphasis
-  fast   → small UI transitions (cursor blink, small fades)
-  normal → focus change (dim other, swap attention), between-act holds
-  slow   → enter/exit large blocks (tables, code cards, title blocks)
+One-time setup:
+  cd scripts
+  npm install
+  npx playwright install chromium
 
-RULE: large appear/disappear must NOT use micro/beat/fast.
+Рендер кадра сцены:
+  cd scripts
+  npm run still -- --scene dryFiltersSceneV3 --frame 0
 
-================================================================================
-RAG REGIMENT (MANDATORY)
-================================================================================
+Опции:
+  --frames <csv>    несколько кадров за один запуск, например: 0,60,120,180
+  --frame <n>       frame внутри сцены (local scene frame)
+  --globalFrame <n> frame на общей таймлинии проекта (если нужно)
+  --fps <n>         default 60
+  --port <n>        default 5173 (переиспользует уже запущенный dev server, если он есть)
+  --timeoutMs <n>   default 120000
+  --keepServer      не гасить dev server после экспорта
 
-PRE-FLIGHT (ALWAYS at session start)
-  - Verify RAG is reachable (simple SQL or healthcheck).
-  - If RAG is unreachable:
-      - Do NOT invent concrete tokens (colors/timings/sizes).
-      - Only reuse existing core tokens. List what is blocked.
-
-TRIGGERS: YOU MUST QUERY RAG BEFORE CHOOSING
-  - Any color decision (including rgba/hex, opacity, strokes, dividers, tints)
-  - Any timing decision (durations, delays, scan/pulse rhythms)
-  - Typography decisions (fontSize, lineHeight, letterSpacing, weights)
-  - Layout decisions (gaps, margins, card/table sizing, SafeZone constraints)
-  - Any reusable pattern/beat (scan, filter, focus, merge, reveal)
-
-NOTE: STYLE IMPLEMENTATION FLOW
-  1) Use RAG to choose the design decision (rules/examples/antipatterns).
-  2) Then confirm the concrete token/module exists in code (core/*) before implementing.
-  RAG chooses "what is correct", code confirms "what is available".
-
-NO-HARDCODE RULE (SCENES)
-  In src/scenes/**:
-    - Forbidden: new raw colors (rgba/#hex) and new raw timing numbers.
-    - Allowed: fully transparent rgba(0,0,0,0) for "no fill/stroke".
-  If a concrete value is needed:
-    - Fetch from RAG OR reuse existing core tokens.
-    - If reused 2+ times → promote into core tokens and update seed.sql.
-
-SESSION END CHECKPOINT (MANDATORY)
-  - New reusable pattern? → add to RAG (seed.sql) + embeddings
-  - New token or style decision used in 2+ places? → move to core + RAG
+Заметка:
+  frame=0 часто пустой (ещё до appear/отрисовки). Используй:
+    - --frame 120 (примерно 2 секунды при 60fps)
+    - или --frames 0,60,120,180 и выбери правильный PNG
 
 ================================================================================
-V2 MODE (ANTI-DUPLICATE / MULTI-CHANNEL)
-================================================================================
-
-Goal: produce a V2 scene that keeps the same idea but changes the visual fingerprint.
-
-RULE: V2 MUST differ in at least 2 orthogonal dimensions:
-  - Layout geometry (different preset, swap columns, stack vs grid, spacing rhythm)
-  - Background material (different gradient/tint strategy, spotlight vs flat, warm vs cold)
-  - Component skin (cardless vs carded, divider system, radii, stroke density)
-  - Motion signature (order of beats, scan rhythm, holds, tempo map)
-  - Typography signature (font sizes, density, alignment, headline strategy)
-
-Do NOT rely on a single change like "swap left/right" or "different strings".
-
-V2 CHECKLIST (before shipping)
-  □ Layout uses getSlots() and aligns edges across columns/rows
-  □ No magic colors/timings: all concrete values from core tokens or RAG
-  □ At least 2 orthogonal differences vs V1 are documented
-  □ Motion order differs (not just durations)
-
-  ✗ Write raw x/y coordinates
-  ✗ Position outside SafeZone
-  ✗ Mix themes in one scene
-
-================================================================================
-RAG ENRICHMENT
-================================================================================
-
-After creating scenes, decide if pattern should go into RAG:
-
-ADD if:    REUSABLE (3+ scenes), PROVEN, GENERALIZABLE, NOVEL
-SKIP if:   ONE-OFF, EXPERIMENTAL, DUPLICATE, CONTENT-SPECIFIC
-
-Before adding → rag.search() to check duplicates
-After adding  → npm run embeddings
-
-Categories: 'rule', 'example', 'philosophy', 'antipattern'
-
-SESSION END CHECKLIST:
-  □ New reusable pattern?      → Add to RAG
-  □ New antipattern found?     → Add to RAG
-  □ Reference-quality scene?   → Add as 'example'
-  □ Changed tokens?            → Update knowledge + embeddings
-
-================================================================================
-COMMANDS
+КОМАНДЫ (DAEDALUS TOOLING)
 ================================================================================
 
 cd scripts
 npm run daedalus:up      # start DB + healthcheck + mock embeddings
 npm run healthcheck      # verify DB state
 npm run embeddings       # real embeddings (needs OPENAI_API_KEY)
-npm run embeddings:mock  # fake embeddings (local dev)
+npm run embeddings:mock  # deterministic mock embeddings (local dev)
 npm run init-db          # re-apply schema+seed
+npm run query-rag -- "..." [options]
+npm run still -- --scene <SceneName> --frame <n>
 
 ================================================================================
-EXTENDING
+КАК ПОПОЛНЯТЬ ФАБРИКУ (КОРОТКО)
 ================================================================================
 
-NEW BEAT:
-  1. Add to core/beats/index.ts
-  2. INSERT INTO beats in seed.sql
-  3. npm run embeddings
+Если ты решил повторяемую проблему (layout/симметрия/scan-rhythm):
+  - добавь короткий рецепт в db/seed.sql (knowledge: rule/example)
+  - прогони embeddings (real или mock)
 
-NEW LAYOUT:
-  1. Add to core/layouts/presets.ts
-  2. INSERT INTO layouts in seed.sql
-  3. npm run embeddings
 
-NEW RULE:
-  1. INSERT INTO knowledge in seed.sql
-  2. npm run embeddings
-
-TOKEN CHANGE:
-  1. Update core/*.ts
-  2. Update knowledge in seed.sql
-  3. npm run embeddings
-
-================================================================================
-SINGLE SOURCE OF TRUTH
-================================================================================
-
-Concrete values live in CODE (tokens) and DB (seed.sql).
-Documents describe HOW to find values, not WHAT they are.
-If token changes → update seed.sql → regenerate embeddings.
-
-================================================================================
