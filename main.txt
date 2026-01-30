@@ -14,3 +14,9 @@ C:\Users\anton\IdeaProjects\canvas\motion-canvas\COOKBOOK.txt
 
 cd scripts
 npm run daedalus:up
+
+
+делай still на кадре X
+
+
+C:\Users\anton\IdeaProjects\canvas\motion-canvas\output\still\project

@@ -84,6 +84,10 @@ const GRID_STROKE = hexToRgba(Colors.text.primary, 0.12);
 const GRID_W = 1;
 const CELL_FILL_OFF = 'rgba(0, 0, 0, 0)';
 const CELL_HIGHLIGHT = hexToRgba(Colors.accent, 0.16);
+// Manual composition trims (requested):
+// Move code blocks up slightly inside their quadrants.
+const PAYMENT_REPO_RISE_Y = 50;
+const ORDER_REPO_RISE_Y = 50;
 
 const FILTER_FROM = '2024-12-10 00:00';
 const SCAN_PULSE_ON = Timing.beat;
@@ -153,7 +157,7 @@ export default makeScene2D(function* (view) {
   const leftBottom = slots.L2;
   const rightTop = slots.R1;
   const rightBottom = slots.R2;
-  const tableDx = -48;
+  const tableDx = -50;
 
   const quadTopInset = (slot: {y: number}) => QUAD_INSET + (slot.y > 0 ? SAFE_MARGIN_TOP : 0);
 
@@ -372,7 +376,7 @@ export default makeScene2D(function* (view) {
         layout
         direction={'column'}
         gap={0}
-        paddingTop={quadTopInset(rightTop)}
+        paddingTop={quadTopInset(rightTop) - PAYMENT_REPO_RISE_Y}
         paddingLeft={QUAD_INSET}
       >
       <Rect layout width={rightTop.width} fill={'rgba(0,0,0,0)'}>
@@ -444,15 +448,14 @@ export default makeScene2D(function* (view) {
         x={rightBottom.x}
         y={rightBottom.y}
         width={rightBottom.width}
-        height={rightBottom.height}
         fill={'rgba(0,0,0,0)'}
-        clip
         opacity={() => codeBottomOn()}
         layout
         direction={'column'}
         gap={0}
-        paddingTop={quadTopInset(rightBottom)}
+        paddingTop={quadTopInset(rightBottom) - ORDER_REPO_RISE_Y}
         paddingLeft={QUAD_INSET}
+        paddingBottom={0}
       >
       <Rect layout width={rightBottom.width} fill={'rgba(0,0,0,0)'}>
         <Code

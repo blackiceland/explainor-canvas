@@ -6,6 +6,10 @@ function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+function isPortNumber(n: number) {
+  return Number.isFinite(n) && n >= 1 && n <= 65535;
+}
+
 function parseArgs(argv: string[]) {
   const out: Record<string, string | boolean> = {};
   let i = 0;
@@ -66,10 +70,41 @@ function startDevServer(port: number) {
   return child;
 }
 
+async function findRunningServerPort(startPort: number, range: number): Promise<number | null> {
+  for (let p = startPort; p < startPort + range; p++) {
+    try {
+      await waitForHttpOk(`http://127.0.0.1:${p}/still.html`, 600);
+      return p;
+    } catch {
+      // keep scanning
+    }
+  }
+  return null;
+}
+
+async function startServerWithFallback(preferredPort: number, range: number, timeoutMs: number) {
+  for (let p = preferredPort; p < preferredPort + range; p++) {
+    const child = startDevServer(p);
+    try {
+      await waitForHttpOk(`http://127.0.0.1:${p}/`, timeoutMs);
+      return {port: p, child};
+    } catch {
+      // server didn't come up on this port; stop and try next
+      try {
+        child.kill();
+      } catch {
+        // ignore
+      }
+    }
+  }
+  throw new Error(`Could not start dev server on ports ${preferredPort}..${preferredPort + range - 1}`);
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
 
-  const port = Number(args.port ?? 5173);
+  const requestedPort = Number(args.port ?? 5173);
+  const portRange = Number(args.portRange ?? 12);
   const fps = Number(args.fps ?? 60);
   const frameRaw = args.frame;
   const framesRaw = args.frames;
@@ -77,6 +112,21 @@ async function main() {
   const scene = typeof args.scene === 'string' ? args.scene : '';
   const timeoutMs = Number(args.timeoutMs ?? 120_000);
   const keepServer = Boolean(args.keepServer);
+
+  if (!isPortNumber(requestedPort)) {
+    throw new Error(`Invalid --port: ${args.port}`);
+  }
+
+  // If a dev server is already running, reuse it (scan a small range).
+  let port = await findRunningServerPort(requestedPort, portRange);
+
+  // Otherwise start one on a free port (strictPort, fallback scanning).
+  let server: ReturnType<typeof startDevServer> | null = null;
+  if (port == null) {
+    const started = await startServerWithFallback(requestedPort, portRange, timeoutMs);
+    port = started.port;
+    server = started.child;
+  }
 
   const baseUrl = `http://127.0.0.1:${port}`;
   const makeStillUrl = (frame: number) => {
@@ -88,14 +138,6 @@ async function main() {
     stillUrl.searchParams.set('timeoutMs', String(timeoutMs));
     return stillUrl;
   };
-
-  // Reuse an already running server if possible; otherwise start one.
-  let server: ReturnType<typeof startDevServer> | null = null;
-  try {
-    await waitForHttpOk(`${baseUrl}/still.html`, 1500);
-  } catch {
-    server = startDevServer(port);
-  }
 
   try {
     await waitForHttpOk(`${baseUrl}/`, timeoutMs);
