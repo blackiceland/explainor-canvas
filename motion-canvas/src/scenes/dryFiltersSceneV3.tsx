@@ -289,6 +289,12 @@ export default makeScene2D(function* (view) {
 
   const codeTopOn = createSignal(0);
   const codeBottomOn = createSignal(0);
+  // Сигналы для затемнения кода (0 = норма, 1 = затемнён)
+  const codeTopDimmed = createSignal(0);
+  const codeBottomDimmed = createSignal(0);
+  // Сигналы для подсветки строк (номера строк для подсветки)
+  const codeTopHighlightLines = createSignal<number[]>([]);
+  const codeBottomHighlightLines = createSignal<number[]>([]);
 
   const base = 'rgba(244,241,235,0.72)';
   const punctuation = 'rgba(244,241,235,0.58)';
@@ -359,6 +365,16 @@ export default makeScene2D(function* (view) {
 
   const unifiedW = Math.max(topBlock.w, bottomBlock.w);
 
+  // Функция для вычисления номера строки по y-позиции
+  // Code компонент рендерит с baseline в y=0, первая строка на y ≈ fontSize
+  const getLineNumber = (y: number, codeText: string, fontSize: number, lineHeight: number): number => {
+    const lines = codeText.split('\n');
+    // Первая строка начинается примерно на y = fontSize (baseline offset)
+    const startY = fontSize;
+    const lineIndex = Math.round((y - startY) / lineHeight);
+    return Math.max(0, Math.min(lines.length - 1, lineIndex));
+  };
+
   const codeClipTop = createRef<Rect>();
   const codeClipBottom = createRef<Rect>();
 
@@ -398,14 +414,32 @@ export default makeScene2D(function* (view) {
           ) => {
             const raw = String(text ?? '');
             const prevAlpha = canvasCtx.globalAlpha;
-            canvasCtx.globalAlpha *= map(0.2, 1, selection);
+            
+            // Определяем номер строки
+            const lineNumber = getLineNumber(position.y, PAYMENT_FILTER_CODE, fontSize, lineHeight);
+            const isHighlighted = codeTopHighlightLines().includes(lineNumber);
+            const isDimmed = codeTopDimmed() > 0.5;
+            
+            // Если строка подсвечена - полная яркость, если затемнена - тусклее
+            let alphaMultiplier = 1;
+            if (isDimmed && !isHighlighted) {
+              alphaMultiplier = 0.25; // затемнение как в оригинале
+            } else if (isHighlighted) {
+              alphaMultiplier = 1;
+            } else {
+              alphaMultiplier = map(0.2, 1, selection); // стандартное поведение
+            }
+            
+            canvasCtx.globalAlpha *= alphaMultiplier;
 
             let x = position.x;
             const y = position.y;
 
             const flush = (seg: string, segColor: string) => {
               if (seg.length === 0) return;
-              canvasCtx.fillStyle = segColor;
+              // Если строка подсвечена, используем accent цвет, иначе стандартный цвет
+              const finalColor = isHighlighted ? Colors.accent : segColor;
+              canvasCtx.fillStyle = finalColor;
               canvasCtx.fillText(seg, x, y);
               x += canvasCtx.measureText(seg).width;
             };
@@ -476,14 +510,32 @@ export default makeScene2D(function* (view) {
           ) => {
             const raw = String(text ?? '');
             const prevAlpha = canvasCtx.globalAlpha;
-            canvasCtx.globalAlpha *= map(0.2, 1, selection);
+            
+            // Определяем номер строки
+            const lineNumber = getLineNumber(position.y, ORDER_FILTER_CODE, fontSize, lineHeight);
+            const isHighlighted = codeBottomHighlightLines().includes(lineNumber);
+            const isDimmed = codeBottomDimmed() > 0.5;
+            
+            // Если строка подсвечена - полная яркость, если затемнена - тусклее
+            let alphaMultiplier = 1;
+            if (isDimmed && !isHighlighted) {
+              alphaMultiplier = 0.25; // затемнение как в оригинале
+            } else if (isHighlighted) {
+              alphaMultiplier = 1;
+            } else {
+              alphaMultiplier = map(0.2, 1, selection); // стандартное поведение
+            }
+            
+            canvasCtx.globalAlpha *= alphaMultiplier;
 
             let x = position.x;
             const y = position.y;
 
             const flush = (seg: string, segColor: string) => {
               if (seg.length === 0) return;
-              canvasCtx.fillStyle = segColor;
+              // Если строка подсвечена, используем accent цвет, иначе стандартный цвет
+              const finalColor = isHighlighted ? Colors.accent : segColor;
+              canvasCtx.fillStyle = finalColor;
               canvasCtx.fillText(seg, x, y);
               x += canvasCtx.measureText(seg).width;
             };
@@ -552,6 +604,22 @@ export default makeScene2D(function* (view) {
     codeBottomOn(1, Timing.slow, easeInOutCubic),
   );
 
+  yield* waitFor(Timing.beat);
+
+  // Индексы строк для подсветки (как в оригинале)
+  const conditionLineIndex = 9; // строка "Condition condition = ..."
+  const whereLineIndex = 12; // строка ".where(condition)"
+
+  // Подсветка строк кода и затемнение остального
+  yield* all(
+    codeTopHighlightLines([conditionLineIndex, whereLineIndex], Timing.slow, easeInOutCubic),
+    codeBottomHighlightLines([conditionLineIndex, whereLineIndex], Timing.slow, easeInOutCubic),
+    codeTopDimmed(1, Timing.slow, easeInOutCubic),
+    codeBottomDimmed(1, Timing.slow, easeInOutCubic),
+  );
+
+  yield* waitFor(Timing.normal);
+
   for (let i = 0; i < Math.max(paymentRows.length, orderRows.length); i++) {
     yield* all(
       i < paymentRows.length && paymentPassesDate(paymentRows[i])
@@ -600,6 +668,14 @@ export default makeScene2D(function* (view) {
   }
 
   yield* waitFor(Timing.beat);
+
+  // Возврат кода к нормальному виду (снять подсветку и затемнение)
+  yield* all(
+    codeTopHighlightLines([], Timing.slow, easeInOutCubic),
+    codeBottomHighlightLines([], Timing.slow, easeInOutCubic),
+    codeTopDimmed(0, Timing.slow, easeInOutCubic),
+    codeBottomDimmed(0, Timing.slow, easeInOutCubic),
+  );
 
   yield* waitFor(Timing.normal);
 

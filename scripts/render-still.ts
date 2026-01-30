@@ -48,28 +48,6 @@ async function waitForHttpOk(url: string, timeoutMs: number) {
   throw new Error(`Dev server did not become ready: ${url}`);
 }
 
-function startDevServer(port: number) {
-  const npmCmd = process.platform === 'win32' ? 'npm' : 'npm';
-  const child = spawn(
-    npmCmd,
-    [
-      '--prefix',
-      '../motion-canvas',
-      'run',
-      'dev',
-      '--',
-      '--host',
-      '127.0.0.1',
-      '--port',
-      String(port),
-      '--strictPort',
-    ],
-    {stdio: 'inherit', shell: true},
-  );
-
-  return child;
-}
-
 async function findRunningServerPort(startPort: number, range: number): Promise<number | null> {
   for (let p = startPort; p < startPort + range; p++) {
     try {
@@ -80,24 +58,6 @@ async function findRunningServerPort(startPort: number, range: number): Promise<
     }
   }
   return null;
-}
-
-async function startServerWithFallback(preferredPort: number, range: number, timeoutMs: number) {
-  for (let p = preferredPort; p < preferredPort + range; p++) {
-    const child = startDevServer(p);
-    try {
-      await waitForHttpOk(`http://127.0.0.1:${p}/`, timeoutMs);
-      return {port: p, child};
-    } catch {
-      // server didn't come up on this port; stop and try next
-      try {
-        child.kill();
-      } catch {
-        // ignore
-      }
-    }
-  }
-  throw new Error(`Could not start dev server on ports ${preferredPort}..${preferredPort + range - 1}`);
 }
 
 async function main() {
@@ -111,21 +71,23 @@ async function main() {
   const globalFrame = args.globalFrame !== undefined ? Number(args.globalFrame) : undefined;
   const scene = typeof args.scene === 'string' ? args.scene : '';
   const timeoutMs = Number(args.timeoutMs ?? 120_000);
-  const keepServer = Boolean(args.keepServer);
 
   if (!isPortNumber(requestedPort)) {
     throw new Error(`Invalid --port: ${args.port}`);
   }
 
-  // If a dev server is already running, reuse it (scan a small range).
-  let port = await findRunningServerPort(requestedPort, portRange);
+  // Only use an already running dev server. Do not start one.
+  const port = await findRunningServerPort(requestedPort, portRange);
 
-  // Otherwise start one on a free port (strictPort, fallback scanning).
-  let server: ReturnType<typeof startDevServer> | null = null;
   if (port == null) {
-    const started = await startServerWithFallback(requestedPort, portRange, timeoutMs);
-    port = started.port;
-    server = started.child;
+    const portList = Array.from({length: portRange}, (_, i) => requestedPort + i).join(', ');
+    throw new Error(
+      `Dev server not found on ports ${portList}.\n` +
+      `Please start the dev server manually:\n` +
+      `  cd motion-canvas\n` +
+      `  npm run dev\n` +
+      `\nThen run this script again.`
+    );
   }
 
   const baseUrl = `http://127.0.0.1:${port}`;
@@ -192,10 +154,6 @@ async function main() {
     for (const r of results) console.log(r);
     // eslint-disable-next-line no-console
     console.log('=====================\n');
-  } finally {
-    if (!keepServer && server) {
-      server.kill();
-    }
   }
 }
 
