@@ -32,7 +32,7 @@ export default makeProject({
         dryFiltersSceneV3,
         // dryFiltersSceneV2,
         // dryFiltersScene,
-        // dryConditionsScene,
+        dryConditionsScene,
         // dryKnowledgeScene,
         // typewriterCodeScene
     ]
