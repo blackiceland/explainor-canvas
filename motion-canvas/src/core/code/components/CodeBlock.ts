@@ -22,6 +22,7 @@ export interface CodeBlockConfig {
     customTypes?: string[];
     contentOffsetX?: number;
     contentOffsetY?: number;
+    glowAccent?: boolean;
 }
 
 export interface CodeBlockPosition {
@@ -64,6 +65,7 @@ export class CodeBlock {
             customTypes: config.customTypes ?? [],
             contentOffsetX: config.contentOffsetX ?? 0,
             contentOffsetY: config.contentOffsetY ?? 0,
+            glowAccent: config.glowAccent ?? true,
         };
     }
 
@@ -144,6 +146,7 @@ export class CodeBlock {
                 theme: this.config.theme,
                 contentWidth,
                 leftEdge,
+                glowAccent: this.config.glowAccent,
             });
 
             contentContainer.add(codeLine.build(localY));

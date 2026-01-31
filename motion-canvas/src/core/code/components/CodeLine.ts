@@ -14,6 +14,7 @@ export interface CodeLineConfig {
     theme: SyntaxTheme;
     contentWidth: number;
     leftEdge: number;
+    glowAccent?: boolean;
 }
 
 interface TokenData {
@@ -33,9 +34,11 @@ export class CodeLine {
     private readonly backgroundRef: Reference<Rect> = createRef<Rect>();
     private readonly tokensData: TokenData[] = [];
     private readonly config: CodeLineConfig;
+    private readonly glowAccent: boolean;
 
     constructor(config: CodeLineConfig) {
         this.config = config;
+        this.glowAccent = config.glowAccent ?? true;
     }
 
     public build(localY: number): Node {
@@ -211,6 +214,9 @@ export class CodeLine {
 
 
     private getGlowAnimations(tokenData: TokenData, color: string, duration: number): ThreadGenerator[] {
+        if (!this.glowAccent) {
+            return [];
+        }
         if (color !== Colors.accent) {
             return [
                 tokenData.ref().shadowBlur(tokenData.originalShadowBlur, duration, easeInOutCubic),

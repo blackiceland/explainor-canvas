@@ -56,6 +56,21 @@ export const ExplainorCodeTheme: SyntaxTheme = {
     plain: '#FCFBF8',
 };
 
+// V3 code look used in dryFiltersSceneV3 (dark UI text, subtle punctuation, accent methods).
+export const DryFiltersV3CodeTheme: SyntaxTheme = {
+    plain: 'rgba(244,241,235,0.72)',
+    punctuation: 'rgba(244,241,235,0.58)',
+    operator: 'rgba(244,241,235,0.58)',
+    keyword: 'rgba(163,205,255,0.82)',
+    annotation: 'rgba(163,205,255,0.82)',
+    type: 'rgba(201,180,255,0.78)',
+    constant: 'rgba(201,180,255,0.78)',
+    method: '#FF8CA3',
+    string: 'rgba(244,241,235,0.72)',
+    number: 'rgba(201,180,255,0.78)',
+    comment: 'rgba(244,241,235,0.45)',
+};
+
 export function getTokenColor(type: TokenType, theme: SyntaxTheme = IntelliJDarkTheme): string {
     return theme[type];
 }

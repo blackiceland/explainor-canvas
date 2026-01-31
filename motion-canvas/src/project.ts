@@ -11,6 +11,7 @@ import dryFiltersSceneV2 from './scenes/dryFiltersSceneV2?scene';
 import dryFiltersSceneV2Poster from './scenes/dryFiltersSceneV2Poster?scene';
 import dryFiltersSceneV3 from './scenes/dryFiltersSceneV3?scene';
 import dryConditionsScene from './scenes/dryConditionsScene?scene';
+import dryConditionsSceneV3 from './scenes/dryConditionsSceneV3?scene';
 import dryKnowledgeScene from './scenes/dryKnowledgeScene?scene';
 import splitDtoScene from './scenes/splitDtoScene?scene';
 import typewriterCodeScene from './scenes/typewriterCodeScene?scene';
@@ -32,7 +33,8 @@ export default makeProject({
         dryFiltersSceneV3,
         // dryFiltersSceneV2,
         // dryFiltersScene,
-        dryConditionsScene,
+        // dryConditionsScene,
+        dryConditionsSceneV3,
         // dryKnowledgeScene,
         // typewriterCodeScene
     ]
