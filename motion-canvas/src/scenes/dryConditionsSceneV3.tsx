@@ -28,6 +28,12 @@ const QUIET_STROKE = 'rgba(252,251,248,0.32)';
 const QUIET_GLOW = 'rgba(252,251,248,0.14)';
 const QUIET_INNER = 'rgba(252,251,248,0.11)';
 
+// Minimal beige cards (no borders). Text is EXACTLY the same color as the fill.
+// Readability comes only from a soft shadow (quiet emboss).
+const BEIGE_CARD_FILL = '#E7DCC9';
+const BEIGE_TEXT_FILL = BEIGE_CARD_FILL;
+const BEIGE_TEXT_SHADOW = 'rgba(0,0,0,0.26)';
+
 // Thin framed variant for small code cards (requested).
 const CODE_CARD_STYLE_FRAMED = {
   ...CODE_CARD_STYLE,
@@ -664,11 +670,11 @@ export default makeScene2D(function* (view) {
         width={nodeW}
         height={nodeH}
         radius={PanelStyle.radiusSmall}
-        fill={'rgba(0,0,0,0)'}
-        stroke={QUIET_STROKE}
-        lineWidth={1}
-        shadowColor={QUIET_GLOW}
-        shadowBlur={3}
+        fill={BEIGE_CARD_FILL}
+        stroke={'rgba(0,0,0,0)'}
+        lineWidth={0}
+        shadowColor={'rgba(0,0,0,0)'}
+        shadowBlur={0}
         shadowOffset={[0, 0]}
         opacity={0}
       >
@@ -677,16 +683,11 @@ export default makeScene2D(function* (view) {
           fontFamily={Fonts.primary}
           fontSize={22}
           fontWeight={600}
-          fill={PanelStyle.labelFill}
-        />
-        <Rect
-          width={() => left().width() - 4}
-          height={() => left().height() - 4}
-          radius={PanelStyle.radiusSmall - 2}
-          fill={'rgba(0,0,0,0)'}
-          stroke={QUIET_INNER}
-          lineWidth={1}
-          layout={false}
+          fill={BEIGE_TEXT_FILL}
+          opacity={1}
+          shadowColor={BEIGE_TEXT_SHADOW}
+          shadowBlur={10}
+          shadowOffset={[0, 2]}
         />
       </Rect>
 
@@ -697,11 +698,11 @@ export default makeScene2D(function* (view) {
         width={nodeW}
         height={nodeH}
         radius={PanelStyle.radiusSmall}
-        fill={'rgba(0,0,0,0)'}
-        stroke={QUIET_STROKE}
-        lineWidth={1}
-        shadowColor={QUIET_GLOW}
-        shadowBlur={3}
+        fill={BEIGE_CARD_FILL}
+        stroke={'rgba(0,0,0,0)'}
+        lineWidth={0}
+        shadowColor={'rgba(0,0,0,0)'}
+        shadowBlur={0}
         shadowOffset={[0, 0]}
         opacity={0}
       >
@@ -710,16 +711,11 @@ export default makeScene2D(function* (view) {
           fontFamily={Fonts.primary}
           fontSize={22}
           fontWeight={600}
-          fill={PanelStyle.labelFill}
-        />
-        <Rect
-          width={() => right().width() - 4}
-          height={() => right().height() - 4}
-          radius={PanelStyle.radiusSmall - 2}
-          fill={'rgba(0,0,0,0)'}
-          stroke={QUIET_INNER}
-          lineWidth={1}
-          layout={false}
+          fill={BEIGE_TEXT_FILL}
+          opacity={1}
+          shadowColor={BEIGE_TEXT_SHADOW}
+          shadowBlur={10}
+          shadowOffset={[0, 2]}
         />
       </Rect>
 
@@ -730,11 +726,11 @@ export default makeScene2D(function* (view) {
         width={nodeW}
         height={nodeH}
         radius={PanelStyle.radiusSmall}
-        fill={'rgba(0,0,0,0)'}
-        stroke={QUIET_STROKE}
-        lineWidth={1}
-        shadowColor={QUIET_GLOW}
-        shadowBlur={3}
+        fill={BEIGE_CARD_FILL}
+        stroke={'rgba(0,0,0,0)'}
+        lineWidth={0}
+        shadowColor={'rgba(0,0,0,0)'}
+        shadowBlur={0}
         shadowOffset={[0, 0]}
         opacity={0}
       >
@@ -743,16 +739,11 @@ export default makeScene2D(function* (view) {
           fontFamily={Fonts.primary}
           fontSize={22}
           fontWeight={600}
-          fill={PanelStyle.labelFill}
-        />
-        <Rect
-          width={() => bottom().width() - 4}
-          height={() => bottom().height() - 4}
-          radius={PanelStyle.radiusSmall - 2}
-          fill={'rgba(0,0,0,0)'}
-          stroke={QUIET_INNER}
-          lineWidth={1}
-          layout={false}
+          fill={BEIGE_TEXT_FILL}
+          opacity={1}
+          shadowColor={BEIGE_TEXT_SHADOW}
+          shadowBlur={10}
+          shadowOffset={[0, 2]}
         />
       </Rect>
     </>,
