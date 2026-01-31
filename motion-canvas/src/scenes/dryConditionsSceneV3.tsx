@@ -23,12 +23,29 @@ const CODE_CARD_STYLE = {
   edge: false,
 } as const;
 
+// Quiet contour (warm near-white) — like the "Peace & (Quiet)" reference.
+const QUIET_STROKE = 'rgba(252,251,248,0.32)';
+const QUIET_GLOW = 'rgba(252,251,248,0.14)';
+const QUIET_INNER = 'rgba(252,251,248,0.11)';
+
 // Thin framed variant for small code cards (requested).
 const CODE_CARD_STYLE_FRAMED = {
   ...CODE_CARD_STYLE,
   radius: PanelStyle.radiusSmall,
-  stroke: 'rgba(244,241,235,0.16)',
+  stroke: QUIET_STROKE,
   strokeWidth: 1,
+  shadowColor: QUIET_GLOW,
+  shadowBlur: 3,
+  shadowOffsetX: 0,
+  shadowOffsetY: 0,
+} as const;
+
+// Same quiet frame, but hidden initially (we reveal after the blue hub appears).
+const CODE_CARD_STYLE_FRAMED_HIDDEN = {
+  ...CODE_CARD_STYLE_FRAMED,
+  strokeWidth: 0,
+  shadowBlur: 0,
+  shadowColor: 'rgba(0,0,0,0)',
 } as const;
 
 function topInsetForFont(fontSize: number): number {
@@ -190,7 +207,7 @@ export default makeScene2D(function* (view) {
     lineHeight,
     fontFamily: Fonts.code,
     theme: DryFiltersV3CodeTheme,
-    cardStyle: CODE_CARD_STYLE,
+    cardStyle: CODE_CARD_STYLE_FRAMED_HIDDEN,
     glowAccent: false,
     customTypes: ['OrderConditions', 'OrderSearchFilter', 'Condition', 'DSL'],
   });
@@ -204,7 +221,7 @@ export default makeScene2D(function* (view) {
     lineHeight,
     fontFamily: Fonts.code,
     theme: DryFiltersV3CodeTheme,
-    cardStyle: CODE_CARD_STYLE,
+    cardStyle: CODE_CARD_STYLE_FRAMED_HIDDEN,
     glowAccent: false,
     customTypes: ['PaymentConditions', 'PaymentSearchFilter', 'Condition', 'DSL'],
   });
@@ -224,7 +241,7 @@ export default makeScene2D(function* (view) {
     contentOffsetY: commonTopMargin,
     fontFamily: Fonts.code,
     theme: DryFiltersV3CodeTheme,
-    cardStyle: CODE_CARD_STYLE,
+    cardStyle: CODE_CARD_STYLE_FRAMED_HIDDEN,
     glowAccent: false,
     customTypes: [
       'CommonConditions',
@@ -554,13 +571,13 @@ export default makeScene2D(function* (view) {
   const linkR = createRef<Line>();
   const linkB = createRef<Line>();
 
-  const nodeW = 480;
+  // Match width with the lower small code cards.
+  const nodeW = 520;
   const nodeH = 120;
-  // Slightly adjusted layout for V3 look.
-  // Slight asymmetry for differentiation (requested).
-  const leftPos: [number, number] = [-560, -85];
-  const rightPos: [number, number] = [520, -55];
-  const bottomPos: [number, number] = [30, 335];
+  // Keep symmetry: INVOICES stays centered. Move ORDERS/PAYMENTS a bit lower.
+  const leftPos: [number, number] = [-520, -20];
+  const rightPos: [number, number] = [520, -20];
+  const bottomPos: [number, number] = [0, 360];
 
   yield* all(
     commonBlock.animateCardFill(DEP_BLUE, 0.7),
@@ -632,11 +649,11 @@ export default makeScene2D(function* (view) {
         height={commonHeight}
         radius={PanelStyle.radius}
         fill={DEP_BLUE}
-        stroke={PanelStyle.stroke}
-        lineWidth={PanelStyle.lineWidth}
-        shadowColor={PanelStyle.shadowColor}
-        shadowBlur={PanelStyle.shadowBlur}
-        shadowOffset={PanelStyle.shadowOffset}
+        stroke={QUIET_STROKE}
+        lineWidth={1}
+        shadowColor={'rgba(0,0,0,0)'}
+        shadowBlur={0}
+        shadowOffset={[0, 0]}
         opacity={1}
       />
 
@@ -647,12 +664,12 @@ export default makeScene2D(function* (view) {
         width={nodeW}
         height={nodeH}
         radius={PanelStyle.radiusSmall}
-        fill={Colors.surface}
-        stroke={PanelStyle.stroke}
-        lineWidth={PanelStyle.lineWidth}
-        shadowColor={PanelStyle.shadowColor}
-        shadowBlur={PanelStyle.shadowBlur}
-        shadowOffset={PanelStyle.shadowOffset}
+        fill={'rgba(0,0,0,0)'}
+        stroke={QUIET_STROKE}
+        lineWidth={1}
+        shadowColor={QUIET_GLOW}
+        shadowBlur={3}
+        shadowOffset={[0, 0]}
         opacity={0}
       >
         <Txt
@@ -661,6 +678,15 @@ export default makeScene2D(function* (view) {
           fontSize={22}
           fontWeight={600}
           fill={PanelStyle.labelFill}
+        />
+        <Rect
+          width={() => left().width() - 4}
+          height={() => left().height() - 4}
+          radius={PanelStyle.radiusSmall - 2}
+          fill={'rgba(0,0,0,0)'}
+          stroke={QUIET_INNER}
+          lineWidth={1}
+          layout={false}
         />
       </Rect>
 
@@ -671,12 +697,12 @@ export default makeScene2D(function* (view) {
         width={nodeW}
         height={nodeH}
         radius={PanelStyle.radiusSmall}
-        fill={Colors.surface}
-        stroke={PanelStyle.stroke}
-        lineWidth={PanelStyle.lineWidth}
-        shadowColor={PanelStyle.shadowColor}
-        shadowBlur={PanelStyle.shadowBlur}
-        shadowOffset={PanelStyle.shadowOffset}
+        fill={'rgba(0,0,0,0)'}
+        stroke={QUIET_STROKE}
+        lineWidth={1}
+        shadowColor={QUIET_GLOW}
+        shadowBlur={3}
+        shadowOffset={[0, 0]}
         opacity={0}
       >
         <Txt
@@ -685,6 +711,15 @@ export default makeScene2D(function* (view) {
           fontSize={22}
           fontWeight={600}
           fill={PanelStyle.labelFill}
+        />
+        <Rect
+          width={() => right().width() - 4}
+          height={() => right().height() - 4}
+          radius={PanelStyle.radiusSmall - 2}
+          fill={'rgba(0,0,0,0)'}
+          stroke={QUIET_INNER}
+          lineWidth={1}
+          layout={false}
         />
       </Rect>
 
@@ -695,12 +730,12 @@ export default makeScene2D(function* (view) {
         width={nodeW}
         height={nodeH}
         radius={PanelStyle.radiusSmall}
-        fill={Colors.surface}
-        stroke={PanelStyle.stroke}
-        lineWidth={PanelStyle.lineWidth}
-        shadowColor={PanelStyle.shadowColor}
-        shadowBlur={PanelStyle.shadowBlur}
-        shadowOffset={PanelStyle.shadowOffset}
+        fill={'rgba(0,0,0,0)'}
+        stroke={QUIET_STROKE}
+        lineWidth={1}
+        shadowColor={QUIET_GLOW}
+        shadowBlur={3}
+        shadowOffset={[0, 0]}
         opacity={0}
       >
         <Txt
@@ -709,6 +744,15 @@ export default makeScene2D(function* (view) {
           fontSize={22}
           fontWeight={600}
           fill={PanelStyle.labelFill}
+        />
+        <Rect
+          width={() => bottom().width() - 4}
+          height={() => bottom().height() - 4}
+          radius={PanelStyle.radiusSmall - 2}
+          fill={'rgba(0,0,0,0)'}
+          stroke={QUIET_INNER}
+          lineWidth={1}
+          layout={false}
         />
       </Rect>
     </>,
@@ -719,6 +763,30 @@ export default makeScene2D(function* (view) {
   yield* all(
     hub().size([170, 170], 0.9, easeInOutCubic),
     hub().radius(22, 0.9, easeInOutCubic),
+  );
+
+  // Code frames should appear only after the blue hub appears.
+  const codeFrameIn = Timing.fast;
+  const orderCard = orderBlock.cardRect;
+  const paymentCard = paymentBlock.cardRect;
+  const commonCard = commonBlock.cardRect;
+
+  yield* all(
+    orderCard ? orderCard.stroke(QUIET_STROKE, codeFrameIn, easeInOutCubic) : waitFor(0),
+    orderCard ? orderCard.lineWidth(1, codeFrameIn, easeInOutCubic) : waitFor(0),
+    orderCard ? orderCard.shadowColor(QUIET_GLOW, codeFrameIn, easeInOutCubic) : waitFor(0),
+    orderCard ? orderCard.shadowBlur(3, codeFrameIn, easeInOutCubic) : waitFor(0),
+
+    paymentCard ? paymentCard.stroke(QUIET_STROKE, codeFrameIn, easeInOutCubic) : waitFor(0),
+    paymentCard ? paymentCard.lineWidth(1, codeFrameIn, easeInOutCubic) : waitFor(0),
+    paymentCard ? paymentCard.shadowColor(QUIET_GLOW, codeFrameIn, easeInOutCubic) : waitFor(0),
+    paymentCard ? paymentCard.shadowBlur(3, codeFrameIn, easeInOutCubic) : waitFor(0),
+
+    // commonBlock is hidden at this point, but keep its style consistent for when it reappears later.
+    commonCard ? commonCard.stroke(QUIET_STROKE, codeFrameIn, easeInOutCubic) : waitFor(0),
+    commonCard ? commonCard.lineWidth(1, codeFrameIn, easeInOutCubic) : waitFor(0),
+    commonCard ? commonCard.shadowColor(QUIET_GLOW, codeFrameIn, easeInOutCubic) : waitFor(0),
+    commonCard ? commonCard.shadowBlur(3, codeFrameIn, easeInOutCubic) : waitFor(0),
   );
 
   yield* all(

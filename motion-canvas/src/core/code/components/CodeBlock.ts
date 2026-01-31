@@ -161,6 +161,10 @@ export class CodeBlock {
         return this.containerRef();
     }
 
+    public get cardRect(): Rect | null {
+        return this.card?.node ?? null;
+    }
+
     public getLine(index: number): CodeLine | null {
         return this.lines[index] ?? null;
     }
