@@ -46,8 +46,14 @@ export class RagClient {
     if (this.connected) return;
 
     try {
-      const pg = await import('pg');
-      this.ClientClass = pg.Client as unknown as ClientConstructor;
+      // `pg` is CommonJS in many environments; when imported from ESM, the exports may live under `default`.
+      // This makes `await import('pg')` safe across CJS/ESM setups (tsx + "type": "module").
+      const pgModule: any = await import('pg');
+      const PgClient = pgModule?.Client ?? pgModule?.default?.Client;
+      if (!PgClient) {
+        throw new Error('pg.Client export not found');
+      }
+      this.ClientClass = PgClient as ClientConstructor;
 
       this.client = new this.ClientClass({
         host: this.config.host,
@@ -60,8 +66,13 @@ export class RagClient {
 
       await this.client.connect();
       this.connected = true;
-    } catch {
+    } catch (err) {
       console.warn('PostgreSQL not available, using mock mode');
+      if (err instanceof Error) {
+        console.warn(`PostgreSQL connect error: ${err.message}`);
+      } else if (err) {
+        console.warn(`PostgreSQL connect error: ${String(err)}`);
+      }
       this.client = null;
       this.connected = true;
     }

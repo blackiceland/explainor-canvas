@@ -6,24 +6,25 @@ interface QueryOptions {
   limit?: number;
   searchLayouts?: boolean;
   searchBeats?: boolean;
+  useMock?: boolean;
 }
 
-async function queryKnowledge(query: string, category?: string, limit: number = 5) {
-  const daedalus = await initDaedalus({useMock: true});
+async function queryKnowledge(query: string, category?: string, limit: number = 5, useMock: boolean = false) {
+  const daedalus = await initDaedalus({useMock});
   const result = await daedalus.rag.searchKnowledge(query, limit, category);
   await daedalus.rag.disconnect();
   return result;
 }
 
-async function queryLayouts(query: string, limit: number = 3) {
-  const daedalus = await initDaedalus({useMock: true});
+async function queryLayouts(query: string, limit: number = 3, useMock: boolean = false) {
+  const daedalus = await initDaedalus({useMock});
   const result = await daedalus.rag.searchLayouts(query, limit);
   await daedalus.rag.disconnect();
   return result;
 }
 
-async function queryBeats(query: string, limit: number = 3, category?: string) {
-  const daedalus = await initDaedalus({useMock: true});
+async function queryBeats(query: string, limit: number = 3, category?: string, useMock: boolean = false) {
+  const daedalus = await initDaedalus({useMock});
   const result = await daedalus.rag.searchBeats(query, limit, category);
   await daedalus.rag.disconnect();
   return result;
@@ -44,6 +45,7 @@ Options:
   --layouts                Search layouts instead of knowledge
   --beats                  Search beats instead of knowledge
   --beat-category <cat>   Beat category filter (appear, highlight, transition, etc.)
+  --mock                   Force mock embeddings (still uses DB if available)
 
 Examples:
   npm run query-rag "layout positioning top padding"
@@ -70,6 +72,7 @@ Examples:
 
   const searchLayouts = args.includes('--layouts');
   const searchBeats = args.includes('--beats');
+  const useMock = args.includes('--mock');
 
   const beatCategoryIndex = args.indexOf('--beat-category');
   const beatCategory = beatCategoryIndex >= 0 ? args[beatCategoryIndex + 1] : undefined;
@@ -77,7 +80,7 @@ Examples:
   try {
     if (searchLayouts) {
       console.log(`\n=== Searching Layouts: "${query}" ===`);
-      const result = await queryLayouts(query, limit);
+      const result = await queryLayouts(query, limit, useMock);
       console.log(`Found ${result.totalFound} layouts:\n`);
       result.items.forEach((item, i) => {
         console.log(`${i + 1}. ${item.name} (similarity: ${item.similarity.toFixed(3)})`);
@@ -90,7 +93,7 @@ Examples:
       });
     } else if (searchBeats) {
       console.log(`\n=== Searching Beats: "${query}" ===`);
-      const result = await queryBeats(query, limit, beatCategory);
+      const result = await queryBeats(query, limit, beatCategory, useMock);
       console.log(`Found ${result.totalFound} beats:\n`);
       result.items.forEach((item, i) => {
         console.log(`${i + 1}. ${item.name} (similarity: ${item.similarity.toFixed(3)})`);
@@ -109,7 +112,7 @@ Examples:
       if (category) {
         console.log(`Category filter: ${category}`);
       }
-      const result = await queryKnowledge(query, category, limit);
+      const result = await queryKnowledge(query, category, limit, useMock);
       console.log(`Found ${result.totalFound} results:\n`);
       result.items.forEach((item, i) => {
         console.log(`${i + 1}. [${item.category}] ${item.title} (similarity: ${item.similarity.toFixed(3)})`);

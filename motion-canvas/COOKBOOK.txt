@@ -18,7 +18,7 @@ export default makeScene2D(function* (view) {
   view.add(<Rect ref={card} opacity={0} /* ... */ />);
 
   yield* card().opacity(1, Timing.slow, easeInOutCubic);
-  yield* waitFor(1);
+  yield* waitFor(Timing.normal);
   yield* card().opacity(0, Timing.normal, easeInOutCubic);
 });
 
@@ -85,7 +85,7 @@ ANIMATIONS
 // Staggered appear
 for (let i = 0; i < refs.length; i++) {
   yield* refs[i]().opacity(1, Timing.slow, easeInOutCubic);
-  yield* waitFor(0.18);
+  yield* waitFor(Timing.beat);
 }
 
 // Parallel
@@ -95,9 +95,9 @@ yield* all(
 );
 
 // Title fade
-yield* container().opacity(1, 0.8, easeInOutCubic);
-yield* waitFor(1.4);
-yield* container().opacity(0, 0.8, easeInOutCubic);
+yield* container().opacity(1, Timing.normal, easeInOutCubic);
+yield* waitFor(Timing.slow);
+yield* container().opacity(0, Timing.normal, easeInOutCubic);
 
 ================================================================================
 REFERENCE SCENES

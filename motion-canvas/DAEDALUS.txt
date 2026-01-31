@@ -56,7 +56,8 @@ RAG: БЫСТРЫЕ ЗАПРОСЫ (CLI)
   npm run query-rag -- "code comparison scene" --category example
 
 Важно:
-  - mock embeddings теперь ДЕТЕРМИНИРОВАННЫЕ → выдача не “прыгает”.
+  - По умолчанию используем БД (если поднята).
+  - --mock включает mock-эмбеддинги (детерминированные) → выдача не “прыгает”.
 
 ================================================================================
 STILL: АВТО-ЭКСПОРТ PNG (ЧТОБЫ AI ВИДЕЛ КОМПОЗИЦИЮ)
@@ -70,7 +71,14 @@ One-time setup:
   npm install
   npx playwright install chromium
 
+Важно:
+  - Скрипт STILL НЕ должен вмешиваться в dev server.
+  - Сначала запускаешь dev server сам (в отдельном терминале), затем делаешь still.
+
 Рендер кадра сцены:
+  cd motion-canvas
+  npm run dev
+  # отдельный терминал:
   cd scripts
   npm run still -- --scene dryFiltersSceneV3 --frame 0
 
@@ -79,9 +87,8 @@ One-time setup:
   --frame <n>       frame внутри сцены (local scene frame)
   --globalFrame <n> frame на общей таймлинии проекта (если нужно)
   --fps <n>         default 60
-  --port <n>        default 5173 (переиспользует уже запущенный dev server, если он есть)
+  --port <n>        default 5173 (порт УЖЕ запущенного dev server)
   --timeoutMs <n>   default 120000
-  --keepServer      не гасить dev server после экспорта
 
 Заметка:
   frame=0 часто пустой (ещё до appear/отрисовки). Используй:

@@ -40,7 +40,8 @@ EMOTIONAL TONE
 PART 2: RAG QUERIES
 ================================================================================
 
-For concrete values, ALWAYS query RAG. Never hardcode.
+If you are unsure about a concrete value, query RAG first.
+If the value already exists as a token in code (theme/styles), import it — don't retype it.
 
 COLORS
   rag.search("light theme colors")      → OpenStyle tokens (bg, card, ink, etc.)
@@ -131,7 +132,7 @@ PART 4: SCENE CREATION WORKFLOW
 3. VALIDATE BEFORE RENDER
    - Font sizes ≥ 14px
    - All positions within SafeZone
-   - Timing uses constants, not magic numbers
+   - Timing uses constants (Timing.*). If you MUST use a non-token duration, define a named const with a comment and consider promoting it to Timing if it repeats.
    - Easing is easeInOutCubic (or linear for transport)
 
 4. TEST VISUALLY

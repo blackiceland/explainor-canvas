@@ -1,5 +1,5 @@
-import {Code, Line, makeScene2D, Rect, Txt} from '@motion-canvas/2d';
-import {all, createRef, createSignal, easeInOutCubic, map, waitFor} from '@motion-canvas/core';
+import {Code, Line, lines, makeScene2D, Rect, Txt} from '@motion-canvas/2d';
+import {all, createRef, createSignal, easeInOutCubic, waitFor} from '@motion-canvas/core';
 import {getSlots} from '../core/layouts';
 import {SafeZone} from '../core/ScreenGrid';
 import {Colors, Fonts, Screen, Timing} from '../core/theme';
@@ -289,12 +289,9 @@ export default makeScene2D(function* (view) {
 
   const codeTopOn = createSignal(0);
   const codeBottomOn = createSignal(0);
-  // Сигналы для затемнения кода (0 = норма, 1 = затемнён)
-  const codeTopDimmed = createSignal(0);
-  const codeBottomDimmed = createSignal(0);
-  // Сигналы для подсветки строк (номера строк для подсветки)
-  const codeTopHighlightLines = createSignal<number[]>([]);
-  const codeBottomHighlightLines = createSignal<number[]>([]);
+  // Прогресс подсветки: 0 = обычный код, 1 = dim остальных строк + recolor target строк в accent
+  const codeTopHighlight = createSignal(0);
+  const codeBottomHighlight = createSignal(0);
 
   const base = 'rgba(244,241,235,0.72)';
   const punctuation = 'rgba(244,241,235,0.58)';
@@ -365,18 +362,44 @@ export default makeScene2D(function* (view) {
 
   const unifiedW = Math.max(topBlock.w, bottomBlock.w);
 
-  // Функция для вычисления номера строки по y-позиции
-  // Code компонент рендерит с baseline в y=0, первая строка на y ≈ fontSize
-  const getLineNumber = (y: number, codeText: string, fontSize: number, lineHeight: number): number => {
-    const lines = codeText.split('\n');
-    // Первая строка начинается примерно на y = fontSize (baseline offset)
-    const startY = fontSize;
-    const lineIndex = Math.round((y - startY) / lineHeight);
-    return Math.max(0, Math.min(lines.length - 1, lineIndex));
-  };
-
   const codeClipTop = createRef<Rect>();
   const codeClipBottom = createRef<Rect>();
+  const codeTopRef = createRef<Code>();
+  const codeBottomRef = createRef<Code>();
+
+  function parseColorToRgba(color: string): {r: number; g: number; b: number; a: number} | null {
+    const c = String(color ?? '').trim();
+    if (!c) return null;
+    if (c.startsWith('#')) {
+      const hex = c.slice(1);
+      const full = hex.length === 3 ? hex.split('').map(x => x + x).join('') : hex;
+      if (full.length !== 6) return null;
+      const r = parseInt(full.slice(0, 2), 16);
+      const g = parseInt(full.slice(2, 4), 16);
+      const b = parseInt(full.slice(4, 6), 16);
+      return {r, g, b, a: 1};
+    }
+    const m = c.match(/^rgba?\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)\s*(?:,\s*([0-9.]+)\s*)?\)$/i);
+    if (!m) return null;
+    return {
+      r: Number(m[1]),
+      g: Number(m[2]),
+      b: Number(m[3]),
+      a: m[4] === undefined ? 1 : Number(m[4]),
+    };
+  }
+
+  function lerpColor(from: string, to: string, t: number): string {
+    const a = parseColorToRgba(from);
+    const b = parseColorToRgba(to);
+    if (!a || !b) return t >= 0.5 ? to : from;
+    const k = Math.max(0, Math.min(1, t));
+    const r = Math.round(a.r + (b.r - a.r) * k);
+    const g = Math.round(a.g + (b.g - a.g) * k);
+    const bb = Math.round(a.b + (b.b - a.b) * k);
+    const alpha = a.a + (b.a - a.a) * k;
+    return `rgba(${r},${g},${bb},${alpha})`;
+  }
 
   view.add(
     <>
@@ -397,6 +420,7 @@ export default makeScene2D(function* (view) {
       >
       <Rect layout width={rightTop.width} fill={'rgba(0,0,0,0)'}>
         <Code
+          ref={codeTopRef}
           code={PAYMENT_FILTER_CODE}
           fontFamily={Fonts.code}
           fontSize={fontSize}
@@ -404,6 +428,7 @@ export default makeScene2D(function* (view) {
           opacity={1}
           x={unifiedW / 2}
           y={0}
+          selection={lines(0, Infinity)}
           drawHooks={{
           token: (
             canvasCtx: CanvasRenderingContext2D,
@@ -414,21 +439,11 @@ export default makeScene2D(function* (view) {
           ) => {
             const raw = String(text ?? '');
             const prevAlpha = canvasCtx.globalAlpha;
-            
-            // Определяем номер строки
-            const lineNumber = getLineNumber(position.y, PAYMENT_FILTER_CODE, fontSize, lineHeight);
-            const isHighlighted = codeTopHighlightLines().includes(lineNumber);
-            const isDimmed = codeTopDimmed() > 0.5;
-            
-            // Если строка подсвечена - полная яркость, если затемнена - тусклее
-            let alphaMultiplier = 1;
-            if (isDimmed && !isHighlighted) {
-              alphaMultiplier = 0.25; // затемнение как в оригинале
-            } else if (isHighlighted) {
-              alphaMultiplier = 1;
-            } else {
-              alphaMultiplier = map(0.2, 1, selection); // стандартное поведение
-            }
+
+            const p = codeTopHighlight();
+            const selected = selection > 0.5;
+            // Dim only when highlight is active; selection is a reliable mask (lines(9), lines(12))
+            const alphaMultiplier = selected ? 1 : 1 - p * (1 - 0.22);
             
             canvasCtx.globalAlpha *= alphaMultiplier;
 
@@ -437,8 +452,7 @@ export default makeScene2D(function* (view) {
 
             const flush = (seg: string, segColor: string) => {
               if (seg.length === 0) return;
-              // Если строка подсвечена, используем accent цвет, иначе стандартный цвет
-              const finalColor = isHighlighted ? Colors.accent : segColor;
+              const finalColor = selected ? lerpColor(segColor, Colors.accent, p) : segColor;
               canvasCtx.fillStyle = finalColor;
               canvasCtx.fillText(seg, x, y);
               x += canvasCtx.measureText(seg).width;
@@ -493,6 +507,7 @@ export default makeScene2D(function* (view) {
       >
       <Rect layout width={rightBottom.width} fill={'rgba(0,0,0,0)'}>
         <Code
+          ref={codeBottomRef}
           code={ORDER_FILTER_CODE}
           fontFamily={Fonts.code}
           fontSize={fontSize}
@@ -500,6 +515,7 @@ export default makeScene2D(function* (view) {
           opacity={1}
           x={unifiedW / 2}
           y={0}
+          selection={lines(0, Infinity)}
           drawHooks={{
           token: (
             canvasCtx: CanvasRenderingContext2D,
@@ -510,21 +526,10 @@ export default makeScene2D(function* (view) {
           ) => {
             const raw = String(text ?? '');
             const prevAlpha = canvasCtx.globalAlpha;
-            
-            // Определяем номер строки
-            const lineNumber = getLineNumber(position.y, ORDER_FILTER_CODE, fontSize, lineHeight);
-            const isHighlighted = codeBottomHighlightLines().includes(lineNumber);
-            const isDimmed = codeBottomDimmed() > 0.5;
-            
-            // Если строка подсвечена - полная яркость, если затемнена - тусклее
-            let alphaMultiplier = 1;
-            if (isDimmed && !isHighlighted) {
-              alphaMultiplier = 0.25; // затемнение как в оригинале
-            } else if (isHighlighted) {
-              alphaMultiplier = 1;
-            } else {
-              alphaMultiplier = map(0.2, 1, selection); // стандартное поведение
-            }
+
+            const p = codeBottomHighlight();
+            const selected = selection > 0.5;
+            const alphaMultiplier = selected ? 1 : 1 - p * (1 - 0.22);
             
             canvasCtx.globalAlpha *= alphaMultiplier;
 
@@ -533,8 +538,7 @@ export default makeScene2D(function* (view) {
 
             const flush = (seg: string, segColor: string) => {
               if (seg.length === 0) return;
-              // Если строка подсвечена, используем accent цвет, иначе стандартный цвет
-              const finalColor = isHighlighted ? Colors.accent : segColor;
+              const finalColor = selected ? lerpColor(segColor, Colors.accent, p) : segColor;
               canvasCtx.fillStyle = finalColor;
               canvasCtx.fillText(seg, x, y);
               x += canvasCtx.measureText(seg).width;
@@ -604,21 +608,25 @@ export default makeScene2D(function* (view) {
     codeBottomOn(1, Timing.slow, easeInOutCubic),
   );
 
-  yield* waitFor(Timing.beat);
+  // Refs: dryFiltersScene.tsx — hold before highlight ≈ 0.4s
+  yield* waitFor(0.4);
 
   // Индексы строк для подсветки (как в оригинале)
   const conditionLineIndex = 9; // строка "Condition condition = ..."
   const whereLineIndex = 12; // строка ".where(condition)"
 
-  // Подсветка строк кода и затемнение остального
+  // Подсветка строк кода и затемнение остального.
+  // Стандарт плавности (DAEDALUS): easing = easeInOutCubic по умолчанию.
+  // Логику строк берём из Code.selection(lines(...)) — без гаданий по position.y.
+  codeTopRef().selection([lines(conditionLineIndex), lines(whereLineIndex)]);
+  codeBottomRef().selection([lines(conditionLineIndex), lines(whereLineIndex)]);
   yield* all(
-    codeTopHighlightLines([conditionLineIndex, whereLineIndex], Timing.slow, easeInOutCubic),
-    codeBottomHighlightLines([conditionLineIndex, whereLineIndex], Timing.slow, easeInOutCubic),
-    codeTopDimmed(1, Timing.slow, easeInOutCubic),
-    codeBottomDimmed(1, Timing.slow, easeInOutCubic),
+    codeTopHighlight(1, Timing.slow, easeInOutCubic),
+    codeBottomHighlight(1, Timing.slow, easeInOutCubic),
   );
 
-  yield* waitFor(Timing.normal);
+  // Ref: dryFiltersScene.tsx — hold after highlight ≈ 0.6s
+  yield* waitFor(0.6);
 
   for (let i = 0; i < Math.max(paymentRows.length, orderRows.length); i++) {
     yield* all(
@@ -670,12 +678,14 @@ export default makeScene2D(function* (view) {
   yield* waitFor(Timing.beat);
 
   // Возврат кода к нормальному виду (снять подсветку и затемнение)
+  // В референсе это 0.45, но для более "плавного" выхода делаем чуть дольше.
+  const highlightExitDur = Timing.normal;
   yield* all(
-    codeTopHighlightLines([], Timing.slow, easeInOutCubic),
-    codeBottomHighlightLines([], Timing.slow, easeInOutCubic),
-    codeTopDimmed(0, Timing.slow, easeInOutCubic),
-    codeBottomDimmed(0, Timing.slow, easeInOutCubic),
+    codeTopHighlight(0, highlightExitDur, easeInOutCubic),
+    codeBottomHighlight(0, highlightExitDur, easeInOutCubic),
   );
+  codeTopRef().selection(lines(0, Infinity));
+  codeBottomRef().selection(lines(0, Infinity));
 
   yield* waitFor(Timing.normal);
 
