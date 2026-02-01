@@ -5,6 +5,7 @@ import chapter1IntroScene from './scenes/chapter1IntroScene?scene';
 import chapter1IntroSceneV2 from './scenes/chapter1IntroSceneV2?scene';
 import chapter2IntroScene from './scenes/chapter2IntroScene?scene';
 import paymentInputsScene from './scenes/paymentInputsScene?scene';
+import paymentInputsSceneV3 from './scenes/paymentInputsSceneV3?scene';
 import chapter3IntroScene from './scenes/chapter3IntroScene?scene';
 import dryFiltersScene from './scenes/dryFiltersScene?scene';
 import dryFiltersSceneV2 from './scenes/dryFiltersSceneV2?scene';
@@ -26,15 +27,16 @@ export default makeProject({
         // chapter1IntroSceneV2,
         // chapter1IntroScene,
         // chapter2IntroScene,
-        // paymentInputsScene,
+        paymentInputsSceneV3,
+        paymentInputsScene,
         // chapter3IntroScene,
         // splitDtoScene,
         // dryFiltersSceneV2Poster,
-        dryFiltersSceneV3,
+        // dryFiltersSceneV3,
         // dryFiltersSceneV2,
         // dryFiltersScene,
         // dryConditionsScene,
-        dryConditionsSceneV3,
+        // dryConditionsSceneV3,
         // dryKnowledgeScene,
         // typewriterCodeScene
     ]
