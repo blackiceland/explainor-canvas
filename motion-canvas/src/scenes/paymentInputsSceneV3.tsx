@@ -82,7 +82,6 @@ export default makeScene2D(function* (view) {
   const rightPortYellow = createSignal(0);
   const splitDtoY = createSignal(0);
   const endZoom = createSignal(0);
-  const endDark = createSignal(0);
 
   const leftR = 150;
   const midR = 175;
@@ -526,13 +525,6 @@ export default makeScene2D(function* (view) {
         showEdgeLabels={false}
         showLabels={false}
       />
-      {/* Dim overlay for endDark zoom effect */}
-      <Rect
-        width={Screen.width}
-        height={Screen.height}
-        fill={'#050507'}
-        opacity={() => endDark() * 0.92}
-      />
       <Rect>
         <Line
           points={[
@@ -582,7 +574,7 @@ export default makeScene2D(function* (view) {
           y={c[1]}
           width={() => midR * 2 * endZoomK()}
           height={() => midR * 2 * endZoomK()}
-          fill={() => mixRgba(midFill, '#0B0B0B', endDark())}
+          fill={() => mixRgba(midFill, '#E7DCC9', endZoom())}
           stroke={transparent}
           lineWidth={0}
           opacity={() => midOpacity() * dimRiskOthers() * leakDim()}
@@ -1450,8 +1442,11 @@ export default makeScene2D(function* (view) {
 
     packetT(0);
     packetOpacity(0);
-    stripeJsonValuesOpacity(0);
-    if (i === 0) stripeJsonBaseValuesOpacity(0);
+    // Don't reset stripeJsonValuesOpacity instantly — let animation handle it smoothly.
+    if (i === 0) {
+      stripeJsonValuesOpacity(0);
+      stripeJsonBaseValuesOpacity(0);
+    }
     dtoValuesOpacity(0);
     if (i === 0) clientJsonValuesOpacity(0);
     if (i === 0) clientJsonBaseValuesOpacity(0);
@@ -1459,8 +1454,10 @@ export default makeScene2D(function* (view) {
     packet2Opacity(0);
 
     const isFirst = i === 0;
-    stripeJsonBaseValuesOpacity(isFirst ? 0 : 1);
-    clientJsonBaseValuesOpacity(isFirst ? 0 : 1);
+    if (!isFirst) {
+      stripeJsonBaseValuesOpacity(1);
+      clientJsonBaseValuesOpacity(1);
+    }
     const fadeInSoft = isFirst ? Math.max(0.6, fadeIn * 1.9) : fadeIn;
     const preMove = Math.max(0.12, Math.min(0.28, fadeInSoft * 0.6));
     yield* all(
@@ -1731,10 +1728,7 @@ export default makeScene2D(function* (view) {
   );
 
   yield* waitFor(0.45);
-  yield* all(
-    endDark(1, 2.8, easeInOutCubic),
-    endZoom(1, 3.2, easeInOutCubic),
-  );
+  yield* endZoom(1, 3.2, easeInOutCubic);
   yield* waitFor(0.25);
 });
 

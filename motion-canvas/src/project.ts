@@ -15,6 +15,7 @@ import dryConditionsScene from './scenes/dryConditionsScene?scene';
 import dryConditionsSceneV3 from './scenes/dryConditionsSceneV3?scene';
 import dryKnowledgeScene from './scenes/dryKnowledgeScene?scene';
 import splitDtoScene from './scenes/splitDtoScene?scene';
+import splitDtoSceneV3 from './scenes/splitDtoSceneV3?scene';
 import typewriterCodeScene from './scenes/typewriterCodeScene?scene';
 import pilotScene from './scenes/pilotScene?scene';
 
@@ -28,7 +29,8 @@ export default makeProject({
         // chapter1IntroScene,
         // chapter2IntroScene,
         paymentInputsSceneV3,
-        paymentInputsScene,
+        splitDtoSceneV3,
+        // paymentInputsScene,
         // chapter3IntroScene,
         // splitDtoScene,
         // dryFiltersSceneV2Poster,

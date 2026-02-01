@@ -71,6 +71,21 @@ export const DryFiltersV3CodeTheme: SyntaxTheme = {
     comment: 'rgba(244,241,235,0.45)',
 };
 
+// Theme for code on LIGHT (beige) background — high contrast, dark tones.
+export const LightBgCodeTheme: SyntaxTheme = {
+    plain: '#1F1A14',         // Near-black brown (main text)
+    punctuation: '#3D3428',   // Dark brown-gray
+    operator: '#2A241C',      // Very dark brown
+    keyword: '#5C1A00',       // Deep burnt orange
+    annotation: '#6B3A00',    // Dark orange-brown (NOT gold!)
+    type: '#1A0F05',          // Almost black
+    constant: '#4A2800',      // Dark brown
+    method: '#7A2E00',        // Burnt sienna (visible)
+    string: '#2D4A1A',        // Dark forest green
+    number: '#6B0000',        // Deep maroon
+    comment: '#5A5048',       // Dark gray-brown (visible but muted)
+};
+
 export function getTokenColor(type: TokenType, theme: SyntaxTheme = IntelliJDarkTheme): string {
     return theme[type];
 }
