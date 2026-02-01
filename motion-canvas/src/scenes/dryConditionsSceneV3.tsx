@@ -1,4 +1,4 @@
-﻿import {blur, Line, makeScene2D, Rect, Txt} from '@motion-canvas/2d';
+﻿import {blur, Circle, Line, makeScene2D, Node, Rect, Txt} from '@motion-canvas/2d';
 import {all, createRef, createSignal, easeInOutCubic, waitFor} from '@motion-canvas/core';
 import {CodeBlock} from '../core/code/components/CodeBlock';
 import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
@@ -33,6 +33,10 @@ const QUIET_INNER = 'rgba(252,251,248,0.11)';
 const BEIGE_CARD_FILL = '#E7DCC9';
 const BEIGE_TEXT_FILL = BEIGE_CARD_FILL;
 const BEIGE_TEXT_SHADOW = 'rgba(0,0,0,0.26)';
+
+// Venn domain circles: subtle beige contour + barely-there fill ("expensive beige").
+const DOMAIN_CIRCLE_FILL = 'rgba(231, 220, 201, 0.07)'; // #E7DCC9 @ 7%
+const DOMAIN_CIRCLE_STROKE = 'rgba(231, 220, 201, 0.20)'; // #E7DCC9 @ 20%
 
 // Thin framed variant for small code cards (requested).
 const CODE_CARD_STYLE_FRAMED = {
@@ -570,21 +574,30 @@ export default makeScene2D(function* (view) {
   yield* waitFor(0.33);
 
   const hub = createRef<Rect>();
+  const venn = createRef<Node>();
+  const domL = createRef<Circle>();
+  const domR = createRef<Circle>();
+  const domB = createRef<Circle>();
+  const domLLabel = createRef<Txt>();
+  const domRLabel = createRef<Txt>();
+  const domBLabel = createRef<Txt>();
   const left = createRef<Rect>();
   const right = createRef<Rect>();
   const bottom = createRef<Rect>();
-  const linkL = createRef<Line>();
-  const linkR = createRef<Line>();
-  const linkB = createRef<Line>();
 
   // Match width with the lower small code cards.
   const nodeW = 520;
   const nodeH = 120;
-  // Keep symmetry: INVOICES stays centered. Move ORDERS/PAYMENTS a bit lower.
-  const leftPos: [number, number] = [-520, -20];
-  const rightPos: [number, number] = [520, -20];
-  const bottomPos: [number, number] = [0, 360];
 
+  // FIXED lens geometry (no animation — lens is static).
+  // Symmetric layout: top two circles shifted up, bottom one shifted down from center.
+  const lensSepX = 180;
+  const lensSepYTop = -70;   // Y offset for left/right circles (above center)
+  const lensSepYBot = 140;   // Y offset for bottom circle (below center)
+  const circleSize = 520;
+
+
+  // Hide previous big code blocks and prepare the hub stage.
   yield* all(
     commonBlock.animateCardFill(DEP_BLUE, 0.7),
     commonBlock.hideLines([[0, commonBlock.lineCount - 1]], 0.7),
@@ -594,61 +607,7 @@ export default makeScene2D(function* (view) {
 
   view.add(
     <>
-      <Line
-        ref={linkL}
-        stroke={DEP_LINK_STROKE}
-        lineWidth={2}
-        end={0}
-        points={() => [
-          edgePoint(
-            [hub().position.x(), hub().position.y()],
-            [hub().width(), hub().height()],
-            [leftPos[0], leftPos[1]],
-          ),
-          edgePoint(
-            [leftPos[0], leftPos[1]],
-            [nodeW, nodeH],
-            [hub().position.x(), hub().position.y()],
-          ),
-        ]}
-      />
-      <Line
-        ref={linkR}
-        stroke={DEP_LINK_STROKE}
-        lineWidth={2}
-        end={0}
-        points={() => [
-          edgePoint(
-            [hub().position.x(), hub().position.y()],
-            [hub().width(), hub().height()],
-            [rightPos[0], rightPos[1]],
-          ),
-          edgePoint(
-            [rightPos[0], rightPos[1]],
-            [nodeW, nodeH],
-            [hub().position.x(), hub().position.y()],
-          ),
-        ]}
-      />
-      <Line
-        ref={linkB}
-        stroke={DEP_LINK_STROKE}
-        lineWidth={2}
-        end={0}
-        points={() => [
-          edgePoint(
-            [hub().position.x(), hub().position.y()],
-            [hub().width(), hub().height()],
-            [bottomPos[0], bottomPos[1]],
-          ),
-          edgePoint(
-            [bottomPos[0], bottomPos[1]],
-            [nodeW, nodeH],
-            [hub().position.x(), hub().position.y()],
-          ),
-        ]}
-      />
-
+      {/* Blue hub — starts as the commonBlock visual, just fades out */}
       <Rect
         ref={hub}
         width={commonWidth}
@@ -663,298 +622,208 @@ export default makeScene2D(function* (view) {
         opacity={1}
       />
 
+      {/* Lens + domain circles: STATIC geometry, NO animation on the shape itself.
+          The lens is implemented via nested clip (intersection of 3 disks).
+          It's always on screen (behind the hub). Hub just fades out, revealing it seamlessly. */}
+      <Node
+        ref={venn}
+        x={() => hub().position.x()}
+        y={() => hub().position.y()}
+        opacity={1}
+        scale={1}
+      >
+        {/* Domain circles (behind the lens) — symmetric layout */}
+        <Circle
+          ref={domL}
+          size={circleSize}
+          x={-lensSepX}
+          y={lensSepYTop}
+          fill={DOMAIN_CIRCLE_FILL}
+          stroke={DOMAIN_CIRCLE_STROKE}
+          lineWidth={2}
+          opacity={0}
+        />
+        <Circle
+          ref={domR}
+          size={circleSize}
+          x={lensSepX}
+          y={lensSepYTop}
+          fill={DOMAIN_CIRCLE_FILL}
+          stroke={DOMAIN_CIRCLE_STROKE}
+          lineWidth={2}
+          opacity={0}
+        />
+        <Circle
+          ref={domB}
+          size={circleSize}
+          x={0}
+          y={lensSepYBot}
+          fill={DOMAIN_CIRCLE_FILL}
+          stroke={DOMAIN_CIRCLE_STROKE}
+          lineWidth={2}
+          opacity={0}
+        />
+
+        {/* Lens fill via nested clip (stable intersection of 3 circles) — symmetric */}
+        <Circle clip size={circleSize} x={-lensSepX} y={lensSepYTop} fill={'#00000000'}>
+          <Circle clip size={circleSize} x={lensSepX * 2} y={0} fill={'#00000000'}>
+            <Circle clip size={circleSize} x={-lensSepX} y={lensSepYBot - lensSepYTop} fill={'#00000000'}>
+              <Rect
+                width={circleSize * 3}
+                height={circleSize * 3}
+                fill={DEP_BLUE}
+              />
+            </Circle>
+          </Circle>
+        </Circle>
+
+      </Node>
+
+      {/* Domain labels — top-level so they can animate independently after venn fades */}
+      <Txt
+        ref={domLLabel}
+        text={'ORDERS'}
+        fontFamily={Fonts.primary}
+        fontSize={22}
+        fontWeight={650}
+        fill={'rgba(255,255,255,0.74)'}
+        shadowColor={'rgba(0,0,0,0.18)'}
+        shadowBlur={10}
+        shadowOffset={[0, 2]}
+        opacity={0}
+        x={-lensSepX - 120}
+        y={lensSepYTop}
+      />
+      <Txt
+        ref={domRLabel}
+        text={'PAYMENTS'}
+        fontFamily={Fonts.primary}
+        fontSize={22}
+        fontWeight={650}
+        fill={'rgba(255,255,255,0.74)'}
+        shadowColor={'rgba(0,0,0,0.18)'}
+        shadowBlur={10}
+        shadowOffset={[0, 2]}
+        opacity={0}
+        x={lensSepX + 120}
+        y={lensSepYTop}
+      />
+      <Txt
+        ref={domBLabel}
+        text={'INVOICES'}
+        fontFamily={Fonts.primary}
+        fontSize={22}
+        fontWeight={650}
+        fill={'rgba(255,255,255,0.74)'}
+        shadowColor={'rgba(0,0,0,0.18)'}
+        shadowBlur={10}
+        shadowOffset={[0, 2]}
+        opacity={0}
+        x={0}
+        y={lensSepYBot + 140}
+      />
+
+      {/* Domain card frames — styled like code cards (thin light stroke, no fill) */}
       <Rect
         ref={left}
-        x={leftPos[0]}
-        y={leftPos[1]}
+        x={-lensSepX - 120}
+        y={lensSepYTop}
         width={nodeW}
         height={nodeH}
         radius={PanelStyle.radiusSmall}
-        fill={BEIGE_CARD_FILL}
-        stroke={'rgba(0,0,0,0)'}
-        lineWidth={0}
-        shadowColor={'rgba(0,0,0,0)'}
-        shadowBlur={0}
+        fill={'rgba(0,0,0,0)'}
+        stroke={QUIET_STROKE}
+        lineWidth={1}
+        shadowColor={QUIET_GLOW}
+        shadowBlur={3}
         shadowOffset={[0, 0]}
         opacity={0}
-      >
-        <Txt
-          text={'ORDERS'}
-          fontFamily={Fonts.primary}
-          fontSize={22}
-          fontWeight={600}
-          fill={BEIGE_TEXT_FILL}
-          opacity={1}
-          shadowColor={BEIGE_TEXT_SHADOW}
-          shadowBlur={10}
-          shadowOffset={[0, 2]}
-        />
-      </Rect>
-
+      />
       <Rect
         ref={right}
-        x={rightPos[0]}
-        y={rightPos[1]}
+        x={lensSepX + 120}
+        y={lensSepYTop}
         width={nodeW}
         height={nodeH}
         radius={PanelStyle.radiusSmall}
-        fill={BEIGE_CARD_FILL}
-        stroke={'rgba(0,0,0,0)'}
-        lineWidth={0}
-        shadowColor={'rgba(0,0,0,0)'}
-        shadowBlur={0}
+        fill={'rgba(0,0,0,0)'}
+        stroke={QUIET_STROKE}
+        lineWidth={1}
+        shadowColor={QUIET_GLOW}
+        shadowBlur={3}
         shadowOffset={[0, 0]}
         opacity={0}
-      >
-        <Txt
-          text={'PAYMENTS'}
-          fontFamily={Fonts.primary}
-          fontSize={22}
-          fontWeight={600}
-          fill={BEIGE_TEXT_FILL}
-          opacity={1}
-          shadowColor={BEIGE_TEXT_SHADOW}
-          shadowBlur={10}
-          shadowOffset={[0, 2]}
-        />
-      </Rect>
-
+      />
       <Rect
         ref={bottom}
-        x={bottomPos[0]}
-        y={bottomPos[1]}
+        x={0}
+        y={lensSepYBot + 140}
         width={nodeW}
         height={nodeH}
         radius={PanelStyle.radiusSmall}
-        fill={BEIGE_CARD_FILL}
-        stroke={'rgba(0,0,0,0)'}
-        lineWidth={0}
-        shadowColor={'rgba(0,0,0,0)'}
-        shadowBlur={0}
+        fill={'rgba(0,0,0,0)'}
+        stroke={QUIET_STROKE}
+        lineWidth={1}
+        shadowColor={QUIET_GLOW}
+        shadowBlur={3}
         shadowOffset={[0, 0]}
         opacity={0}
-      >
-        <Txt
-          text={'INVOICES'}
-          fontFamily={Fonts.primary}
-          fontSize={22}
-          fontWeight={600}
-          fill={BEIGE_TEXT_FILL}
-          opacity={1}
-          shadowColor={BEIGE_TEXT_SHADOW}
-          shadowBlur={10}
-          shadowOffset={[0, 2]}
-        />
-      </Rect>
+      />
     </>,
   );
 
   commonBlock.node.opacity(0);
 
-  yield* all(
-    hub().size([170, 170], 0.9, easeInOutCubic),
-    hub().radius(22, 0.9, easeInOutCubic),
-  );
-
-  // Code frames should appear only after the blue hub appears.
-  const codeFrameIn = Timing.fast;
-  const orderCard = orderBlock.cardRect;
-  const paymentCard = paymentBlock.cardRect;
-  const commonCard = commonBlock.cardRect;
+  // Morph hub (square) into the lens:
+  // Hub shrinks and becomes rounder while fading out; lens simply fades in.
+  const morphDur = Timing.slow;
+  venn().opacity(0);
 
   yield* all(
-    orderCard ? orderCard.stroke(QUIET_STROKE, codeFrameIn, easeInOutCubic) : waitFor(0),
-    orderCard ? orderCard.lineWidth(1, codeFrameIn, easeInOutCubic) : waitFor(0),
-    orderCard ? orderCard.shadowColor(QUIET_GLOW, codeFrameIn, easeInOutCubic) : waitFor(0),
-    orderCard ? orderCard.shadowBlur(3, codeFrameIn, easeInOutCubic) : waitFor(0),
-
-    paymentCard ? paymentCard.stroke(QUIET_STROKE, codeFrameIn, easeInOutCubic) : waitFor(0),
-    paymentCard ? paymentCard.lineWidth(1, codeFrameIn, easeInOutCubic) : waitFor(0),
-    paymentCard ? paymentCard.shadowColor(QUIET_GLOW, codeFrameIn, easeInOutCubic) : waitFor(0),
-    paymentCard ? paymentCard.shadowBlur(3, codeFrameIn, easeInOutCubic) : waitFor(0),
-
-    // commonBlock is hidden at this point, but keep its style consistent for when it reappears later.
-    commonCard ? commonCard.stroke(QUIET_STROKE, codeFrameIn, easeInOutCubic) : waitFor(0),
-    commonCard ? commonCard.lineWidth(1, codeFrameIn, easeInOutCubic) : waitFor(0),
-    commonCard ? commonCard.shadowColor(QUIET_GLOW, codeFrameIn, easeInOutCubic) : waitFor(0),
-    commonCard ? commonCard.shadowBlur(3, codeFrameIn, easeInOutCubic) : waitFor(0),
+    // Hub shrinks to a small circle and fades out
+    hub().size([160, 160], morphDur, easeInOutCubic),
+    hub().radius(80, morphDur, easeInOutCubic),
+    hub().opacity(0, morphDur, easeInOutCubic),
+    // Lens simply fades in (no scale)
+    venn().opacity(1, morphDur, easeInOutCubic),
   );
 
+  // After morph, reveal domain circles + labels.
   yield* all(
-    linkL().end(1, Timing.slow, easeInOutCubic),
-    linkR().end(1, Timing.slow, easeInOutCubic),
-    linkB().end(1, Timing.slow, easeInOutCubic),
+    domL().opacity(0.85, Timing.slow, easeInOutCubic),
+    domR().opacity(0.85, Timing.slow, easeInOutCubic),
+    domB().opacity(0.85, Timing.slow, easeInOutCubic),
+    domLLabel().opacity(1, Timing.slow, easeInOutCubic),
+    domRLabel().opacity(1, Timing.slow, easeInOutCubic),
+    domBLabel().opacity(1, Timing.slow, easeInOutCubic),
   );
 
-  yield* all(
-    left().opacity(1, Timing.slow, easeInOutCubic),
-    right().opacity(1, Timing.slow, easeInOutCubic),
-    bottom().opacity(1, Timing.slow, easeInOutCubic),
-  );
+  yield* waitFor(0.4);
 
-  linkL().opacity(0.75);
-  linkR().opacity(0.75);
-  linkB().opacity(0.75);
+  // Fade out the lens and circles, but KEEP labels visible.
+  yield* venn().opacity(0, 0.65, easeInOutCubic);
 
-  const pL = createSignal(0);
-  const pR = createSignal(0);
-  const pB = createSignal(0);
-  const oL = createSignal(0);
-  const oR = createSignal(0);
-  const oB = createSignal(0);
-
-  view.add(
-    <>
-      <Rect
-        width={10}
-        height={10}
-        radius={5}
-        fill={DEP_BLUE}
-        shadowColor={DEP_BLUE}
-        shadowBlur={18}
-        opacity={() => oL()}
-        x={() => {
-          const a = edgePoint(leftPos, [nodeW, nodeH], [hub().position.x(), hub().position.y()]);
-          const b = edgePoint([hub().position.x(), hub().position.y()], [hub().width(), hub().height()], leftPos);
-          return lerp(a[0], b[0], pL());
-        }}
-        y={() => {
-          const a = edgePoint(leftPos, [nodeW, nodeH], [hub().position.x(), hub().position.y()]);
-          const b = edgePoint([hub().position.x(), hub().position.y()], [hub().width(), hub().height()], leftPos);
-          return lerp(a[1], b[1], pL());
-        }}
-      />
-      <Rect
-        width={10}
-        height={10}
-        radius={5}
-        fill={DEP_BLUE}
-        shadowColor={DEP_BLUE}
-        shadowBlur={18}
-        opacity={() => oR()}
-        x={() => {
-          const a = edgePoint([hub().position.x(), hub().position.y()], [hub().width(), hub().height()], rightPos);
-          const b = edgePoint(rightPos, [nodeW, nodeH], [hub().position.x(), hub().position.y()]);
-          return lerp(a[0], b[0], pR());
-        }}
-        y={() => {
-          const a = edgePoint([hub().position.x(), hub().position.y()], [hub().width(), hub().height()], rightPos);
-          const b = edgePoint(rightPos, [nodeW, nodeH], [hub().position.x(), hub().position.y()]);
-          return lerp(a[1], b[1], pR());
-        }}
-      />
-      <Rect
-        width={10}
-        height={10}
-        radius={5}
-        fill={DEP_BLUE}
-        shadowColor={DEP_BLUE}
-        shadowBlur={18}
-        opacity={() => oB()}
-        x={() => {
-          const a = edgePoint([hub().position.x(), hub().position.y()], [hub().width(), hub().height()], bottomPos);
-          const b = edgePoint(bottomPos, [nodeW, nodeH], [hub().position.x(), hub().position.y()]);
-          return lerp(a[0], b[0], pB());
-        }}
-        y={() => {
-          const a = edgePoint([hub().position.x(), hub().position.y()], [hub().width(), hub().height()], bottomPos);
-          const b = edgePoint(bottomPos, [nodeW, nodeH], [hub().position.x(), hub().position.y()]);
-          return lerp(a[1], b[1], pB());
-        }}
-      />
-    </>,
-  );
-
-  for (let i = 0; i < 3; i++) {
-    pL(0);
-    pR(0);
-    pB(0);
-    oL(1);
-    oR(0);
-    oB(0);
-
-    yield* all(
-      linkL().opacity(1, 0.17, easeInOutCubic),
-      pL(1, 0.7, easeInOutCubic),
-    );
-
-    yield* all(
-      linkL().opacity(0.75, 0.21, easeInOutCubic),
-      oL(0, 0.21, easeInOutCubic),
-    );
-
-    oR(1);
-    oB(1);
-
-    yield* all(
-      linkR().opacity(1, 0.17, easeInOutCubic),
-      linkB().opacity(1, 0.17, easeInOutCubic),
-      pR(1, 0.75, easeInOutCubic),
-      pB(1, 0.75, easeInOutCubic),
-    );
-
-    yield* all(
-      linkR().opacity(0.75, 0.21, easeInOutCubic),
-      linkB().opacity(0.75, 0.21, easeInOutCubic),
-      oR(0, 0.21, easeInOutCubic),
-      oB(0, 0.21, easeInOutCubic),
-    );
-
-    yield* waitFor(0.14);
-  }
-
-  yield* all(
-    hub().fill(DEP_ALARM, 0.75, easeInOutCubic),
-    linkL().stroke(DEP_ALARM_LINK, 0.75, easeInOutCubic),
-    linkR().stroke(DEP_ALARM_LINK, 0.75, easeInOutCubic),
-    linkB().stroke(DEP_ALARM_LINK, 0.75, easeInOutCubic),
-  );
-
-  yield* waitFor(0.17);
-
-  for (let i = 0; i < 2; i++) {
-    yield* all(
-      left().stroke(DEP_ALARM, 0.18, easeInOutCubic),
-      right().stroke(DEP_ALARM, 0.18, easeInOutCubic),
-      bottom().stroke(DEP_ALARM, 0.18, easeInOutCubic),
-      linkL().opacity(1, 0.17, easeInOutCubic),
-      linkR().opacity(1, 0.17, easeInOutCubic),
-      linkB().opacity(1, 0.17, easeInOutCubic),
-    );
-
-    yield* all(
-      left().stroke(PanelStyle.stroke, 0.22, easeInOutCubic),
-      right().stroke(PanelStyle.stroke, 0.22, easeInOutCubic),
-      bottom().stroke(PanelStyle.stroke, 0.22, easeInOutCubic),
-      linkL().opacity(0.75, 0.21, easeInOutCubic),
-      linkR().opacity(0.75, 0.21, easeInOutCubic),
-      linkB().opacity(0.75, 0.21, easeInOutCubic),
-    );
-  }
-
-  yield* waitFor(0.33);
-
-  yield* all(
-    hub().opacity(0, 0.65, easeInOutCubic),
-    linkL().opacity(0, 0.65, easeInOutCubic),
-    linkR().opacity(0, 0.65, easeInOutCubic),
-    linkB().opacity(0, 0.65, easeInOutCubic),
-    oL(0, 0.5, easeInOutCubic),
-    oR(0, 0.5, easeInOutCubic),
-    oB(0, 0.5, easeInOutCubic),
-  );
-
+  // Final row positioning.
   const topY = -320;
-  // Wider small cards later → move centers a bit inward to keep within SafeZone.
   const rowX: [number, number, number] = [-580, 0, 580];
   const ordersX = rowX[0];
   const invoicesX = rowX[1];
   const paymentsX = rowX[2];
 
+  // Labels animate up to final positions; frames appear around them.
   yield* all(
+    // Labels move up
+    domLLabel().position([ordersX, topY], 1.15, easeInOutCubic),
+    domRLabel().position([paymentsX, topY], 1.15, easeInOutCubic),
+    domBLabel().position([invoicesX, topY], 1.15, easeInOutCubic),
+    // Frames follow the labels
     left().position([ordersX, topY], 1.15, easeInOutCubic),
     right().position([paymentsX, topY], 1.15, easeInOutCubic),
     bottom().position([invoicesX, topY], 1.15, easeInOutCubic),
+    // Frames fade in
+    left().opacity(1, Timing.slow, easeInOutCubic),
+    right().opacity(1, Timing.slow, easeInOutCubic),
+    bottom().opacity(1, Timing.slow, easeInOutCubic),
   );
 
   // Final blocks: increase card sizes so code fits.
@@ -1270,13 +1139,9 @@ void invoices_filter_combinations() {
     testOutlineM().opacity(0, fadeDur, easeInOutCubic),
     testOutlineR().opacity(0, fadeDur, easeInOutCubic),
 
-    hub().opacity(0, fadeDur, easeInOutCubic),
     left().opacity(0, fadeDur, easeInOutCubic),
     right().opacity(0, fadeDur, easeInOutCubic),
     bottom().opacity(0, fadeDur, easeInOutCubic),
-    linkL().opacity(0, fadeDur, easeInOutCubic),
-    linkR().opacity(0, fadeDur, easeInOutCubic),
-    linkB().opacity(0, fadeDur, easeInOutCubic),
   );
 
   yield* waitFor(0.2);

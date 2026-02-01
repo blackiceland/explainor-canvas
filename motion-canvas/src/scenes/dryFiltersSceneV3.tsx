@@ -419,17 +419,17 @@ export default makeScene2D(function* (view) {
         paddingLeft={QUAD_INSET}
       >
       <Rect layout width={rightTop.width} fill={'rgba(0,0,0,0)'}>
-        <Code
+      <Code
           ref={codeTopRef}
-          code={PAYMENT_FILTER_CODE}
-          fontFamily={Fonts.code}
-          fontSize={fontSize}
-          lineHeight={lineHeight}
-          opacity={1}
+        code={PAYMENT_FILTER_CODE}
+        fontFamily={Fonts.code}
+        fontSize={fontSize}
+        lineHeight={lineHeight}
+        opacity={1}
           x={unifiedW / 2}
           y={0}
           selection={lines(0, Infinity)}
-          drawHooks={{
+        drawHooks={{
           token: (
             canvasCtx: CanvasRenderingContext2D,
             text: string,
@@ -488,7 +488,7 @@ export default makeScene2D(function* (view) {
             canvasCtx.globalAlpha = prevAlpha;
           },
         }}
-        />
+      />
       </Rect>
       </Rect>
       <Rect
@@ -506,17 +506,17 @@ export default makeScene2D(function* (view) {
         paddingBottom={0}
       >
       <Rect layout width={rightBottom.width} fill={'rgba(0,0,0,0)'}>
-        <Code
+      <Code
           ref={codeBottomRef}
-          code={ORDER_FILTER_CODE}
-          fontFamily={Fonts.code}
-          fontSize={fontSize}
-          lineHeight={lineHeight}
-          opacity={1}
+        code={ORDER_FILTER_CODE}
+        fontFamily={Fonts.code}
+        fontSize={fontSize}
+        lineHeight={lineHeight}
+        opacity={1}
           x={unifiedW / 2}
           y={0}
           selection={lines(0, Infinity)}
-          drawHooks={{
+        drawHooks={{
           token: (
             canvasCtx: CanvasRenderingContext2D,
             text: string,
@@ -574,7 +574,7 @@ export default makeScene2D(function* (view) {
             canvasCtx.globalAlpha = prevAlpha;
           },
         }}
-        />
+      />
       </Rect>
       </Rect>
     </>,
