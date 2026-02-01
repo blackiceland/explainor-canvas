@@ -124,6 +124,9 @@ export default makeScene2D(function* (view) {
   const sepX2 = () => dividerX();
   const sepY1 = (slotTopY + cardH / 2 + (slotMidY - cardH / 2)) / 2;
   const sepY2 = (slotMidY + cardH / 2 + (slotBotY - cardH / 2)) / 2;
+  // Pixel-snap separator positions to avoid sub-pixel antialiasing differences between the two lines.
+  const sepY1Px = () => Math.round(sepY1);
+  const sepY2Px = () => Math.round(sepY2);
 
   // DTO position helper (used by both card and separator cut-outs).
   const dtoCardX = () => Math.min(dividerX() - leftPadX - cardW / 2, layerX + cardW + 52);
@@ -241,8 +244,8 @@ final class PaymentsController {
       <Line
         ref={sep1Ref}
         points={() => [
-          [sepX1(), sepY1],
-          [sepX2(), sepY1],
+          [Math.round(sepX1()), sepY1Px()],
+          [Math.round(sepX2()), sepY1Px()],
         ]}
         stroke={sepStroke}
         lineWidth={2}
@@ -254,8 +257,8 @@ final class PaymentsController {
       <Line
         ref={sep2Ref}
         points={() => [
-          [sepX1(), sepY2],
-          [sepX2(), sepY2],
+          [Math.round(sepX1()), sepY2Px()],
+          [Math.round(sepX2()), sepY2Px()],
         ]}
         stroke={sepStroke}
         lineWidth={2}
