@@ -38,7 +38,7 @@ const BEIGE_TEXT_SHADOW = 'rgba(0,0,0,0.26)';
 const DOMAIN_CIRCLE_FILL = 'rgba(231, 220, 201, 0.07)'; // #E7DCC9 @ 7%
 const DOMAIN_CIRCLE_STROKE = 'rgba(231, 220, 201, 0.20)'; // #E7DCC9 @ 20%
 
-// Thin framed variant for small code cards (requested).
+// Thin framed variant for small code cards (light stroke).
 const CODE_CARD_STYLE_FRAMED = {
   ...CODE_CARD_STYLE,
   radius: PanelStyle.radiusSmall,
@@ -46,6 +46,19 @@ const CODE_CARD_STYLE_FRAMED = {
   strokeWidth: 1,
   shadowColor: QUIET_GLOW,
   shadowBlur: 3,
+  shadowOffsetX: 0,
+  shadowOffsetY: 0,
+} as const;
+
+// Domain-style cards (same stroke as domain circles, but NO fill) — used for code cards after the lens scene.
+const CODE_CARD_STYLE_DOMAIN = {
+  ...CODE_CARD_STYLE,
+  radius: PanelStyle.radiusSmall,
+  fill: 'rgba(0,0,0,0)',
+  stroke: DOMAIN_CIRCLE_STROKE,
+  strokeWidth: 2,
+  shadowColor: 'rgba(0,0,0,0)',
+  shadowBlur: 0,
   shadowOffsetX: 0,
   shadowOffsetY: 0,
 } as const;
@@ -723,7 +736,7 @@ export default makeScene2D(function* (view) {
         y={lensSepYBot + 140}
       />
 
-      {/* Domain card frames — styled like code cards (thin light stroke, no fill) */}
+      {/* Domain card frames — same fill and stroke as domain circles */}
       <Rect
         ref={left}
         x={-lensSepX - 120}
@@ -731,11 +744,11 @@ export default makeScene2D(function* (view) {
         width={nodeW}
         height={nodeH}
         radius={PanelStyle.radiusSmall}
-        fill={'rgba(0,0,0,0)'}
-        stroke={QUIET_STROKE}
-        lineWidth={1}
-        shadowColor={QUIET_GLOW}
-        shadowBlur={3}
+        fill={DOMAIN_CIRCLE_FILL}
+        stroke={DOMAIN_CIRCLE_STROKE}
+        lineWidth={2}
+        shadowColor={'rgba(0,0,0,0)'}
+        shadowBlur={0}
         shadowOffset={[0, 0]}
         opacity={0}
       />
@@ -746,11 +759,11 @@ export default makeScene2D(function* (view) {
         width={nodeW}
         height={nodeH}
         radius={PanelStyle.radiusSmall}
-        fill={'rgba(0,0,0,0)'}
-        stroke={QUIET_STROKE}
-        lineWidth={1}
-        shadowColor={QUIET_GLOW}
-        shadowBlur={3}
+        fill={DOMAIN_CIRCLE_FILL}
+        stroke={DOMAIN_CIRCLE_STROKE}
+        lineWidth={2}
+        shadowColor={'rgba(0,0,0,0)'}
+        shadowBlur={0}
         shadowOffset={[0, 0]}
         opacity={0}
       />
@@ -761,11 +774,11 @@ export default makeScene2D(function* (view) {
         width={nodeW}
         height={nodeH}
         radius={PanelStyle.radiusSmall}
-        fill={'rgba(0,0,0,0)'}
-        stroke={QUIET_STROKE}
-        lineWidth={1}
-        shadowColor={QUIET_GLOW}
-        shadowBlur={3}
+        fill={DOMAIN_CIRCLE_FILL}
+        stroke={DOMAIN_CIRCLE_STROKE}
+        lineWidth={2}
+        shadowColor={'rgba(0,0,0,0)'}
+        shadowBlur={0}
         shadowOffset={[0, 0]}
         opacity={0}
       />
@@ -801,7 +814,7 @@ export default makeScene2D(function* (view) {
   yield* waitFor(0.4);
 
   // Fade out the lens and circles, but KEEP labels visible.
-  yield* venn().opacity(0, 0.65, easeInOutCubic);
+  yield* venn().opacity(0, 1.2, easeInOutCubic);
 
   // Final row positioning.
   const topY = -320;
@@ -870,7 +883,7 @@ export default makeScene2D(function* (view) {
     contentOffsetY: topInsetForFont(condFontSize),
     fontFamily: Fonts.code,
     theme: DryFiltersV3CodeTheme,
-    cardStyle: CODE_CARD_STYLE_FRAMED,
+    cardStyle: CODE_CARD_STYLE_DOMAIN,
     glowAccent: false,
     customTypes: ['Condition', 'OrderSearchFilter', 'OrderConditions', 'DSL'],
   });
@@ -885,7 +898,7 @@ export default makeScene2D(function* (view) {
     contentOffsetY: topInsetForFont(condFontSize),
     fontFamily: Fonts.code,
     theme: DryFiltersV3CodeTheme,
-    cardStyle: CODE_CARD_STYLE_FRAMED,
+    cardStyle: CODE_CARD_STYLE_DOMAIN,
     glowAccent: false,
     customTypes: ['Condition', 'InvoiceSearchFilter', 'InvoiceConditions', 'DSL'],
   });
@@ -900,7 +913,7 @@ export default makeScene2D(function* (view) {
     contentOffsetY: topInsetForFont(condFontSize),
     fontFamily: Fonts.code,
     theme: DryFiltersV3CodeTheme,
-    cardStyle: CODE_CARD_STYLE_FRAMED,
+    cardStyle: CODE_CARD_STYLE_DOMAIN,
     glowAccent: false,
     customTypes: ['Condition', 'PaymentSearchFilter', 'PaymentConditions', 'DSL'],
   });
@@ -930,7 +943,7 @@ void invoices_filter_combinations() {
     contentOffsetY: topInsetForFont(testFontSize),
     fontFamily: Fonts.code,
     theme: DryFiltersV3CodeTheme,
-    cardStyle: CODE_CARD_STYLE_FRAMED,
+    cardStyle: CODE_CARD_STYLE_DOMAIN,
     glowAccent: false,
     customTypes: ['Test', 'List', 'LocalDateTime', 'Condition', 'OrderSearchFilter', 'OrderConditions'],
   });
@@ -945,7 +958,7 @@ void invoices_filter_combinations() {
     contentOffsetY: topInsetForFont(testFontSize),
     fontFamily: Fonts.code,
     theme: DryFiltersV3CodeTheme,
-    cardStyle: CODE_CARD_STYLE_FRAMED,
+    cardStyle: CODE_CARD_STYLE_DOMAIN,
     glowAccent: false,
     customTypes: ['Test', 'List', 'LocalDateTime', 'Condition', 'PaymentSearchFilter', 'PaymentConditions'],
   });
@@ -960,7 +973,7 @@ void invoices_filter_combinations() {
     contentOffsetY: topInsetForFont(testFontSize),
     fontFamily: Fonts.code,
     theme: DryFiltersV3CodeTheme,
-    cardStyle: CODE_CARD_STYLE_FRAMED,
+    cardStyle: CODE_CARD_STYLE_DOMAIN,
     glowAccent: false,
     customTypes: ['Test', 'List', 'LocalDateTime', 'Condition', 'InvoiceSearchFilter', 'InvoiceConditions'],
   });
@@ -1142,6 +1155,10 @@ void invoices_filter_combinations() {
     left().opacity(0, fadeDur, easeInOutCubic),
     right().opacity(0, fadeDur, easeInOutCubic),
     bottom().opacity(0, fadeDur, easeInOutCubic),
+
+    domLLabel().opacity(0, fadeDur, easeInOutCubic),
+    domRLabel().opacity(0, fadeDur, easeInOutCubic),
+    domBLabel().opacity(0, fadeDur, easeInOutCubic),
   );
 
   yield* waitFor(0.2);
