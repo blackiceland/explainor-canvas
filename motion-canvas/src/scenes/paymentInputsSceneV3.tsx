@@ -517,6 +517,15 @@ export default makeScene2D(function* (view) {
   view.add(
     <>
       {/* Background is applied via applyBackground(view) at scene start. */}
+      {/* Subtle background grid (no axes, no labels) */}
+      <GridOverlay
+        minorStep={100}
+        majorStep={200}
+        opacity={0.18}
+        showAxes={false}
+        showEdgeLabels={false}
+        showLabels={false}
+      />
       {/* Dim overlay for endDark zoom effect */}
       <Rect
         width={Screen.width}
