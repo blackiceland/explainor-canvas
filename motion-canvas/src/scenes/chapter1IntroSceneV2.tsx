@@ -1,13 +1,20 @@
 import {makeScene2D, Node, Rect, Txt} from '@motion-canvas/2d';
-import {all, createRef, easeInOutCubic, waitFor} from '@motion-canvas/core';
+import {all, createRef, createSignal, easeInOutCubic, waitFor} from '@motion-canvas/core';
 import {applyBackground} from '../core/utils';
 import {Colors, Fonts, Screen, Timing} from '../core/theme';
 import {textWidth} from '../core/utils/textMeasure';
 
 export default makeScene2D(function* (view) {
   applyBackground(view);
+  // Slight cool tint for the intro; we morph it out at the end to match dryFiltersSceneV3 (pure applyBackground).
+  const tintOn = createSignal(1);
   view.add(
-    <Rect width={Screen.width} height={Screen.height} fill={'rgba(168,217,255,0.03)'} />,
+    <Rect
+      width={Screen.width}
+      height={Screen.height}
+      fill={'rgba(168,217,255,0.03)'}
+      opacity={() => tintOn()}
+    />,
   );
 
   const fill = '#F6E7D4';
@@ -110,7 +117,11 @@ export default makeScene2D(function* (view) {
 
   yield* container().opacity(1, Timing.slow, easeInOutCubic);
   yield* waitFor(Timing.normal);
-  yield* container().opacity(0, Timing.slow, easeInOutCubic);
+  // Outro: fade the text out AND remove the cool tint so the next scene background matches seamlessly.
+  yield* all(
+    container().opacity(0, Timing.slow, easeInOutCubic),
+    tintOn(0, Timing.slow, easeInOutCubic),
+  );
 });
 
 

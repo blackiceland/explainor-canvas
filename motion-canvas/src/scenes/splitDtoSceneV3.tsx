@@ -16,6 +16,9 @@ export default makeScene2D(function* (view) {
   const darkReveal = createSignal(0); // 0 = full light, 1 = dark covers left half
   // Clamp for opacity math (we use darkReveal=2 in outro to cover full screen with dark).
   const darkK = () => Math.min(1, Math.max(0, darkReveal()));
+  // During the final "curtain" transition we morph the dark panel into the next scene background
+  // (dryKnowledgeSceneV3 uses applyBackground, i.e. gradient + spotlight).
+  const outroBgMorph = createSignal(0);
   const codeCardOn = createSignal(0);
   const serviceCodeOn = createSignal(0);
   const controllerCodeOn = createSignal(0);
@@ -235,6 +238,21 @@ final class PaymentsController {
         width={darkRevealW}
         height={halfH}
         fill={darkBg}
+      />
+      {/* Morph dark panel into project background (gradient + spotlight), matching dryKnowledgeSceneV3 */}
+      <Rect
+        x={darkRevealX}
+        width={darkRevealW}
+        height={halfH}
+        fill={darkGradient}
+        opacity={() => darkK() * outroBgMorph()}
+      />
+      <Rect
+        x={darkRevealX}
+        width={darkRevealW}
+        height={halfH}
+        fill={darkSpotlight}
+        opacity={() => darkK() * outroBgMorph()}
       />
 
       {/* Divider line */}
@@ -929,6 +947,8 @@ final class PaymentsController {
 
     // background: dark pushes light away (darkReveal goes to 2 = full screen dark)
     darkReveal(2, bgDur, easeInOutCubic),
+    // Morph the curtain into the next scene background during the push.
+    outroBgMorph(1, bgDur, easeInOutCubic),
   );
 
   yield* waitFor(0.25);

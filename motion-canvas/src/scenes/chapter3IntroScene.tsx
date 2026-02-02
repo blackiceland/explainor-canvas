@@ -1,11 +1,12 @@
-import {makeScene2D, Node, Rect, Txt} from '@motion-canvas/2d';
+import {makeScene2D, Node, Txt} from '@motion-canvas/2d';
 import {createRef, easeInOutCubic, waitFor} from '@motion-canvas/core';
 import {Colors, Fonts, Screen} from '../core/theme';
+import {applyBackground} from '../core/utils';
 import {textWidth} from '../core/utils/textMeasure';
 
 export default makeScene2D(function* (view) {
-  // Exception: match the end background tone from paymentInputsScene.
-  view.add(<Rect width={Screen.width} height={Screen.height} fill={'#0B0B0B'} />);
+  // Match dryConditionsSceneV3 background (project gradient + spotlight).
+  applyBackground(view);
 
   const fill = '#F6E7D4';
   const fontWeight = 700;
@@ -15,15 +16,16 @@ export default makeScene2D(function* (view) {
   // Slightly larger type for chapter 3 intro.
   const baseSize = 320;
   const lineHeightFactor = 0.84;
-  const letterSpacingFactor = 0.03;
+  // Slightly tighter horizontal tracking (subtle).
+  const letterSpacingFactor = 0.026;
   const fadeIn = 0.8;
   const hold = 1.4;
   const fadeOut = 0.8;
 
-  const chapterPrefix = 'CHAPTER ';
+  const chapterPrefix = 'ГЛАВА ';
   const chapterNum = '3';
   const chapter = `${chapterPrefix}${chapterNum}`;
-  const restLines = ['ONE DTO,', 'THREE', 'LAYERS'];
+  const restLines = ['ОДИН DTO,', 'ТРИ СЛОЯ'];
   const allLines = [chapter, ...restLines];
 
   const maxWidth = Screen.width - marginX * 2;

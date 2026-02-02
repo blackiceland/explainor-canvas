@@ -18,6 +18,7 @@ import dryKnowledgeSceneV3 from './scenes/dryKnowledgeSceneV3?scene';
 import splitDtoScene from './scenes/splitDtoScene?scene';
 import splitDtoSceneV3 from './scenes/splitDtoSceneV3?scene';
 import typewriterCodeScene from './scenes/typewriterCodeScene?scene';
+import typewriterCodeSceneRu from './scenes/typewriterCodeSceneRu?scene';
 import pilotScene from './scenes/pilotScene?scene';
 
 export default makeProject({
@@ -42,6 +43,7 @@ export default makeProject({
         paymentInputsSceneV3,
         splitDtoSceneV3,
         dryKnowledgeSceneV3,
+        typewriterCodeSceneRu,
 
         // dryFiltersSceneV2Poster,
         // dryFiltersSceneV2,

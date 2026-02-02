@@ -1,12 +1,29 @@
-import {makeScene2D, Node, Rect, Txt} from '@motion-canvas/2d';
-import {all, createRef, easeInOutCubic, waitFor} from '@motion-canvas/core';
+import {Line, makeScene2D, Node, Rect, Txt} from '@motion-canvas/2d';
+import {all, createRef, createSignal, easeInOutCubic, waitFor} from '@motion-canvas/core';
 import {CodeBlock} from '../core/code/components/CodeBlock';
 import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
+import {tokenizeLine} from '../core/code/model/Tokenizer';
 import {SafeZone} from '../core/ScreenGrid';
 import {getCodePaddingX, getCodePaddingY, getLineHeight} from '../core/code/shared/TextMeasure';
 import {Colors, Fonts, Screen, Timing} from '../core/theme';
 import {applyBackground} from '../core/utils';
 import {textWidth} from '../core/utils/textMeasure';
+
+function hexToRgba(hex: string, alpha: number): string {
+  const raw = String(hex ?? '').trim().replace('#', '');
+  const full = raw.length === 3 ? raw.split('').map(c => `${c}${c}`).join('') : raw;
+  const n = parseInt(full.slice(0, 6), 16);
+  if (!Number.isFinite(n)) return `rgba(255,255,255,${alpha})`;
+  const r = (n >> 16) & 255;
+  const g = (n >> 8) & 255;
+  const b = n & 255;
+  const a = Math.max(0, Math.min(1, alpha));
+  return `rgba(${r},${g},${b},${a})`;
+}
+
+// Match dryFiltersSceneV3 EXACTLY.
+const GRID_STROKE = hexToRgba(Colors.text.primary, 0.12);
+const GRID_W = 1;
 
 const RETRY_POLICY_CODE = `class PaymentRetryPolicy {
 
@@ -73,6 +90,25 @@ function codeBlockWidthRaw(code: string, fontFamily: string, fontSize: number, p
   return Math.ceil(maxLinePx + paddingX * 2);
 }
 
+// CodeLine breaks ligature operators into chars; mimic that for width fitting to avoid right-edge clipping.
+const LIGATURE_OPERATORS = new Set(['!=', '==', '<=', '>=', '&&', '||', '++', '--', '->', '::']);
+function renderedLineWidth(line: string, fontFamily: string, fontSize: number): number {
+  const tokens = tokenizeLine(line);
+  let w = 0;
+  for (const t of tokens) {
+    if (t.type === 'operator' && LIGATURE_OPERATORS.has(t.text)) {
+      for (const ch of t.text) w += textWidth(ch, fontFamily, fontSize, 400);
+    } else {
+      w += textWidth(t.text, fontFamily, fontSize, 400);
+    }
+  }
+  return w;
+}
+
+function maxRenderedLineWidth(code: string, fontFamily: string, fontSize: number): number {
+  return Math.max(0, ...code.split('\n').map(line => renderedLineWidth(line, fontFamily, fontSize)));
+}
+
 function codeBlockWidth(code: string, fontFamily: string, fontSize: number, paddingX: number): number {
   const raw = codeBlockWidthRaw(code, fontFamily, fontSize, paddingX);
   // Add a bit of extra slack so leftmost tokens (e.g. "class") never get clipped by the inner clip rect.
@@ -99,6 +135,13 @@ function codeLineWorldY(cardY: number, code: string, lineIndex: number, fontSize
 export default makeScene2D(function* (view) {
   applyBackground(view);
 
+  // Make constants visually distinct from types (DryFiltersV3CodeTheme uses the same color for both).
+  // Keep within the same palette: types stay lavender, constants become a soft mint.
+  const KnowledgeCodeTheme = {
+    ...DryFiltersV3CodeTheme,
+    constant: 'rgba(155, 227, 197, 0.78)',
+  } as const;
+
   // V3: code directly on background (no cards) — match dryConditionsSceneV3.
   const transparentCardStyle = {
     fill: 'rgba(0,0,0,0)',
@@ -113,6 +156,11 @@ export default makeScene2D(function* (view) {
 
   // Full-width pink strip for the "case" highlight.
   const caseStrip = createRef<Rect>();
+
+  // Crosshair divider between the 2x2 blocks — match dryFiltersSceneV3 EXACTLY.
+  const crossOn = createSignal(0);
+  const dividerV = createRef<Line>();
+  const dividerH = createRef<Line>();
   view.add(
     <Rect
       ref={caseStrip}
@@ -128,6 +176,28 @@ export default makeScene2D(function* (view) {
   // Put all animated content into a stage so we can zoom without moving the background.
   const stage = createRef<Node>();
   view.add(<Node ref={stage} />);
+
+  // Mount crosshair into stage so it zooms together with the content.
+  stage().add(
+    <>
+      <Line
+        ref={dividerV}
+        points={[[0, -Screen.height / 2], [0, Screen.height / 2]]}
+        stroke={GRID_STROKE}
+        lineWidth={GRID_W}
+        lineCap={'round'}
+        opacity={() => crossOn()}
+      />
+      <Line
+        ref={dividerH}
+        points={[[-Screen.width / 2, 0], [Screen.width / 2, 0]]}
+        stroke={GRID_STROKE}
+        lineWidth={GRID_W}
+        lineCap={'round'}
+        opacity={() => crossOn()}
+      />
+    </>,
+  );
 
   const quoteContainer = createRef<Node>();
 
@@ -181,13 +251,27 @@ export default makeScene2D(function* (view) {
   yield* waitFor(0.4);
 
   // Layout like `dryFiltersScene`: two blocks on the left column, one block on the right (top).
-  const gap = 120;
+  // Slightly wider columns to avoid right-edge clipping on code (while keeping the same layout).
+  const gap = 80;
   const totalWidth = SafeZone.right - SafeZone.left;
   const cardWidth = (totalWidth - gap) / 2;
   const codeX = SafeZone.left + cardWidth / 2;
   const tableX = SafeZone.right - cardWidth / 2;
 
-  const fontSize = 18;
+  // Slightly larger snippets (except the final dense mapper shown after zoom),
+  // but auto-fit to column width so code never clips.
+  const fitCodeFontSize = (start: number, min: number) => {
+    const codes = [RETRY_POLICY_CODE, STATUS_MAPPER_CODE, CHECKOUT_NEXT_STEP_CODE];
+    for (let fs = start; fs >= min; fs--) {
+      const paddingX = getCodePaddingX(fs);
+      const available = Math.max(0, cardWidth - paddingX * 2 - 10);
+      const need = Math.max(0, ...codes.map(c => maxRenderedLineWidth(c, Fonts.code, fs)));
+      if (need <= available) return fs;
+    }
+    return min;
+  };
+
+  const fontSize = fitCodeFontSize(20, 17);
   const stackGap = 60; // Same as STACK_GAP in ScreenGrid.ts
   const targetLines = 14;
   const lineHeight = getLineHeight(fontSize);
@@ -198,6 +282,8 @@ export default makeScene2D(function* (view) {
   const stackHeight = 2 * cardHeight + stackGap;
   const marginY = Math.max(0, (safeHeight - stackHeight) / 2);
   const topY = SafeZone.top + marginY + cardHeight / 2;
+  const statusDy = 50;
+  const statusY = topY + cardHeight + stackGap + statusDy;
 
   const retryCard = CodeBlock.fromCode(RETRY_POLICY_CODE, {
     x: codeX,
@@ -206,7 +292,7 @@ export default makeScene2D(function* (view) {
     height: cardHeight,
     fontSize,
     fontFamily: Fonts.code,
-    theme: DryFiltersV3CodeTheme,
+    theme: KnowledgeCodeTheme,
     customTypes: ['PaymentRetryPolicy', 'PspCode'],
     cardStyle: transparentCardStyle,
   });
@@ -214,12 +300,12 @@ export default makeScene2D(function* (view) {
 
   const statusCard = CodeBlock.fromCode(STATUS_MAPPER_CODE, {
     x: codeX,
-    y: topY + cardHeight + stackGap,
+    y: statusY,
     width: cardWidth,
     height: cardHeight,
     fontSize,
     fontFamily: Fonts.code,
-    theme: DryFiltersV3CodeTheme,
+    theme: KnowledgeCodeTheme,
     customTypes: ['PaymentStatusMapper', 'PspCode', 'PaymentStatus'],
     cardStyle: transparentCardStyle,
   });
@@ -232,7 +318,7 @@ export default makeScene2D(function* (view) {
     height: cardHeight,
     fontSize,
     fontFamily: Fonts.code,
-    theme: DryFiltersV3CodeTheme,
+    theme: KnowledgeCodeTheme,
     customTypes: ['CheckoutNextStep', 'CheckoutNextStepMapper', 'PspCode'],
     cardStyle: transparentCardStyle,
   });
@@ -251,7 +337,7 @@ export default makeScene2D(function* (view) {
     height: cardHeight,
     fontSize,
     fontFamily: Fonts.code,
-    theme: DryFiltersV3CodeTheme,
+    theme: KnowledgeCodeTheme,
     customTypes: [],
     cardStyle: transparentCardStyle,
   });
@@ -266,7 +352,7 @@ export default makeScene2D(function* (view) {
     height: cardHeight,
     fontSize: outcomeFontSize,
     fontFamily: Fonts.code,
-    theme: DryFiltersV3CodeTheme,
+    theme: KnowledgeCodeTheme,
     customTypes: ['PspOutcomeMapper', 'Outcome', 'PspCode', 'PaymentStatus', 'CheckoutNextStep'],
     cardStyle: transparentCardStyle,
   });
@@ -274,6 +360,7 @@ export default makeScene2D(function* (view) {
   outcomeFullCard.node.opacity(0);
 
   // Appear one-by-one.
+  yield* crossOn(1, Timing.slow * 0.55, easeInOutCubic);
   yield* retryCard.appear(Timing.slow);
   yield* waitFor(0.15);
   yield* statusCard.appear(Timing.slow);
@@ -344,19 +431,17 @@ export default makeScene2D(function* (view) {
 
       // Full-width strip aligned with the CASE line (smooth).
       // Use deterministic math (mirrors CodeBlock layout) to avoid missing strip due to world-pos issues.
-      caseStrip().y(codeLineWorldY(topY + cardHeight + stackGap, STATUS_MAPPER_CODE, statusIdx, fontSize, cardHeight));
+      caseStrip().y(codeLineWorldY(statusY, STATUS_MAPPER_CODE, statusIdx, fontSize, cardHeight));
       caseStrip().height(lineHeight * 1.25);
       yield* caseStrip().opacity(1, timeoutBgIn, easeInOutCubic);
 
-      const retryLineIdx = retryIdx;
-      const nextLineIdx = nextIdx;
-
       const line = statusCard.getLine(statusIdx);
       const pendingToken = line?.findToken('PENDING') ?? null;
-      const overlayRef = createRef<Txt>();
+      const declinedRef = createRef<Txt>();
+      const failedRef = createRef<Txt>();
 
       if (line && pendingToken) {
-        const overlay = new Txt({
+        const declined = new Txt({
           text: 'DECLINED;',
           fontFamily: Fonts.code,
           fontSize,
@@ -366,67 +451,39 @@ export default makeScene2D(function* (view) {
           x: pendingToken.localX - pendingToken.width / 2,
           y: 0,
         });
-        overlayRef(overlay);
-        line.node.add(overlay);
-      }
+        declinedRef(declined);
+        line.node.add(declined);
 
-      // Additional smooth value swaps on other cards (multiple values change).
-      const retryLine = retryLineIdx >= 0 ? retryCard.getLine(retryLineIdx) : null;
-      const retryTrue = retryLine?.findToken('true') ?? null;
-      const retryOverlayRef = createRef<Txt>();
-      const retryLineText = retryLineIdx >= 0 ? (RETRY_POLICY_CODE.split('\n')[retryLineIdx] ?? '') : '';
-      const retrySuffix = retryLineText.includes('true,') ? ',' : retryLineText.includes('true;') ? ';' : '';
-      if (retryLine && retryTrue) {
-        const overlay = new Txt({
-          text: `false${retrySuffix}`,
+        const failed = new Txt({
+          text: 'FAILED;',
           fontFamily: Fonts.code,
           fontSize,
           fill: Colors.accent,
           opacity: 0,
           offset: [-1, 0],
-          x: retryTrue.localX - retryTrue.width / 2,
+          x: pendingToken.localX - pendingToken.width / 2,
           y: 0,
         });
-        retryOverlayRef(overlay);
-        retryLine.node.add(overlay);
-      }
-
-      const nextLine = nextLineIdx >= 0 ? nextStepCard.getLine(nextLineIdx) : null;
-      const nextWait = nextLine?.findToken('WAIT') ?? null;
-      const nextOverlayRef = createRef<Txt>();
-      const nextLineText = nextLineIdx >= 0 ? (CHECKOUT_NEXT_STEP_CODE.split('\n')[nextLineIdx] ?? '') : '';
-      const nextSuffix = nextLineText.includes('WAIT,') ? ',' : nextLineText.includes('WAIT;') ? ';' : '';
-      if (nextLine && nextWait) {
-        const overlay = new Txt({
-          text: `FAIL${nextSuffix}`,
-          fontFamily: Fonts.code,
-          fontSize,
-          fill: Colors.accent,
-          opacity: 0,
-          offset: [-1, 0],
-          x: nextWait.localX - nextWait.width / 2,
-          y: 0,
-        });
-        nextOverlayRef(overlay);
-        nextLine.node.add(overlay);
+        failedRef(failed);
+        line.node.add(failed);
       }
 
       const swapDur = 0.6;
       yield* all(
         statusCard.setLineTokensOpacityMatching(statusIdx, ['PENDING', ';'], 0, swapDur),
-        overlayRef() ? overlayRef().opacity(1, swapDur, easeInOutCubic) : waitFor(0),
-        retryLineIdx >= 0
-          ? retryCard.setLineTokensOpacityMatching(retryLineIdx, ['true', retrySuffix].filter(Boolean), 0, swapDur)
-          : waitFor(0),
-        retryOverlayRef() ? retryOverlayRef().opacity(1, swapDur, easeInOutCubic) : waitFor(0),
-        nextLineIdx >= 0
-          ? nextStepCard.setLineTokensOpacityMatching(nextLineIdx, ['WAIT', nextSuffix].filter(Boolean), 0, swapDur)
-          : waitFor(0),
-        nextOverlayRef() ? nextOverlayRef().opacity(1, swapDur, easeInOutCubic) : waitFor(0),
+        declinedRef() ? declinedRef().opacity(1, swapDur, easeInOutCubic) : waitFor(0),
       );
 
-      // Hold so the viewer registers the TIMEOUT transformations.
-      yield* waitFor(0.7);
+      // Only this code block changes: PENDING -> DECLINED -> FAILED (under the same pink strip).
+      yield* waitFor(0.55);
+      const swap2Dur = 0.5;
+      yield* all(
+        declinedRef() ? declinedRef().opacity(0, swap2Dur, easeInOutCubic) : waitFor(0),
+        failedRef() ? failedRef().opacity(1, swap2Dur, easeInOutCubic) : waitFor(0),
+      );
+
+      // Hold so the viewer registers the TIMEOUT transformation(s).
+      yield* waitFor(0.6);
 
       // Release dimming.
       yield* all(
@@ -448,6 +505,8 @@ export default makeScene2D(function* (view) {
         stage().position([-tableX * zoomScale, -(topY + cardHeight + stackGap) * zoomScale], Timing.slow, easeInOutCubic),
       );
 
+      // Keep the crosshair visible during the zoom motion, then fade it out to focus the viewer.
+      yield* crossOn(0, 0.45, easeInOutCubic);
       yield* waitFor(0.15);
       yield* all(
         outcomeEmptyCard.node.opacity(0, 0.55, easeInOutCubic),
