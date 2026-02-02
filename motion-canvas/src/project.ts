@@ -29,14 +29,9 @@ export default makeProject({
         dryConditionsScene,
         chapter2IntroScene, // intro 2
         paymentInputsScene,
-
         splitDtoScene,
-
-
-
-
-
         dryKnowledgeScene,
+        typewriterCodeScene,
 
         // chapter1IntroSceneV2, // интро 1
         // pilotScene,
@@ -49,6 +44,5 @@ export default makeProject({
         // dryFiltersSceneV2,
         // dryConditionsSceneV3,
         // dryKnowledgeSceneV3,
-        // typewriterCodeScene
     ]
 });

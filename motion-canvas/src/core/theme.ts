@@ -4,7 +4,8 @@ export const Colors = {
         from: '#0B0C10',
         to: '#12141A',
     },
-    surface: '#1B1D24',
+    // Slightly less "navy" (warmer graphite) for dark cards/panels.
+    surface: '#1B1D21',
     text: {
         primary: '#F4F1EB',
         muted: '#9FA4B4',

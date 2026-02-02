@@ -394,4 +394,9 @@ export default makeScene2D(function* (view) {
 
     yield* waitFor(between);
   }
+
+  // Outro: smoothly fade out all components (keep background).
+  yield* waitFor(0.35);
+  yield* stage().opacity(0, Timing.slow * 1.1, easeInOutCubic);
+  yield* waitFor(0.2);
 });

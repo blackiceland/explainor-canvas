@@ -20,3 +20,4 @@ npm run daedalus:up
 
 
 C:\Users\anton\IdeaProjects\canvas\motion-canvas\output\still\project
+C:\Users\anton\IdeaProjects\canvas\motion-canvas\output\
