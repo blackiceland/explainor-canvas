@@ -21,3 +21,6 @@ npm run daedalus:up
 
 C:\Users\anton\IdeaProjects\canvas\motion-canvas\output\still\project
 C:\Users\anton\IdeaProjects\canvas\motion-canvas\output\
+
+cd C:\Users\anton\IdeaProjects\canvas\motion-canvas\output\project
+C:\ffmpeg\bin\ffmpeg.exe -framerate 60 -start_number 0 -i %06d.png -c:v libx264 -pix_fmt yuv420p -crf 18 -preset slow ..\video.mp4

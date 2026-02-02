@@ -23,26 +23,27 @@ import pilotScene from './scenes/pilotScene?scene';
 export default makeProject({
     experimentalFeatures: true,
     scenes: [
-        introMergeScene,
-        chapter1IntroScene,
-        dryFiltersScene,
-        dryConditionsScene,
-        chapter2IntroScene, // intro 2
-        paymentInputsScene,
-        splitDtoScene,
-        dryKnowledgeScene,
-        typewriterCodeScene,
+        // introMergeScene,
+        // chapter1IntroScene,
+        // dryFiltersScene,
+        // dryConditionsScene,
+        // chapter2IntroScene, // intro 2
+        // paymentInputsScene,
+        // splitDtoScene,
+        // dryKnowledgeScene,
+        // typewriterCodeScene,
 
-        // chapter1IntroSceneV2, // интро 1
-        // pilotScene,
-        // introMergeSceneV2,
-        // paymentInputsSceneV3,
-        // splitDtoSceneV3,
-        // chapter3IntroScene,
+
+        introMergeSceneV2,
+        chapter1IntroSceneV2, // интро 1
+        dryFiltersSceneV3,
+        dryConditionsSceneV3,
+        chapter3IntroScene,
+        paymentInputsSceneV3,
+        splitDtoSceneV3,
+        dryKnowledgeSceneV3,
+
         // dryFiltersSceneV2Poster,
-        // dryFiltersSceneV3,
         // dryFiltersSceneV2,
-        // dryConditionsSceneV3,
-        // dryKnowledgeSceneV3,
     ]
 });
