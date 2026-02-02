@@ -39,7 +39,8 @@ export default makeScene2D(function* (view) {
   const cardW = halfW / 2 - leftPadX * 2;
   const cardH = 220;
   const cardRadius = OpenShapes.radius.card;
-  const cardFill = S.colors.card;
+  // Keep consistent with paymentInputsScene: bgBase #D4CCBF + cardFill blended 50/50 with the original card color.
+  const cardFill = '#E5DFD4';
   const cardStroke = S.colors.border;
   const cardShadowColor = OpenShapes.shadow.color;
   const cardShadowBlur = OpenShapes.shadow.blur;
@@ -210,7 +211,7 @@ final class PaymentsController {
         x={leftRevealX}
         width={leftRevealW}
         height={halfH}
-        fill={S.colors.bg}
+        fill={'#D4CCBF'}
         opacity={1}
       />
       <Rect x={dividerX} width={1} height={halfH} fill={S.colors.border} opacity={leftReveal} />
