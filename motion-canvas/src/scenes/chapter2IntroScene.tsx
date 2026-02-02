@@ -2,7 +2,6 @@ import {makeScene2D, Node, Rect, Txt} from '@motion-canvas/2d';
 import {createRef, createSignal, easeInOutCubic, waitFor} from '@motion-canvas/core';
 import {Colors, Fonts, Screen} from '../core/theme';
 import {textWidth} from '../core/utils/textMeasure';
-import {OpenStyle} from '../core/openStyle';
 
 function mixHex(a: string, b: string, t: number) {
   const k = Math.max(0, Math.min(1, t));
@@ -25,7 +24,7 @@ function mixHex(a: string, b: string, t: number) {
 export default makeScene2D(function* (view) {
   // Underlay: match paymentInputsScene background (so the transition is seamless).
   // Then we recolor the text to the same color during swipe -> it "disappears".
-  const revealBg = OpenStyle.colors.bg;
+  const revealBg = '#D4CCBF';
   view.add(<Rect width={Screen.width} height={Screen.height} fill={revealBg} />);
 
   // Overlay: black cover that will "run away" left -> right at the end.
@@ -41,7 +40,7 @@ export default makeScene2D(function* (view) {
     />,
   );
 
-  const fill = '#F6E7D4';
+  const fill = '#D4CCBF';
   const fontWeight = 700;
   const marginX = 90;
   const marginY = 80;

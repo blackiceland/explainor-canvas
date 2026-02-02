@@ -4,7 +4,7 @@ import {CodeBlock} from '../core/code/components/CodeBlock';
 import {ExplainorCodeTheme} from '../core/code/model/SyntaxTheme';
 import {getCodePaddingX, getCodePaddingY} from '../core/code/shared/TextMeasure';
 import {SafeZone} from '../core/ScreenGrid';
-import {Colors, Fonts, Timing} from '../core/theme';
+import {Colors, Fonts, Screen, Timing} from '../core/theme';
 import {PanelStyle} from '../core/panelStyle';
 import {applyBackground} from '../core/utils';
 import {textWidth} from '../core/utils/textMeasure';
@@ -137,6 +137,20 @@ function codeCardWidth(code: string, fontFamily: string, fontSize: number, paddi
 
 export default makeScene2D(function* (view) {
   applyBackground(view);
+
+  // Outro helper: blend background into the *visible* chapter2IntroScene background.
+  // chapter2IntroScene starts with a full-screen black cover (`#0B0B0B`) on top of a light underlay,
+  // so to match the cut we fade to that near-black cover color.
+  const outroBgT = createSignal(0);
+  view.add(
+    <Rect
+      layout={false}
+      width={Screen.width}
+      height={Screen.height}
+      fill={'#0B0B0B'}
+      opacity={() => outroBgT()}
+    />,
+  );
 
   const fontSize = 16;
   const lineHeight = Math.round(fontSize * 1.7 * 10) / 10;
@@ -1167,7 +1181,11 @@ void invoices_filter_combinations() {
     linkB().opacity(0, fadeDur, easeInOutCubic),
   );
 
-  yield* waitFor(0.2);
+  // After components are gone, adapt the background to the next scene's visible cover.
+  const bgFadeDur = Math.max(0.95, Timing.slow * 0.95);
+  yield* outroBgT(1, bgFadeDur, easeInOutCubic);
+  // Give the viewer a tiny settle moment so the cut feels less abrupt.
+  yield* waitFor(0.25);
 });
 
 

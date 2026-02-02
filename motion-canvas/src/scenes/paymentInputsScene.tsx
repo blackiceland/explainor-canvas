@@ -15,6 +15,8 @@ type Point = [number, number];
 
 export default makeScene2D(function* (view) {
   const S = OpenStyle;
+  // Local palette tweak for this scene: softer warm background + cards (reduce eye strain).
+  const bgBase = '#D4CCBF';
   const inkRgba = S.colors.ink;
   const mutedRgba = S.colors.muted;
   const borderRgba = S.colors.border;
@@ -153,6 +155,8 @@ export default makeScene2D(function* (view) {
     const aa = x.a + (y.a - x.a) * k;
     return `rgba(${Math.round(r)},${Math.round(g)},${Math.round(bb)},${aa})`;
   };
+  // Cards stay warm and distinct, but should not be as bright as the original paper-white.
+  const cardFill = mixRgba(bgBase, S.colors.card, 0.5);
   const serviceFontSize = OpenText.service.fontSize;
   const serviceFontWeight = OpenText.service.fontWeight;
   const serviceLetterSpacing = OpenText.service.letterSpacing;
@@ -492,7 +496,8 @@ export default makeScene2D(function* (view) {
 
   view.add(
     <>
-      <Rect width={Screen.width} height={Screen.height} fill={() => mixRgba(S.colors.bg, '#0B0B0B', endDark())} />
+      {/* Softer warm base background (less eye-strain) while preserving the original style. */}
+      <Rect width={Screen.width} height={Screen.height} fill={() => mixRgba(bgBase, '#0B0B0B', endDark())} />
       <Rect>
         <Line
           points={[
@@ -681,7 +686,7 @@ export default makeScene2D(function* (view) {
         width={dtoBoxW}
         height={dtoBoxH}
         radius={codeBorderRadius}
-        fill={S.colors.card}
+        fill={cardFill}
         stroke={dtoBorderStroke}
         lineWidth={dtoBorderWidth}
         shadowColor={cardShadowColor}
@@ -741,7 +746,7 @@ export default makeScene2D(function* (view) {
         width={splitDtoBoxW}
         height={dtoBoxH}
         radius={codeBorderRadius}
-        fill={S.colors.card}
+        fill={cardFill}
         stroke={borderRgba}
         lineWidth={dtoBorderWidth}
         shadowColor={cardShadowColor}
@@ -838,7 +843,7 @@ export default makeScene2D(function* (view) {
         width={splitDtoBoxW}
         height={() => (1 + webhookDtoBodyKeyLinesWithRisk.length) * codeStyle.lineHeight + codeBorderPadY * 2}
         radius={codeBorderRadius}
-        fill={S.colors.card}
+        fill={cardFill}
         stroke={borderRgba}
         lineWidth={dtoBorderWidth}
         shadowColor={cardShadowColor}
@@ -935,7 +940,7 @@ export default makeScene2D(function* (view) {
         width={jsonBoxW}
         height={jsonBoxH}
         radius={codeBorderRadius}
-        fill={S.colors.card}
+        fill={cardFill}
         stroke={codeBorderStroke}
         lineWidth={codeBorderWidth}
         shadowColor={cardShadowColor}
@@ -994,7 +999,7 @@ export default makeScene2D(function* (view) {
         width={clientJsonBoxW}
         height={clientJsonBoxH}
         radius={codeBorderRadius}
-        fill={S.colors.card}
+        fill={cardFill}
         stroke={codeBorderStroke}
         lineWidth={codeBorderWidth}
         shadowColor={cardShadowColor}
@@ -1172,7 +1177,7 @@ export default makeScene2D(function* (view) {
         width={() => clientJsonAvailW + 20}
         height={() => codeStyle.lineHeight + 4}
         radius={10}
-        fill={S.colors.card}
+        fill={cardFill}
         offset={[-1, -1]}
         opacity={leakRiskOut}
       />
@@ -1184,7 +1189,7 @@ export default makeScene2D(function* (view) {
         width={() => clientJsonAvailW + 20}
         height={() => codeStyle.lineHeight + 4}
         radius={10}
-        fill={S.colors.card}
+        fill={cardFill}
         offset={[-1, -1]}
         opacity={leak0}
       />
@@ -1234,7 +1239,7 @@ export default makeScene2D(function* (view) {
         width={() => clientJsonAvailW + 20}
         height={() => codeStyle.lineHeight + 4}
         radius={10}
-        fill={S.colors.card}
+        fill={cardFill}
         offset={[-1, -1]}
         opacity={leak1}
       />
@@ -1284,7 +1289,7 @@ export default makeScene2D(function* (view) {
         width={() => clientJsonAvailW + 20}
         height={() => codeStyle.lineHeight + 4}
         radius={10}
-        fill={S.colors.card}
+        fill={cardFill}
         offset={[-1, -1]}
         opacity={leak2}
       />

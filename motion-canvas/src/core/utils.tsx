@@ -5,7 +5,8 @@ import {Colors, Screen} from './theme';
 
 // Local UI-only toggles for the editor. Kept here (not in debug.ts) to avoid
 // changing the project's existing debug system.
-const gridOn = createSignal(1);
+// UI grid: default OFF (toggle with G).
+const gridOn = createSignal(0);
 // Cell labels are noisy; default OFF (toggle with C).
 const cellLabelsOn = createSignal(0);
 let hotkeysInstalled = false;
