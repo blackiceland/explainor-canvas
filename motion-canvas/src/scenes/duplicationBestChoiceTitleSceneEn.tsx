@@ -1,4 +1,4 @@
-import {makeScene2D, Node, Rect, Txt, Video} from '@motion-canvas/2d';
+import {makeScene2D, Node, Pattern, Rect, Txt, Video} from '@motion-canvas/2d';
 import {createRef, createSignal, easeInOutCubic, waitFor} from '@motion-canvas/core';
 import {applyBackground} from '../core/utils';
 import {Colors, Fonts, Screen, Timing} from '../core/theme';
@@ -68,6 +68,47 @@ export default makeScene2D(function* (view) {
   const captionW = Math.round(videoW * 0.78);
   const videoY = 40;
 
+  // Strong film grain (applied ONLY to the video area).
+  const grainCanvas =
+    typeof document === 'undefined' ? null : (document.createElement('canvas') as HTMLCanvasElement);
+  const grainSize = 220;
+  if (grainCanvas) {
+    grainCanvas.width = grainSize;
+    grainCanvas.height = grainSize;
+  }
+  const grainCtx = grainCanvas?.getContext('2d');
+  let lastGrainTick = -1;
+
+  const mulberry32 = (seed: number) => {
+    let t = seed >>> 0;
+    return () => {
+      t += 0x6D2B79F5;
+      let x = Math.imul(t ^ (t >>> 15), 1 | t);
+      x ^= x + Math.imul(x ^ (x >>> 7), 61 | x);
+      return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+    };
+  };
+
+  const updateGrain = (timeSeconds: number) => {
+    if (!grainCtx || !grainCanvas) return;
+    // Update at ~12 fps for a "film" feel (cheap but effective).
+    const tick = Math.floor(timeSeconds * 12);
+    if (tick === lastGrainTick) return;
+    lastGrainTick = tick;
+
+    const img = grainCtx.createImageData(grainSize, grainSize);
+    const data = img.data;
+    const rnd = mulberry32(tick + 1337);
+    for (let i = 0; i < data.length; i += 4) {
+      const v = Math.floor(rnd() * 255);
+      data[i] = v;
+      data[i + 1] = v;
+      data[i + 2] = v;
+      data[i + 3] = 255;
+    }
+    grainCtx.putImageData(img, 0, 0);
+  };
+
   // Captions match the video width exactly (and auto-fit to avoid wrapping/clipping).
   const topSize = fitFontSize(
     captionTop,
@@ -135,6 +176,23 @@ export default makeScene2D(function* (view) {
           offset={[0, 0]}
           radius={0}
           scale={cropScale}
+        />
+        <Rect
+          layout={false}
+          width={videoW}
+          height={videoH}
+          x={0}
+          y={0}
+          offset={[0, 0]}
+          fill={() => {
+            updateGrain(view.globalTime());
+            // Recreate the pattern after updating the canvas.
+            // Some browsers effectively snapshot canvas patterns if the pattern object is reused.
+            return grainCanvas ? new Pattern({image: grainCanvas, repetition: 'repeat'}) : 'rgba(0,0,0,0)';
+          }}
+          opacity={0.22}
+          compositeOperation={'overlay'}
+          cache={false}
         />
       </Rect>
     </Node>,
