@@ -15,6 +15,10 @@ import dryConditionsScene from './scenes/dryConditionsScene?scene';
 import dryConditionsSceneV3 from './scenes/dryConditionsSceneV3?scene';
 import dryKnowledgeScene from './scenes/dryKnowledgeScene?scene';
 import dryKnowledgeSceneV3 from './scenes/dryKnowledgeSceneV3?scene';
+import duplicationHateIntroScene from './scenes/duplicationHateIntroScene?scene';
+import duplicationHateIntroSceneRu from './scenes/duplicationHateIntroSceneRu?scene';
+import duplicationBestChoiceTitleSceneRu from './scenes/duplicationBestChoiceTitleSceneRu?scene';
+import duplicationBestChoiceTitleSceneEn from './scenes/duplicationBestChoiceTitleSceneEn?scene';
 import splitDtoScene from './scenes/splitDtoScene?scene';
 import splitDtoSceneV3 from './scenes/splitDtoSceneV3?scene';
 import typewriterCodeScene from './scenes/typewriterCodeScene?scene';
@@ -24,7 +28,9 @@ import pilotScene from './scenes/pilotScene?scene';
 export default makeProject({
     experimentalFeatures: true,
     scenes: [
+        duplicationHateIntroScene,
         // introMergeScene,
+        duplicationBestChoiceTitleSceneEn,
         // chapter1IntroScene,
         // dryFiltersScene,
         // dryConditionsScene,
@@ -35,15 +41,18 @@ export default makeProject({
         // typewriterCodeScene,
 
 
-        introMergeSceneV2,
-        chapter1IntroSceneV2, // интро 1
-        dryFiltersSceneV3,
-        dryConditionsSceneV3,
-        chapter3IntroScene,
-        paymentInputsSceneV3,
-        splitDtoSceneV3,
-        dryKnowledgeSceneV3,
-        typewriterCodeSceneRu,
+        duplicationHateIntroSceneRu,
+        // introMergeSceneV2,
+        duplicationBestChoiceTitleSceneRu,
+
+        // chapter1IntroSceneV2, // интро 1
+        // dryFiltersSceneV3,
+        // dryConditionsSceneV3,
+        // chapter3IntroScene,
+        // paymentInputsSceneV3,
+        // splitDtoSceneV3,
+        // dryKnowledgeSceneV3,
+        // typewriterCodeSceneRu,
 
         // dryFiltersSceneV2Poster,
         // dryFiltersSceneV2,
