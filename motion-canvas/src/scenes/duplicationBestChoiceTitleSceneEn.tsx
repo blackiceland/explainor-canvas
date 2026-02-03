@@ -1,7 +1,7 @@
 import {makeScene2D, Node, Rect, Txt, Video} from '@motion-canvas/2d';
 import {createRef, createSignal, easeInOutCubic, waitFor} from '@motion-canvas/core';
 import {applyBackground} from '../core/utils';
-import {Fonts, Screen, Timing} from '../core/theme';
+import {Colors, Fonts, Screen, Timing} from '../core/theme';
 import {textWidth} from '../core/utils/textMeasure';
 
 function hexToRgba(hex: string, alpha: number): string {
@@ -47,7 +47,9 @@ export default makeScene2D(function* (view) {
 
   const clipUrl = '/kling_20251230_Image_to_Video_Cinematic__429_0.mp4';
   // Poster/editorial break: shorter first line, heavier second line.
-  const captionTop = 'When fighting duplication\nbecomes the worst decision.';
+  const captionTopLine1 = 'When fighting duplication';
+  const captionTopLine2 = 'becomes the worst decision.';
+  const captionTop = `${captionTopLine1}\n${captionTopLine2}`;
   const ink = '#F6E7D4';
 
   const container = createRef<Node>();
@@ -93,7 +95,22 @@ export default makeScene2D(function* (view) {
         fill={hexToRgba(ink, 0.86)}
         textAlign={'left'}
         offset={[-1, -1]}
-        text={captionTop}
+        text={captionTopLine1}
+      />
+      <Txt
+        zIndex={10}
+        fontFamily={Fonts.primary}
+        fontWeight={captionWeight}
+        fontSize={topSize}
+        lineHeight={topLineHeight}
+        letterSpacing={captionLetterSpacing}
+        x={videoW / 2}
+        y={topCaptionY + topLineHeight}
+        width={captionW}
+        fill={hexToRgba(Colors.accent, 0.92)}
+        textAlign={'right'}
+        offset={[1, -1]}
+        text={captionTopLine2}
       />
 
       <Rect
