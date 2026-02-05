@@ -45,6 +45,7 @@ function fitFontSize(
 export default makeScene2D(function* (view) {
   applyBackground(view);
 
+  // Public asset (served by Vite from `motion-canvas/public`).
   const clipUrl = '/kling_20251230_Image_to_Video_Cinematic__429_0.mp4';
   // Poster/editorial break: shorter first line, heavier second line.
   const captionTopLine1 = 'When fighting duplication';
@@ -53,7 +54,9 @@ export default makeScene2D(function* (view) {
   const ink = '#F6E7D4';
 
   const container = createRef<Node>();
+  const clip = createRef<Video>();
   const on = createSignal(0);
+  const ready = createSignal(false);
 
   const captionTopSize = 48;
   const captionWeight = 600;
@@ -165,10 +168,11 @@ export default makeScene2D(function* (view) {
         fill={'rgba(0,0,0,0)'}
       >
         <Video
+          ref={clip}
           src={clipUrl}
-          play
-          loop
           smoothing
+          ratio={16 / 9}
+          alpha={() => (ready() ? 1 : 0)}
           width={videoW}
           height={videoH}
           x={0}
@@ -197,6 +201,13 @@ export default makeScene2D(function* (view) {
       </Rect>
     </Node>,
   );
+
+  // Ensure the video has loaded enough metadata to have a finite duration.
+  // Without this, some mp4s may report `duration = NaN` for a while and crash the renderer.
+  yield clip().toPromise();
+  ready(true);
+  clip().loop(true);
+  clip().play();
 
   on(0);
   yield* waitFor(0.1);

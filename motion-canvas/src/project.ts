@@ -19,6 +19,8 @@ import duplicationHateIntroScene from './scenes/duplicationHateIntroScene?scene'
 import duplicationHateIntroSceneRu from './scenes/duplicationHateIntroSceneRu?scene';
 import duplicationBestChoiceTitleSceneRu from './scenes/duplicationBestChoiceTitleSceneRu?scene';
 import duplicationBestChoiceTitleSceneEn from './scenes/duplicationBestChoiceTitleSceneEn?scene';
+import doItAllComponentTitleSceneEn from './scenes/doItAllComponentTitleSceneEn?scene';
+import doItAllComponentTitleSceneRu from './scenes/doItAllComponentTitleSceneRu?scene';
 import splitDtoScene from './scenes/splitDtoScene?scene';
 import splitDtoSceneV3 from './scenes/splitDtoSceneV3?scene';
 import typewriterCodeScene from './scenes/typewriterCodeScene?scene';
@@ -31,6 +33,7 @@ export default makeProject({
         duplicationHateIntroScene,
         // introMergeScene,
         duplicationBestChoiceTitleSceneEn,
+        doItAllComponentTitleSceneEn,
         // chapter1IntroScene,
         // dryFiltersScene,
         // dryConditionsScene,
@@ -44,6 +47,7 @@ export default makeProject({
         duplicationHateIntroSceneRu,
         // introMergeSceneV2,
         duplicationBestChoiceTitleSceneRu,
+        doItAllComponentTitleSceneRu,
 
         // chapter1IntroSceneV2, // интро 1
         // dryFiltersSceneV3,
