@@ -47,10 +47,13 @@ export default makeScene2D(function* (view) {
 
   // Public asset (served by Vite from `motion-canvas/public`).
   const clipUrl = '/kling_20251230_Image_to_Video_Cinematic__429_0.mp4';
+  const chapterWord = 'Chapter ';
+  const chapterNumber = '1';
   // Poster/editorial break: shorter first line, heavier second line.
   const captionTopLine1 = 'When fighting duplication';
-  const captionTopLine2 = 'becomes the worst decision.';
-  const captionTop = `${captionTopLine1}\n${captionTopLine2}`;
+  const captionTopLine2 = 'becomes the worst decision';
+  const line1 = `${chapterWord}${chapterNumber} ${captionTopLine1}`;
+  const captionTop = `${line1}\n${captionTopLine2}`;
   const ink = '#F6E7D4';
 
   const container = createRef<Node>();
@@ -123,6 +126,11 @@ export default makeScene2D(function* (view) {
     captionLetterSpacing,
   );
   const topLineHeight = Math.round(topSize * 1.05);
+  const measureTextPx = (text: string) =>
+    textWidth(text, Fonts.primary, topSize, captionWeight) +
+    Math.max(0, text.length - 1) * Math.max(0, captionLetterSpacing);
+  const chapterWordW = measureTextPx(chapterWord);
+  const chapterNumberW = measureTextPx(chapterNumber);
 
   view.add(
     <Node ref={container} opacity={() => on()}>
@@ -139,7 +147,7 @@ export default makeScene2D(function* (view) {
         fill={hexToRgba(ink, 0.86)}
         textAlign={'left'}
         offset={[-1, -1]}
-        text={captionTopLine1}
+        text={chapterWord}
       />
       <Txt
         zIndex={10}
@@ -148,12 +156,42 @@ export default makeScene2D(function* (view) {
         fontSize={topSize}
         lineHeight={topLineHeight}
         letterSpacing={captionLetterSpacing}
-        x={videoW / 2}
-        y={topCaptionY + topLineHeight}
+        x={-videoW / 2 + chapterWordW}
+        y={topCaptionY}
         width={captionW}
         fill={hexToRgba(Colors.accent, 0.92)}
-        textAlign={'right'}
-        offset={[1, -1]}
+        textAlign={'left'}
+        offset={[-1, -1]}
+        text={chapterNumber}
+      />
+      <Txt
+        zIndex={10}
+        fontFamily={Fonts.primary}
+        fontWeight={captionWeight}
+        fontSize={topSize}
+        lineHeight={topLineHeight}
+        letterSpacing={captionLetterSpacing}
+        x={-videoW / 2 + chapterWordW + chapterNumberW}
+        y={topCaptionY}
+        width={captionW}
+        fill={hexToRgba(ink, 0.86)}
+        textAlign={'left'}
+        offset={[-1, -1]}
+        text={` ${captionTopLine1}`}
+      />
+      <Txt
+        zIndex={10}
+        fontFamily={Fonts.primary}
+        fontWeight={captionWeight}
+        fontSize={topSize}
+        lineHeight={topLineHeight}
+        letterSpacing={captionLetterSpacing}
+        x={-videoW / 2}
+        y={topCaptionY + topLineHeight}
+        width={captionW}
+        fill={hexToRgba(ink, 0.86)}
+        textAlign={'left'}
+        offset={[-1, -1]}
         text={captionTopLine2}
       />
 

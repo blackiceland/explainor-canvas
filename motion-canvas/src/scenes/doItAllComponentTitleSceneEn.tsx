@@ -45,9 +45,9 @@ export default makeScene2D(function* (view) {
 
   // Public asset (served by Vite from `motion-canvas/public`).
   const clipUrl = '/kling_20260206_Image_to_Video_slow_dolly_888_0.mp4';
-  const captionTopLine1 = 'The Do-It-All';
-  const captionTopLine2 = 'Component';
-  const captionTop = `${captionTopLine1}\n${captionTopLine2}`;
+  const chapterWord = 'Chapter ';
+  const chapterNumber = '2';
+  const captionTop = 'The Do-It-All Component';
   const ink = '#F6E7D4';
 
   const container = createRef<Node>();
@@ -63,7 +63,10 @@ export default makeScene2D(function* (view) {
   // Keep the same framing as the existing title-video scenes.
   const videoW = 1000;
   const videoH = Math.round(videoW * 9 / 16);
-  const cropScale = 1.06;
+  // Crop/zoom tuning for this specific clip.
+  const cropScale = 1.14;
+  const cropX = 0;
+  const cropY = 0;
   const captionW = Math.round(videoW * 0.78);
   const videoY = 40;
 
@@ -109,6 +112,12 @@ export default makeScene2D(function* (view) {
 
   const topSize = fitFontSize(captionTop, captionW, Fonts.primary, captionTopSize, 36, captionWeight, captionLetterSpacing);
   const topLineHeight = Math.round(topSize * 1.05);
+  // Same size for all words; only the chapter number is pink.
+  const chapterSize = topSize;
+  const chapterLineHeight = topLineHeight;
+  const chapterWordW =
+    textWidth(chapterWord, Fonts.primary, chapterSize, captionWeight) +
+    Math.max(0, chapterWord.length - 1) * Math.max(0, captionLetterSpacing);
 
   view.add(
     <Node ref={container} opacity={() => on()}>
@@ -116,16 +125,31 @@ export default makeScene2D(function* (view) {
         zIndex={10}
         fontFamily={Fonts.primary}
         fontWeight={captionWeight}
-        fontSize={topSize}
-        lineHeight={topLineHeight}
+        fontSize={chapterSize}
+        lineHeight={chapterLineHeight}
         letterSpacing={captionLetterSpacing}
         x={-videoW / 2}
         y={topCaptionY}
         width={captionW}
-        fill={hexToRgba(ink, 0.86)}
+        fill={hexToRgba(ink, 0.72)}
         textAlign={'left'}
         offset={[-1, -1]}
-        text={captionTopLine1}
+        text={chapterWord}
+      />
+      <Txt
+        zIndex={10}
+        fontFamily={Fonts.primary}
+        fontWeight={captionWeight}
+        fontSize={chapterSize}
+        lineHeight={chapterLineHeight}
+        letterSpacing={captionLetterSpacing}
+        x={-videoW / 2 + chapterWordW}
+        y={topCaptionY}
+        width={captionW}
+        fill={hexToRgba(Colors.accent, 0.92)}
+        textAlign={'left'}
+        offset={[-1, -1]}
+        text={chapterNumber}
       />
       <Txt
         zIndex={10}
@@ -134,13 +158,13 @@ export default makeScene2D(function* (view) {
         fontSize={topSize}
         lineHeight={topLineHeight}
         letterSpacing={captionLetterSpacing}
-        x={videoW / 2}
+        x={-videoW / 2}
         y={topCaptionY + topLineHeight}
         width={captionW}
-        fill={hexToRgba(Colors.accent, 0.92)}
-        textAlign={'right'}
-        offset={[1, -1]}
-        text={captionTopLine2}
+        fill={hexToRgba(ink, 0.86)}
+        textAlign={'left'}
+        offset={[-1, -1]}
+        text={captionTop}
       />
 
       <Rect
@@ -161,8 +185,8 @@ export default makeScene2D(function* (view) {
           alpha={() => (ready() ? 1 : 0)}
           width={videoW}
           height={videoH}
-          x={0}
-          y={0}
+          x={cropX}
+          y={cropY}
           offset={[0, 0]}
           radius={0}
           scale={cropScale}
