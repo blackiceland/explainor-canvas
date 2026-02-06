@@ -47,13 +47,11 @@ export default makeScene2D(function* (view) {
 
   // Public asset (served by Vite from `motion-canvas/public`).
   const clipUrl = '/kling_20251230_Image_to_Video_Cinematic__429_0.mp4';
-  const chapterWord = 'Chapter ';
+  const chapterWord = 'CHAPTER';
   const chapterNumber = '1';
-  // Poster/editorial break: shorter first line, heavier second line.
-  const captionTopLine1 = 'When fighting duplication';
-  const captionTopLine2 = 'becomes the worst decision';
-  const line1 = `${chapterWord}${chapterNumber} ${captionTopLine1}`;
-  const captionTop = `${line1}\n${captionTopLine2}`;
+  const titleLine1 = 'WHEN FIGHTING DUPLICATION';
+  const titleLine2 = 'BECOMES THE WORST DECISION';
+  const chapterTitle = `${titleLine1}\n${titleLine2}`;
   const ink = '#F6E7D4';
 
   const container = createRef<Node>();
@@ -64,8 +62,8 @@ export default makeScene2D(function* (view) {
   const captionTopSize = 48;
   const captionWeight = 600;
   const captionLetterSpacing = 0.5;
-  // Bring captions closer to the video (less empty air).
-  const topCaptionY = -Screen.height / 2 + 160;
+  // Header line baseline (above the video).
+  const headerY = -Screen.height / 2 + 210;
 
   // Centered, large video. Simple rectangle: no frame, no radius, no shadow.
   const videoW = 1000;
@@ -115,22 +113,52 @@ export default makeScene2D(function* (view) {
     grainCtx.putImageData(img, 0, 0);
   };
 
-  // Captions match the video width exactly (and auto-fit to avoid wrapping/clipping).
-  const topSize = fitFontSize(
-    captionTop,
-    captionW,
+  // Header: left big "CHAPTER 1", right smaller 2-line title (as in the reference).
+  const headerW = videoW;
+  const blocksGap = 40;
+  const leftSize = 72;
+  const leftGap = 18;
+  const titleMaxFont = 48;
+  const titleMinFont = 28;
+  const titleLineHeightFactor = 1.08;
+
+  const measureTextPx = (text: string, size: number) =>
+    textWidth(text, Fonts.primary, size, captionWeight) +
+    Math.max(0, text.length - 1) * Math.max(0, captionLetterSpacing);
+
+  const chapterWordW = measureTextPx(chapterWord, leftSize);
+  const chapterNumberW = measureTextPx(chapterNumber, leftSize);
+  const leftBlockW = chapterWordW + leftGap + chapterNumberW;
+  const titleMaxW = Math.max(1, headerW - leftBlockW - blocksGap);
+
+  const titleSize = fitFontSize(
+    chapterTitle,
+    titleMaxW,
     Fonts.primary,
-    captionTopSize,
-    36,
+    titleMaxFont,
+    titleMinFont,
     captionWeight,
     captionLetterSpacing,
   );
-  const topLineHeight = Math.round(topSize * 1.05);
-  const measureTextPx = (text: string) =>
-    textWidth(text, Fonts.primary, topSize, captionWeight) +
-    Math.max(0, text.length - 1) * Math.max(0, captionLetterSpacing);
-  const chapterWordW = measureTextPx(chapterWord);
-  const chapterNumberW = measureTextPx(chapterNumber);
+  const titleLineHeight = Math.round(titleSize * titleLineHeightFactor);
+  const titleY1 = headerY - titleLineHeight / 2;
+  const titleY2 = headerY + titleLineHeight / 2;
+
+  // "Justify" each title line by adjusting letter spacing so the line
+  // spans exactly `titleMaxW` (left edge == left edge of video, right edge == right edge of video).
+  const measureLinePx = (text: string, size: number, letterSpacing: number) =>
+    textWidth(text, Fonts.primary, size, captionWeight) +
+    Math.max(0, text.length - 1) * Math.max(0, letterSpacing);
+  const justifySpacing = (text: string) => {
+    const base = captionLetterSpacing;
+    const w = measureLinePx(text, titleSize, base);
+    const slots = Math.max(1, text.length - 1);
+    const extra = Math.max(0, (titleMaxW - w) / slots);
+    // Cap a bit so short lines don't get comically stretched.
+    return base + Math.min(extra, 8);
+  };
+  const titleLetterSpacing1 = justifySpacing(titleLine1);
+  const titleLetterSpacing2 = justifySpacing(titleLine2);
 
   view.add(
     <Node ref={container} opacity={() => on()}>
@@ -138,61 +166,61 @@ export default makeScene2D(function* (view) {
         zIndex={10}
         fontFamily={Fonts.primary}
         fontWeight={captionWeight}
-        fontSize={topSize}
-        lineHeight={topLineHeight}
+        fontSize={leftSize}
+        lineHeight={Math.round(leftSize * 0.95)}
         letterSpacing={captionLetterSpacing}
         x={-videoW / 2}
-        y={topCaptionY}
-        width={captionW}
+        y={headerY}
+        width={headerW}
         fill={hexToRgba(ink, 0.86)}
         textAlign={'left'}
-        offset={[-1, -1]}
+        offset={[-1, 0]}
         text={chapterWord}
       />
       <Txt
         zIndex={10}
         fontFamily={Fonts.primary}
         fontWeight={captionWeight}
-        fontSize={topSize}
-        lineHeight={topLineHeight}
+        fontSize={leftSize}
+        lineHeight={Math.round(leftSize * 0.95)}
         letterSpacing={captionLetterSpacing}
-        x={-videoW / 2 + chapterWordW}
-        y={topCaptionY}
-        width={captionW}
+        x={-videoW / 2 + chapterWordW + leftGap}
+        y={headerY}
+        width={headerW}
         fill={hexToRgba(Colors.accent, 0.92)}
         textAlign={'left'}
-        offset={[-1, -1]}
+        offset={[-1, 0]}
         text={chapterNumber}
       />
       <Txt
         zIndex={10}
         fontFamily={Fonts.primary}
         fontWeight={captionWeight}
-        fontSize={topSize}
-        lineHeight={topLineHeight}
-        letterSpacing={captionLetterSpacing}
-        x={-videoW / 2 + chapterWordW + chapterNumberW}
-        y={topCaptionY}
-        width={captionW}
+        fontSize={titleSize}
+        lineHeight={titleLineHeight}
+        letterSpacing={titleLetterSpacing1}
+        x={-videoW / 2 + leftBlockW + blocksGap}
+        y={titleY1}
+        width={titleMaxW}
         fill={hexToRgba(ink, 0.86)}
         textAlign={'left'}
-        offset={[-1, -1]}
-        text={` ${captionTopLine1}`}
+        offset={[-1, 0]}
+        text={titleLine1}
       />
       <Txt
         zIndex={10}
         fontFamily={Fonts.primary}
         fontWeight={captionWeight}
-        fontSize={topSize}
-        lineHeight={topLineHeight}
-        letterSpacing={captionLetterSpacing}
-        x={-videoW / 2}
-        y={topCaptionY + topLineHeight}
-        width={captionW}
+        fontSize={titleSize}
+        lineHeight={titleLineHeight}
+        letterSpacing={titleLetterSpacing2}
+        x={-videoW / 2 + leftBlockW + blocksGap}
+        y={titleY2}
+        width={titleMaxW}
         fill={hexToRgba(ink, 0.86)}
         textAlign={'left'}
-        offset={[-1, -1]}
-        text={captionTopLine2}
+        offset={[-1, 0]}
+        text={titleLine2}
       />
 
       <Rect
