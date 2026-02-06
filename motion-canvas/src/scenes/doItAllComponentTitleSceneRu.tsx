@@ -47,9 +47,7 @@ export default makeScene2D(function* (view) {
   const clipUrl = '/kling_20260206_Image_to_Video_slow_dolly_888_0.mp4';
   const chapterWord = 'ГЛАВА';
   const chapterNumber = '2';
-  const titleLine1 = 'КОМПОНЕНТ, КОТОРЫЙ';
-  const titleLine2 = 'ДЕЛАЕТ ВСЁ';
-  const chapterTitle = `${titleLine1}\n${titleLine2}`;
+  const chapterTitle = 'КОМПОНЕНТ, КОТОРЫЙ ДЕЛАЕТ ВСЁ';
   const ink = '#F6E7D4';
 
   const container = createRef<Node>();
@@ -61,7 +59,7 @@ export default makeScene2D(function* (view) {
   const captionWeight = 600;
   const captionLetterSpacing = 0.5;
   // Header line baseline (above the video).
-  const headerY = -Screen.height / 2 + 210;
+  const headerY = -Screen.height / 2 + 225;
 
   // Keep the same framing as the existing title-video scenes.
   const videoW = 1000;
@@ -113,55 +111,47 @@ export default makeScene2D(function* (view) {
     grainCtx.putImageData(img, 0, 0);
   };
 
-  // Header: left big "ГЛАВА 2", right smaller 2-line title (as in the reference).
+  // Header: one line — "ГЛАВА 2 КОМПОНЕНТ, КОТОРЫЙ ДЕЛАЕТ ВСЁ",
+  // constrained strictly to the video frame width (left & right edges).
   const headerW = videoW;
-  const blocksGap = 40;
-  const leftSize = 72;
+  const headerMaxSize = 72;
+  const headerMinSize = 42;
   const leftGap = 18;
-  const titleMaxFont = 48;
-  const titleMinFont = 28;
-  const titleLineHeightFactor = 1.08;
+  const blocksGap = 28;
 
   const measureTextPx = (text: string, size: number) =>
     textWidth(text, Fonts.primary, size, captionWeight) +
     Math.max(0, text.length - 1) * Math.max(0, captionLetterSpacing);
 
-  const chapterWordW = measureTextPx(chapterWord, leftSize);
-  const chapterNumberW = measureTextPx(chapterNumber, leftSize);
+  const fitHeaderFontSize = (maxWidthPx: number) => {
+    const maxW = Math.max(1, maxWidthPx);
+    let lo = Math.max(1, Math.floor(headerMinSize));
+    let hi = Math.max(lo, Math.floor(headerMaxSize));
+
+    const totalWidth = (size: number) =>
+      measureTextPx(chapterWord, size) +
+      leftGap +
+      measureTextPx(chapterNumber, size) +
+      blocksGap +
+      measureTextPx(chapterTitle, size);
+
+    while (lo < hi) {
+      const mid = Math.ceil((lo + hi) / 2);
+      if (totalWidth(mid) <= maxW) lo = mid;
+      else hi = mid - 1;
+    }
+
+    return lo;
+  };
+
+  const headerSize = fitHeaderFontSize(headerW);
+  const headerLineHeight = Math.round(headerSize * 0.95);
+
+  const chapterWordW = measureTextPx(chapterWord, headerSize);
+  const chapterNumberW = measureTextPx(chapterNumber, headerSize);
   const leftBlockW = chapterWordW + leftGap + chapterNumberW;
-  const titleMaxW = Math.max(1, headerW - leftBlockW - blocksGap);
-
-  const titleSize = fitFontSize(
-    chapterTitle,
-    titleMaxW,
-    Fonts.primary,
-    titleMaxFont,
-    titleMinFont,
-    captionWeight,
-    captionLetterSpacing,
-  );
-  const titleLineHeight = Math.round(titleSize * titleLineHeightFactor);
-  const titleY1 = headerY - titleLineHeight / 2;
-  const titleY2 = headerY + titleLineHeight / 2;
-
-  // Keep both lines ending on the same right edge, but avoid huge tracking:
-  // pick a container width that both lines can reach with <= `cap` extra letter spacing.
-  const cap = 3;
-  const base = captionLetterSpacing;
-  const baseW1 =
-    textWidth(titleLine1, Fonts.primary, titleSize, captionWeight) +
-    Math.max(0, titleLine1.length - 1) * base;
-  const baseW2 =
-    textWidth(titleLine2, Fonts.primary, titleSize, captionWeight) +
-    Math.max(0, titleLine2.length - 1) * base;
-  const slots1 = Math.max(1, titleLine1.length - 1);
-  const slots2 = Math.max(1, titleLine2.length - 1);
-  const maxReach1 = baseW1 + cap * slots1;
-  const maxReach2 = baseW2 + cap * slots2;
-  const titleW = Math.max(1, Math.min(titleMaxW, maxReach1, maxReach2));
-
-  const titleLetterSpacing1 = base + Math.max(0, (titleW - baseW1) / slots1);
-  const titleLetterSpacing2 = base + Math.max(0, (titleW - baseW2) / slots2);
+  const titleX = -headerW / 2 + leftBlockW + blocksGap;
+  const titleW = Math.max(1, headerW - leftBlockW - blocksGap);
 
   view.add(
     <Node ref={container} opacity={() => on()}>
@@ -169,8 +159,8 @@ export default makeScene2D(function* (view) {
         zIndex={10}
         fontFamily={Fonts.primary}
         fontWeight={captionWeight}
-        fontSize={leftSize}
-        lineHeight={Math.round(leftSize * 0.95)}
+        fontSize={headerSize}
+        lineHeight={headerLineHeight}
         letterSpacing={captionLetterSpacing}
         x={-videoW / 2}
         y={headerY}
@@ -184,8 +174,8 @@ export default makeScene2D(function* (view) {
         zIndex={10}
         fontFamily={Fonts.primary}
         fontWeight={captionWeight}
-        fontSize={leftSize}
-        lineHeight={Math.round(leftSize * 0.95)}
+        fontSize={headerSize}
+        lineHeight={headerLineHeight}
         letterSpacing={captionLetterSpacing}
         x={-videoW / 2 + chapterWordW + leftGap}
         y={headerY}
@@ -199,31 +189,16 @@ export default makeScene2D(function* (view) {
         zIndex={10}
         fontFamily={Fonts.primary}
         fontWeight={captionWeight}
-        fontSize={titleSize}
-        lineHeight={titleLineHeight}
-        letterSpacing={titleLetterSpacing1}
-        x={-videoW / 2 + leftBlockW + blocksGap}
-        y={titleY1}
+        fontSize={headerSize}
+        lineHeight={headerLineHeight}
+        letterSpacing={captionLetterSpacing}
+        x={titleX}
+        y={headerY}
         width={titleW}
         fill={hexToRgba(ink, 0.86)}
         textAlign={'left'}
         offset={[-1, 0]}
-        text={titleLine1}
-      />
-      <Txt
-        zIndex={10}
-        fontFamily={Fonts.primary}
-        fontWeight={captionWeight}
-        fontSize={titleSize}
-        lineHeight={titleLineHeight}
-        letterSpacing={titleLetterSpacing2}
-        x={-videoW / 2 + leftBlockW + blocksGap}
-        y={titleY2}
-        width={titleW}
-        fill={hexToRgba(ink, 0.86)}
-        textAlign={'left'}
-        offset={[-1, 0]}
-        text={titleLine2}
+        text={chapterTitle}
       />
 
       <Rect
