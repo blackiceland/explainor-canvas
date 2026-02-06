@@ -154,8 +154,9 @@ export default makeScene2D(function* (view) {
     const w = measureLinePx(text, titleSize, base);
     const slots = Math.max(1, text.length - 1);
     const extra = Math.max(0, (titleMaxW - w) / slots);
-    // Cap a bit so short lines don't get comically stretched.
-    return base + Math.min(extra, 8);
+    // Prevent ugly "tracked-out" look on short lines (e.g. a single word).
+    const cap = text.length < 14 ? 2.2 : 8;
+    return base + Math.min(extra, cap);
   };
   const titleLetterSpacing1 = justifySpacing(titleLine1);
   const titleLetterSpacing2 = justifySpacing(titleLine2);

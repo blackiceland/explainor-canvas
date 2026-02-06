@@ -144,20 +144,24 @@ export default makeScene2D(function* (view) {
   const titleY1 = headerY - titleLineHeight / 2;
   const titleY2 = headerY + titleLineHeight / 2;
 
-  // "Justify" each title line by adjusting letter spacing so the line
-  // spans exactly `titleMaxW` (right edge matches the video edge).
-  const measureLinePx = (text: string, size: number, letterSpacing: number) =>
-    textWidth(text, Fonts.primary, size, captionWeight) +
-    Math.max(0, text.length - 1) * Math.max(0, letterSpacing);
-  const justifySpacing = (text: string) => {
-    const base = captionLetterSpacing;
-    const w = measureLinePx(text, titleSize, base);
-    const slots = Math.max(1, text.length - 1);
-    const extra = Math.max(0, (titleMaxW - w) / slots);
-    return base + Math.min(extra, 8);
-  };
-  const titleLetterSpacing1 = justifySpacing(titleLine1);
-  const titleLetterSpacing2 = justifySpacing(titleLine2);
+  // Keep both lines ending on the same right edge, but avoid huge tracking:
+  // pick a container width that both lines can reach with <= `cap` extra letter spacing.
+  const cap = 3;
+  const base = captionLetterSpacing;
+  const baseW1 =
+    textWidth(titleLine1, Fonts.primary, titleSize, captionWeight) +
+    Math.max(0, titleLine1.length - 1) * base;
+  const baseW2 =
+    textWidth(titleLine2, Fonts.primary, titleSize, captionWeight) +
+    Math.max(0, titleLine2.length - 1) * base;
+  const slots1 = Math.max(1, titleLine1.length - 1);
+  const slots2 = Math.max(1, titleLine2.length - 1);
+  const maxReach1 = baseW1 + cap * slots1;
+  const maxReach2 = baseW2 + cap * slots2;
+  const titleW = Math.max(1, Math.min(titleMaxW, maxReach1, maxReach2));
+
+  const titleLetterSpacing1 = base + Math.max(0, (titleW - baseW1) / slots1);
+  const titleLetterSpacing2 = base + Math.max(0, (titleW - baseW2) / slots2);
 
   view.add(
     <Node ref={container} opacity={() => on()}>
@@ -200,7 +204,7 @@ export default makeScene2D(function* (view) {
         letterSpacing={titleLetterSpacing1}
         x={-videoW / 2 + leftBlockW + blocksGap}
         y={titleY1}
-        width={titleMaxW}
+        width={titleW}
         fill={hexToRgba(ink, 0.86)}
         textAlign={'left'}
         offset={[-1, 0]}
@@ -215,7 +219,7 @@ export default makeScene2D(function* (view) {
         letterSpacing={titleLetterSpacing2}
         x={-videoW / 2 + leftBlockW + blocksGap}
         y={titleY2}
-        width={titleMaxW}
+        width={titleW}
         fill={hexToRgba(ink, 0.86)}
         textAlign={'left'}
         offset={[-1, 0]}
