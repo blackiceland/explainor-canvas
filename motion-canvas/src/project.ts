@@ -30,10 +30,10 @@ import pilotScene from './scenes/pilotScene?scene';
 export default makeProject({
     experimentalFeatures: true,
     scenes: [
-        duplicationHateIntroScene,
+        // duplicationHateIntroScene,
         // introMergeScene,
-        duplicationBestChoiceTitleSceneEn,
-        doItAllComponentTitleSceneEn,
+        // duplicationBestChoiceTitleSceneEn,
+        // doItAllComponentTitleSceneEn,
         // chapter1IntroScene,
         // dryFiltersScene,
         // dryConditionsScene,
@@ -44,17 +44,17 @@ export default makeProject({
         // typewriterCodeScene,
 
 
-        duplicationHateIntroSceneRu,
+        // duplicationHateIntroSceneRu,
         // introMergeSceneV2,
-        duplicationBestChoiceTitleSceneRu,
-        doItAllComponentTitleSceneRu,
+        // duplicationBestChoiceTitleSceneRu,
+        // doItAllComponentTitleSceneRu,
 
         // chapter1IntroSceneV2, // интро 1
-        // dryFiltersSceneV3,
-        // dryConditionsSceneV3,
+        //  dryFiltersSceneV3,
+        dryConditionsSceneV3,
         // chapter3IntroScene,
         // paymentInputsSceneV3,
-        // splitDtoSceneV3,
+         splitDtoSceneV3,
         // dryKnowledgeSceneV3,
         // typewriterCodeSceneRu,
 

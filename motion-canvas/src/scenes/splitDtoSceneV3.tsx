@@ -18,7 +18,8 @@ export default makeScene2D(function* (view) {
   const darkK = () => Math.min(1, Math.max(0, darkReveal()));
   // During the final "curtain" transition we morph the dark panel into the next scene background
   // (dryKnowledgeSceneV3 uses applyBackground, i.e. gradient + spotlight).
-  const outroBgMorph = createSignal(0);
+  // In this scene we keep that background on for the whole dark-half (to match dryConditionsSceneV3).
+  const outroBgMorph = createSignal(1);
   const codeCardOn = createSignal(0);
   const serviceCodeOn = createSignal(0);
   const controllerCodeOn = createSignal(0);
@@ -49,11 +50,12 @@ export default makeScene2D(function* (view) {
   const cardW = halfW / 2 - leftPadX * 2;
   const cardH = 220;
   const cardRadius = OpenShapes.radius.card;
-  // V3: Cards styled like paymentInputsSceneV3 (beige, thin stroke, minimal shadow).
-  const cardFill = 'rgba(231, 220, 201, 0.06)';
-  const cardStroke = 'rgba(231, 220, 201, 0.18)';
-  const cardShadowColor = 'rgba(252,251,248,0.10)';
-  const cardShadowBlur = 4;
+  // V3: Dark-half cards — adapt to the new dark background (match dryConditionsSceneV3 mood).
+  // Slightly translucent "surface" with a warm quiet outline/glow.
+  const cardFill = 'rgba(27, 29, 33, 0.82)';          // ~Colors.surface with alpha
+  const cardStroke = 'rgba(252, 251, 248, 0.16)';     // quiet warm near-white
+  const cardShadowColor = 'rgba(246, 231, 212, 0.08)'; // subtle warm lift
+  const cardShadowBlur = 10;
   const cardShadowOffset: [number, number] = [0, 0];
 
   // V3: Code directly on light background — no card.
@@ -73,6 +75,8 @@ export default makeScene2D(function* (view) {
   const labelFill = Colors.text.primary;
   // Separator lines: webhookDto hue, but softer (less aggressive).
   const sepStroke = 'rgba(201, 154, 58, 0.42)';
+  // Cinnamon layer subtitles should read better on the dark cards.
+  const layerSubtitleFill = 'rgba(231, 196, 120, 0.78)';
   const annotationYellow = '#8B5A00';  // Darker gold for light bg
   const highlightBlue = '#5A9CFF';     // Strong blue accent (only blue for card frames)
   const outlineW = 2.5;
@@ -239,7 +243,7 @@ final class PaymentsController {
         height={halfH}
         fill={darkBg}
       />
-      {/* Morph dark panel into project background (gradient + spotlight), matching dryKnowledgeSceneV3 */}
+      {/* Dark background (gradient + spotlight) — matches dryConditionsSceneV3 */}
       <Rect
         x={darkRevealX}
         width={darkRevealW}
@@ -415,7 +419,7 @@ final class PaymentsController {
           fontSize={36}
           fontWeight={OpenText.service.fontWeight}
           letterSpacing={OpenText.service.letterSpacing}
-          fill={sepStroke}
+          fill={layerSubtitleFill}
           textAlign={'center'}
           lineHeight={42}
         />
@@ -458,7 +462,7 @@ final class PaymentsController {
           fontSize={36}
           fontWeight={OpenText.service.fontWeight}
           letterSpacing={OpenText.service.letterSpacing}
-          fill={sepStroke}
+          fill={layerSubtitleFill}
           textAlign={'center'}
           lineHeight={42}
         />
@@ -501,7 +505,7 @@ final class PaymentsController {
           fontSize={36}
           fontWeight={OpenText.service.fontWeight}
           letterSpacing={OpenText.service.letterSpacing}
-          fill={sepStroke}
+          fill={layerSubtitleFill}
           textAlign={'center'}
           lineHeight={42}
         />
