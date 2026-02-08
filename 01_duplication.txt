@@ -1,3 +1,17 @@
 The payments table stores the status, amount, and creation date. To query this table, PaymentRepository is used—it takes a filter and returns the records that match it.
 The orders table is structured the same way: status, amount, and creation date. It has its own OrderRepository, which also takes a filter and returns the matching records.
-In both repositories, the filter works the same way: it arrives as an object, a condition is built from it via fromFilter,
+In both repositories, the filter works the same way: it arrives as an object, a condition is built from it via fromFilter.
+
+OrderConditions and PaymentConditions both have a fromFilter method that builds a Condition from the filter.
+The structure is identical: add a date condition, check if status is set and add a status condition, return the result.
+Most of the lines are exactly the same. The only differences are the table name — ORDERS versus PAYMENTS — and the filter type.
+When two classes differ by just a few tokens, it's natural to try to merge them into one.
+
+But instead of a clean abstraction, we ran into a different problem: everything turned into a giant if-block.
+Every new filter parameter adds another branch. The “common solution” becomes a dumping ground of conditions—the same checks, just centralized.
+
+Add invoices (and any future domain) and this “common” builder just keeps growing: more branches, more domain-specific checks, and a bigger if wall to maintain.
+
+Sure, splitting the conditions into three separate classes adds more lines of code. But it buys you isolation. Each area owns its own filtering rules, so changes don’t ripple through unrelated parts of the system. The code becomes easier to reason about, easier to extend, and much easier to test — you can validate each set of conditions independently, without dragging the other two along.
+
+
