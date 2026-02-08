@@ -47,7 +47,7 @@ export default makeScene2D(function* (view) {
 
   const clipUrl = '/kling_20251230_Image_to_Video_Cinematic__429_0.mp4';
   // Poster/editorial break: shorter first line, heavier second line.
-  const captionTop = 'When fighting duplication\nbecomes the worst decision.';
+  const captionTop = 'When fighting duplication\nbecomes the worst solution.';
   const ink = '#F6E7D4';
 
   const container = createRef<Node>();
