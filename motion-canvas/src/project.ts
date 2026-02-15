@@ -22,6 +22,8 @@ import duplicationBestChoiceTitleSceneEn from './scenes/duplicationBestChoiceTit
 import doItAllComponentTitleSceneEn from './scenes/doItAllComponentTitleSceneEn?scene';
 import doItAllComponentTitleSceneRu from './scenes/doItAllComponentTitleSceneRu?scene';
 import trainCodeOverlaySceneRu from './scenes/trainCodeOverlaySceneRu?scene';
+import oneCargoSceneRu from './scenes/oneCargoSceneRu?scene';
+import passThroughMonolithScrollSceneRu from './scenes/passThroughMonolithScrollSceneRu?scene';
 import splitDtoScene from './scenes/splitDtoScene?scene';
 import splitDtoSceneV3 from './scenes/splitDtoSceneV3?scene';
 import typewriterCodeScene from './scenes/typewriterCodeScene?scene';
@@ -48,7 +50,7 @@ export default makeProject({
         // duplicationHateIntroSceneRu,
         // introMergeSceneV2,
         // duplicationBestChoiceTitleSceneRu,
-         doItAllComponentTitleSceneRu,
+        //  doItAllComponentTitleSceneRu,
         // trainCodeOverlaySceneRu,
 
         // chapter1IntroSceneV2, // интро 1
@@ -64,6 +66,8 @@ export default makeProject({
         // dryFiltersSceneV2,
 
 
-        trainCodeOverlaySceneRu
+        // trainCodeOverlaySceneRu,
+        // oneCargoSceneRu,
+        passThroughMonolithScrollSceneRu
     ]
 });
