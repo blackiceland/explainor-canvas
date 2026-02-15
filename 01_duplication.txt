@@ -1,0 +1,3 @@
+The payments table stores the status, amount, and creation date. To query this table, PaymentRepository is used—it takes a filter and returns the records that match it.
+The orders table is structured the same way: status, amount, and creation date. It has its own OrderRepository, which also takes a filter and returns the matching records.
+In both repositories, the filter works the same way: it arrives as an object, a condition is built from it via fromFilter,
