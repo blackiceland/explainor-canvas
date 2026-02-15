@@ -1,0 +1,74 @@
+import java.math.BigDecimal;
+import java.util.UUID;
+
+record PaymentRequest(
+    long sourceAccountId,
+    long destinationAccountId,
+    BigDecimal amount,
+    String currency
+) {}
+
+record PreparedPayment(
+    UUID preparedPaymentId,
+    long sourceAccountId,
+    long destinationAccountId,
+    BigDecimal amount,
+    String currency
+) {}
+
+class PaymentOrchestrator {
+
+  String processPayment(PaymentRequest request) {
+    validateRequest(request);                 // легитимная orchestration-логика
+    return prepareAndExecute(request);
+  }
+
+  // пока нормальный helper, без мусора
+  private String prepareAndExecute(PaymentRequest request) {
+    UUID preparedPaymentId = preparePayment(request);
+    return executePayment(preparedPaymentId);
+  }
+
+  private UUID preparePayment(PaymentRequest request) {
+    validateLimits(request.sourceAccountId(), request.amount(), request.currency());
+    checkFraud(request.sourceAccountId(), request.destinationAccountId(), request.amount());
+
+    PreparedPayment prepared = new PreparedPayment(
+        UUID.randomUUID(),
+        request.sourceAccountId(),
+        request.destinationAccountId(),
+        request.amount(),
+        request.currency()
+    );
+
+    savePrepared(prepared);
+    return prepared.preparedPaymentId();
+  }
+
+  private String executePayment(UUID preparedPaymentId) {
+    PreparedPayment prepared = loadPrepared(preparedPaymentId);
+    return charge(
+        prepared.sourceAccountId(),
+        prepared.destinationAccountId(),
+        prepared.amount(),
+        prepared.currency()
+    );
+  }
+
+  private void validateRequest(PaymentRequest request) {
+    if (request == null) throw new IllegalArgumentException("request is null");
+    if (request.amount() == null || request.amount().signum() <= 0) {
+      throw new IllegalArgumentException("amount must be positive");
+    }
+    if (request.sourceAccountId() == request.destinationAccountId()) {
+      throw new IllegalArgumentException("source and destination must differ");
+    }
+  }
+
+  // infra stubs
+  private void validateLimits(long accountId, BigDecimal amount, String currency) {}
+  private void checkFraud(long fromId, long toId, BigDecimal amount) {}
+  private void savePrepared(PreparedPayment prepared) {}
+  private PreparedPayment loadPrepared(UUID preparedPaymentId) { throw new UnsupportedOperationException("stub"); }
+  private String charge(long fromId, long toId, BigDecimal amount, String currency) { return "PAYMENT_OK"; }
+}

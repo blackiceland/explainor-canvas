@@ -21,6 +21,7 @@ import duplicationBestChoiceTitleSceneRu from './scenes/duplicationBestChoiceTit
 import duplicationBestChoiceTitleSceneEn from './scenes/duplicationBestChoiceTitleSceneEn?scene';
 import doItAllComponentTitleSceneEn from './scenes/doItAllComponentTitleSceneEn?scene';
 import doItAllComponentTitleSceneRu from './scenes/doItAllComponentTitleSceneRu?scene';
+import trainCodeOverlaySceneRu from './scenes/trainCodeOverlaySceneRu?scene';
 import splitDtoScene from './scenes/splitDtoScene?scene';
 import splitDtoSceneV3 from './scenes/splitDtoSceneV3?scene';
 import typewriterCodeScene from './scenes/typewriterCodeScene?scene';
@@ -47,18 +48,22 @@ export default makeProject({
         // duplicationHateIntroSceneRu,
         // introMergeSceneV2,
         // duplicationBestChoiceTitleSceneRu,
-        // doItAllComponentTitleSceneRu,
+         doItAllComponentTitleSceneRu,
+        // trainCodeOverlaySceneRu,
 
         // chapter1IntroSceneV2, // интро 1
         //  dryFiltersSceneV3,
-        dryConditionsSceneV3,
+        // dryConditionsSceneV3,
         // chapter3IntroScene,
         // paymentInputsSceneV3,
-         splitDtoSceneV3,
+        //  splitDtoSceneV3,
         // dryKnowledgeSceneV3,
         // typewriterCodeSceneRu,
 
         // dryFiltersSceneV2Poster,
         // dryFiltersSceneV2,
+
+
+        trainCodeOverlaySceneRu
     ]
 });
