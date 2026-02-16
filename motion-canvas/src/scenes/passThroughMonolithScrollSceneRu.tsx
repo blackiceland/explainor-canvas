@@ -1,10 +1,10 @@
 import {makeScene2D} from '@motion-canvas/2d';
-import {all, easeInOutCubic, waitFor} from '@motion-canvas/core';
+import {waitFor} from '@motion-canvas/core';
 import {CodeBlock} from '../core/code/components/CodeBlock';
 import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
 import {getCodePaddingY} from '../core/code/shared/TextMeasure';
 import {SafeZone} from '../core/ScreenGrid';
-import {Fonts, Timing} from '../core/theme';
+import {Colors, Fonts, Timing} from '../core/theme';
 import {applyBackground} from '../core/utils';
 
 const CODE_CARD_STYLE = {
@@ -19,97 +19,33 @@ const CODE_CARD_STYLE = {
   edge: false,
 } as const;
 
-const TRACE_PINK = '#FF8CA3';
-const TRACE_PINK_SOFT = 'rgba(255, 140, 163, 0.72)';
-
-const MONOLITH_CODE = `final class PipelineFlow {
-
-  Result run(Task task, String traceId) {
-    check(task);
-    return stageA(task, traceId);
+const MONOLITH_CODE = `ExportResult export(VideoClip clip, String outputFormat) {
+    validateClip(clip);
+    return prepareAndEncode(clip, outputFormat);
   }
 
-  private Result stageA(Task task, String traceId) {
-    Header header = buildHeader(task, traceId);
-    return stageB(task, header, traceId);
+  private ExportResult prepareAndEncode(VideoClip clip, String outputFormat) {
+    FrameBatch frames = new FrameBatch(clip.frames());
+    return encodeWithRetry(frames, outputFormat);
   }
 
-  private Header buildHeader(Task task, String traceId) {
-    String id = normalize(task.id());
-    return new Header(id, traceId);
+  private ExportResult encodeWithRetry(FrameBatch frames, String outputFormat) {
+    return retryPolicy.execute(() -> encode(frames, outputFormat));
   }
 
-  private Result stageB(Task task, Header header, String traceId) {
-    Meta meta = enrich(header, traceId);
-    return stageC(task, meta, traceId);
+  private ExportResult encode(FrameBatch frames, String outputFormat) {
+    EncodedPayload payload = encoderGateway.encode(frames);
+    return finalizeExport(payload, outputFormat);
   }
 
-  private Meta enrich(Header header, String traceId) {
-    Meta meta = new Meta(header.id(), header.trace());
-    meta.attach("trace", traceId);
-    return meta;
-  }
+  private ExportResult finalizeExport(EncodedPayload payload, String outputFormat) {
+    if (!"mp4".equals(outputFormat) && !"webm".equals(outputFormat)) {
+      throw new IllegalArgumentException("Unsupported format: " + outputFormat);
+    }
 
-  private Result stageC(Task task, Meta meta, String traceId) {
-    Payload payload = compose(task, meta, traceId);
-    return stageD(payload, traceId);
+    byte[] fileBytes = wrapContainer(payload.getBytes(), outputFormat);
+    return new ExportResult(fileBytes);
   }
-
-  private Payload compose(Task task, Meta meta, String traceId) {
-    Payload payload = new Payload(task.name(), meta);
-    payload.setTag(traceId);
-    return payload;
-  }
-
-  private Result stageD(Payload payload, String traceId) {
-    Packet packet = serialize(payload, traceId);
-    return stageE(packet, traceId);
-  }
-
-  private Packet serialize(Payload payload, String traceId) {
-    byte[] raw = payload.bytes();
-    return new Packet(raw, traceId);
-  }
-
-  private Result stageE(Packet packet, String traceId) {
-    GatewayRequest req = toGateway(packet, traceId);
-    return stageF(req, traceId);
-  }
-
-  private GatewayRequest toGateway(Packet packet, String traceId) {
-    GatewayRequest req = new GatewayRequest(packet.body());
-    req.setTrace(traceId);
-    return req;
-  }
-
-  private Result stageF(GatewayRequest req, String traceId) {
-    GatewayResponse rsp = dispatch(req, traceId);
-    return stageG(rsp, traceId);
-  }
-
-  private GatewayResponse dispatch(GatewayRequest req, String traceId) {
-    return gateway.send(req, traceId);
-  }
-
-  private Result stageG(GatewayResponse rsp, String traceId) {
-    Stored stored = persist(rsp, traceId);
-    return finish(stored, traceId);
-  }
-
-  private Stored persist(GatewayResponse rsp, String traceId) {
-    Stored stored = store(rsp.id(), rsp.code());
-    // first real ownership: traceId is finally consumed here
-    audit.log(traceId);
-    return stored;
-  }
-
-  private Result finish(Stored stored, String traceId) {
-    return new Result(stored.id());
-  }
-
-  private void check(Task task) {}
-  private String normalize(String value) { return value; }
-  private Stored store(String id, int code) { return new Stored(id); }
 }`;
 
 export default makeScene2D(function* (view) {
@@ -136,60 +72,55 @@ export default makeScene2D(function* (view) {
     cardStyle: CODE_CARD_STYLE,
     glowAccent: false,
     customTypes: [
-      'PipelineFlow',
-      'Result',
-      'Task',
-      'Header',
-      'Meta',
-      'Payload',
-      'Packet',
-      'GatewayRequest',
-      'GatewayResponse',
-      'Stored',
+      'VideoClip',
+      'ExportResult',
+      'FrameBatch',
+      'EncodedPayload',
+      'RetryPolicy',
+      'EncoderGateway',
+      'Operation',
     ],
   });
 
   monolith.mount(view);
-  yield* monolith.appear(Timing.normal);
 
   const lines = MONOLITH_CODE.split('\n');
-  const traceLines: number[] = [];
+  const callSiteRules: Array<{contains: string; methods: string[]}> = [
+    {contains: 'validateClip(clip);', methods: ['validateClip']},
+    {contains: 'return prepareAndEncode(clip, outputFormat);', methods: ['prepareAndEncode']},
+    {contains: 'return encodeWithRetry(frames, outputFormat);', methods: ['encodeWithRetry']},
+    {contains: 'return retryPolicy.execute(() -> encode(frames, outputFormat));', methods: ['execute', 'encode']},
+    {contains: 'EncodedPayload payload = encoderGateway.encode(frames);', methods: ['encode']},
+    {contains: 'return finalizeExport(payload, outputFormat);', methods: ['finalizeExport']},
+    {contains: 'byte[] fileBytes = wrapContainer(payload.getBytes(), outputFormat);', methods: ['getBytes']},
+  ];
   for (let i = 0; i < lines.length; i++) {
-    if (lines[i].includes('traceId')) traceLines.push(i);
-  }
-  const useLine = lines.findIndex(line => line.includes('audit.log(traceId)'));
-
-  for (const idx of traceLines.slice(0, 2)) {
-    yield* monolith.recolorTokens(idx, ['traceId'], TRACE_PINK, 0.35);
-  }
-
-  const clipHeight = blockHeight - paddingY * 2;
-  const targetLastY = clipHeight / 2 - lineHeight / 2 - 12;
-  const currentLastY = -((lines.length - 1) / 2) * lineHeight + (lines.length - 1) * lineHeight;
-  const scrollAmount = Math.max(0, currentLastY - targetLastY);
-
-  function* traceFlow() {
-    const items = traceLines.filter(i => i >= 2);
-    const step = Math.max(0.08, 10 / Math.max(1, items.length));
-    for (const idx of items) {
-      yield* monolith.recolorTokens(idx, ['traceId'], TRACE_PINK, 0.18);
-      yield* waitFor(step);
+    const line = lines[i];
+    const rule = callSiteRules.find(r => line.includes(r.contains));
+    if (!rule) continue;
+    yield* monolith.recolorTokens(i, rule.methods, Colors.accent, 0);
+    if (line.includes('encoderGateway.encode(')) {
+      yield* monolith.recolorTokens(i, ['encoderGateway'], 'rgba(244,241,235,0.72)', 0);
     }
   }
 
-  yield* all(
-    monolith.animateScrollY(scrollAmount, 10.5),
-    traceFlow(),
-  );
-
-  if (useLine >= 0) {
-    yield* all(
-      monolith.highlightLines([[useLine, useLine]], 0.45),
-      monolith.recolorTokens(useLine, ['traceId'], TRACE_PINK_SOFT, 0.22),
-    );
-    yield* monolith.recolorTokens(useLine, ['traceId'], TRACE_PINK, 0.22);
+  const errorLine = lines.findIndex(line => line.includes('throw new IllegalArgumentException('));
+  if (errorLine >= 0) {
+    // Only the quoted string should stand out softly.
+    yield* monolith.recolorTokens(errorLine, ['"Unsupported format: "'], 'rgba(168, 214, 178, 0.88)', 0);
   }
 
-  yield* waitFor(0.9);
+  yield* monolith.appear(Timing.normal);
+
+  const clipHeight = blockHeight - paddingY * 2;
+  const targetLastY = clipHeight / 2 - lineHeight / 2 - 12;
+  // Height is fixed, so CodeBlock uses top-aligned content start.
+  const startY = -clipHeight / 2 + topInset + lineHeight / 2;
+  const currentLastY = startY + (lines.length - 1) * lineHeight;
+  const scrollAmount = Math.max(0, currentLastY - targetLastY + 24);
+
+  yield* monolith.animateScrollY(scrollAmount, 12.5);
+
+  yield* waitFor(0.5);
   yield* monolith.disappear(Timing.normal);
 });
