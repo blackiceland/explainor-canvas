@@ -424,6 +424,25 @@ export default makeScene2D(function* (view) {
     yield* playNote(n.lane, n.y, n.on, n.label, n.hit, n.glow, n.shock, n.method, pace);
   }
 
-  yield* waitFor(0.8);
+  // Explicit timelapse ending: dense, much faster, still unique names.
+  const timelapseEvents = [
+    {lane: laneA, y: nAY, on: nAOn, label: laneLabelA, hit: hitA, glow: g0, shock: s0, method: 'queueDeliveryJob'},
+    {lane: laneC, y: nCY, on: nCOn, label: laneLabelC, hit: hitC, glow: g3, shock: s3, method: 'hydratePreviewFrame'},
+    {lane: laneB, y: nBY, on: nBOn, label: laneLabelB, hit: hitB, glow: g1, shock: s1, method: 'mapSubtitleTrack'},
+    {lane: laneD, y: nDY, on: nDOn, label: laneLabelD, hit: hitD, glow: g2, shock: s2, method: 'sealOutputChecksum'},
+    {lane: laneA, y: nAY, on: nAOn, label: laneLabelA, hit: hitA, glow: g0, shock: s0, method: 'registerCdnAsset'},
+    {lane: laneB, y: nBY, on: nBOn, label: laneLabelB, hit: hitB, glow: g1, shock: s1, method: 'emitAuditEnvelope'},
+    {lane: laneC, y: nCY, on: nCOn, label: laneLabelC, hit: hitC, glow: g3, shock: s3, method: 'snapshotTranscodeState'},
+    {lane: laneD, y: nDY, on: nDOn, label: laneLabelD, hit: hitD, glow: g2, shock: s2, method: 'flushEncoderBuffer'},
+    {lane: laneA, y: nAY, on: nAOn, label: laneLabelA, hit: hitA, glow: g0, shock: s0, method: 'closeDeliveryWindow'},
+    {lane: laneC, y: nCY, on: nCOn, label: laneLabelC, hit: hitC, glow: g3, shock: s3, method: 'compactExportLedger'},
+  ] as const;
+  for (let i = 0; i < timelapseEvents.length; i++) {
+    const n = timelapseEvents[i];
+    const pace = Math.max(0.17, 0.32 - i * 0.02); // hard timelapse ramp
+    yield* playNote(n.lane, n.y, n.on, n.label, n.hit, n.glow, n.shock, n.method, pace);
+  }
+
+  yield* waitFor(0.35);
 });
 
