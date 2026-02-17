@@ -1,4 +1,4 @@
-import {Circle, Line, makeScene2D, Rect} from '@motion-canvas/2d';
+import {Circle, Line, makeScene2D, Rect, Txt} from '@motion-canvas/2d';
 import {all, createSignal, easeInOutCubic, linear, waitFor} from '@motion-canvas/core';
 import {Screen} from '../core/theme';
 
@@ -31,6 +31,20 @@ export default makeScene2D(function* (view) {
   const depth = (y: number) => Math.max(0, Math.min(1, (y - yTop) / (yBottom - yTop)));
   const noteWAt = (y: number) => 20 + depth(y) * 44;
   const noteHAt = (y: number) => noteWAt(y) * 0.56; // lying in fretboard plane
+  const labelGapAt = (y: number) => 9 + depth(y) * 6;
+  const labelXAt = (lane: number, y: number, methodName: string) =>
+    laneX(lane, y) - noteWAt(y) * 0.66 - labelGapAt(y);
+  const labelScaleXAt = (y: number) => 1.14 + depth(y) * 0.1;
+  const labelScaleYAt = (y: number) => 0.68 + depth(y) * 0.08;
+  // Match text slant with the local string direction.
+  const labelSkewByLane = (lane: number, y: number) => {
+    const sample = 42;
+    const y0 = Math.max(yTop, y - sample);
+    const y1 = Math.min(yBottom, y + sample);
+    const dx = laneX(lane, y1) - laneX(lane, y0);
+    const dy = y1 - y0 || 1;
+    return ((Math.atan2(dx, dy) * 180) / Math.PI) * 0.55;
+  };
   const nAY = createSignal(yTop);
   const nBY = createSignal(yTop);
   const nCY = createSignal(yTop);
@@ -56,6 +70,10 @@ export default makeScene2D(function* (view) {
   const laneD = 2;
   const noteBaseW = 76;
   const laneColor = (lane: number) => STRINGS[Math.max(0, Math.min(4, lane))];
+  const methodA = 'prepareAndEncode';
+  const methodB = 'encodeWithRetry';
+  const methodC = 'encode';
+  const methodD = 'finalizeExport';
 
   noteX(laneX(laneA, hitY));
 
@@ -64,43 +82,30 @@ export default makeScene2D(function* (view) {
       <Rect width={Screen.width} height={Screen.height} fill={BG} opacity={on} />
       <Rect width={Screen.width} height={Screen.height} fill={'rgba(255,255,255,0.03)'} opacity={() => on() * 0.8} />
 
-      {/* String depth: safe layered rendering (far/mid/near) */}
-      {[0, 1, 2, 3, 4].map(i => (
-        <Line
-          points={[
-            [laneX(i, yTop), yTop],
-            [laneX(i, yBottom), yBottom],
-          ]}
-          stroke={STRINGS[i]}
-          lineWidth={1.6}
-          lineCap={'round'}
-          opacity={() => on() * 0.35}
-        />
-      ))}
-      {[0, 1, 2, 3, 4].map(i => (
-        <Line
-          points={[
-            [laneX(i, yTop + 120), yTop + 120],
-            [laneX(i, yBottom), yBottom],
-          ]}
-          stroke={STRINGS[i]}
-          lineWidth={2.6}
-          lineCap={'round'}
-          opacity={() => on() * 0.46}
-        />
-      ))}
-      {[0, 1, 2, 3, 4].map(i => (
-        <Line
-          points={[
-            [laneX(i, yTop + 250), yTop + 250],
-            [laneX(i, yBottom), yBottom],
-          ]}
-          stroke={STRINGS[i]}
-          lineWidth={3.8}
-          lineCap={'round'}
-          opacity={() => on() * 0.62}
-        />
-      ))}
+      {/* String depth: smooth segmented taper (no step-like pyramid) */}
+      {[0, 1, 2, 3, 4].flatMap(i =>
+        Array.from({length: 14}, (_, seg) => {
+          const t0 = seg / 14;
+          const t1 = (seg + 1) / 14;
+          const y0s = yTop + (yBottom - yTop) * t0;
+          const y1s = yTop + (yBottom - yTop) * t1;
+          const tMid = (t0 + t1) * 0.5;
+          const width = 1.25 + tMid * 3.15;
+          const alpha = 0.24 + tMid * 0.48;
+          return (
+            <Line
+              points={[
+                [laneX(i, y0s), y0s],
+                [laneX(i, y1s), y1s],
+              ]}
+              stroke={STRINGS[i]}
+              lineWidth={width}
+              lineCap={'round'}
+              opacity={() => on() * alpha}
+            />
+          );
+        }),
+      )}
       {[0, 1, 2, 3, 4].map(i => (
         <Line
           points={[
@@ -171,6 +176,23 @@ export default makeScene2D(function* (view) {
         opacity={on}
       />
 
+      {/* Method labels (left), lying in fretboard plane */}
+      <Txt
+        x={() => labelXAt(laneA, nAY(), methodA)}
+        y={nAY}
+        text={methodA}
+        fontSize={() => 32 + depth(nAY()) * 20}
+        textAlign={'right'}
+        offset={[1, 0]}
+        letterSpacing={0.7}
+        skewX={() => labelSkewByLane(laneA, nAY())}
+        fill={laneColor(laneA)}
+        scaleX={() => labelScaleXAt(nAY())}
+        scaleY={() => labelScaleYAt(nAY())}
+        shadowColor={'rgba(121,182,71,0.22)'}
+        shadowBlur={5}
+        opacity={() => on() * nAOn() * 0.9}
+      />
       {/* Method notes moving in fretboard plane */}
       <Circle
         x={() => laneX(laneA, nAY())}
@@ -185,6 +207,22 @@ export default makeScene2D(function* (view) {
         shadowOffset={[0, 2]}
         opacity={() => on() * nAOn()}
       />
+      <Txt
+        x={() => labelXAt(laneB, nBY(), methodB)}
+        y={nBY}
+        text={methodB}
+        fontSize={() => 32 + depth(nBY()) * 20}
+        textAlign={'right'}
+        offset={[1, 0]}
+        letterSpacing={0.7}
+        skewX={() => labelSkewByLane(laneB, nBY())}
+        fill={laneColor(laneB)}
+        scaleX={() => labelScaleXAt(nBY())}
+        scaleY={() => labelScaleYAt(nBY())}
+        shadowColor={'rgba(228,85,78,0.22)'}
+        shadowBlur={5}
+        opacity={() => on() * nBOn() * 0.9}
+      />
       <Circle
         x={() => laneX(laneB, nBY())}
         y={nBY}
@@ -198,6 +236,22 @@ export default makeScene2D(function* (view) {
         shadowOffset={[0, 2]}
         opacity={() => on() * nBOn()}
       />
+      <Txt
+        x={() => labelXAt(laneC, nCY(), methodC)}
+        y={nCY}
+        text={methodC}
+        fontSize={() => 32 + depth(nCY()) * 20}
+        textAlign={'right'}
+        offset={[1, 0]}
+        letterSpacing={0.7}
+        skewX={() => labelSkewByLane(laneC, nCY())}
+        fill={laneColor(laneC)}
+        scaleX={() => labelScaleXAt(nCY())}
+        scaleY={() => labelScaleYAt(nCY())}
+        shadowColor={'rgba(77,167,227,0.22)'}
+        shadowBlur={5}
+        opacity={() => on() * nCOn() * 0.9}
+      />
       <Circle
         x={() => laneX(laneC, nCY())}
         y={nCY}
@@ -210,6 +264,22 @@ export default makeScene2D(function* (view) {
         shadowBlur={5}
         shadowOffset={[0, 2]}
         opacity={() => on() * nCOn()}
+      />
+      <Txt
+        x={() => labelXAt(laneD, nDY(), methodD)}
+        y={nDY}
+        text={methodD}
+        fontSize={() => 32 + depth(nDY()) * 20}
+        textAlign={'right'}
+        offset={[1, 0]}
+        letterSpacing={0.7}
+        skewX={() => labelSkewByLane(laneD, nDY())}
+        fill={laneColor(laneD)}
+        scaleX={() => labelScaleXAt(nDY())}
+        scaleY={() => labelScaleYAt(nDY())}
+        shadowColor={'rgba(230,199,70,0.22)'}
+        shadowBlur={5}
+        opacity={() => on() * nDOn() * 0.9}
       />
       <Circle
         x={() => laneX(laneD, nDY())}
@@ -275,7 +345,7 @@ export default makeScene2D(function* (view) {
       noteY(hitY, travel, linear),
       noteX(laneX(lane, hitY), travel * 0.45, linear),
     );
-    yield* all(hit(1, 0.10), notePulse(1, 0.10), noteSquash(1, 0.09), glow(1, 0.10), shock(1, 0.08));
+    yield* all(hit(1, 0.10), notePulse(1.15, 0.10), noteSquash(1, 0.09), glow(1, 0.10), shock(1, 0.08));
     yield* all(
       hit(0, 0.22),
       notePulse(0, 0.16),
