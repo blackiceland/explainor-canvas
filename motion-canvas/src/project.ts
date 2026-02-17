@@ -26,6 +26,7 @@ import oneCargoSceneRu from './scenes/oneCargoSceneRu?scene';
 import passThroughMonolithScrollSceneRu from './scenes/passThroughMonolithScrollSceneRu?scene';
 import oldMapPassThroughSceneRu from './scenes/oldMapPassThroughSceneRu?scene';
 import sphereDigitsDemoSceneRu from './scenes/sphereDigitsDemoSceneRu?scene';
+import guitarHeroPassThroughSceneRu from './scenes/guitarHeroPassThroughSceneRu?scene';
 import splitDtoScene from './scenes/splitDtoScene?scene';
 import splitDtoSceneV3 from './scenes/splitDtoSceneV3?scene';
 import typewriterCodeScene from './scenes/typewriterCodeScene?scene';
@@ -70,7 +71,8 @@ export default makeProject({
 
         // trainCodeOverlaySceneRu,
         // oneCargoSceneRu,
-         passThroughMonolithScrollSceneRu,
+        // passThroughMonolithScrollSceneRu,
         // sphereDigitsDemoSceneRu,
+        guitarHeroPassThroughSceneRu,
     ]
 });
