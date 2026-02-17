@@ -39,12 +39,18 @@ export default makeScene2D(function* (view) {
   const nBOn = createSignal(0);
   const nCOn = createSignal(0);
   const nDOn = createSignal(0);
+  const g0 = createSignal(0);
+  const g1 = createSignal(0);
+  const g2 = createSignal(0);
+  const g3 = createSignal(0);
+  const g4 = createSignal(0);
 
   const laneA = 0;
   const laneB = 1;
   const laneC = 3;
   const laneD = 2;
   const noteBaseW = 76;
+  const laneColor = (lane: number) => STRINGS[Math.max(0, Math.min(4, lane))];
 
   noteX(laneX(laneA, hitY));
 
@@ -63,6 +69,20 @@ export default makeScene2D(function* (view) {
           lineWidth={3}
           lineCap={'round'}
           opacity={() => on() * 0.92}
+        />
+      ))}
+      {[0, 1, 2, 3, 4].map(i => (
+        <Line
+          points={[
+            [laneX(i, yTop), yTop],
+            [laneX(i, yBottom), yBottom],
+          ]}
+          stroke={STRINGS[i]}
+          lineWidth={8}
+          lineCap={'round'}
+          opacity={() =>
+            (i === 0 ? g0() : i === 1 ? g1() : i === 2 ? g2() : i === 3 ? g3() : g4()) * 0.55
+          }
         />
       ))}
 
@@ -97,41 +117,53 @@ export default makeScene2D(function* (view) {
       <Circle
         x={() => laneX(laneA, nAY())}
         y={nAY}
-        width={() => noteWAt(nAY())}
-        height={() => noteHAt(nAY())}
-        fill={'rgba(18,18,18,0.82)'}
-        stroke={'rgba(244,241,235,0.78)'}
-        lineWidth={() => 1.4 + depth(nAY()) * 2}
+        width={() => noteWAt(nAY()) * 1.24}
+        height={() => noteHAt(nAY()) * 1.24}
+        fill={'rgba(0,0,0,0)'}
+        stroke={laneColor(laneA)}
+        lineWidth={() => 6.2 + depth(nAY()) * 3.4}
+        shadowColor={'rgba(121,182,71,0.30)'}
+        shadowBlur={5}
+        shadowOffset={[0, 2]}
         opacity={() => on() * nAOn()}
       />
       <Circle
         x={() => laneX(laneB, nBY())}
         y={nBY}
-        width={() => noteWAt(nBY())}
-        height={() => noteHAt(nBY())}
-        fill={'rgba(18,18,18,0.82)'}
-        stroke={'rgba(244,241,235,0.78)'}
-        lineWidth={() => 1.4 + depth(nBY()) * 2}
+        width={() => noteWAt(nBY()) * 1.24}
+        height={() => noteHAt(nBY()) * 1.24}
+        fill={'rgba(0,0,0,0)'}
+        stroke={laneColor(laneB)}
+        lineWidth={() => 6.2 + depth(nBY()) * 3.4}
+        shadowColor={'rgba(228,85,78,0.30)'}
+        shadowBlur={5}
+        shadowOffset={[0, 2]}
         opacity={() => on() * nBOn()}
       />
       <Circle
         x={() => laneX(laneC, nCY())}
         y={nCY}
-        width={() => noteWAt(nCY())}
-        height={() => noteHAt(nCY())}
-        fill={'rgba(18,18,18,0.82)'}
-        stroke={'rgba(244,241,235,0.78)'}
-        lineWidth={() => 1.4 + depth(nCY()) * 2}
+        width={() => noteWAt(nCY()) * 1.24}
+        height={() => noteHAt(nCY()) * 1.24}
+        fill={'rgba(0,0,0,0)'}
+        stroke={laneColor(laneC)}
+        lineWidth={() => 6.2 + depth(nCY()) * 3.4}
+        shadowColor={'rgba(77,167,227,0.30)'}
+        shadowBlur={5}
+        shadowOffset={[0, 2]}
         opacity={() => on() * nCOn()}
       />
       <Circle
         x={() => laneX(laneD, nDY())}
         y={nDY}
-        width={() => noteWAt(nDY())}
-        height={() => noteHAt(nDY())}
-        fill={'rgba(18,18,18,0.82)'}
-        stroke={'rgba(244,241,235,0.78)'}
-        lineWidth={() => 1.4 + depth(nDY()) * 2}
+        width={() => noteWAt(nDY()) * 1.24}
+        height={() => noteHAt(nDY()) * 1.24}
+        fill={'rgba(0,0,0,0)'}
+        stroke={laneColor(laneD)}
+        lineWidth={() => 6.2 + depth(nDY()) * 3.4}
+        shadowColor={'rgba(230,199,70,0.30)'}
+        shadowBlur={5}
+        shadowOffset={[0, 2]}
         opacity={() => on() * nDOn()}
       />
 
@@ -162,15 +194,6 @@ export default makeScene2D(function* (view) {
         fill={'rgba(255,188,201,0.72)'}
         opacity={() => noteOn() * 0.78}
       />
-      <Circle
-        x={() => noteX() - noteBaseW * 0.20}
-        y={() => hitY - noteBaseW * 0.11}
-        width={() => 12 + notePulse() * 4}
-        height={() => 8 + notePulse() * 3}
-        fill={'rgba(255,245,248,0.85)'}
-        opacity={() => noteOn() * 0.72}
-      />
-
       <Circle x={noteX} y={hitY} width={() => 56 + hitA() * 58} height={() => (56 + hitA() * 58) * 0.56} stroke={PINK} lineWidth={3} fill={'rgba(0,0,0,0)'} opacity={() => hitA() * 0.85} />
       <Circle x={noteX} y={hitY} width={() => 56 + hitB() * 58} height={() => (56 + hitB() * 58) * 0.56} stroke={PINK} lineWidth={3} fill={'rgba(0,0,0,0)'} opacity={() => hitB() * 0.85} />
       <Circle x={noteX} y={hitY} width={() => 56 + hitC() * 58} height={() => (56 + hitC() * 58) * 0.56} stroke={PINK} lineWidth={3} fill={'rgba(0,0,0,0)'} opacity={() => hitC() * 0.85} />
@@ -183,33 +206,39 @@ export default makeScene2D(function* (view) {
     noteY: ReturnType<typeof createSignal<number>>,
     noteVisible: ReturnType<typeof createSignal<number>>,
     hit: ReturnType<typeof createSignal<number>>,
+    glow: ReturnType<typeof createSignal<number>>,
   ) {
-    const travel = 0.95;
+    const travel = 0.52;
     noteY(yTop);
     noteVisible(1);
     // Pink marker starts moving early, while note is still far.
     yield* all(
       noteY(hitY, travel, linear),
-      noteX(laneX(lane, hitY), travel * 0.72, linear),
+      noteX(laneX(lane, hitY), travel * 0.45, linear),
     );
-    yield* all(hit(1, 0.11), notePulse(1, 0.11), noteSquash(1, 0.10));
+    yield* all(hit(1, 0.10), notePulse(1, 0.10), noteSquash(1, 0.09), glow(1, 0.10));
     yield* all(
-      hit(0, 0.28),
-      notePulse(0, 0.20),
-      noteSquash(0, 0.16),
-      noteVisible(0, 0.18), // disappear right after hit
+      hit(0, 0.22),
+      notePulse(0, 0.16),
+      noteSquash(0, 0.12),
+      glow(0, 0.20),
+      noteVisible(0, 0.14), // disappear right after hit
     );
   };
 
   yield* on(1, 0.55, easeInOutCubic);
   yield* noteOn(1, 0.2, easeInOutCubic);
 
-  yield* noteX(laneX(laneA, hitY), 0.08, linear);
-  yield* playNote(laneA, nAY, nAOn, hitA);
-  yield* playNote(laneB, nBY, nBOn, hitB);
-  yield* playNote(laneC, nCY, nCOn, hitC);
-  yield* playNote(laneD, nDY, nDOn, hitD);
+  yield* noteX(laneX(laneA, hitY), 0.06, linear);
+  yield* playNote(laneA, nAY, nAOn, hitA, g0);
+  yield* playNote(laneB, nBY, nBOn, hitB, g1);
+  yield* playNote(laneC, nCY, nCOn, hitC, g3);
+  yield* playNote(laneD, nDY, nDOn, hitD, g2);
+  // Extend sequence while keeping each approach fast.
+  yield* playNote(laneB, nBY, nBOn, hitB, g1);
+  yield* playNote(laneD, nDY, nDOn, hitD, g2);
+  yield* playNote(laneC, nCY, nCOn, hitC, g3);
 
-  yield* waitFor(0.8);
+  yield* waitFor(1.2);
 });
 
