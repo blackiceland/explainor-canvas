@@ -44,6 +44,11 @@ export default makeScene2D(function* (view) {
   const g2 = createSignal(0);
   const g3 = createSignal(0);
   const g4 = createSignal(0);
+  const s0 = createSignal(0);
+  const s1 = createSignal(0);
+  const s2 = createSignal(0);
+  const s3 = createSignal(0);
+  const s4 = createSignal(0);
 
   const laneA = 0;
   const laneB = 1;
@@ -59,6 +64,7 @@ export default makeScene2D(function* (view) {
       <Rect width={Screen.width} height={Screen.height} fill={BG} opacity={on} />
       <Rect width={Screen.width} height={Screen.height} fill={'rgba(255,255,255,0.03)'} opacity={() => on() * 0.8} />
 
+      {/* String depth: safe layered rendering (far/mid/near) */}
       {[0, 1, 2, 3, 4].map(i => (
         <Line
           points={[
@@ -66,9 +72,33 @@ export default makeScene2D(function* (view) {
             [laneX(i, yBottom), yBottom],
           ]}
           stroke={STRINGS[i]}
-          lineWidth={3}
+          lineWidth={1.6}
           lineCap={'round'}
-          opacity={() => on() * 0.92}
+          opacity={() => on() * 0.35}
+        />
+      ))}
+      {[0, 1, 2, 3, 4].map(i => (
+        <Line
+          points={[
+            [laneX(i, yTop + 120), yTop + 120],
+            [laneX(i, yBottom), yBottom],
+          ]}
+          stroke={STRINGS[i]}
+          lineWidth={2.6}
+          lineCap={'round'}
+          opacity={() => on() * 0.46}
+        />
+      ))}
+      {[0, 1, 2, 3, 4].map(i => (
+        <Line
+          points={[
+            [laneX(i, yTop + 250), yTop + 250],
+            [laneX(i, yBottom), yBottom],
+          ]}
+          stroke={STRINGS[i]}
+          lineWidth={3.8}
+          lineCap={'round'}
+          opacity={() => on() * 0.62}
         />
       ))}
       {[0, 1, 2, 3, 4].map(i => (
@@ -83,6 +113,25 @@ export default makeScene2D(function* (view) {
           opacity={() =>
             (i === 0 ? g0() : i === 1 ? g1() : i === 2 ? g2() : i === 3 ? g3() : g4()) * 0.55
           }
+        />
+      ))}
+      {/* Shockwave along the hit string */}
+      {[0, 1, 2, 3, 4].map(i => (
+        <Line
+          points={() => {
+            const p = i === 0 ? s0() : i === 1 ? s1() : i === 2 ? s2() : i === 3 ? s3() : s4();
+            const span = 8 + p * 115;
+            const y0s = hitY - span;
+            const y1s = hitY + span;
+            return [
+              [laneX(i, y0s), y0s],
+              [laneX(i, y1s), y1s],
+            ];
+          }}
+          stroke={STRINGS[i]}
+          lineWidth={() => 2 + (i === 0 ? s0() : i === 1 ? s1() : i === 2 ? s2() : i === 3 ? s3() : s4()) * 5}
+          lineCap={'round'}
+          opacity={() => (i === 0 ? s0() : i === 1 ? s1() : i === 2 ? s2() : i === 3 ? s3() : s4()) * 0.95}
         />
       ))}
 
@@ -108,8 +157,17 @@ export default makeScene2D(function* (view) {
           [laneX(0, hitY) - 55, hitY],
           [laneX(4, hitY) + 55, hitY],
         ]}
-        stroke={'rgba(244,241,235,0.40)'}
-        lineWidth={4}
+        stroke={'rgba(255,255,255,0.22)'}
+        lineWidth={10}
+        opacity={on}
+      />
+      <Line
+        points={[
+          [laneX(0, hitY) - 55, hitY],
+          [laneX(4, hitY) + 55, hitY],
+        ]}
+        stroke={'rgba(252,251,248,0.82)'}
+        lineWidth={2}
         opacity={on}
       />
 
@@ -207,6 +265,7 @@ export default makeScene2D(function* (view) {
     noteVisible: ReturnType<typeof createSignal<number>>,
     hit: ReturnType<typeof createSignal<number>>,
     glow: ReturnType<typeof createSignal<number>>,
+    shock: ReturnType<typeof createSignal<number>>,
   ) {
     const travel = 0.52;
     noteY(yTop);
@@ -216,12 +275,13 @@ export default makeScene2D(function* (view) {
       noteY(hitY, travel, linear),
       noteX(laneX(lane, hitY), travel * 0.45, linear),
     );
-    yield* all(hit(1, 0.10), notePulse(1, 0.10), noteSquash(1, 0.09), glow(1, 0.10));
+    yield* all(hit(1, 0.10), notePulse(1, 0.10), noteSquash(1, 0.09), glow(1, 0.10), shock(1, 0.08));
     yield* all(
       hit(0, 0.22),
       notePulse(0, 0.16),
       noteSquash(0, 0.12),
       glow(0, 0.20),
+      shock(0, 0.20),
       noteVisible(0, 0.14), // disappear right after hit
     );
   };
@@ -230,14 +290,14 @@ export default makeScene2D(function* (view) {
   yield* noteOn(1, 0.2, easeInOutCubic);
 
   yield* noteX(laneX(laneA, hitY), 0.06, linear);
-  yield* playNote(laneA, nAY, nAOn, hitA, g0);
-  yield* playNote(laneB, nBY, nBOn, hitB, g1);
-  yield* playNote(laneC, nCY, nCOn, hitC, g3);
-  yield* playNote(laneD, nDY, nDOn, hitD, g2);
+  yield* playNote(laneA, nAY, nAOn, hitA, g0, s0);
+  yield* playNote(laneB, nBY, nBOn, hitB, g1, s1);
+  yield* playNote(laneC, nCY, nCOn, hitC, g3, s3);
+  yield* playNote(laneD, nDY, nDOn, hitD, g2, s2);
   // Extend sequence while keeping each approach fast.
-  yield* playNote(laneB, nBY, nBOn, hitB, g1);
-  yield* playNote(laneD, nDY, nDOn, hitD, g2);
-  yield* playNote(laneC, nCY, nCOn, hitC, g3);
+  yield* playNote(laneB, nBY, nBOn, hitB, g1, s1);
+  yield* playNote(laneD, nDY, nDOn, hitD, g2, s2);
+  yield* playNote(laneC, nCY, nCOn, hitC, g3, s3);
 
   yield* waitFor(1.2);
 });
