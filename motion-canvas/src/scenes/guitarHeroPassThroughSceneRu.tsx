@@ -32,10 +32,14 @@ export default makeScene2D(function* (view) {
   const noteWAt = (y: number) => 20 + depth(y) * 44;
   const noteHAt = (y: number) => noteWAt(y) * 0.56; // lying in fretboard plane
   const labelGapAt = (y: number) => 9 + depth(y) * 6;
-  const labelXAt = (lane: number, y: number, methodName: string) =>
-    laneX(lane, y) - noteWAt(y) * 0.66 - labelGapAt(y);
+  const labelXAt = (lane: number, y: number) => laneX(lane, y) - noteWAt(y) * 0.66 - labelGapAt(y);
   const labelScaleXAt = (y: number) => 1.14 + depth(y) * 0.1;
   const labelScaleYAt = (y: number) => 0.68 + depth(y) * 0.08;
+  const labelScaleYForLane = (lane: number, y: number) => {
+    const base = labelScaleYAt(y);
+    // Green/red lanes sit a bit more in-plane.
+    return lane === 0 || lane === 1 ? base * 0.93 : base;
+  };
   // Match text slant with the local string direction.
   const labelSkewByLane = (lane: number, y: number) => {
     const sample = 42;
@@ -43,7 +47,9 @@ export default makeScene2D(function* (view) {
     const y1 = Math.min(yBottom, y + sample);
     const dx = laneX(lane, y1) - laneX(lane, y0);
     const dy = y1 - y0 || 1;
-    return ((Math.atan2(dx, dy) * 180) / Math.PI) * 0.55;
+    const base = ((Math.atan2(dx, dy) * 180) / Math.PI) * 0.55;
+    // Yellow lane: tweak top-lean (shear), not rigid rotation.
+    return lane === 2 ? base - 1.8 : base;
   };
   const nAY = createSignal(yTop);
   const nBY = createSignal(yTop);
@@ -63,6 +69,9 @@ export default makeScene2D(function* (view) {
   const s2 = createSignal(0);
   const s3 = createSignal(0);
   const s4 = createSignal(0);
+  const logLimit = 10;
+  const methodLogText = Array.from({length: logLimit}, () => createSignal(''));
+  const methodLogOn = Array.from({length: logLimit}, () => createSignal(0));
 
   const laneA = 0;
   const laneB = 1;
@@ -70,10 +79,10 @@ export default makeScene2D(function* (view) {
   const laneD = 2;
   const noteBaseW = 76;
   const laneColor = (lane: number) => STRINGS[Math.max(0, Math.min(4, lane))];
-  const methodA = 'prepareAndEncode';
-  const methodB = 'encodeWithRetry';
-  const methodC = 'encode';
-  const methodD = 'finalizeExport';
+  const laneLabelA = createSignal('');
+  const laneLabelB = createSignal('');
+  const laneLabelC = createSignal('');
+  const laneLabelD = createSignal('');
 
   noteX(laneX(laneA, hitY));
 
@@ -81,6 +90,20 @@ export default makeScene2D(function* (view) {
     <>
       <Rect width={Screen.width} height={Screen.height} fill={BG} opacity={on} />
       <Rect width={Screen.width} height={Screen.height} fill={'rgba(255,255,255,0.03)'} opacity={() => on() * 0.8} />
+      {/* Left method match log (max 10 entries), minimal style */}
+      {Array.from({length: logLimit}, (_, i) => (
+        <Txt
+          x={-Screen.width * 0.38}
+          y={-Screen.height * 0.33 + i * 40}
+          text={() => methodLogText[i]()}
+          textAlign={'left'}
+          offset={[-1, 0]}
+          fontSize={33}
+          letterSpacing={0.3}
+          fill={'rgba(214,238,208,0.92)'}
+          opacity={() => on() * methodLogOn[i]()}
+        />
+      ))}
 
       {/* String depth: smooth segmented taper (no step-like pyramid) */}
       {[0, 1, 2, 3, 4].flatMap(i =>
@@ -178,9 +201,9 @@ export default makeScene2D(function* (view) {
 
       {/* Method labels (left), lying in fretboard plane */}
       <Txt
-        x={() => labelXAt(laneA, nAY(), methodA)}
+        x={() => labelXAt(laneA, nAY())}
         y={nAY}
-        text={methodA}
+        text={laneLabelA}
         fontSize={() => 32 + depth(nAY()) * 20}
         textAlign={'right'}
         offset={[1, 0]}
@@ -188,7 +211,7 @@ export default makeScene2D(function* (view) {
         skewX={() => labelSkewByLane(laneA, nAY())}
         fill={laneColor(laneA)}
         scaleX={() => labelScaleXAt(nAY())}
-        scaleY={() => labelScaleYAt(nAY())}
+        scaleY={() => labelScaleYForLane(laneA, nAY())}
         shadowColor={'rgba(121,182,71,0.22)'}
         shadowBlur={5}
         opacity={() => on() * nAOn() * 0.9}
@@ -208,9 +231,9 @@ export default makeScene2D(function* (view) {
         opacity={() => on() * nAOn()}
       />
       <Txt
-        x={() => labelXAt(laneB, nBY(), methodB)}
+        x={() => labelXAt(laneB, nBY())}
         y={nBY}
-        text={methodB}
+        text={laneLabelB}
         fontSize={() => 32 + depth(nBY()) * 20}
         textAlign={'right'}
         offset={[1, 0]}
@@ -218,7 +241,7 @@ export default makeScene2D(function* (view) {
         skewX={() => labelSkewByLane(laneB, nBY())}
         fill={laneColor(laneB)}
         scaleX={() => labelScaleXAt(nBY())}
-        scaleY={() => labelScaleYAt(nBY())}
+        scaleY={() => labelScaleYForLane(laneB, nBY())}
         shadowColor={'rgba(228,85,78,0.22)'}
         shadowBlur={5}
         opacity={() => on() * nBOn() * 0.9}
@@ -237,9 +260,9 @@ export default makeScene2D(function* (view) {
         opacity={() => on() * nBOn()}
       />
       <Txt
-        x={() => labelXAt(laneC, nCY(), methodC)}
+        x={() => labelXAt(laneC, nCY())}
         y={nCY}
-        text={methodC}
+        text={laneLabelC}
         fontSize={() => 32 + depth(nCY()) * 20}
         textAlign={'right'}
         offset={[1, 0]}
@@ -247,7 +270,7 @@ export default makeScene2D(function* (view) {
         skewX={() => labelSkewByLane(laneC, nCY())}
         fill={laneColor(laneC)}
         scaleX={() => labelScaleXAt(nCY())}
-        scaleY={() => labelScaleYAt(nCY())}
+        scaleY={() => labelScaleYForLane(laneC, nCY())}
         shadowColor={'rgba(77,167,227,0.22)'}
         shadowBlur={5}
         opacity={() => on() * nCOn() * 0.9}
@@ -266,9 +289,9 @@ export default makeScene2D(function* (view) {
         opacity={() => on() * nCOn()}
       />
       <Txt
-        x={() => labelXAt(laneD, nDY(), methodD)}
+        x={() => labelXAt(laneD, nDY())}
         y={nDY}
-        text={methodD}
+        text={laneLabelD}
         fontSize={() => 32 + depth(nDY()) * 20}
         textAlign={'right'}
         offset={[1, 0]}
@@ -276,7 +299,7 @@ export default makeScene2D(function* (view) {
         skewX={() => labelSkewByLane(laneD, nDY())}
         fill={laneColor(laneD)}
         scaleX={() => labelScaleXAt(nDY())}
-        scaleY={() => labelScaleYAt(nDY())}
+        scaleY={() => labelScaleYForLane(laneD, nDY())}
         shadowColor={'rgba(230,199,70,0.22)'}
         shadowBlur={5}
         opacity={() => on() * nDOn() * 0.9}
@@ -333,42 +356,74 @@ export default makeScene2D(function* (view) {
     lane: number,
     noteY: ReturnType<typeof createSignal<number>>,
     noteVisible: ReturnType<typeof createSignal<number>>,
+    laneLabel: ReturnType<typeof createSignal<string>>,
     hit: ReturnType<typeof createSignal<number>>,
     glow: ReturnType<typeof createSignal<number>>,
     shock: ReturnType<typeof createSignal<number>>,
+    methodName: string,
+    pace: number,
   ) {
-    const travel = 0.52;
+    const travel = 0.56 * pace;
     noteY(yTop);
     noteVisible(1);
+    laneLabel(methodName);
     // Pink marker starts moving early, while note is still far.
     yield* all(
       noteY(hitY, travel, linear),
       noteX(laneX(lane, hitY), travel * 0.45, linear),
     );
-    yield* all(hit(1, 0.10), notePulse(1.15, 0.10), noteSquash(1, 0.09), glow(1, 0.10), shock(1, 0.08));
     yield* all(
-      hit(0, 0.22),
-      notePulse(0, 0.16),
-      noteSquash(0, 0.12),
-      glow(0, 0.20),
-      shock(0, 0.20),
-      noteVisible(0, 0.14), // disappear right after hit
+      hit(1, 0.10 * pace),
+      notePulse(1.15, 0.10 * pace),
+      noteSquash(1, 0.09 * pace),
+      glow(1, 0.10 * pace),
+      shock(1, 0.08 * pace),
     );
+    yield* all(
+      hit(0, 0.22 * pace),
+      notePulse(0, 0.16 * pace),
+      noteSquash(0, 0.12 * pace),
+      glow(0, 0.20 * pace),
+      shock(0, 0.20 * pace),
+      noteVisible(0, 0.14 * pace), // disappear right after hit
+    );
+    if (matchCount < logLimit) {
+      const row = matchCount;
+      matchCount += 1;
+      methodLogText[row](methodName);
+      yield* methodLogOn[row](1, 0.12, easeInOutCubic);
+    }
   };
 
+  let matchCount = 0;
   yield* on(1, 0.55, easeInOutCubic);
   yield* noteOn(1, 0.2, easeInOutCubic);
 
   yield* noteX(laneX(laneA, hitY), 0.06, linear);
-  yield* playNote(laneA, nAY, nAOn, hitA, g0, s0);
-  yield* playNote(laneB, nBY, nBOn, hitB, g1, s1);
-  yield* playNote(laneC, nCY, nCOn, hitC, g3, s3);
-  yield* playNote(laneD, nDY, nDOn, hitD, g2, s2);
-  // Extend sequence while keeping each approach fast.
-  yield* playNote(laneB, nBY, nBOn, hitB, g1, s1);
-  yield* playNote(laneD, nDY, nDOn, hitD, g2, s2);
-  yield* playNote(laneC, nCY, nCOn, hitC, g3, s3);
+  const events = [
+    {lane: laneA, y: nAY, on: nAOn, label: laneLabelA, hit: hitA, glow: g0, shock: s0, method: 'prepareAndEncode'},
+    {lane: laneB, y: nBY, on: nBOn, label: laneLabelB, hit: hitB, glow: g1, shock: s1, method: 'encodeWithRetry'},
+    {lane: laneC, y: nCY, on: nCOn, label: laneLabelC, hit: hitC, glow: g3, shock: s3, method: 'finalizeExport'},
+    {lane: laneD, y: nDY, on: nDOn, label: laneLabelD, hit: hitD, glow: g2, shock: s2, method: 'encodeFrameBatch'},
+    {lane: laneB, y: nBY, on: nBOn, label: laneLabelB, hit: hitB, glow: g1, shock: s1, method: 'attachAudioTrack'},
+    {lane: laneD, y: nDY, on: nDOn, label: laneLabelD, hit: hitD, glow: g2, shock: s2, method: 'transcodeBitrate'},
+    {lane: laneC, y: nCY, on: nCOn, label: laneLabelC, hit: hitC, glow: g3, shock: s3, method: 'normalizeFrames'},
+    {lane: laneA, y: nAY, on: nAOn, label: laneLabelA, hit: hitA, glow: g0, shock: s0, method: 'applyColorProfile'},
+    {lane: laneB, y: nBY, on: nBOn, label: laneLabelB, hit: hitB, glow: g1, shock: s1, method: 'writeMp4Container'},
+    {lane: laneC, y: nCY, on: nCOn, label: laneLabelC, hit: hitC, glow: g3, shock: s3, method: 'injectMetadata'},
+    {lane: laneD, y: nDY, on: nDOn, label: laneLabelD, hit: hitD, glow: g2, shock: s2, method: 'validateOutputFormat'},
+    {lane: laneA, y: nAY, on: nAOn, label: laneLabelA, hit: hitA, glow: g0, shock: s0, method: 'buildExportPayload'},
+    {lane: laneC, y: nCY, on: nCOn, label: laneLabelC, hit: hitC, glow: g3, shock: s3, method: 'signDeliveryToken'},
+    {lane: laneB, y: nBY, on: nBOn, label: laneLabelB, hit: hitB, glow: g1, shock: s1, method: 'persistManifest'},
+    {lane: laneD, y: nDY, on: nDOn, label: laneLabelD, hit: hitD, glow: g2, shock: s2, method: 'publishExportEvent'},
+    {lane: laneC, y: nCY, on: nCOn, label: laneLabelC, hit: hitC, glow: g3, shock: s3, method: 'archiveSourceClip'},
+  ] as const;
+  for (let i = 0; i < events.length; i++) {
+    const n = events[i];
+    const pace = Math.max(0.44, 1 - i * 0.04); // gradual acceleration into timelapse
+    yield* playNote(n.lane, n.y, n.on, n.label, n.hit, n.glow, n.shock, n.method, pace);
+  }
 
-  yield* waitFor(1.2);
+  yield* waitFor(0.8);
 });
 
