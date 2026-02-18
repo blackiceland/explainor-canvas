@@ -24,6 +24,7 @@ export default makeScene2D(function* (view) {
   const wTop = 300;
   const wBottom = 1050;
   const hitY = 320;
+  const highlightCutY = hitY - 6;
 
   const laneX = (lane: number, y: number) => {
     const t = (y - yTop) / (yBottom - yTop);
@@ -93,8 +94,8 @@ export default makeScene2D(function* (view) {
   const laneLabelE = createSignal('');
   const activeLane = createSignal(laneA);
   const show = () => on() * uiOn();
-  const pinkW = () => noteBaseW + notePulse() * 34 + noteSquash() * 16;
-  const pinkH = () => (noteBaseW + notePulse() * 34 - noteSquash() * 10) * 0.56;
+  const pinkW = () => noteBaseW + notePulse() * 22 + noteSquash() * 10;
+  const pinkH = () => (noteBaseW + notePulse() * 22 - noteSquash() * 6) * 0.56;
 
   noteX(laneX(laneA, hitY));
 
@@ -141,18 +142,17 @@ export default makeScene2D(function* (view) {
           );
         }),
       )}
+      {/* Active highlight only above match line (no near-camera glow) */}
       {[0, 1, 2, 3, 4].map(i => (
         <Line
           points={[
             [laneX(i, yTop), yTop],
-            [laneX(i, yBottom), yBottom],
+            [laneX(i, highlightCutY), highlightCutY],
           ]}
           stroke={STRINGS[i]}
-          lineWidth={8}
-          lineCap={'round'}
-          opacity={() =>
-            show() * (i === 0 ? g0() : i === 1 ? g1() : i === 2 ? g2() : i === 3 ? g3() : g4()) * 0.55
-          }
+          lineWidth={3.2}
+          lineCap={'butt'}
+          opacity={() => show() * (i === 0 ? g0() : i === 1 ? g1() : i === 2 ? g2() : i === 3 ? g3() : g4()) * 0.72}
         />
       ))}
       {/* Shockwave along the hit string */}
@@ -162,7 +162,7 @@ export default makeScene2D(function* (view) {
             const p = i === 0 ? s0() : i === 1 ? s1() : i === 2 ? s2() : i === 3 ? s3() : s4();
             const span = 8 + p * 115;
             const y0s = hitY - span;
-            const y1s = hitY + span;
+            const y1s = highlightCutY;
             return [
               [laneX(i, y0s), y0s],
               [laneX(i, y1s), y1s],
@@ -363,11 +363,13 @@ export default makeScene2D(function* (view) {
       <Circle
         x={noteX}
         y={hitY}
-        width={() => pinkW() * 1.28}
-        height={() => pinkH() * 1.28}
+        width={() => pinkW() * 1.34}
+        height={() => pinkH() * 1.34}
         skewX={() => labelSkewByLane(activeLane(), hitY) * 0.5}
-        fill={'rgba(255,140,163,0.26)'}
-        opacity={() => noteOn() * (0.34 + notePulse() * 0.18)}
+        fill={PINK}
+        opacity={() => noteOn() * (0.12 + notePulse() * 0.12 + Math.max(hitA(), hitB(), hitC(), hitD(), hitE()) * 0.38)}
+        shadowColor={'rgba(255,140,163,0.45)'}
+        shadowBlur={14}
       />
       <Circle
         x={noteX}
@@ -378,13 +380,10 @@ export default makeScene2D(function* (view) {
         fill={PINK}
         stroke={'rgba(0,0,0,0)'}
         lineWidth={0}
+        shadowColor={'rgba(255,140,163,0.28)'}
+        shadowBlur={10}
         opacity={noteOn}
       />
-      <Circle x={noteX} y={hitY} width={() => 56 + hitA() * 58} height={() => (56 + hitA() * 58) * 0.56} skewX={() => labelSkewByLane(activeLane(), hitY) * 0.5} stroke={PINK} lineWidth={3} fill={'rgba(0,0,0,0)'} opacity={() => hitA() * 0.85} />
-      <Circle x={noteX} y={hitY} width={() => 56 + hitB() * 58} height={() => (56 + hitB() * 58) * 0.56} skewX={() => labelSkewByLane(activeLane(), hitY) * 0.5} stroke={PINK} lineWidth={3} fill={'rgba(0,0,0,0)'} opacity={() => hitB() * 0.85} />
-      <Circle x={noteX} y={hitY} width={() => 56 + hitC() * 58} height={() => (56 + hitC() * 58) * 0.56} skewX={() => labelSkewByLane(activeLane(), hitY) * 0.5} stroke={PINK} lineWidth={3} fill={'rgba(0,0,0,0)'} opacity={() => hitC() * 0.85} />
-      <Circle x={noteX} y={hitY} width={() => 56 + hitD() * 64} height={() => (56 + hitD() * 64) * 0.56} skewX={() => labelSkewByLane(activeLane(), hitY) * 0.5} stroke={PINK} lineWidth={3} fill={'rgba(0,0,0,0)'} opacity={() => hitD() * 0.9} />
-      <Circle x={noteX} y={hitY} width={() => 56 + hitE() * 64} height={() => (56 + hitE() * 64) * 0.56} skewX={() => labelSkewByLane(activeLane(), hitY) * 0.5} stroke={PINK} lineWidth={3} fill={'rgba(0,0,0,0)'} opacity={() => hitE() * 0.9} />
     </>,
   );
 
@@ -411,7 +410,7 @@ export default makeScene2D(function* (view) {
     );
     yield* all(
       hit(1, 0.10 * pace),
-      notePulse(1.15, 0.10 * pace),
+      notePulse(1.0, 0.10 * pace),
       noteSquash(1, 0.09 * pace),
       glow(1, 0.10 * pace),
       shock(1, 0.08 * pace),
