@@ -7,8 +7,9 @@ const PINK = '#FF8CA3';
 const STRINGS = ['#79B647', '#E4554E', '#E6C746', '#4DA7E3', '#E58A47'];
 
 export default makeScene2D(function* (view) {
-  const on = createSignal(0);
-  const noteOn = createSignal(1);
+  const on = createSignal(1);
+  const uiOn = createSignal(0);
+  const noteOn = createSignal(0);
   const noteX = createSignal(0);
   const notePulse = createSignal(0);
   const noteSquash = createSignal(0);
@@ -16,6 +17,7 @@ export default makeScene2D(function* (view) {
   const hitB = createSignal(0);
   const hitC = createSignal(0);
   const hitD = createSignal(0);
+  const hitE = createSignal(0);
 
   const yTop = -430;
   const yBottom = 410;
@@ -49,16 +51,20 @@ export default makeScene2D(function* (view) {
     const dy = y1 - y0 || 1;
     const base = ((Math.atan2(dx, dy) * 180) / Math.PI) * 0.55;
     // Yellow lane: tweak top-lean (shear), not rigid rotation.
-    return lane === 2 ? base - 1.8 : base;
+    if (lane === 2) return base - 1.8;
+    if (lane === 3) return base * 0.62;
+    return base;
   };
   const nAY = createSignal(yTop);
   const nBY = createSignal(yTop);
   const nCY = createSignal(yTop);
   const nDY = createSignal(yTop);
+  const nEY = createSignal(yTop);
   const nAOn = createSignal(0);
   const nBOn = createSignal(0);
   const nCOn = createSignal(0);
   const nDOn = createSignal(0);
+  const nEOn = createSignal(0);
   const g0 = createSignal(0);
   const g1 = createSignal(0);
   const g2 = createSignal(0);
@@ -77,31 +83,37 @@ export default makeScene2D(function* (view) {
   const laneB = 1;
   const laneC = 3;
   const laneD = 2;
+  const laneE = 4;
   const noteBaseW = 76;
   const laneColor = (lane: number) => STRINGS[Math.max(0, Math.min(4, lane))];
   const laneLabelA = createSignal('');
   const laneLabelB = createSignal('');
   const laneLabelC = createSignal('');
   const laneLabelD = createSignal('');
+  const laneLabelE = createSignal('');
+  const activeLane = createSignal(laneA);
+  const show = () => on() * uiOn();
+  const pinkW = () => noteBaseW + notePulse() * 34 + noteSquash() * 16;
+  const pinkH = () => (noteBaseW + notePulse() * 34 - noteSquash() * 10) * 0.56;
 
   noteX(laneX(laneA, hitY));
 
   view.add(
     <>
       <Rect width={Screen.width} height={Screen.height} fill={BG} opacity={on} />
-      <Rect width={Screen.width} height={Screen.height} fill={'rgba(255,255,255,0.03)'} opacity={() => on() * 0.8} />
+      <Rect width={Screen.width} height={Screen.height} fill={'rgba(255,255,255,0.03)'} opacity={() => show() * 0.8} />
       {/* Left method match log (max 10 entries), minimal style */}
       {Array.from({length: logLimit}, (_, i) => (
         <Txt
-          x={-Screen.width * 0.38}
-          y={-Screen.height * 0.33 + i * 40}
+          x={-Screen.width * 0.44}
+          y={-Screen.height * 0.40 + i * 40}
           text={() => methodLogText[i]()}
           textAlign={'left'}
           offset={[-1, 0]}
           fontSize={33}
           letterSpacing={0.3}
           fill={'rgba(214,238,208,0.92)'}
-          opacity={() => on() * methodLogOn[i]()}
+          opacity={() => show() * methodLogOn[i]()}
         />
       ))}
 
@@ -124,7 +136,7 @@ export default makeScene2D(function* (view) {
               stroke={STRINGS[i]}
               lineWidth={width}
               lineCap={'round'}
-              opacity={() => on() * alpha}
+              opacity={() => show() * alpha}
             />
           );
         }),
@@ -139,7 +151,7 @@ export default makeScene2D(function* (view) {
           lineWidth={8}
           lineCap={'round'}
           opacity={() =>
-            (i === 0 ? g0() : i === 1 ? g1() : i === 2 ? g2() : i === 3 ? g3() : g4()) * 0.55
+            show() * (i === 0 ? g0() : i === 1 ? g1() : i === 2 ? g2() : i === 3 ? g3() : g4()) * 0.55
           }
         />
       ))}
@@ -159,7 +171,7 @@ export default makeScene2D(function* (view) {
           stroke={STRINGS[i]}
           lineWidth={() => 2 + (i === 0 ? s0() : i === 1 ? s1() : i === 2 ? s2() : i === 3 ? s3() : s4()) * 5}
           lineCap={'round'}
-          opacity={() => (i === 0 ? s0() : i === 1 ? s1() : i === 2 ? s2() : i === 3 ? s3() : s4()) * 0.95}
+          opacity={() => show() * (i === 0 ? s0() : i === 1 ? s1() : i === 2 ? s2() : i === 3 ? s3() : s4()) * 0.95}
         />
       ))}
 
@@ -174,7 +186,7 @@ export default makeScene2D(function* (view) {
             ]}
             stroke={'rgba(244,241,235,0.10)'}
             lineWidth={1.5}
-            opacity={on}
+            opacity={show}
           />
         );
       })}
@@ -187,7 +199,7 @@ export default makeScene2D(function* (view) {
         ]}
         stroke={'rgba(255,255,255,0.22)'}
         lineWidth={10}
-        opacity={on}
+        opacity={show}
       />
       <Line
         points={[
@@ -196,7 +208,7 @@ export default makeScene2D(function* (view) {
         ]}
         stroke={'rgba(252,251,248,0.82)'}
         lineWidth={2}
-        opacity={on}
+        opacity={show}
       />
 
       {/* Method labels (left), lying in fretboard plane */}
@@ -214,7 +226,7 @@ export default makeScene2D(function* (view) {
         scaleY={() => labelScaleYForLane(laneA, nAY())}
         shadowColor={'rgba(121,182,71,0.22)'}
         shadowBlur={5}
-        opacity={() => on() * nAOn() * 0.9}
+        opacity={() => show() * nAOn() * 0.9}
       />
       {/* Method notes moving in fretboard plane */}
       <Circle
@@ -228,7 +240,7 @@ export default makeScene2D(function* (view) {
         shadowColor={'rgba(121,182,71,0.30)'}
         shadowBlur={5}
         shadowOffset={[0, 2]}
-        opacity={() => on() * nAOn()}
+        opacity={() => show() * nAOn()}
       />
       <Txt
         x={() => labelXAt(laneB, nBY())}
@@ -244,7 +256,7 @@ export default makeScene2D(function* (view) {
         scaleY={() => labelScaleYForLane(laneB, nBY())}
         shadowColor={'rgba(228,85,78,0.22)'}
         shadowBlur={5}
-        opacity={() => on() * nBOn() * 0.9}
+        opacity={() => show() * nBOn() * 0.9}
       />
       <Circle
         x={() => laneX(laneB, nBY())}
@@ -257,7 +269,7 @@ export default makeScene2D(function* (view) {
         shadowColor={'rgba(228,85,78,0.30)'}
         shadowBlur={5}
         shadowOffset={[0, 2]}
-        opacity={() => on() * nBOn()}
+        opacity={() => show() * nBOn()}
       />
       <Txt
         x={() => labelXAt(laneC, nCY())}
@@ -273,7 +285,7 @@ export default makeScene2D(function* (view) {
         scaleY={() => labelScaleYForLane(laneC, nCY())}
         shadowColor={'rgba(77,167,227,0.22)'}
         shadowBlur={5}
-        opacity={() => on() * nCOn() * 0.9}
+        opacity={() => show() * nCOn() * 0.9}
       />
       <Circle
         x={() => laneX(laneC, nCY())}
@@ -286,7 +298,7 @@ export default makeScene2D(function* (view) {
         shadowColor={'rgba(77,167,227,0.30)'}
         shadowBlur={5}
         shadowOffset={[0, 2]}
-        opacity={() => on() * nCOn()}
+        opacity={() => show() * nCOn()}
       />
       <Txt
         x={() => labelXAt(laneD, nDY())}
@@ -302,7 +314,7 @@ export default makeScene2D(function* (view) {
         scaleY={() => labelScaleYForLane(laneD, nDY())}
         shadowColor={'rgba(230,199,70,0.22)'}
         shadowBlur={5}
-        opacity={() => on() * nDOn() * 0.9}
+        opacity={() => show() * nDOn() * 0.9}
       />
       <Circle
         x={() => laneX(laneD, nDY())}
@@ -315,40 +327,64 @@ export default makeScene2D(function* (view) {
         shadowColor={'rgba(230,199,70,0.30)'}
         shadowBlur={5}
         shadowOffset={[0, 2]}
-        opacity={() => on() * nDOn()}
+        opacity={() => show() * nDOn()}
+      />
+      <Txt
+        x={() => labelXAt(laneE, nEY())}
+        y={nEY}
+        text={laneLabelE}
+        fontSize={() => 32 + depth(nEY()) * 20}
+        textAlign={'right'}
+        offset={[1, 0]}
+        letterSpacing={0.7}
+        skewX={() => labelSkewByLane(laneE, nEY())}
+        fill={laneColor(laneE)}
+        scaleX={() => labelScaleXAt(nEY())}
+        scaleY={() => labelScaleYForLane(laneE, nEY())}
+        shadowColor={'rgba(229,138,71,0.22)'}
+        shadowBlur={5}
+        opacity={() => show() * nEOn() * 0.9}
+      />
+      <Circle
+        x={() => laneX(laneE, nEY())}
+        y={nEY}
+        width={() => noteWAt(nEY()) * 1.24}
+        height={() => noteHAt(nEY()) * 1.24}
+        fill={'rgba(0,0,0,0)'}
+        stroke={laneColor(laneE)}
+        lineWidth={() => 6.2 + depth(nEY()) * 3.4}
+        shadowColor={'rgba(229,138,71,0.30)'}
+        shadowBlur={5}
+        shadowOffset={[0, 2]}
+        opacity={() => show() * nEOn()}
       />
 
       {/* Contact pulses when method circles touch the pink argument */}
       <Circle
         x={noteX}
         y={hitY}
-        width={() => noteBaseW * 1.55 + notePulse() * 58}
-        height={() => (noteBaseW * 1.55 + notePulse() * 58) * 0.58}
+        width={() => pinkW() * 1.28}
+        height={() => pinkH() * 1.28}
+        skewX={() => labelSkewByLane(activeLane(), hitY) * 0.5}
         fill={'rgba(255,140,163,0.26)'}
-        opacity={() => noteOn() * (0.42 + notePulse() * 0.25)}
+        opacity={() => noteOn() * (0.34 + notePulse() * 0.18)}
       />
       <Circle
         x={noteX}
         y={hitY}
-        width={() => noteBaseW + notePulse() * 34 + noteSquash() * 16}
-        height={() => (noteBaseW + notePulse() * 34 - noteSquash() * 10) * 0.56}
+        width={pinkW}
+        height={pinkH}
+        skewX={() => labelSkewByLane(activeLane(), hitY) * 0.5}
         fill={PINK}
-        stroke={'rgba(255,220,228,0.72)'}
-        lineWidth={2.4}
+        stroke={'rgba(0,0,0,0)'}
+        lineWidth={0}
         opacity={noteOn}
       />
-      <Circle
-        x={noteX}
-        y={() => hitY - 2}
-        width={() => noteBaseW * 0.62 + notePulse() * 16}
-        height={() => (noteBaseW * 0.62 + notePulse() * 16) * 0.52}
-        fill={'rgba(255,188,201,0.72)'}
-        opacity={() => noteOn() * 0.78}
-      />
-      <Circle x={noteX} y={hitY} width={() => 56 + hitA() * 58} height={() => (56 + hitA() * 58) * 0.56} stroke={PINK} lineWidth={3} fill={'rgba(0,0,0,0)'} opacity={() => hitA() * 0.85} />
-      <Circle x={noteX} y={hitY} width={() => 56 + hitB() * 58} height={() => (56 + hitB() * 58) * 0.56} stroke={PINK} lineWidth={3} fill={'rgba(0,0,0,0)'} opacity={() => hitB() * 0.85} />
-      <Circle x={noteX} y={hitY} width={() => 56 + hitC() * 58} height={() => (56 + hitC() * 58) * 0.56} stroke={PINK} lineWidth={3} fill={'rgba(0,0,0,0)'} opacity={() => hitC() * 0.85} />
-      <Circle x={noteX} y={hitY} width={() => 56 + hitD() * 64} height={() => (56 + hitD() * 64) * 0.56} stroke={PINK} lineWidth={3} fill={'rgba(0,0,0,0)'} opacity={() => hitD() * 0.9} />
+      <Circle x={noteX} y={hitY} width={() => 56 + hitA() * 58} height={() => (56 + hitA() * 58) * 0.56} skewX={() => labelSkewByLane(activeLane(), hitY) * 0.5} stroke={PINK} lineWidth={3} fill={'rgba(0,0,0,0)'} opacity={() => hitA() * 0.85} />
+      <Circle x={noteX} y={hitY} width={() => 56 + hitB() * 58} height={() => (56 + hitB() * 58) * 0.56} skewX={() => labelSkewByLane(activeLane(), hitY) * 0.5} stroke={PINK} lineWidth={3} fill={'rgba(0,0,0,0)'} opacity={() => hitB() * 0.85} />
+      <Circle x={noteX} y={hitY} width={() => 56 + hitC() * 58} height={() => (56 + hitC() * 58) * 0.56} skewX={() => labelSkewByLane(activeLane(), hitY) * 0.5} stroke={PINK} lineWidth={3} fill={'rgba(0,0,0,0)'} opacity={() => hitC() * 0.85} />
+      <Circle x={noteX} y={hitY} width={() => 56 + hitD() * 64} height={() => (56 + hitD() * 64) * 0.56} skewX={() => labelSkewByLane(activeLane(), hitY) * 0.5} stroke={PINK} lineWidth={3} fill={'rgba(0,0,0,0)'} opacity={() => hitD() * 0.9} />
+      <Circle x={noteX} y={hitY} width={() => 56 + hitE() * 64} height={() => (56 + hitE() * 64) * 0.56} skewX={() => labelSkewByLane(activeLane(), hitY) * 0.5} stroke={PINK} lineWidth={3} fill={'rgba(0,0,0,0)'} opacity={() => hitE() * 0.9} />
     </>,
   );
 
@@ -364,6 +400,7 @@ export default makeScene2D(function* (view) {
     pace: number,
   ) {
     const travel = 0.56 * pace;
+    activeLane(lane);
     noteY(yTop);
     noteVisible(1);
     laneLabel(methodName);
@@ -396,26 +433,28 @@ export default makeScene2D(function* (view) {
   };
 
   let matchCount = 0;
-  yield* on(1, 0.55, easeInOutCubic);
+  yield* waitFor(0.12);
+  yield* uiOn(1, 0.45, easeInOutCubic);
   yield* noteOn(1, 0.2, easeInOutCubic);
 
   yield* noteX(laneX(laneA, hitY), 0.06, linear);
   const events = [
-    {lane: laneA, y: nAY, on: nAOn, label: laneLabelA, hit: hitA, glow: g0, shock: s0, method: 'prepareAndEncode'},
+    {lane: laneA, y: nAY, on: nAOn, label: laneLabelA, hit: hitA, glow: g0, shock: s0, method: 'prepare'},
     {lane: laneB, y: nBY, on: nBOn, label: laneLabelB, hit: hitB, glow: g1, shock: s1, method: 'encodeWithRetry'},
     {lane: laneC, y: nCY, on: nCOn, label: laneLabelC, hit: hitC, glow: g3, shock: s3, method: 'finalizeExport'},
-    {lane: laneD, y: nDY, on: nDOn, label: laneLabelD, hit: hitD, glow: g2, shock: s2, method: 'encodeFrameBatch'},
+    {lane: laneD, y: nDY, on: nDOn, label: laneLabelD, hit: hitD, glow: g2, shock: s2, method: 'encode'},
+    {lane: laneE, y: nEY, on: nEOn, label: laneLabelE, hit: hitE, glow: g4, shock: s4, method: 'mux'},
     {lane: laneB, y: nBY, on: nBOn, label: laneLabelB, hit: hitB, glow: g1, shock: s1, method: 'attachAudioTrack'},
-    {lane: laneD, y: nDY, on: nDOn, label: laneLabelD, hit: hitD, glow: g2, shock: s2, method: 'transcodeBitrate'},
+    {lane: laneD, y: nDY, on: nDOn, label: laneLabelD, hit: hitD, glow: g2, shock: s2, method: 'bitrate'},
     {lane: laneC, y: nCY, on: nCOn, label: laneLabelC, hit: hitC, glow: g3, shock: s3, method: 'normalizeFrames'},
-    {lane: laneA, y: nAY, on: nAOn, label: laneLabelA, hit: hitA, glow: g0, shock: s0, method: 'applyColorProfile'},
+    {lane: laneA, y: nAY, on: nAOn, label: laneLabelA, hit: hitA, glow: g0, shock: s0, method: 'grade'},
     {lane: laneB, y: nBY, on: nBOn, label: laneLabelB, hit: hitB, glow: g1, shock: s1, method: 'writeMp4Container'},
     {lane: laneC, y: nCY, on: nCOn, label: laneLabelC, hit: hitC, glow: g3, shock: s3, method: 'injectMetadata'},
-    {lane: laneD, y: nDY, on: nDOn, label: laneLabelD, hit: hitD, glow: g2, shock: s2, method: 'validateOutputFormat'},
-    {lane: laneA, y: nAY, on: nAOn, label: laneLabelA, hit: hitA, glow: g0, shock: s0, method: 'buildExportPayload'},
+    {lane: laneD, y: nDY, on: nDOn, label: laneLabelD, hit: hitD, glow: g2, shock: s2, method: 'verify'},
+    {lane: laneA, y: nAY, on: nAOn, label: laneLabelA, hit: hitA, glow: g0, shock: s0, method: 'pack'},
     {lane: laneC, y: nCY, on: nCOn, label: laneLabelC, hit: hitC, glow: g3, shock: s3, method: 'signDeliveryToken'},
     {lane: laneB, y: nBY, on: nBOn, label: laneLabelB, hit: hitB, glow: g1, shock: s1, method: 'persistManifest'},
-    {lane: laneD, y: nDY, on: nDOn, label: laneLabelD, hit: hitD, glow: g2, shock: s2, method: 'publishExportEvent'},
+    {lane: laneD, y: nDY, on: nDOn, label: laneLabelD, hit: hitD, glow: g2, shock: s2, method: 'notify'},
     {lane: laneC, y: nCY, on: nCOn, label: laneLabelC, hit: hitC, glow: g3, shock: s3, method: 'archiveSourceClip'},
   ] as const;
   for (let i = 0; i < events.length; i++) {
@@ -426,15 +465,17 @@ export default makeScene2D(function* (view) {
 
   // Explicit timelapse ending: dense, much faster, still unique names.
   const timelapseEvents = [
-    {lane: laneA, y: nAY, on: nAOn, label: laneLabelA, hit: hitA, glow: g0, shock: s0, method: 'queueDeliveryJob'},
+    {lane: laneA, y: nAY, on: nAOn, label: laneLabelA, hit: hitA, glow: g0, shock: s0, method: 'queue'},
     {lane: laneC, y: nCY, on: nCOn, label: laneLabelC, hit: hitC, glow: g3, shock: s3, method: 'hydratePreviewFrame'},
+    {lane: laneE, y: nEY, on: nEOn, label: laneLabelE, hit: hitE, glow: g4, shock: s4, method: 'sealOrange'},
     {lane: laneB, y: nBY, on: nBOn, label: laneLabelB, hit: hitB, glow: g1, shock: s1, method: 'mapSubtitleTrack'},
-    {lane: laneD, y: nDY, on: nDOn, label: laneLabelD, hit: hitD, glow: g2, shock: s2, method: 'sealOutputChecksum'},
-    {lane: laneA, y: nAY, on: nAOn, label: laneLabelA, hit: hitA, glow: g0, shock: s0, method: 'registerCdnAsset'},
+    {lane: laneD, y: nDY, on: nDOn, label: laneLabelD, hit: hitD, glow: g2, shock: s2, method: 'seal'},
+    {lane: laneA, y: nAY, on: nAOn, label: laneLabelA, hit: hitA, glow: g0, shock: s0, method: 'publish'},
     {lane: laneB, y: nBY, on: nBOn, label: laneLabelB, hit: hitB, glow: g1, shock: s1, method: 'emitAuditEnvelope'},
     {lane: laneC, y: nCY, on: nCOn, label: laneLabelC, hit: hitC, glow: g3, shock: s3, method: 'snapshotTranscodeState'},
-    {lane: laneD, y: nDY, on: nDOn, label: laneLabelD, hit: hitD, glow: g2, shock: s2, method: 'flushEncoderBuffer'},
-    {lane: laneA, y: nAY, on: nAOn, label: laneLabelA, hit: hitA, glow: g0, shock: s0, method: 'closeDeliveryWindow'},
+    {lane: laneE, y: nEY, on: nEOn, label: laneLabelE, hit: hitE, glow: g4, shock: s4, method: 'flushOrange'},
+    {lane: laneD, y: nDY, on: nDOn, label: laneLabelD, hit: hitD, glow: g2, shock: s2, method: 'flush'},
+    {lane: laneA, y: nAY, on: nAOn, label: laneLabelA, hit: hitA, glow: g0, shock: s0, method: 'close'},
     {lane: laneC, y: nCY, on: nCOn, label: laneLabelC, hit: hitC, glow: g3, shock: s3, method: 'compactExportLedger'},
   ] as const;
   for (let i = 0; i < timelapseEvents.length; i++) {
