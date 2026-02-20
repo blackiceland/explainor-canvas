@@ -1,5 +1,5 @@
 import {makeScene2D} from '@motion-canvas/2d';
-import {waitFor} from '@motion-canvas/core';
+import {all, ThreadGenerator, waitFor} from '@motion-canvas/core';
 import {CodeBlock} from '../core/code/components/CodeBlock';
 import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
 import {getCodePaddingY} from '../core/code/shared/TextMeasure';
@@ -144,5 +144,19 @@ export default makeScene2D(function* (view) {
     }
   }
   yield* code.appear(Timing.normal);
+  yield* waitFor(2);
+
+  const dimOpacity = 0.15;
+  const dimDuration = 0.8;
+  const highlightFrom = 1;
+  const highlightTo = 9;
+
+  const dimAnims: ThreadGenerator[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const bright = i >= highlightFrom && i <= highlightTo;
+    dimAnims.push(code.setLineTokensOpacity(i, bright ? 1 : dimOpacity, dimDuration));
+  }
+  yield* all(...dimAnims);
+
   yield* waitFor(2);
 });
