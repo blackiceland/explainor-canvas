@@ -16,7 +16,8 @@ C:\Users\anton\IdeaProjects\canvas\motion-canvas\COOKBOOK.txt
 и напиши ок.
 
 
-
+taskkill /F /T /IM "Docker Desktop.exe"
+taskkill /F /T /IM "com.docker.backend.exe"
 
 cd scripts
 npm run daedalus:up
