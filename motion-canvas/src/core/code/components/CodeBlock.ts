@@ -85,7 +85,7 @@ export class CodeBlock {
         return getCodePaddingY(this.config.fontSize);
     }
 
-    private getContentLeftEdge(): number {
+    public getContentLeftEdge(): number {
         const paddingX = this.getPaddingX();
         const contentWidth = Math.max(this.config.width - paddingX * 2, 0);
         return -contentWidth / 2 + this.config.contentOffsetX;
@@ -163,6 +163,10 @@ export class CodeBlock {
 
     public get cardRect(): Rect | null {
         return this.card?.node ?? null;
+    }
+
+    public getContentContainer(): Node {
+        return this.contentRef();
     }
 
     public getLine(index: number): CodeLine | null {

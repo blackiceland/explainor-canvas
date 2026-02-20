@@ -1,11 +1,12 @@
-import {makeScene2D} from '@motion-canvas/2d';
-import {all, ThreadGenerator, waitFor} from '@motion-canvas/core';
+import {makeScene2D, Node, Txt} from '@motion-canvas/2d';
+import {all, easeInOutCubic, ThreadGenerator, waitFor} from '@motion-canvas/core';
 import {CodeBlock} from '../core/code/components/CodeBlock';
 import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
 import {getCodePaddingY} from '../core/code/shared/TextMeasure';
 import {SafeZone} from '../core/ScreenGrid';
 import {Fonts, Timing} from '../core/theme';
 import {applyBackground} from '../core/utils';
+import {textWidth} from '../core/utils/textMeasure';
 
 const CODE_CARD_STYLE = {
   radius: 24,
@@ -157,6 +158,70 @@ export default makeScene2D(function* (view) {
     dimAnims.push(code.setLineTokensOpacity(i, bright ? 1 : dimOpacity, dimDuration));
   }
   yield* all(...dimAnims);
+
+  yield* waitFor(1.5);
+
+  // Prepare method call Txt before animation
+  const callLine = code.getLine(highlightFrom)!;
+  const leftEdge = code.getContentLeftEdge();
+  const callY = callLine.node.y();
+  const callIndent = textWidth('    ', Fonts.code, fontSize);
+  const PUNCT_COLOR = 'rgba(244, 241, 235, 0.7)';
+
+  const METHOD_COLOR = DryFiltersV3CodeTheme.method;
+
+  const callParts = [
+    {text: 'validateDisplayName', color: METHOD_COLOR},
+    {text: '(', color: PUNCT_COLOR},
+    {text: 'request', color: VAR_LIGHT},
+    {text: ');', color: PUNCT_COLOR},
+  ];
+
+  const callContainer = new Node({y: callY, opacity: 0});
+  let cx = leftEdge + callIndent;
+  for (const part of callParts) {
+    callContainer.add(new Txt({
+      text: part.text,
+      fontFamily: Fonts.code,
+      fontSize,
+      fill: part.color,
+      x: cx,
+      offset: [-1, 0],
+    }));
+    cx += textWidth(part.text, Fonts.code, fontSize);
+  }
+  code.getContentContainer().add(callContainer);
+
+  // Step 2: fade out block + fade in method call + collapse — all together
+  const collapsedLines = highlightTo - highlightFrom;
+  const collapseDistance = collapsedLines * lineHeight;
+
+  const transitionAnims: ThreadGenerator[] = [];
+
+  for (let i = highlightFrom; i <= highlightTo; i++) {
+    transitionAnims.push(code.setLineTokensOpacity(i, 0, 1.2));
+  }
+  transitionAnims.push(callContainer.opacity(1, 1.2, easeInOutCubic));
+
+  for (let i = highlightTo + 1; i < lines.length; i++) {
+    const ln = code.getLine(i)!;
+    const currentY = ln.node.y();
+    transitionAnims.push(ln.node.y(currentY - collapseDistance, 1.2, easeInOutCubic));
+  }
+  for (let i = highlightFrom; i <= highlightTo; i++) {
+    const ln = code.getLine(i)!;
+    transitionAnims.push(ln.node.opacity(0, 1.2, easeInOutCubic));
+  }
+
+  yield* all(...transitionAnims);
+
+  // restore brightness on remaining lines
+  const restoreAnims: ThreadGenerator[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (i >= highlightFrom && i <= highlightTo) continue;
+    restoreAnims.push(code.setLineTokensOpacity(i, 1, 0.6));
+  }
+  yield* all(...restoreAnims);
 
   yield* waitFor(2);
 });
