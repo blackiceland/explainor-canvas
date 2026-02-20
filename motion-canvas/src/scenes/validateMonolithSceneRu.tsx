@@ -1,5 +1,5 @@
 import {makeScene2D} from '@motion-canvas/2d';
-import {waitFor} from '@motion-canvas/core';
+import {all, ThreadGenerator, waitFor} from '@motion-canvas/core';
 import {CodeBlock} from '../core/code/components/CodeBlock';
 import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
 import {getCodePaddingY} from '../core/code/shared/TextMeasure';
@@ -177,5 +177,59 @@ export default makeScene2D(function* (view) {
     }
   }
   yield* code.appear(Timing.normal);
-  yield* waitFor(1);
+  yield* waitFor(1.2);
+
+  const dimOpacity = 0.15;
+  const dimDuration = 0.8;
+  const pauseOnBlock = 1.5;
+  const scrollDuration = 1.2;
+
+  const clipHeight = blockHeight - paddingY * 2;
+  const visibleLines = Math.floor(clipHeight / lineHeight);
+
+  const checkBlocks = [
+    [3, 5],
+    [7, 9],
+    [13, 15],
+    [19, 23],
+    [25, 27],
+    [29, 35],
+    [37, 41],
+    [46, 54],
+  ];
+
+  function scrollForBlock(start: number, end: number): number {
+    const blockCenter = (start + end) / 2;
+    const screenCenter = visibleLines / 2;
+    const offset = (blockCenter - screenCenter) * lineHeight;
+    return Math.max(0, offset);
+  }
+
+  function* dimAllExcept(start: number, end: number): ThreadGenerator {
+    const anims: ThreadGenerator[] = [];
+    for (let i = 0; i < lines.length; i++) {
+      const bright = i >= start && i <= end;
+      anims.push(code.setLineTokensOpacity(i, bright ? 1 : dimOpacity, dimDuration));
+    }
+    yield* all(...anims);
+  }
+
+  let currentScroll = 0;
+  yield* dimAllExcept(checkBlocks[0][0], checkBlocks[0][1]);
+
+  for (let b = 1; b < checkBlocks.length; b++) {
+    yield* waitFor(pauseOnBlock);
+    const targetScroll = scrollForBlock(checkBlocks[b][0], checkBlocks[b][1]);
+    if (targetScroll !== currentScroll) {
+      yield* all(
+        dimAllExcept(checkBlocks[b][0], checkBlocks[b][1]),
+        code.animateScrollY(targetScroll, scrollDuration),
+      );
+      currentScroll = targetScroll;
+    } else {
+      yield* dimAllExcept(checkBlocks[b][0], checkBlocks[b][1]);
+    }
+  }
+
+  yield* waitFor(2);
 });
