@@ -266,24 +266,25 @@ export default makeScene2D(function* (view) {
     }
     code.getContentContainer().add(callContainer);
 
-    // fade out block + fade in call + collapse
     const blockLines = to - from;
     const collapseDistance = blockLines * lineHeight;
+    const targetY = anchorLine.node.y();
 
+    // step A: squeeze + fade out block, fade in call, collapse below — all together
     const anims: ThreadGenerator[] = [];
-
     for (let i = from; i <= to; i++) {
-      anims.push(code.setLineTokensOpacity(i, 0, 1.2));
-      anims.push(code.getLine(i)!.node.opacity(0, 1.2, easeInOutCubic));
+      const ln = code.getLine(i)!;
+      anims.push(ln.node.y(targetY, 0.8, easeInOutCubic));
+      anims.push(ln.node.opacity(0, 0.6, easeInOutCubic));
     }
-    anims.push(callContainer.opacity(1, 1.2, easeInOutCubic));
+    anims.push(callContainer.opacity(1, 0.8, easeInOutCubic));
 
     for (let i = to + 1; i < lines.length; i++) {
       const ln = code.getLine(i)!;
       if (ln.node.opacity() === 0 && i >= privateMethodStart) {
         ln.node.y(ln.node.y() - collapseDistance);
       } else {
-        anims.push(ln.node.y(ln.node.y() - collapseDistance, 1.2, easeInOutCubic));
+        anims.push(ln.node.y(ln.node.y() - collapseDistance, 0.8, easeInOutCubic));
       }
     }
 
