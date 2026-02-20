@@ -151,6 +151,9 @@ export default makeScene2D(function* (view) {
     if (quoted.length > 0) {
       yield* code.recolorTokens(i, quoted, SOFT_GREEN, 0);
     }
+    if (line.includes('validate(')) {
+      yield* code.recolorTokens(i, ['validate'], VAR_LIGHT, 0);
+    }
     if (line.includes('null')) {
       yield* code.recolorTokens(i, ['null'], KEYWORD_COLOR, 0);
     }
@@ -174,13 +177,5 @@ export default makeScene2D(function* (view) {
     }
   }
   yield* code.appear(Timing.normal);
-
-  const clipHeight = blockHeight - paddingY * 2;
-  const targetLastY = clipHeight / 2 - lineHeight / 2 - 12;
-  const startY = -clipHeight / 2 + topInset + lineHeight / 2;
-  const currentLastY = startY + (lines.length - 1) * lineHeight;
-  const scrollAmount = Math.max(0, currentLastY - targetLastY + 18);
-
-  yield* code.animateScrollY(scrollAmount, 14);
-  yield* waitFor(0.4);
+  yield* waitFor(1);
 });
