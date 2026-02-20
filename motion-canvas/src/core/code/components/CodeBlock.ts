@@ -378,11 +378,11 @@ export class CodeBlock {
         content.y(-value);
     }
 
-    public *animateScrollY(deltaY: number, duration: number = 0.6): ThreadGenerator {
+    public *animateScrollY(deltaY: number, duration: number = 0.6, timingFunction = easeInOutCubic): ThreadGenerator {
         if (!this.mounted) return;
         const content = this.contentRef();
         const target = -deltaY;
-        yield* content.y(target, duration, easeInOutCubic);
+        yield* content.y(target, duration, timingFunction);
     }
 
     public setCardFill(color: string): void {

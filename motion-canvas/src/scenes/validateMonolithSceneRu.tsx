@@ -1,5 +1,5 @@
 import {makeScene2D} from '@motion-canvas/2d';
-import {all, ThreadGenerator, waitFor} from '@motion-canvas/core';
+import {all, chain, linear, ThreadGenerator, waitFor} from '@motion-canvas/core';
 import {CodeBlock} from '../core/code/components/CodeBlock';
 import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
 import {getCodePaddingY} from '../core/code/shared/TextMeasure';
@@ -214,22 +214,47 @@ export default makeScene2D(function* (view) {
     yield* all(...anims);
   }
 
+  const lastPausedBlock = 1;
   let currentScroll = 0;
   yield* dimAllExcept(checkBlocks[0][0], checkBlocks[0][1]);
 
-  for (let b = 1; b < checkBlocks.length; b++) {
+  for (let b = 1; b <= lastPausedBlock; b++) {
     yield* waitFor(pauseOnBlock);
-    const targetScroll = scrollForBlock(checkBlocks[b][0], checkBlocks[b][1]);
-    if (targetScroll !== currentScroll) {
-      yield* all(
-        dimAllExcept(checkBlocks[b][0], checkBlocks[b][1]),
-        code.animateScrollY(targetScroll, scrollDuration),
-      );
-      currentScroll = targetScroll;
-    } else {
-      yield* dimAllExcept(checkBlocks[b][0], checkBlocks[b][1]);
+    yield* dimAllExcept(checkBlocks[b][0], checkBlocks[b][1]);
+  }
+
+  yield* waitFor(pauseOnBlock);
+
+  const lastBlock = checkBlocks[checkBlocks.length - 1];
+  const finalScroll = scrollForBlock(lastBlock[0], lastBlock[1]);
+  const continuousScrollDuration = 10;
+
+  const remainingBlocks = checkBlocks.slice(lastPausedBlock + 1);
+  const blockScrollPositions = remainingBlocks.map(
+    ([s, e]) => scrollForBlock(s, e),
+  );
+
+  function* highlightDuringScroll(): ThreadGenerator {
+    for (let i = 0; i < remainingBlocks.length; i++) {
+      const [start, end] = remainingBlocks[i];
+      const scrollPos = blockScrollPositions[i];
+      const nextScrollPos = i < remainingBlocks.length - 1
+        ? blockScrollPositions[i + 1]
+        : finalScroll;
+      const fraction = finalScroll > 0
+        ? (nextScrollPos - scrollPos) / finalScroll
+        : 1 / remainingBlocks.length;
+      const segmentTime = continuousScrollDuration * fraction;
+
+      yield* dimAllExcept(start, end);
+      yield* waitFor(Math.max(0.3, segmentTime - dimDuration));
     }
   }
+
+  yield* all(
+    code.animateScrollY(finalScroll, continuousScrollDuration, linear),
+    highlightDuringScroll(),
+  );
 
   yield* waitFor(2);
 });
