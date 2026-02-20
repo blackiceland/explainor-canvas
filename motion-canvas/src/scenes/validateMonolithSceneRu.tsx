@@ -123,7 +123,7 @@ export default makeScene2D(function* (view) {
   const SOFT_GREEN = 'rgba(168, 214, 178, 0.88)';
   const VAR_LIGHT = 'rgba(244, 241, 235, 0.96)';
   const KEYWORD_COLOR = DryFiltersV3CodeTheme.keyword;
-  const TYPE_CLEAN = 'rgba(185, 168, 245, 0.76)';
+  const TYPE_CLEAN = 'rgba(200, 186, 255, 0.82)';
   const variableTokens = [
     'request',
     'displayName',
