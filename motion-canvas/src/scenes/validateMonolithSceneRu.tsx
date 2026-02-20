@@ -1,5 +1,5 @@
 import {makeScene2D} from '@motion-canvas/2d';
-import {all, chain, linear, ThreadGenerator, waitFor} from '@motion-canvas/core';
+import {waitFor} from '@motion-canvas/core';
 import {CodeBlock} from '../core/code/components/CodeBlock';
 import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
 import {getCodePaddingY} from '../core/code/shared/TextMeasure';
@@ -19,21 +19,21 @@ const CODE_CARD_STYLE = {
   edge: false,
 } as const;
 
-const VALIDATE_CODE = `private static ValidationResult validate(WhatsappChannelCreateRequest request) {
+const VALIDATE_CODE = `private static void validate(WhatsappChannelCreateRequest request) {
     String displayName = StringUtils.trimToNull(request.getDisplayName());
 
     if (displayName == null) {
-        return ValidationError.of(Violations.notNullViolation("displayName"));
+        throw new ValidationException(Violations.notNullViolation("displayName"));
     }
 
     if (displayName.length() > 255) {
-        return ValidationError.of(Violations.sizeMaxViolation("displayName", displayName, 255));
+        throw new ValidationException(Violations.sizeMaxViolation("displayName", displayName, 255));
     }
 
     String connectionTypeRaw = StringUtils.trimToNull(request.getConnectionType());
 
     if (connectionTypeRaw == null) {
-        return ValidationError.of(Violations.notNullViolation("connectionType"));
+        throw new ValidationException(Violations.notNullViolation("connectionType"));
     }
 
     ConnectionType connectionType;
@@ -41,42 +41,22 @@ const VALIDATE_CODE = `private static ValidationResult validate(WhatsappChannelC
     try {
         connectionType = ConnectionType.valueOf(connectionTypeRaw);
     } catch (IllegalArgumentException e) {
-        return ValidationError.of(Violations.enumViolation("connectionType", connectionTypeRaw));
+        throw new ValidationException(Violations.enumViolation("connectionType", connectionTypeRaw));
     }
 
     if (connectionType != ConnectionType.QR_CODE && connectionType != ConnectionType.DIGITAL_CODE) {
-        return ValidationError.of(Violations.enumViolation("connectionType", connectionTypeRaw));
+        throw new ValidationException(Violations.enumViolation("connectionType", connectionTypeRaw));
     }
 
     String phoneNumber = StringUtils.trimToNull(request.getPhoneNumber());
 
-    if (phoneNumber != null) {
-        if (!phoneNumber.matches("\\\\+?\\\\d{11}")) {
-            return ValidationError.of(Violations.patternViolation("phoneNumber", phoneNumber, "must match XXXXXXXXXXX or +XXXXXXXXXXX"));
-        }
+    if (phoneNumber != null && !phoneNumber.matches("\\\\+?\\\\d{11}")) {
+        throw new ValidationException(Violations.patternViolation("phoneNumber", phoneNumber));
     }
 
-    if (connectionType == ConnectionType.DIGITAL_CODE) {
-        if (phoneNumber == null) {
-            return ValidationError.of(Violations.notNullViolation("phoneNumber"));
-        }
+    if (connectionType == ConnectionType.DIGITAL_CODE && phoneNumber == null) {
+        throw new ValidationException(Violations.notNullViolation("phoneNumber"));
     }
-
-    Instant syncMessagesFromRaw = request.getSyncMessagesFrom();
-    Timestamp syncMessagesFrom = null;
-
-    if (syncMessagesFromRaw != null) {
-        long minEpochSecond = OffsetDateTime.now(ZoneOffset.UTC).minusMonths(1).toEpochSecond();
-        long valueEpochSecond = syncMessagesFromRaw.getEpochSecond();
-
-        if (valueEpochSecond < minEpochSecond) {
-            return ValidationError.of(Violations.minDateViolation("syncMessagesFrom", syncMessagesFromRaw));
-        }
-
-        syncMessagesFrom = Timestamp.from(syncMessagesFromRaw.truncatedTo(ChronoUnit.MILLIS));
-    }
-
-    return ValidationSuccess.of(connectionType, syncMessagesFrom);
 }`;
 
 export default makeScene2D(function* (view) {
@@ -103,18 +83,11 @@ export default makeScene2D(function* (view) {
     cardStyle: CODE_CARD_STYLE,
     glowAccent: false,
     customTypes: [
-      'ValidationResult',
       'WhatsappChannelCreateRequest',
-      'ValidationError',
+      'ValidationException',
       'Violations',
       'ConnectionType',
       'IllegalArgumentException',
-      'Instant',
-      'Timestamp',
-      'OffsetDateTime',
-      'ZoneOffset',
-      'ChronoUnit',
-      'ValidationSuccess',
     ],
   });
 
@@ -130,10 +103,6 @@ export default makeScene2D(function* (view) {
     'connectionTypeRaw',
     'connectionType',
     'phoneNumber',
-    'syncMessagesFromRaw',
-    'syncMessagesFrom',
-    'minEpochSecond',
-    'valueEpochSecond',
   ];
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -167,9 +136,7 @@ export default makeScene2D(function* (view) {
       yield* code.recolorTokens(i, ['IllegalArgumentException'], TYPE_CLEAN, 0);
     }
     const staticTypes = [
-      'ValidationResult', 'ValidationError', 'ValidationSuccess',
-      'Violations', 'ConnectionType', 'StringUtils',
-      'OffsetDateTime', 'ZoneOffset', 'Timestamp', 'ChronoUnit',
+      'ValidationException', 'Violations', 'ConnectionType', 'StringUtils',
     ];
     const typesOnLine = staticTypes.filter(t => line.includes(t));
     if (typesOnLine.length > 0) {
@@ -177,84 +144,5 @@ export default makeScene2D(function* (view) {
     }
   }
   yield* code.appear(Timing.normal);
-  yield* waitFor(1.2);
-
-  const dimOpacity = 0.15;
-  const dimDuration = 0.8;
-  const pauseOnBlock = 1.5;
-  const scrollDuration = 1.2;
-
-  const clipHeight = blockHeight - paddingY * 2;
-  const visibleLines = Math.floor(clipHeight / lineHeight);
-
-  const checkBlocks = [
-    [3, 5],
-    [7, 9],
-    [13, 15],
-    [19, 23],
-    [25, 27],
-    [29, 35],
-    [37, 41],
-    [46, 54],
-  ];
-
-  function scrollForBlock(start: number, end: number): number {
-    const blockCenter = (start + end) / 2;
-    const screenCenter = visibleLines / 2;
-    const offset = (blockCenter - screenCenter) * lineHeight;
-    return Math.max(0, offset);
-  }
-
-  function* dimAllExcept(start: number, end: number): ThreadGenerator {
-    const anims: ThreadGenerator[] = [];
-    for (let i = 0; i < lines.length; i++) {
-      const bright = i >= start && i <= end;
-      anims.push(code.setLineTokensOpacity(i, bright ? 1 : dimOpacity, dimDuration));
-    }
-    yield* all(...anims);
-  }
-
-  const lastPausedBlock = 1;
-  let currentScroll = 0;
-  yield* dimAllExcept(checkBlocks[0][0], checkBlocks[0][1]);
-
-  for (let b = 1; b <= lastPausedBlock; b++) {
-    yield* waitFor(pauseOnBlock);
-    yield* dimAllExcept(checkBlocks[b][0], checkBlocks[b][1]);
-  }
-
-  yield* waitFor(pauseOnBlock);
-
-  const lastBlock = checkBlocks[checkBlocks.length - 1];
-  const finalScroll = scrollForBlock(lastBlock[0], lastBlock[1]);
-  const continuousScrollDuration = 10;
-
-  const remainingBlocks = checkBlocks.slice(lastPausedBlock + 1);
-  const blockScrollPositions = remainingBlocks.map(
-    ([s, e]) => scrollForBlock(s, e),
-  );
-
-  function* highlightDuringScroll(): ThreadGenerator {
-    for (let i = 0; i < remainingBlocks.length; i++) {
-      const [start, end] = remainingBlocks[i];
-      const scrollPos = blockScrollPositions[i];
-      const nextScrollPos = i < remainingBlocks.length - 1
-        ? blockScrollPositions[i + 1]
-        : finalScroll;
-      const fraction = finalScroll > 0
-        ? (nextScrollPos - scrollPos) / finalScroll
-        : 1 / remainingBlocks.length;
-      const segmentTime = continuousScrollDuration * fraction;
-
-      yield* dimAllExcept(start, end);
-      yield* waitFor(Math.max(0.3, segmentTime - dimDuration));
-    }
-  }
-
-  yield* all(
-    code.animateScrollY(finalScroll, continuousScrollDuration, linear),
-    highlightDuringScroll(),
-  );
-
   yield* waitFor(2);
 });
