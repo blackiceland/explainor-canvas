@@ -58,6 +58,18 @@ const VALIDATE_CODE = `private static void validate(WhatsappChannelCreateRequest
     if (connectionType == ConnectionType.DIGITAL_CODE && phoneNumber == null) {
         throw new ValidationException(Violations.notNullViolation("phoneNumber"));
     }
+}
+
+private static void validateDisplayName(WhatsappChannelCreateRequest request) {
+    String displayName = StringUtils.trimToNull(request.getDisplayName());
+
+    if (displayName == null) {
+        throw new ValidationException(Violations.notNullViolation("displayName"));
+    }
+
+    if (displayName.length() > 255) {
+        throw new ValidationException(Violations.sizeMaxViolation("displayName", displayName, 255));
+    }
 }`;
 
 export default makeScene2D(function* (view) {
@@ -121,7 +133,9 @@ export default makeScene2D(function* (view) {
     if (quoted.length > 0) {
       yield* code.recolorTokens(i, quoted, SOFT_GREEN, 0);
     }
-    if (line.includes('validate(')) {
+    if (line.includes('validateDisplayName(')) {
+      yield* code.recolorTokens(i, ['validateDisplayName'], VAR_LIGHT, 0);
+    } else if (line.includes('validate(')) {
       yield* code.recolorTokens(i, ['validate'], VAR_LIGHT, 0);
     }
     if (line.includes('null')) {
@@ -144,6 +158,12 @@ export default makeScene2D(function* (view) {
       yield* code.recolorTokens(i, typesOnLine, TYPE_CLEAN, 0);
     }
   }
+  const privateMethodStart = 39;
+  for (let i = privateMethodStart; i < lines.length; i++) {
+    const ln = code.getLine(i);
+    if (ln) ln.node.opacity(0);
+  }
+
   yield* code.appear(Timing.normal);
   yield* waitFor(2);
 
@@ -153,7 +173,7 @@ export default makeScene2D(function* (view) {
   const highlightTo = 9;
 
   const dimAnims: ThreadGenerator[] = [];
-  for (let i = 0; i < lines.length; i++) {
+  for (let i = 0; i < privateMethodStart; i++) {
     const bright = i >= highlightFrom && i <= highlightTo;
     dimAnims.push(code.setLineTokensOpacity(i, bright ? 1 : dimOpacity, dimDuration));
   }
@@ -215,13 +235,26 @@ export default makeScene2D(function* (view) {
 
   yield* all(...transitionAnims);
 
-  // restore brightness on remaining lines
+  // restore brightness on remaining lines of validate
   const restoreAnims: ThreadGenerator[] = [];
-  for (let i = 0; i < lines.length; i++) {
+  for (let i = 0; i < privateMethodStart; i++) {
     if (i >= highlightFrom && i <= highlightTo) continue;
     restoreAnims.push(code.setLineTokensOpacity(i, 1, 0.6));
   }
   yield* all(...restoreAnims);
+
+  yield* waitFor(1);
+
+  // scroll down to reveal validateDisplayName
+  const line40 = code.getLine(privateMethodStart + 1)!;
+  const scrollTarget = line40.node.y() - lineHeight * 2;
+  const showPrivateAnims: ThreadGenerator[] = [];
+  for (let i = privateMethodStart; i < lines.length; i++) {
+    const ln = code.getLine(i)!;
+    showPrivateAnims.push(ln.node.opacity(1, 0.8, easeInOutCubic));
+  }
+  showPrivateAnims.push(code.animateScrollY(scrollTarget, 1.2));
+  yield* all(...showPrivateAnims);
 
   yield* waitFor(2);
 });
