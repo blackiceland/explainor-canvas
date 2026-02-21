@@ -40,6 +40,21 @@ export default makeScene2D(function* (view) {
   const frameOpacity0 = createSignal(0);
   const guidesOpacity = createSignal(0);
 
+  // ── collapse signals (all frames shrink & fly up together at the end) ────
+  const ICON_Y       = -Screen.height / 2 + 80;
+  const ICON_SCALE   = 0.38;
+  const ICON_SPACING = FRAME_W * 0.38 + 24;
+
+  const collapseX0     = createSignal(PANEL_X);
+  const collapseX1     = createSignal(PANEL_X);
+  const collapseX2     = createSignal(PANEL_X);
+  const collapseY0     = createSignal(Y0);
+  const collapseY1     = createSignal(Y1);
+  const collapseY2     = createSignal(Y2);
+  const collapseScale0 = createSignal(1);
+  const collapseScale1 = createSignal(1);
+  const collapseScale2 = createSignal(1);
+
   // ── overlaySubtitles signals ─────────────────────────────────────────────
   const frameOpacity2 = createSignal(0);
   const subtitleOpacity = createSignal(0);
@@ -81,8 +96,8 @@ export default makeScene2D(function* (view) {
 
       {/* step 0: normalizeFrames */}
       <Rect
-        x={PANEL_X}
-        y={Y0}
+        x={collapseX0}
+        y={collapseY0}
         width={FRAME_W}
         height={FRAME_H}
         fill={'rgba(244, 241, 235, 0.07)'}
@@ -92,8 +107,8 @@ export default makeScene2D(function* (view) {
         opacity={frameOpacity0}
         skewX={skewX}
         skewY={skewY}
-        scaleX={scaleX}
-        scaleY={scaleY}
+        scaleX={() => scaleX() * collapseScale0()}
+        scaleY={() => scaleY() * collapseScale0()}
         rotation={rotation}
       >
         {Array.from({length: SCANLINE_COUNT}, (_, i) => {
@@ -110,8 +125,8 @@ export default makeScene2D(function* (view) {
 
       {/* step 1: applyColorProfile — all layers clipped inside frame */}
       <Rect
-        x={PANEL_X}
-        y={Y1}
+        x={collapseX1}
+        y={collapseY1}
         width={FRAME_W}
         height={FRAME_H}
         fill={FRAME_FILL_NEUTRAL}
@@ -119,6 +134,7 @@ export default makeScene2D(function* (view) {
         lineWidth={2}
         radius={10}
         opacity={frameOpacity1}
+        scale={collapseScale1}
         clip
       >
         {Array.from({length: SCANLINE_COUNT}, (_, i) => {
@@ -154,8 +170,8 @@ export default makeScene2D(function* (view) {
       </Rect>
       {/* step 2: overlaySubtitles — inherits warm fill from previous step */}
       <Rect
-        x={PANEL_X}
-        y={Y2}
+        x={collapseX2}
+        y={collapseY2}
         width={FRAME_W}
         height={FRAME_H}
         fill={FRAME_FILL_WARM}
@@ -163,6 +179,7 @@ export default makeScene2D(function* (view) {
         lineWidth={2}
         radius={10}
         opacity={frameOpacity2}
+        scale={collapseScale2}
         clip
       >
         {Array.from({length: SCANLINE_COUNT}, (_, i) => {
@@ -240,4 +257,19 @@ export default makeScene2D(function* (view) {
   yield* subtitleOpacity(1, 0.6, easeInOutCubic);
 
   yield* waitFor(1.2);
+
+  // ── все три кадра одновременно уменьшаются, встают в ряд наверху ─────────
+  yield* all(
+    collapseScale0(ICON_SCALE, 0.8, easeInOutCubic),
+    collapseScale1(ICON_SCALE, 0.8, easeInOutCubic),
+    collapseScale2(ICON_SCALE, 0.8, easeInOutCubic),
+    collapseY0(ICON_Y, 0.8, easeInOutCubic),
+    collapseY1(ICON_Y, 0.8, easeInOutCubic),
+    collapseY2(ICON_Y, 0.8, easeInOutCubic),
+    collapseX0(PANEL_X - ICON_SPACING, 0.8, easeInOutCubic),
+    collapseX1(PANEL_X, 0.8, easeInOutCubic),
+    collapseX2(PANEL_X + ICON_SPACING, 0.8, easeInOutCubic),
+  );
+
+  yield* waitFor(1.0);
 });
