@@ -59,6 +59,14 @@ export default makeScene2D(function* (view) {
   const collapseScale2 = createSignal(1);
   const collapseScale3 = createSignal(1);
 
+  // ── finalizeExport signals ───────────────────────────────────────────────
+  const frameOpacity4  = createSignal(0);
+  const containerOp    = createSignal(0);
+  const labelOp        = createSignal(0);
+  const collapseX4     = createSignal(PANEL_X);
+  const collapseY4     = createSignal(Y0 + 50 + FRAME_H + ITEM_GAP);
+  const collapseScale4 = createSignal(1);
+
   // ── runEncoder signals ───────────────────────────────────────────────────
   const frameOpacity3 = createSignal(0);
   const BLOCK_COLS    = 8;
@@ -263,7 +271,68 @@ export default makeScene2D(function* (view) {
         {/* subtitle on top of blocks */}
         <Rect x={0} y={subtitleY} width={FRAME_W - 40} height={44} fill={'rgba(0,0,0,0.55)'} radius={4} />
         <Txt x={0} y={subtitleY} text={'kuroshima'} fontFamily={Fonts.code} fontSize={26} fill={'rgba(244,241,235,0.96)'} letterSpacing={2} />
+
       </Rect>
+
+      {/* step 4: finalizeExport — new frame inheriting all previous state */}
+      <Rect
+        x={collapseX4}
+        y={collapseY4}
+        width={FRAME_W}
+        height={FRAME_H}
+        fill={FRAME_FILL_WARM}
+        stroke={FRAME_STROKE_DONE}
+        lineWidth={2}
+        radius={10}
+        opacity={frameOpacity4}
+        scale={collapseScale4}
+        clip
+      >
+        {Array.from({length: SCANLINE_COUNT}, (_, i) => {
+          const y = -FRAME_H / 2 + ((i + 1) / (SCANLINE_COUNT + 1)) * FRAME_H;
+          return (
+            <Line
+              points={[[-FRAME_W / 2 + 10, y], [FRAME_W / 2 - 10, y]]}
+              stroke={SCANLINE_COLOR}
+              lineWidth={1}
+            />
+          );
+        })}
+
+        {/* inherited: macroblock overlay */}
+        {Array.from({length: BLOCK_COUNT}, (_, idx) => {
+          const col = idx % BLOCK_COLS;
+          const row = Math.floor(idx / BLOCK_COLS);
+          const bx  = -FRAME_W / 2 + col * BLOCK_W + BLOCK_W / 2;
+          const by  = -FRAME_H / 2 + row * BLOCK_H + BLOCK_H / 2;
+          return (
+            <Rect x={bx} y={by} width={BLOCK_W - 1} height={BLOCK_H - 1} fill={'rgba(244, 241, 235, 0.13)'} radius={2} />
+          );
+        })}
+
+        {/* inherited: subtitle */}
+        <Rect x={0} y={subtitleY} width={FRAME_W - 40} height={44} fill={'rgba(0,0,0,0.55)'} radius={4} />
+        <Txt x={0} y={subtitleY} text={'kuroshima'} fontFamily={Fonts.code} fontSize={26} fill={'rgba(244,241,235,0.96)'} letterSpacing={2} />
+
+        {/* MP4 label — top right */}
+        <Rect x={FRAME_W / 2 - 52} y={-FRAME_H / 2 + 22} width={80} height={32} fill={'rgba(244, 241, 235, 0.12)'} stroke={'rgba(244, 241, 235, 0.35)'} lineWidth={1.5} radius={6} opacity={labelOp} />
+        <Txt x={FRAME_W / 2 - 52} y={-FRAME_H / 2 + 22} text={'MP4'} fontFamily={Fonts.code} fontSize={18} fontWeight={700} fill={'rgba(244, 241, 235, 0.90)'} letterSpacing={1.5} opacity={labelOp} />
+      </Rect>
+
+      {/* container border */}
+      <Rect
+        x={collapseX4}
+        y={collapseY4}
+        width={FRAME_W + 16}
+        height={FRAME_H + 16}
+        fill={'rgba(0,0,0,0)'}
+        stroke={'rgba(244, 241, 235, 0.22)'}
+        lineWidth={1.5}
+        radius={14}
+        lineDash={[10, 6]}
+        opacity={containerOp}
+        scale={collapseScale4}
+      />
     </>,
   );
 
@@ -336,5 +405,14 @@ export default makeScene2D(function* (view) {
   }
   yield* waitFor(0.5);
 
-  yield* waitFor(1.0);
+  // ── animate finalizeExport ───────────────────────────────────────────────
+  yield* frameOpacity4(1, Timing.normal, easeInOutCubic);
+  yield* waitFor(0.3);
+
+  yield* containerOp(1, 0.5, easeInOutCubic);
+
+  // MP4 label fades in top-right
+  yield* labelOp(1, 0.4, easeOutCubic);
+
+  yield* waitFor(1.5);
 });
