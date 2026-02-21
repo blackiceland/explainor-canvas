@@ -97,7 +97,13 @@ export default makeScene2D(function* (view) {
   const collapseScale5 = createSignal(1);
   const blockOpacities = Array.from({length: COLS * ROWS}, () => createSignal(0));
 
-  // TODO: finalizeExport signals
+  // ── finalizeExport signals ───────────────────────────────────────────────
+  const Y_FINALIZE    = Y_ACTIVE + 150;
+  const frameOpacity6 = createSignal(0);
+  const collapseX6    = createSignal(PANEL_X);
+  const collapseY6    = createSignal(Y_FINALIZE);
+  const collapseScale6 = createSignal(1);
+  const formatLabelOp = createSignal(0);
 
   view.add(
     <>
@@ -334,7 +340,83 @@ export default makeScene2D(function* (view) {
         <Txt x={0} y={subtitleY} text={'kuroshima'} fontFamily={Fonts.code} fontSize={26} fill={'rgba(244,241,235,0.96)'} letterSpacing={2} />
       </Rect>
 
-      {/* TODO: finalizeExport */}
+      {/* step 6: finalizeExport — dashed border outside */}
+      <Rect
+        x={collapseX6}
+        y={collapseY6}
+        width={FRAME_W + 16}
+        height={FRAME_H + 16}
+        fill={'rgba(0,0,0,0)'}
+        stroke={'rgba(244,241,235,0.40)'}
+        lineWidth={1.5}
+        lineDash={[10, 7]}
+        radius={14}
+        opacity={frameOpacity6}
+        scale={collapseScale6}
+      />
+
+      {/* step 6: finalizeExport */}
+      <Rect
+        x={collapseX6}
+        y={collapseY6}
+        width={FRAME_W}
+        height={FRAME_H}
+        fill={FRAME_FILL_WARM}
+        stroke={'rgba(0,0,0,0)'}
+        lineWidth={0}
+        radius={10}
+        opacity={frameOpacity6}
+        scale={collapseScale6}
+        clip
+      >
+        {Array.from({length: SCANLINE_COUNT}, (_, i) => {
+          const y = -FRAME_H / 2 + ((i + 1) / (SCANLINE_COUNT + 1)) * FRAME_H;
+          return <Line points={[[-FRAME_W / 2 + 10, y], [FRAME_W / 2 - 10, y]]} stroke={SCANLINE_COLOR} lineWidth={1} />;
+        })}
+        {/* inherited macroblocks — fully filled */}
+        {Array.from({length: COLS * ROWS}, (_, idx) => {
+          const col = idx % COLS;
+          const row = Math.floor(idx / COLS);
+          const bw  = FRAME_W / COLS;
+          const bh  = FRAME_H / ROWS;
+          const x   = -FRAME_W / 2 + col * bw + bw / 2;
+          const y   = -FRAME_H / 2 + row * bh + bh / 2;
+          return <Rect key={idx} x={x} y={y} width={bw - 2} height={bh - 2} fill={'rgba(30,30,40,0.55)'} radius={2} />;
+        })}
+        {/* inherited audio bars — on top of blocks */}
+        {Array.from({length: BAR_COUNT}, (_, i) => {
+          const totalW = BAR_COUNT * BAR_W + (BAR_COUNT - 1) * 6;
+          const x = -totalW / 2 + i * (BAR_W + 6) + BAR_W / 2;
+          return <Rect x={x} y={0} width={BAR_W} height={NORMALIZED_H} fill={'rgba(244,241,235,0.90)'} radius={3} />;
+        })}
+        {/* inherited watermark */}
+        <Txt x={-FRAME_W / 2 + 26} y={-FRAME_H / 2 + 44} text={'©'} fontFamily={Fonts.primary} fontSize={48} fill={'rgba(244,241,235,0.85)'} offset={[-1, 0]} />
+        {/* inherited subtitle */}
+        <Rect x={0} y={subtitleY} width={FRAME_W - 40} height={44} fill={'rgba(0,0,0,0.55)'} radius={4} />
+        <Txt x={0} y={subtitleY} text={'kuroshima'} fontFamily={Fonts.code} fontSize={26} fill={'rgba(244,241,235,0.96)'} letterSpacing={2} />
+        {/* format badge — top right */}
+        <Rect
+          x={FRAME_W / 2 - 24}
+          y={-FRAME_H / 2 + 40}
+          width={96}
+          height={40}
+          fill={'rgba(244,241,235,0.08)'}
+          stroke={'rgba(244,241,235,0.70)'}
+          lineWidth={1.5}
+          radius={6}
+          offset={[1, 0]}
+          opacity={formatLabelOp}
+        >
+          <Txt
+            x={0}
+            y={0}
+            text={'.mp4'}
+            fontFamily={Fonts.code}
+            fontSize={24}
+            fill={'rgba(244,241,235,0.95)'}
+          />
+        </Rect>
+      </Rect>
     </>,
   );
 
@@ -440,4 +522,10 @@ export default makeScene2D(function* (view) {
     collapseX5(PANEL_X + ICON_SPACING, 0.8, easeInOutCubic),
   );
   yield* waitFor(0.5);
+
+  // ── animate finalizeExport ───────────────────────────────────────────────
+  yield* frameOpacity6(1, Timing.normal, easeInOutCubic);
+  yield* waitFor(0.3);
+  yield* formatLabelOp(1, 0.5, easeInOutCubic);
+  yield* waitFor(1.5);
 });
