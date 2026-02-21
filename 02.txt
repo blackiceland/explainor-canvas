@@ -1,307 +1,237 @@
-Ты попал ровно в правду: **универсального решения нет**.
-И это не слабость видео — это его сила.
+Окей. Вот конкретный код для каждой версии.
 
-Проблема сейчас не в теме, а в формулировке “чему я учу”.
-Тебе не нужно учить “правильному паттерну”.
-Тебе нужно учить **мышлению о границах и trade-off**.
+### v0 — чистый старт
 
-Вот рабочий учебный результат для зрителя:
+```java
+byte[] exportVideo(byte[] sourceFrames, String outputFormat) {
+    validateInput(sourceFrames, outputFormat);
+    byte[] encoded = runEncoder(sourceFrames);
+    return wrapContainer(encoded, outputFormat);
+}
+```
 
-- распознавать, когда pass-through — норма, а когда уже сигнал;
-- отличать локально чистый код от глобально шумного;
-- понимать, где ownership потерян;
-- знать, **когда терпеть**, а **когда рефакторить**.
+Всё на месте. `outputFormat` используется там, где передаётся. Ноль шума.
 
-То есть твой урок:
+---
 
-> Я не дам серебряную пулю.
-> Я дам диагностическую модель: как понять, что call chain стал симптомом архитектурной проблемы.
+### v1 — добавили подготовку кадров и colorProfile
 
-Очень честный финальный месседж (и сильный):
+Спринт 12. Задача: "поддержать цветовые профили при экспорте".
 
-> Pass-through не зло сам по себе.
-> Зло — когда у решения нет владельца, и система начинает возить детали транзитом.
+```java
+byte[] exportVideo(byte[] sourceFrames, String outputFormat, String colorProfile) {
+    validateInput(sourceFrames, outputFormat);
+    byte[] prepared = prepareFrames(sourceFrames, colorProfile);
+    byte[] encoded = runEncoder(prepared);
+    return wrapContainer(encoded, outputFormat);
+}
 
-Если хочешь, я соберу тебе “1 слайд = 1 правда” структуру, чтобы ролик ощущался уверенно, без обещания универсального рецепта.
+byte[] prepareFrames(byte[] frames, String colorProfile) {
+    byte[] normalized = normalizeFrames(frames);
+    return applyColorProfile(normalized, colorProfile);
+}
+```
 
-Да, это кажется очевидным — **пока не нужно принять решение в реальном спринте**.
+Всё ещё чисто. Каждый параметр используется там, где передаётся. Ревьюер одобрил.
 
-Вот твоя сильная позиция:
+---
 
-- “pass-through — плохо” очевидно;
-- **неочевидно**, *когда именно* это уже проблема, а не нормальный компромисс;
-- ещё менее очевидно, *как лечить*, не сломав темп команды.
+### v2 — добавили retry и subtitleTrack
 
-То есть ты не учишь банальности “это smell”.
-Ты учишь моменту перехода:
+Спринт 15. Две задачи в одном спринте: "retry при ошибках энкодера" и "поддержка субтитров".
 
-> Когда локально разумный компромисс превращается в системный шум.
-
-Эта формулировка снимает претензию “капитан очевидность”.
-
-Короткая фраза для видео:
-
-> Да, все знают, что длинные цепочки неприятны.
-> Мой вопрос другой: где граница между допустимым транзитом и архитектурным долгом, который уже пора чинить?
-
-Вот это и есть ценность твоего ролика.
-
-
-
-
-
-
-
-import java.util.Arrays;
-
-public final class VideoExportFlow {
-
-  public byte[] exportVideo(
-      String projectId,
-      byte[] sourceFrames,
-      String colorProfile,
-      String subtitleTrack,
-      String watermarkMode,
-      String audioProfile,
-      String outputFormat
-  ) {
-    validateInput(projectId, sourceFrames, outputFormat);
-    return prepareAndEncode(
-        sourceFrames,
-        colorProfile,
-        subtitleTrack,
-        watermarkMode,
-        audioProfile,
-        outputFormat
-    );
-  }
-
-  // pass-through #1: outputFormat здесь не используется
-  private byte[] prepareAndEncode(
-      byte[] sourceFrames,
-      String colorProfile,
-      String subtitleTrack,
-      String watermarkMode,
-      String audioProfile,
-      String outputFormat
-  ) {
-    byte[] prepared = prepareFrames(
-        sourceFrames,
-        colorProfile,
-        subtitleTrack,
-        watermarkMode,
-        audioProfile
-    );
+```java
+byte[] exportVideo(
+    byte[] sourceFrames,
+    String outputFormat,
+    String colorProfile,
+    String subtitleTrack
+) {
+    validateInput(sourceFrames, outputFormat);
+    byte[] prepared = prepareFrames(sourceFrames, colorProfile, subtitleTrack);
     return encodeWithRetry(prepared, outputFormat);
-  }
+}
 
-  private byte[] prepareFrames(
-      byte[] sourceFrames,
-      String colorProfile,
-      String subtitleTrack,
-      String watermarkMode,
-      String audioProfile
-  ) {
-    byte[] normalized = normalizeFrames(sourceFrames);
+byte[] prepareFrames(byte[] frames, String colorProfile, String subtitleTrack) {
+    byte[] normalized = normalizeFrames(frames);
+    byte[] recolored = applyColorProfile(normalized, colorProfile);
+    return overlaySubtitles(recolored, subtitleTrack);
+}
+
+// outputFormat здесь не используется
+byte[] encodeWithRetry(byte[] preparedFrames, String outputFormat) {
+    int attemptsLeft = 3;
+    while (attemptsLeft-- > 0) {
+        try {
+            return encode(preparedFrames, outputFormat);
+        } catch (RuntimeException ex) { /* retry */ }
+    }
+    throw new IllegalStateException("Encoding failed");
+}
+
+byte[] encode(byte[] preparedFrames, String outputFormat) {
+    byte[] encoded = runEncoder(preparedFrames);
+    return finalizeExport(encoded, outputFormat);
+}
+
+byte[] finalizeExport(byte[] encodedVideo, String outputFormat) {
+    if (!isSupportedFormat(outputFormat)) {
+        throw new IllegalArgumentException("Unsupported: " + outputFormat);
+    }
+    return wrapContainer(encodedVideo, outputFormat);
+}
+```
+
+Первый pass-through появился: `encodeWithRetry` не знает про `outputFormat`, просто передаёт. Но это один параметр — ревьюер не заметил.
+
+---
+
+### v3 — добавили watermark и audioProfile
+
+Спринт 19. Два разных разработчика, два PR, оба одобрены.
+
+```java
+byte[] exportVideo(
+    byte[] sourceFrames,
+    String outputFormat,
+    String colorProfile,
+    String subtitleTrack,
+    String watermarkMode,
+    String audioProfile
+) {
+    validateInput(sourceFrames, outputFormat);
+    byte[] prepared = prepareFrames(
+        sourceFrames, colorProfile, subtitleTrack, watermarkMode, audioProfile
+    );
+    return encodeWithRetry(
+        prepared, outputFormat, watermarkMode, audioProfile
+    );
+}
+
+byte[] prepareFrames(
+    byte[] frames,
+    String colorProfile,
+    String subtitleTrack,
+    String watermarkMode,
+    String audioProfile
+) {
+    byte[] normalized = normalizeFrames(frames);
     byte[] recolored = applyColorProfile(normalized, colorProfile);
     byte[] subtitled = overlaySubtitles(recolored, subtitleTrack);
     byte[] watermarked = applyWatermark(subtitled, watermarkMode);
     return normalizeAudio(watermarked, audioProfile);
-  }
+}
 
-  // pass-through #2: outputFormat здесь не используется
-  private byte[] encodeWithRetry(byte[] preparedFrames, String outputFormat) {
+// ни один из трёх параметров здесь не используется
+byte[] encodeWithRetry(
+    byte[] preparedFrames,
+    String outputFormat,
+    String watermarkMode,
+    String audioProfile
+) {
     int attemptsLeft = 3;
-    RuntimeException lastError = null;
-
     while (attemptsLeft-- > 0) {
-      try {
-        return encode(preparedFrames, outputFormat);
-      } catch (RuntimeException ex) {
-        lastError = ex;
-      }
+        try {
+            return encode(preparedFrames, outputFormat, watermarkMode, audioProfile);
+        } catch (RuntimeException ex) { /* retry */ }
     }
+    throw new IllegalStateException("Encoding failed");
+}
 
-    throw new IllegalStateException("Encoding failed after retries", lastError);
-  }
-
-  // pass-through #3: outputFormat здесь не используется
-  private byte[] encode(byte[] preparedFrames, String outputFormat) {
+// ни один из трёх параметров здесь не используется
+byte[] encode(
+    byte[] preparedFrames,
+    String outputFormat,
+    String watermarkMode,
+    String audioProfile
+) {
     byte[] encoded = runEncoder(preparedFrames);
-    return finalizeExport(encoded, outputFormat);
-  }
+    return finalizeExport(encoded, outputFormat, watermarkMode, audioProfile);
+}
 
-  // first real usage of outputFormat
-  private byte[] finalizeExport(byte[] encodedVideo, String outputFormat) {
+byte[] finalizeExport(
+    byte[] encodedVideo,
+    String outputFormat,
+    String watermarkMode,
+    String audioProfile
+) {
     if (!isSupportedFormat(outputFormat)) {
-      throw new IllegalArgumentException("Unsupported format: " + outputFormat);
+        throw new IllegalArgumentException("Unsupported: " + outputFormat);
     }
-    return wrapContainer(encodedVideo, outputFormat);
-  }
+    byte[] container = wrapContainer(encodedVideo, outputFormat);
+    return embedMetadata(container, watermarkMode, audioProfile);
+}
+```
 
-  private void validateInput(String projectId, byte[] sourceFrames, String outputFormat) {
-    if (projectId == null || projectId.isBlank()) {
-      throw new IllegalArgumentException("projectId is blank");
-    }
-    if (sourceFrames == null || sourceFrames.length == 0) {
-      throw new IllegalArgumentException("sourceFrames are empty");
-    }
-    if (outputFormat == null || outputFormat.isBlank()) {
-      throw new IllegalArgumentException("outputFormat is blank");
-    }
-  }
+Вот теперь больно. `encodeWithRetry` принимает 4 параметра, использует 1. `encode` — то же самое. Три параметра едут транзитом через два метода, и ни один из них там не нужен.
 
-  private boolean isSupportedFormat(String outputFormat) {
-    return "mp4".equals(outputFormat) || "webm".equals(outputFormat) || "mov".equals(outputFormat);
-  }
+---
 
-  private byte[] normalizeFrames(byte[] frames) {
-    return Arrays.copyOf(frames, frames.length);
-  }
+### v3.1 — тест на retry
 
-  private byte[] applyColorProfile(byte[] frames, String colorProfile) {
-    // placeholder for LUT/color transform
-    return frames;
-  }
+```java
+@Test
+void shouldRetryOnEncoderFailure() {
+    encoder.failNextCalls(2);
 
-  private byte[] overlaySubtitles(byte[] frames, String subtitleTrack) {
-    // placeholder for subtitle burn-in
-    return frames;
-  }
-
-  private byte[] applyWatermark(byte[] frames, String watermarkMode) {
-    // placeholder for watermark compositing
-    return frames;
-  }
-
-  private byte[] normalizeAudio(byte[] frames, String audioProfile) {
-    // placeholder for loudness normalization linked to timeline
-    return frames;
-  }
-
-  private byte[] runEncoder(byte[] preparedFrames) {
-    // placeholder: emulate transcoder output
-    return preparedFrames;
-  }
-
-  private byte[] wrapContainer(byte[] encodedVideo, String outputFormat) {
-    // placeholder: emulate container packaging overhead by format
-    int overhead = switch (outputFormat) {
-      case "mp4" -> 16;
-      case "webm" -> 20;
-      case "mov" -> 24;
-      default -> 0;
-    };
-
-    byte[] packaged = new byte[encodedVideo.length + overhead];
-    System.arraycopy(encodedVideo, 0, packaged, overhead, encodedVideo.length);
-    return packaged;
-  }
-
-  public static void main(String[] args) {
-    VideoExportFlow flow = new VideoExportFlow();
-    byte[] sourceFrames = new byte[]{1, 2, 3, 4, 5};
-
-    byte[] result = flow.exportVideo(
-        "proj-42",
-        sourceFrames,
-        "REC709",
-        "en-US",
-        "brand-safe",
-        "EBU_R128",
-        "mp4"
+    byte[] result = flow.encodeWithRetry(
+        testFrames,
+        "mp4",          // retry не знает про формат
+        "brand-safe",   // retry не знает про watermark
+        "EBU_R128"      // retry не знает про аудио
     );
 
-    System.out.println("Exported bytes: " + result.length);
-  }
-}
-
-
-
-
-Супер. Вот эволюция **кусками**, коротко и наглядно.
-
-### v0 — чистый старт
-```java
-byte[] exportVideo(byte[] sourceFrames, String outputFormat) {
-  validateInput(sourceFrames, outputFormat);
-  byte[] encoded = runEncoder(sourceFrames);
-  return wrapContainer(encoded, outputFormat); // first usage
+    assertEquals(3, encoder.callCount());
+    assertNotNull(result);
 }
 ```
 
+Тест проверяет: "при двух падениях третья попытка успешна". Ему не нужны ни формат, ни watermark, ни аудиопрофиль. Но он обязан их передать. Если завтра добавят `hdrEnabled` — этот тест сломается, хотя retry-логика не менялась.
+
 ---
 
-### v1 — добавили подготовку кадров (пока без pass-through)
-```java
-byte[] exportVideo(byte[] sourceFrames, String outputFormat) {
-  validateInput(sourceFrames, outputFormat);
-  byte[] prepared = prepareFrames(sourceFrames);
-  byte[] encoded = runEncoder(prepared);
-  return wrapContainer(encoded, outputFormat);
-}
+### v3.2 — каскадное изменение
 
-byte[] prepareFrames(byte[] frames) {
-  byte[] normalized = normalizeFrames(frames);
-  return applyColorProfile(normalized, "REC709");
-}
+Спринт 22. Задача: "поддержать HDR в финализации экспорта". Один boolean. Четыре метода.
+
+```diff
+- byte[] exportVideo(byte[] sourceFrames, String outputFormat,
+-     String colorProfile, String subtitleTrack,
+-     String watermarkMode, String audioProfile)
++ byte[] exportVideo(byte[] sourceFrames, String outputFormat,
++     String colorProfile, String subtitleTrack,
++     String watermarkMode, String audioProfile,
++     boolean hdrEnabled)
+
+- byte[] encodeWithRetry(byte[] preparedFrames, String outputFormat,
+-     String watermarkMode, String audioProfile)
++ byte[] encodeWithRetry(byte[] preparedFrames, String outputFormat,
++     String watermarkMode, String audioProfile,
++     boolean hdrEnabled)
+
+- byte[] encode(byte[] preparedFrames, String outputFormat,
+-     String watermarkMode, String audioProfile)
++ byte[] encode(byte[] preparedFrames, String outputFormat,
++     String watermarkMode, String audioProfile,
++     boolean hdrEnabled)
+
+- byte[] finalizeExport(byte[] encodedVideo, String outputFormat,
+-     String watermarkMode, String audioProfile)
++ byte[] finalizeExport(byte[] encodedVideo, String outputFormat,
++     String watermarkMode, String audioProfile,
++     boolean hdrEnabled)
 ```
 
----
-
-### v2 — добавили retry (первый посредник)
-```java
-byte[] exportVideo(byte[] sourceFrames, String outputFormat) {
-  validateInput(sourceFrames, outputFormat);
-  byte[] prepared = prepareFrames(sourceFrames);
-  return encodeWithRetry(prepared, outputFormat);
-}
-
-// pass-through #1 (outputFormat locally unused)
-byte[] encodeWithRetry(byte[] preparedFrames, String outputFormat) {
-  return retryEncode(() -> encode(preparedFrames, outputFormat), 3);
-}
-```
+PR: 4 файла изменены, 12 строк добавлено, 12 удалено. Новая логика — только в `finalizeExport`. Остальные три метода — чистый шум. Ревьюер смотрит дифф и думает: "почему добавление одного флага трогает весь пайплайн?"
 
 ---
 
-### v3 — добавили encode-слой (второй посредник)
-```java
-// pass-through #2
-byte[] encode(byte[] preparedFrames, String outputFormat) {
-  byte[] encoded = runEncoder(preparedFrames);
-  return finalizeExport(encoded, outputFormat);
-}
+### Что это даёт видео
 
-byte[] finalizeExport(byte[] encodedVideo, String outputFormat) {
-  if (!isSupportedFormat(outputFormat)) {
-    throw new IllegalArgumentException("Unsupported format: " + outputFormat);
-  }
-  return wrapContainer(encodedVideo, outputFormat); // first real semantic owner
-}
-```
+- **v0→v1**: "всё нормально, код растёт"
+- **v2**: "первый pass-through, но один параметр — ок"
+- **v3**: "три параметра транзитом — сигнатуры гниют"
+- **v3.1**: "тест знает то, что не должен знать"
+- **v3.2**: "один boolean — четыре метода в PR"
 
----
-
-### v4 — “guitar hero код” (декомпозиция + шум)
-```java
-byte[] exportVideo(byte[] sourceFrames, String outputFormat) {
-  validateInput(sourceFrames, outputFormat);
-  return prepareAndEncode(sourceFrames, outputFormat);
-}
-
-// pass-through #3
-byte[] prepareAndEncode(byte[] sourceFrames, String outputFormat) {
-  byte[] prepared = prepareFrames(sourceFrames);
-  return encodeWithRetry(prepared, outputFormat);
-}
-```
-
----
-
-Это очень хорошо ляжет на твою анимацию:
-- справа ноты растут по плотности с `v0 -> v4`,
-- слева скролл кода,
-- `outputFormat` подсвечен как “груз”, который едет всё дальше.
-
-Если хочешь, дальше дам финальный “до/после” блоки, где `v4` лечится без магии.
+Каждый шаг — это реальная ситуация из реального спринта. Сеньор не скажет "надуманно", потому что он это делал на прошлой неделе.
