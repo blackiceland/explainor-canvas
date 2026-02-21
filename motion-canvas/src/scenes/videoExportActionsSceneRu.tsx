@@ -1,6 +1,6 @@
-import {Line, makeScene2D, Rect} from '@motion-canvas/2d';
+import {Line, makeScene2D, Rect, Txt} from '@motion-canvas/2d';
 import {all, createSignal, easeInOutCubic, easeOutCubic, linear, waitFor} from '@motion-canvas/core';
-import {Screen, Timing} from '../core/theme';
+import {Fonts, Screen, Timing} from '../core/theme';
 import {applyBackground} from '../core/utils';
 
 const PANEL_W = Screen.width * 5 / 16;
@@ -13,6 +13,7 @@ const ITEM_GAP = 48;
 // y-positions for each step
 const Y0 = -280;                        // normalizeFrames
 const Y1 = Y0 + FRAME_H + ITEM_GAP;    // applyColorProfile
+const Y2 = Y1 + FRAME_H + ITEM_GAP;    // overlaySubtitles
 
 const FRAME_FILL_NEUTRAL = 'rgba(244, 241, 235, 0.07)';
 const FRAME_FILL_WARM = 'rgba(255, 182, 193, 0.22)';
@@ -38,6 +39,12 @@ export default makeScene2D(function* (view) {
   const strokeColor0 = createSignal(FRAME_STROKE);
   const frameOpacity0 = createSignal(0);
   const guidesOpacity = createSignal(0);
+
+  // ── overlaySubtitles signals ─────────────────────────────────────────────
+  const frameOpacity2 = createSignal(0);
+  const subtitleOpacity = createSignal(0);
+  const subtitleY = createSignal(FRAME_H / 2 - 24);
+
 
   // ── applyColorProfile signals ────────────────────────────────────────────
   const frameOpacity1 = createSignal(0);
@@ -146,6 +153,51 @@ export default makeScene2D(function* (view) {
           />
         </Rect>
       </Rect>
+      {/* step 2: overlaySubtitles — inherits warm fill from previous step */}
+      <Rect
+        x={PANEL_X}
+        y={Y2}
+        width={FRAME_W}
+        height={FRAME_H}
+        fill={FRAME_FILL_WARM}
+        stroke={FRAME_STROKE_DONE}
+        lineWidth={2}
+        radius={10}
+        opacity={frameOpacity2}
+        clip
+      >
+        {Array.from({length: SCANLINE_COUNT}, (_, i) => {
+          const y = -FRAME_H / 2 + ((i + 1) / (SCANLINE_COUNT + 1)) * FRAME_H;
+          return (
+            <Line
+              points={[[-FRAME_W / 2 + 10, y], [FRAME_W / 2 - 10, y]]}
+              stroke={SCANLINE_COLOR}
+              lineWidth={1}
+            />
+          );
+        })}
+
+        {/* subtitle bar */}
+        <Rect
+          x={0}
+          y={() => subtitleY()}
+          width={FRAME_W - 40}
+          height={44}
+          fill={'rgba(0, 0, 0, 0.55)'}
+          radius={4}
+          opacity={subtitleOpacity}
+        />
+        <Txt
+          x={0}
+          y={() => subtitleY()}
+          text={'kuroshima'}
+          fontFamily={Fonts.code}
+          fontSize={26}
+          fill={'rgba(244, 241, 235, 0.96)'}
+          letterSpacing={2}
+          opacity={subtitleOpacity}
+        />
+      </Rect>
     </>,
   );
 
@@ -179,6 +231,18 @@ export default makeScene2D(function* (view) {
   yield* sweepOpacity(1, 0.15, easeInOutCubic);
   yield* paintProgress(1, 1.1, linear);
   yield* sweepOpacity(0, 0.2, easeInOutCubic);
+  yield* waitFor(0.4);
+
+  // ── animate overlaySubtitles ─────────────────────────────────────────────
+  yield* frameOpacity2(1, Timing.normal, easeInOutCubic);
+  yield* waitFor(0.3);
+
+  // subtitle slides up from bottom edge and fades in
+  subtitleY(FRAME_H / 2 - 12);
+  yield* all(
+    subtitleOpacity(1, 0.5, easeOutCubic),
+    subtitleY(FRAME_H / 2 - 52, 0.5, easeOutCubic),
+  );
 
   yield* waitFor(1.2);
 });
