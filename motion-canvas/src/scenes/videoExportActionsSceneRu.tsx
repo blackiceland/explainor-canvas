@@ -10,84 +10,93 @@ const FRAME_W = 420;
 const FRAME_H = 236;
 const ITEM_GAP = 48;
 
-// y-positions for each step
 const Y0 = -280;                        // normalizeFrames
 const Y1 = Y0 + FRAME_H + ITEM_GAP;    // applyColorProfile
 const Y2 = Y1 + FRAME_H + ITEM_GAP;    // overlaySubtitles
-const ACTIVE_Y = 100;                   // runEncoder and beyond — appear here after icons fly up
+const Y_ACTIVE = -230;                  // position after collapse — applyWatermark and beyond
 
 const FRAME_FILL_NEUTRAL = 'rgba(244, 241, 235, 0.07)';
-const FRAME_FILL_WARM = 'rgba(255, 182, 193, 0.22)';
-const FRAME_STROKE = 'rgba(244, 241, 235, 0.30)';
-const FRAME_STROKE_DONE = 'rgba(244, 241, 235, 0.55)';
-const SCANLINE_COLOR = 'rgba(244, 241, 235, 0.06)';
-const GUIDE_COLOR = 'rgba(244, 241, 235, 0.15)';
-const DIVIDER_COLOR = 'rgba(244, 241, 235, 0.08)';
-const SWEEP_COLOR = 'rgba(244, 230, 200, 0.18)';
-const SCANLINE_COUNT = 10;
+const FRAME_FILL_WARM    = 'rgba(255, 182, 193, 0.22)';
+const FRAME_STROKE       = 'rgba(244, 241, 235, 0.30)';
+const FRAME_STROKE_DONE  = 'rgba(244, 241, 235, 0.55)';
+const SCANLINE_COLOR     = 'rgba(244, 241, 235, 0.06)';
+const GUIDE_COLOR        = 'rgba(244, 241, 235, 0.15)';
+const DIVIDER_COLOR      = 'rgba(244, 241, 235, 0.08)';
+const SWEEP_COLOR        = 'rgba(244, 230, 200, 0.18)';
+const SCANLINE_COUNT     = 10;
+
+const ICON_Y       = -Screen.height / 2 + 80;
+const ICON_SCALE   = 0.38;
+const ICON_SPACING = FRAME_W * 0.38 + 24;
 
 export default makeScene2D(function* (view) {
   applyBackground(view);
 
   // ── normalizeFrames signals ──────────────────────────────────────────────
   const dividerOpacity = createSignal(0);
-  const skewX = createSignal(6);
-  const skewY = createSignal(-3);
-  const scaleX = createSignal(0.91);
-  const scaleY = createSignal(1.07);
-  const rotation = createSignal(-2.8);
-  const radius0 = createSignal(2);
-  const strokeColor0 = createSignal(FRAME_STROKE);
-  const frameOpacity0 = createSignal(0);
-  const guidesOpacity = createSignal(0);
-
-  // ── collapse signals (all frames shrink & fly up together at the end) ────
-  const ICON_Y       = -Screen.height / 2 + 80;
-  const ICON_SCALE   = 0.38;
-  const ICON_SPACING = FRAME_W * 0.38 + 24;
-
+  const skewX          = createSignal(6);
+  const skewY          = createSignal(-3);
+  const scaleX         = createSignal(0.91);
+  const scaleY         = createSignal(1.07);
+  const rotation       = createSignal(-2.8);
+  const radius0        = createSignal(2);
+  const strokeColor0   = createSignal(FRAME_STROKE);
+  const frameOpacity0  = createSignal(0);
+  const guidesOpacity  = createSignal(0);
   const collapseX0     = createSignal(PANEL_X);
-  const collapseX1     = createSignal(PANEL_X);
-  const collapseX2     = createSignal(PANEL_X);
-  const collapseX3     = createSignal(PANEL_X);
   const collapseY0     = createSignal(Y0);
-  const collapseY1     = createSignal(Y1);
-  const collapseY2     = createSignal(Y2);
-  const collapseY3     = createSignal(Y0 + 50);
   const collapseScale0 = createSignal(1);
-  const collapseScale1 = createSignal(1);
-  const collapseScale2 = createSignal(1);
-  const collapseScale3 = createSignal(1);
-
-  // ── finalizeExport signals ───────────────────────────────────────────────
-  const frameOpacity4  = createSignal(0);
-  const containerOp    = createSignal(0);
-  const labelOp        = createSignal(0);
-  const collapseX4     = createSignal(PANEL_X);
-  const collapseY4     = createSignal(Y0 + 50 + FRAME_H + ITEM_GAP);
-  const collapseScale4 = createSignal(1);
-
-  // ── runEncoder signals ───────────────────────────────────────────────────
-  const frameOpacity3 = createSignal(0);
-  const BLOCK_COLS    = 8;
-  const BLOCK_ROWS    = 5;
-  const BLOCK_COUNT   = BLOCK_COLS * BLOCK_ROWS;
-  const BLOCK_W       = FRAME_W / BLOCK_COLS;
-  const BLOCK_H       = FRAME_H / BLOCK_ROWS;
-  const blockOp       = Array.from({length: BLOCK_COUNT}, () => createSignal(0));
-
-  // ── overlaySubtitles signals ─────────────────────────────────────────────
-  const frameOpacity2 = createSignal(0);
-  const subtitleOpacity = createSignal(0);
-  const subtitleY = FRAME_H / 2 - 52;
 
   // ── applyColorProfile signals ────────────────────────────────────────────
-  const frameOpacity1 = createSignal(0);
-  const sweepOpacity = createSignal(0);
-  // progress 0..1 — how much of the frame is painted
-  const paintProgress = createSignal(0);
-  // sweep x derived from paintProgress — always in sync
-  const sweepX = () => PANEL_X - FRAME_W / 2 + FRAME_W * paintProgress();
+  const frameOpacity1  = createSignal(0);
+  const sweepOpacity   = createSignal(0);
+  const paintProgress  = createSignal(0);
+  const collapseX1     = createSignal(PANEL_X);
+  const collapseY1     = createSignal(Y1);
+  const collapseScale1 = createSignal(1);
+
+  // ── overlaySubtitles signals ─────────────────────────────────────────────
+  const frameOpacity2  = createSignal(0);
+  const subtitleOpacity = createSignal(0);
+  const subtitleY      = FRAME_H / 2 - 52;
+  const collapseX2     = createSignal(PANEL_X);
+  const collapseY2     = createSignal(Y2);
+  const collapseScale2 = createSignal(1);
+
+  // ── applyWatermark signals ───────────────────────────────────────────────
+  const frameOpacity3  = createSignal(0);
+  const watermarkOp    = createSignal(0);
+  const collapseX3     = createSignal(PANEL_X);
+  const collapseY3     = createSignal(Y_ACTIVE);
+  const collapseScale3 = createSignal(1);
+
+  // ── normalizeAudio signals ───────────────────────────────────────────────
+  const BAR_COUNT    = 9;
+  const BAR_W        = 14;
+  const BAR_MAX_H    = 80;
+  const BAR_MIN_H    = 10;
+  const NORMALIZED_H = 36;
+  const Y_AUDIO      = Y_ACTIVE + FRAME_H + ITEM_GAP;
+  const frameOpacity4  = createSignal(0);
+  const collapseX4     = createSignal(PANEL_X);
+  const collapseY4     = createSignal(Y_AUDIO);
+  const collapseScale4 = createSignal(1);
+  const barHeights     = Array.from({length: BAR_COUNT}, (_, i) =>
+    createSignal(BAR_MIN_H + Math.abs(Math.sin(i * 1.7 + 0.5)) * (BAR_MAX_H - BAR_MIN_H))
+  );
+  const barsOpacity    = createSignal(0);
+
+  // ── runEncoder signals ───────────────────────────────────────────────────
+  const COLS         = 8;
+  const ROWS         = 5;
+  const Y_ENCODER    = Y_AUDIO + FRAME_H + ITEM_GAP;
+  const frameOpacity5  = createSignal(0);
+  const collapseX5     = createSignal(PANEL_X);
+  const collapseY5     = createSignal(Y_ENCODER);
+  const collapseScale5 = createSignal(1);
+  const blockOpacities = Array.from({length: COLS * ROWS}, () => createSignal(0));
+
+  // TODO: finalizeExport signals
 
   view.add(
     <>
@@ -96,10 +105,10 @@ export default makeScene2D(function* (view) {
         points={[[PANEL_X - PANEL_W / 2, -Screen.height / 2], [PANEL_X - PANEL_W / 2, Screen.height / 2]]}
         stroke={DIVIDER_COLOR}
         lineWidth={1}
-        opacity={dividerOpacity}
+        opacity={() => frameOpacity0()}
       />
 
-      {/* guides for step 0 */}
+      {/* snap guides */}
       <Line
         points={[[PANEL_X - FRAME_W * 0.55, Y0], [PANEL_X + FRAME_W * 0.55, Y0]]}
         stroke={GUIDE_COLOR}
@@ -121,7 +130,7 @@ export default makeScene2D(function* (view) {
         y={collapseY0}
         width={FRAME_W}
         height={FRAME_H}
-        fill={'rgba(244, 241, 235, 0.07)'}
+        fill={FRAME_FILL_NEUTRAL}
         stroke={strokeColor0}
         lineWidth={2}
         radius={radius0}
@@ -134,17 +143,11 @@ export default makeScene2D(function* (view) {
       >
         {Array.from({length: SCANLINE_COUNT}, (_, i) => {
           const y = -FRAME_H / 2 + ((i + 1) / (SCANLINE_COUNT + 1)) * FRAME_H;
-          return (
-            <Line
-              points={[[-FRAME_W / 2 + 10, y], [FRAME_W / 2 - 10, y]]}
-              stroke={SCANLINE_COLOR}
-              lineWidth={1}
-            />
-          );
+          return <Line points={[[-FRAME_W / 2 + 10, y], [FRAME_W / 2 - 10, y]]} stroke={SCANLINE_COLOR} lineWidth={1} />;
         })}
       </Rect>
 
-      {/* step 1: applyColorProfile — all layers clipped inside frame */}
+      {/* step 1: applyColorProfile */}
       <Rect
         x={collapseX1}
         y={collapseY1}
@@ -160,16 +163,8 @@ export default makeScene2D(function* (view) {
       >
         {Array.from({length: SCANLINE_COUNT}, (_, i) => {
           const y = -FRAME_H / 2 + ((i + 1) / (SCANLINE_COUNT + 1)) * FRAME_H;
-          return (
-            <Line
-              points={[[-FRAME_W / 2 + 10, y], [FRAME_W / 2 - 10, y]]}
-              stroke={SCANLINE_COLOR}
-              lineWidth={1}
-            />
-          );
+          return <Line points={[[-FRAME_W / 2 + 10, y], [FRAME_W / 2 - 10, y]]} stroke={SCANLINE_COLOR} lineWidth={1} />;
         })}
-
-        {/* painted region + sweep — single clipped container anchored to left edge */}
         <Rect
           x={() => -FRAME_W / 2 + (FRAME_W * paintProgress()) / 2}
           y={0}
@@ -178,7 +173,6 @@ export default makeScene2D(function* (view) {
           fill={FRAME_FILL_WARM}
           clip
         >
-          {/* sweep line sits at the right edge of the painted region */}
           <Rect
             x={() => (FRAME_W * paintProgress()) / 2 - 8}
             y={0}
@@ -189,7 +183,8 @@ export default makeScene2D(function* (view) {
           />
         </Rect>
       </Rect>
-      {/* step 2: overlaySubtitles — inherits warm fill from previous step */}
+
+      {/* step 2: overlaySubtitles */}
       <Rect
         x={collapseX2}
         y={collapseY2}
@@ -205,37 +200,13 @@ export default makeScene2D(function* (view) {
       >
         {Array.from({length: SCANLINE_COUNT}, (_, i) => {
           const y = -FRAME_H / 2 + ((i + 1) / (SCANLINE_COUNT + 1)) * FRAME_H;
-          return (
-            <Line
-              points={[[-FRAME_W / 2 + 10, y], [FRAME_W / 2 - 10, y]]}
-              stroke={SCANLINE_COLOR}
-              lineWidth={1}
-            />
-          );
+          return <Line points={[[-FRAME_W / 2 + 10, y], [FRAME_W / 2 - 10, y]]} stroke={SCANLINE_COLOR} lineWidth={1} />;
         })}
-
-        {/* subtitle bar */}
-        <Rect
-          x={0}
-          y={subtitleY}
-          width={FRAME_W - 40}
-          height={44}
-          fill={'rgba(0, 0, 0, 0.55)'}
-          radius={4}
-          opacity={subtitleOpacity}
-        />
-        <Txt
-          x={0}
-          y={subtitleY}
-          text={'kuroshima'}
-          fontFamily={Fonts.code}
-          fontSize={26}
-          fill={'rgba(244, 241, 235, 0.96)'}
-          letterSpacing={2}
-          opacity={subtitleOpacity}
-        />
+        <Rect x={0} y={subtitleY} width={FRAME_W - 40} height={44} fill={'rgba(0,0,0,0.55)'} radius={4} opacity={subtitleOpacity} />
+        <Txt x={0} y={subtitleY} text={'kuroshima'} fontFamily={Fonts.code} fontSize={26} fill={'rgba(244,241,235,0.96)'} letterSpacing={2} opacity={subtitleOpacity} />
       </Rect>
-      {/* step 3: runEncoder — macroblocks fill left→right, top→bottom */}
+
+      {/* step 3: applyWatermark */}
       <Rect
         x={collapseX3}
         y={collapseY3}
@@ -249,32 +220,27 @@ export default makeScene2D(function* (view) {
         scale={collapseScale3}
         clip
       >
-        {/* macroblock grid */}
-        {Array.from({length: BLOCK_COUNT}, (_, idx) => {
-          const col = idx % BLOCK_COLS;
-          const row = Math.floor(idx / BLOCK_COLS);
-          const bx  = -FRAME_W / 2 + col * BLOCK_W + BLOCK_W / 2;
-          const by  = -FRAME_H / 2 + row * BLOCK_H + BLOCK_H / 2;
-          return (
-            <Rect
-              x={bx}
-              y={by}
-              width={BLOCK_W - 1}
-              height={BLOCK_H - 1}
-              fill={'rgba(244, 241, 235, 0.13)'}
-              radius={2}
-              opacity={blockOp[idx]}
-            />
-          );
+        {Array.from({length: SCANLINE_COUNT}, (_, i) => {
+          const y = -FRAME_H / 2 + ((i + 1) / (SCANLINE_COUNT + 1)) * FRAME_H;
+          return <Line points={[[-FRAME_W / 2 + 10, y], [FRAME_W / 2 - 10, y]]} stroke={SCANLINE_COLOR} lineWidth={1} />;
         })}
-
-        {/* subtitle on top of blocks */}
+        {/* inherited subtitle */}
         <Rect x={0} y={subtitleY} width={FRAME_W - 40} height={44} fill={'rgba(0,0,0,0.55)'} radius={4} />
         <Txt x={0} y={subtitleY} text={'kuroshima'} fontFamily={Fonts.code} fontSize={26} fill={'rgba(244,241,235,0.96)'} letterSpacing={2} />
-
+        {/* watermark — top left corner */}
+        <Txt
+          x={-FRAME_W / 2 + 26}
+          y={-FRAME_H / 2 + 44}
+          text={'©'}
+          fontFamily={Fonts.primary}
+          fontSize={48}
+          fill={'rgba(244, 241, 235, 0.60)'}
+          offset={[-1, 0]}
+          opacity={watermarkOp}
+        />
       </Rect>
 
-      {/* step 4: finalizeExport — new frame inheriting all previous state */}
+      {/* step 4: normalizeAudio */}
       <Rect
         x={collapseX4}
         y={collapseY4}
@@ -290,49 +256,84 @@ export default makeScene2D(function* (view) {
       >
         {Array.from({length: SCANLINE_COUNT}, (_, i) => {
           const y = -FRAME_H / 2 + ((i + 1) / (SCANLINE_COUNT + 1)) * FRAME_H;
+          return <Line points={[[-FRAME_W / 2 + 10, y], [FRAME_W / 2 - 10, y]]} stroke={SCANLINE_COLOR} lineWidth={1} />;
+        })}
+        {/* audio bars — on top of everything, centered */}
+        {Array.from({length: BAR_COUNT}, (_, i) => {
+          const totalW = BAR_COUNT * BAR_W + (BAR_COUNT - 1) * 6;
+          const x = -totalW / 2 + i * (BAR_W + 6) + BAR_W / 2;
           return (
-            <Line
-              points={[[-FRAME_W / 2 + 10, y], [FRAME_W / 2 - 10, y]]}
-              stroke={SCANLINE_COLOR}
-              lineWidth={1}
+            <Rect
+              x={x}
+              y={0}
+              width={BAR_W}
+              height={barHeights[i]}
+              fill={'rgba(244, 241, 235, 0.90)'}
+              radius={3}
+              opacity={barsOpacity}
             />
           );
         })}
-
-        {/* inherited: macroblock overlay */}
-        {Array.from({length: BLOCK_COUNT}, (_, idx) => {
-          const col = idx % BLOCK_COLS;
-          const row = Math.floor(idx / BLOCK_COLS);
-          const bx  = -FRAME_W / 2 + col * BLOCK_W + BLOCK_W / 2;
-          const by  = -FRAME_H / 2 + row * BLOCK_H + BLOCK_H / 2;
-          return (
-            <Rect x={bx} y={by} width={BLOCK_W - 1} height={BLOCK_H - 1} fill={'rgba(244, 241, 235, 0.13)'} radius={2} />
-          );
-        })}
-
-        {/* inherited: subtitle */}
+        {/* inherited watermark — above bars */}
+        <Txt x={-FRAME_W / 2 + 26} y={-FRAME_H / 2 + 44} text={'©'} fontFamily={Fonts.primary} fontSize={48} fill={'rgba(244,241,235,0.60)'} offset={[-1, 0]} />
+        {/* inherited subtitle — above bars */}
         <Rect x={0} y={subtitleY} width={FRAME_W - 40} height={44} fill={'rgba(0,0,0,0.55)'} radius={4} />
         <Txt x={0} y={subtitleY} text={'kuroshima'} fontFamily={Fonts.code} fontSize={26} fill={'rgba(244,241,235,0.96)'} letterSpacing={2} />
-
-        {/* MP4 label — top right */}
-        <Rect x={FRAME_W / 2 - 52} y={-FRAME_H / 2 + 22} width={80} height={32} fill={'rgba(244, 241, 235, 0.12)'} stroke={'rgba(244, 241, 235, 0.35)'} lineWidth={1.5} radius={6} opacity={labelOp} />
-        <Txt x={FRAME_W / 2 - 52} y={-FRAME_H / 2 + 22} text={'MP4'} fontFamily={Fonts.code} fontSize={18} fontWeight={700} fill={'rgba(244, 241, 235, 0.90)'} letterSpacing={1.5} opacity={labelOp} />
       </Rect>
 
-      {/* container border */}
+      {/* step 5: runEncoder */}
       <Rect
-        x={collapseX4}
-        y={collapseY4}
-        width={FRAME_W + 16}
-        height={FRAME_H + 16}
-        fill={'rgba(0,0,0,0)'}
-        stroke={'rgba(244, 241, 235, 0.22)'}
-        lineWidth={1.5}
-        radius={14}
-        lineDash={[10, 6]}
-        opacity={containerOp}
-        scale={collapseScale4}
-      />
+        x={collapseX5}
+        y={collapseY5}
+        width={FRAME_W}
+        height={FRAME_H}
+        fill={FRAME_FILL_WARM}
+        stroke={FRAME_STROKE_DONE}
+        lineWidth={2}
+        radius={10}
+        opacity={frameOpacity5}
+        scale={collapseScale5}
+        clip
+      >
+        {Array.from({length: SCANLINE_COUNT}, (_, i) => {
+          const y = -FRAME_H / 2 + ((i + 1) / (SCANLINE_COUNT + 1)) * FRAME_H;
+          return <Line points={[[-FRAME_W / 2 + 10, y], [FRAME_W / 2 - 10, y]]} stroke={SCANLINE_COLOR} lineWidth={1} />;
+        })}
+        {/* inherited audio bars — normalized, static */}
+        {Array.from({length: BAR_COUNT}, (_, i) => {
+          const totalW = BAR_COUNT * BAR_W + (BAR_COUNT - 1) * 6;
+          const x = -totalW / 2 + i * (BAR_W + 6) + BAR_W / 2;
+          return (
+            <Rect x={x} y={0} width={BAR_W} height={NORMALIZED_H} fill={'rgba(244,241,235,0.90)'} radius={3} />
+          );
+        })}
+        {/* macroblocks */}
+        {Array.from({length: COLS * ROWS}, (_, idx) => {
+          const col = idx % COLS;
+          const row = Math.floor(idx / COLS);
+          const bw  = FRAME_W / COLS;
+          const bh  = FRAME_H / ROWS;
+          const x   = -FRAME_W / 2 + col * bw + bw / 2;
+          const y   = -FRAME_H / 2 + row * bh + bh / 2;
+          return (
+            <Rect
+              key={idx}
+              x={x} y={y}
+              width={bw - 2} height={bh - 2}
+              fill={'rgba(30, 30, 40, 0.55)'}
+              radius={2}
+              opacity={blockOpacities[idx]}
+            />
+          );
+        })}
+        {/* inherited watermark — on top of blocks */}
+        <Txt x={-FRAME_W / 2 + 26} y={-FRAME_H / 2 + 44} text={'©'} fontFamily={Fonts.primary} fontSize={48} fill={'rgba(244,241,235,0.85)'} offset={[-1, 0]} />
+        {/* inherited subtitle — on top of blocks */}
+        <Rect x={0} y={subtitleY} width={FRAME_W - 40} height={44} fill={'rgba(0,0,0,0.55)'} radius={4} />
+        <Txt x={0} y={subtitleY} text={'kuroshima'} fontFamily={Fonts.code} fontSize={26} fill={'rgba(244,241,235,0.96)'} letterSpacing={2} />
+      </Rect>
+
+      {/* TODO: finalizeExport */}
     </>,
   );
 
@@ -340,10 +341,8 @@ export default makeScene2D(function* (view) {
   yield* dividerOpacity(1, 0.4, easeInOutCubic);
   yield* frameOpacity0(1, Timing.normal, easeInOutCubic);
   yield* waitFor(0.6);
-
   yield* guidesOpacity(1, 0.3, easeInOutCubic);
   yield* waitFor(0.2);
-
   yield* all(
     skewX(0, 0.9, easeOutCubic),
     skewY(0, 0.9, easeOutCubic),
@@ -353,15 +352,12 @@ export default makeScene2D(function* (view) {
     radius0(10, 0.9, easeOutCubic),
     strokeColor0(FRAME_STROKE_DONE, 0.9, easeOutCubic),
   );
-
   yield* guidesOpacity(0, 0.5, easeInOutCubic);
   yield* waitFor(0.4);
 
   // ── animate applyColorProfile ────────────────────────────────────────────
   yield* frameOpacity1(1, Timing.normal, easeInOutCubic);
   yield* waitFor(0.3);
-
-  // sweep across frame left → right, painting pink behind it
   paintProgress(0);
   yield* sweepOpacity(1, 0.15, easeInOutCubic);
   yield* paintProgress(1, 1.1, linear);
@@ -371,13 +367,10 @@ export default makeScene2D(function* (view) {
   // ── animate overlaySubtitles ─────────────────────────────────────────────
   yield* frameOpacity2(1, Timing.normal, easeInOutCubic);
   yield* waitFor(0.3);
-
-  // subtitle fades in in place
   yield* subtitleOpacity(1, 0.6, easeInOutCubic);
-
   yield* waitFor(1.2);
 
-  // ── первые три уменьшаются и уезжают наверх ───────────────────────────────
+  // ── первые три уменьшаются и уезжают наверх ──────────────────────────────
   yield* all(
     collapseScale0(ICON_SCALE, 0.8, easeInOutCubic),
     collapseScale1(ICON_SCALE, 0.8, easeInOutCubic),
@@ -391,28 +384,44 @@ export default makeScene2D(function* (view) {
   );
   yield* waitFor(0.2);
 
-  // ── animate runEncoder — blocks fill left→right, top→bottom ─────────────
+  // ── animate applyWatermark ───────────────────────────────────────────────
   yield* frameOpacity3(1, Timing.normal, easeInOutCubic);
   yield* waitFor(0.3);
+  yield* watermarkOp(1, 0.5, easeInOutCubic);
+  yield* waitFor(1.2);
 
-  const blockDelay = 0.013;
-  for (let i = 0; i < BLOCK_COUNT; i++) {
-    blockOp[i](0);
-  }
-  for (let i = 0; i < BLOCK_COUNT; i++) {
-    yield* blockOp[i](1, 0.045, easeOutCubic);
-    if (i < BLOCK_COUNT - 1) yield* waitFor(blockDelay);
-  }
-  yield* waitFor(0.5);
-
-  // ── animate finalizeExport ───────────────────────────────────────────────
+  // ── animate normalizeAudio ───────────────────────────────────────────────
   yield* frameOpacity4(1, Timing.normal, easeInOutCubic);
+  yield* waitFor(0.2);
+  yield* barsOpacity(1, 0.3, easeInOutCubic);
+
+  // chaotic phase — bars jump randomly
+  for (let round = 0; round < 6; round++) {
+    yield* all(
+      ...barHeights.map((h, i) =>
+        h(BAR_MIN_H + Math.abs(Math.sin(i * 2.3 + round * 1.1)) * (BAR_MAX_H - BAR_MIN_H), 0.08, easeInOutCubic)
+      ),
+    );
+  }
+
+  // normalize — all bars settle to same height
+  yield* all(
+    ...barHeights.map(h => h(NORMALIZED_H, 0.4, easeInOutCubic)),
+  );
+
+  yield* waitFor(1.2);
+
+  // ── animate runEncoder ───────────────────────────────────────────────────
+  yield* frameOpacity5(1, Timing.normal, easeInOutCubic);
   yield* waitFor(0.3);
 
-  yield* containerOp(1, 0.5, easeInOutCubic);
+  // fill macroblocks sequentially
+  const blockDelay = 0.02;
+  const blockOp    = 0.09;
+  for (let idx = 0; idx < COLS * ROWS; idx++) {
+    yield* blockOpacities[idx](1, blockOp, easeInOutCubic);
+    if (idx < COLS * ROWS - 1) yield* waitFor(blockDelay);
+  }
 
-  // MP4 label fades in top-right
-  yield* labelOp(1, 0.4, easeOutCubic);
-
-  yield* waitFor(1.5);
+  yield* waitFor(1.2);
 });
