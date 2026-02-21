@@ -14,6 +14,7 @@ const ITEM_GAP = 48;
 const Y0 = -280;                        // normalizeFrames
 const Y1 = Y0 + FRAME_H + ITEM_GAP;    // applyColorProfile
 const Y2 = Y1 + FRAME_H + ITEM_GAP;    // overlaySubtitles
+const ACTIVE_Y = 100;                   // runEncoder and beyond — appear here after icons fly up
 
 const FRAME_FILL_NEUTRAL = 'rgba(244, 241, 235, 0.07)';
 const FRAME_FILL_WARM = 'rgba(255, 182, 193, 0.22)';
@@ -48,12 +49,24 @@ export default makeScene2D(function* (view) {
   const collapseX0     = createSignal(PANEL_X);
   const collapseX1     = createSignal(PANEL_X);
   const collapseX2     = createSignal(PANEL_X);
+  const collapseX3     = createSignal(PANEL_X);
   const collapseY0     = createSignal(Y0);
   const collapseY1     = createSignal(Y1);
   const collapseY2     = createSignal(Y2);
+  const collapseY3     = createSignal(ACTIVE_Y);
   const collapseScale0 = createSignal(1);
   const collapseScale1 = createSignal(1);
   const collapseScale2 = createSignal(1);
+  const collapseScale3 = createSignal(1);
+
+  // ── runEncoder signals ───────────────────────────────────────────────────
+  const frameOpacity3 = createSignal(0);
+  const BLOCK_COLS    = 8;
+  const BLOCK_ROWS    = 5;
+  const BLOCK_COUNT   = BLOCK_COLS * BLOCK_ROWS;
+  const BLOCK_W       = FRAME_W / BLOCK_COLS;
+  const BLOCK_H       = FRAME_H / BLOCK_ROWS;
+  const blockOp       = Array.from({length: BLOCK_COUNT}, () => createSignal(0));
 
   // ── overlaySubtitles signals ─────────────────────────────────────────────
   const frameOpacity2 = createSignal(0);
@@ -214,6 +227,43 @@ export default makeScene2D(function* (view) {
           opacity={subtitleOpacity}
         />
       </Rect>
+      {/* step 3: runEncoder — macroblocks fill left→right, top→bottom */}
+      <Rect
+        x={collapseX3}
+        y={collapseY3}
+        width={FRAME_W}
+        height={FRAME_H}
+        fill={FRAME_FILL_WARM}
+        stroke={FRAME_STROKE_DONE}
+        lineWidth={2}
+        radius={10}
+        opacity={frameOpacity3}
+        scale={collapseScale3}
+        clip
+      >
+        {/* macroblock grid */}
+        {Array.from({length: BLOCK_COUNT}, (_, idx) => {
+          const col = idx % BLOCK_COLS;
+          const row = Math.floor(idx / BLOCK_COLS);
+          const bx  = -FRAME_W / 2 + col * BLOCK_W + BLOCK_W / 2;
+          const by  = -FRAME_H / 2 + row * BLOCK_H + BLOCK_H / 2;
+          return (
+            <Rect
+              x={bx}
+              y={by}
+              width={BLOCK_W - 1}
+              height={BLOCK_H - 1}
+              fill={'rgba(244, 241, 235, 0.13)'}
+              radius={2}
+              opacity={blockOp[idx]}
+            />
+          );
+        })}
+
+        {/* subtitle on top of blocks */}
+        <Rect x={0} y={subtitleY} width={FRAME_W - 40} height={44} fill={'rgba(0,0,0,0.55)'} radius={4} />
+        <Txt x={0} y={subtitleY} text={'kuroshima'} fontFamily={Fonts.code} fontSize={26} fill={'rgba(244,241,235,0.96)'} letterSpacing={2} />
+      </Rect>
     </>,
   );
 
@@ -258,7 +308,7 @@ export default makeScene2D(function* (view) {
 
   yield* waitFor(1.2);
 
-  // ── все три кадра одновременно уменьшаются, встают в ряд наверху ─────────
+  // ── первые три уменьшаются и уезжают наверх ───────────────────────────────
   yield* all(
     collapseScale0(ICON_SCALE, 0.8, easeInOutCubic),
     collapseScale1(ICON_SCALE, 0.8, easeInOutCubic),
@@ -270,6 +320,21 @@ export default makeScene2D(function* (view) {
     collapseX1(PANEL_X, 0.8, easeInOutCubic),
     collapseX2(PANEL_X + ICON_SPACING, 0.8, easeInOutCubic),
   );
+  yield* waitFor(0.2);
+
+  // ── animate runEncoder — blocks fill left→right, top→bottom ─────────────
+  yield* frameOpacity3(1, Timing.normal, easeInOutCubic);
+  yield* waitFor(0.3);
+
+  const blockDelay = 0.013;
+  for (let i = 0; i < BLOCK_COUNT; i++) {
+    blockOp[i](0);
+  }
+  for (let i = 0; i < BLOCK_COUNT; i++) {
+    yield* blockOp[i](1, 0.045, easeOutCubic);
+    if (i < BLOCK_COUNT - 1) yield* waitFor(blockDelay);
+  }
+  yield* waitFor(0.5);
 
   yield* waitFor(1.0);
 });
