@@ -43,8 +43,7 @@ export default makeScene2D(function* (view) {
   // ── overlaySubtitles signals ─────────────────────────────────────────────
   const frameOpacity2 = createSignal(0);
   const subtitleOpacity = createSignal(0);
-  const subtitleY = createSignal(FRAME_H / 2 - 24);
-
+  const subtitleY = FRAME_H / 2 - 52;
 
   // ── applyColorProfile signals ────────────────────────────────────────────
   const frameOpacity1 = createSignal(0);
@@ -180,7 +179,7 @@ export default makeScene2D(function* (view) {
         {/* subtitle bar */}
         <Rect
           x={0}
-          y={() => subtitleY()}
+          y={subtitleY}
           width={FRAME_W - 40}
           height={44}
           fill={'rgba(0, 0, 0, 0.55)'}
@@ -189,7 +188,7 @@ export default makeScene2D(function* (view) {
         />
         <Txt
           x={0}
-          y={() => subtitleY()}
+          y={subtitleY}
           text={'kuroshima'}
           fontFamily={Fonts.code}
           fontSize={26}
@@ -237,12 +236,8 @@ export default makeScene2D(function* (view) {
   yield* frameOpacity2(1, Timing.normal, easeInOutCubic);
   yield* waitFor(0.3);
 
-  // subtitle slides up from bottom edge and fades in
-  subtitleY(FRAME_H / 2 - 12);
-  yield* all(
-    subtitleOpacity(1, 0.5, easeOutCubic),
-    subtitleY(FRAME_H / 2 - 52, 0.5, easeOutCubic),
-  );
+  // subtitle fades in in place
+  yield* subtitleOpacity(1, 0.6, easeInOutCubic);
 
   yield* waitFor(1.2);
 });
