@@ -27,6 +27,7 @@ import passThroughMonolithScrollSceneRu from './scenes/passThroughMonolithScroll
 import oldMapPassThroughSceneRu from './scenes/oldMapPassThroughSceneRu?scene';
 import sphereDigitsDemoSceneRu from './scenes/sphereDigitsDemoSceneRu?scene';
 import guitarHeroPassThroughSceneRu from './scenes/guitarHeroPassThroughSceneRu?scene';
+import jackIntroSceneEn from './scenes/jackIntroSceneEn?scene';
 import validateMonolithSceneRu from './scenes/validateMonolithSceneRu?scene';
 import splitDtoScene from './scenes/splitDtoScene?scene';
 import splitDtoSceneV3 from './scenes/splitDtoSceneV3?scene';
@@ -76,5 +77,6 @@ export default makeProject({
         // sphereDigitsDemoSceneRu,
         // guitarHeroPassThroughSceneRu,
         validateMonolithSceneRu,
+        jackIntroSceneEn,
     ]
 });
