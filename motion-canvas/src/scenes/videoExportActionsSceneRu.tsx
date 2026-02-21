@@ -53,7 +53,7 @@ export default makeScene2D(function* (view) {
   const collapseY0     = createSignal(Y0);
   const collapseY1     = createSignal(Y1);
   const collapseY2     = createSignal(Y2);
-  const collapseY3     = createSignal(ACTIVE_Y);
+  const collapseY3     = createSignal(Y0 + 50);
   const collapseScale0 = createSignal(1);
   const collapseScale1 = createSignal(1);
   const collapseScale2 = createSignal(1);
