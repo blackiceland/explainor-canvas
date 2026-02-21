@@ -299,14 +299,6 @@ export default makeScene2D(function* (view) {
           const y = -FRAME_H / 2 + ((i + 1) / (SCANLINE_COUNT + 1)) * FRAME_H;
           return <Line points={[[-FRAME_W / 2 + 10, y], [FRAME_W / 2 - 10, y]]} stroke={SCANLINE_COLOR} lineWidth={1} />;
         })}
-        {/* inherited audio bars — normalized, static */}
-        {Array.from({length: BAR_COUNT}, (_, i) => {
-          const totalW = BAR_COUNT * BAR_W + (BAR_COUNT - 1) * 6;
-          const x = -totalW / 2 + i * (BAR_W + 6) + BAR_W / 2;
-          return (
-            <Rect x={x} y={0} width={BAR_W} height={NORMALIZED_H} fill={'rgba(244,241,235,0.90)'} radius={3} />
-          );
-        })}
         {/* macroblocks */}
         {Array.from({length: COLS * ROWS}, (_, idx) => {
           const col = idx % COLS;
@@ -324,6 +316,14 @@ export default makeScene2D(function* (view) {
               radius={2}
               opacity={blockOpacities[idx]}
             />
+          );
+        })}
+        {/* inherited audio bars — normalized, on top of blocks */}
+        {Array.from({length: BAR_COUNT}, (_, i) => {
+          const totalW = BAR_COUNT * BAR_W + (BAR_COUNT - 1) * 6;
+          const x = -totalW / 2 + i * (BAR_W + 6) + BAR_W / 2;
+          return (
+            <Rect x={x} y={0} width={BAR_W} height={NORMALIZED_H} fill={'rgba(244,241,235,0.90)'} radius={3} />
           );
         })}
         {/* inherited watermark — on top of blocks */}
