@@ -1,5 +1,5 @@
-import {makeScene2D, Node, Txt} from '@motion-canvas/2d';
-import {all, easeInOutCubic, ThreadGenerator, waitFor} from '@motion-canvas/core';
+import {makeScene2D, Node, Rect, Txt} from '@motion-canvas/2d';
+import {all, chain, easeInOutCubic, ThreadGenerator, waitFor} from '@motion-canvas/core';
 import {CodeBlock} from '../core/code/components/CodeBlock';
 import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
 import {getCodePaddingY} from '../core/code/shared/TextMeasure';
@@ -165,15 +165,6 @@ export default makeScene2D(function* (view) {
     if (quoted.length > 0) {
       yield* code.recolorTokens(i, quoted, SOFT_GREEN, 0);
     }
-    if (line.includes('validateDisplayName(')) {
-      yield* code.recolorTokens(i, ['validateDisplayName'], VAR_LIGHT, 0);
-    } else if (line.includes('validateConnectionType(')) {
-      yield* code.recolorTokens(i, ['validateConnectionType'], VAR_LIGHT, 0);
-    } else if (line.includes('validatePhoneNumber(')) {
-      yield* code.recolorTokens(i, ['validatePhoneNumber'], VAR_LIGHT, 0);
-    } else if (line.includes('validate(')) {
-      yield* code.recolorTokens(i, ['validate'], VAR_LIGHT, 0);
-    }
     if (line.includes('null')) {
       yield* code.recolorTokens(i, ['null'], KEYWORD_COLOR, 0);
     }
@@ -199,6 +190,15 @@ export default makeScene2D(function* (view) {
     const methodsOnLine = methodCalls.filter(t => line.includes(t));
     if (methodsOnLine.length > 0) {
       yield* code.recolorTokens(i, methodsOnLine, DryFiltersV3CodeTheme.method, 0);
+    }
+    if (line.includes('validateDisplayName(')) {
+      yield* code.recolorTokens(i, ['validateDisplayName'], VAR_LIGHT, 0);
+    } else if (line.includes('validateConnectionType(')) {
+      yield* code.recolorTokens(i, ['validateConnectionType'], VAR_LIGHT, 0);
+    } else if (line.includes('validatePhoneNumber(')) {
+      yield* code.recolorTokens(i, ['validatePhoneNumber'], VAR_LIGHT, 0);
+    } else if (line.includes('validate(')) {
+      yield* code.recolorTokens(i, ['validate'], VAR_LIGHT, 0);
     }
   }
   const privateMethodStart = 39;
@@ -303,6 +303,7 @@ export default makeScene2D(function* (view) {
       if (ln.node.opacity() === 0 && i >= privateMethodStart) {
         if (isLastBlock) {
           anims.push(ln.node.opacity(1, 0.8, easeInOutCubic));
+          anims.push(code.setLineTokensOpacity(i, 1, 0.8));
           anims.push(ln.node.y(ln.node.y() - collapseDistance, 0.8, easeInOutCubic));
         } else {
           ln.node.y(ln.node.y() - collapseDistance);
@@ -336,6 +337,154 @@ export default makeScene2D(function* (view) {
     }
   }
   yield* all(...restoreAnims);
+
+  yield* waitFor(0.5);
+
+  // highlight validate only — dim private methods
+  const dimPrivateAnims: ThreadGenerator[] = [];
+  for (let i = privateMethodStart; i < lines.length; i++) {
+    const ln = code.getLine(i)!;
+    if (ln.node.opacity() > 0) {
+      dimPrivateAnims.push(code.setLineTokensOpacity(i, dimOpacity, 0.8));
+    }
+  }
+  yield* all(...dimPrivateAnims);
+
+  yield* waitFor(2);
+
+  // restore private methods brightness
+  const undimPrivateAnims: ThreadGenerator[] = [];
+  for (let i = privateMethodStart; i < lines.length; i++) {
+    const ln = code.getLine(i)!;
+    if (ln.node.opacity() > 0) {
+      undimPrivateAnims.push(code.setLineTokensOpacity(i, 1, 0.6));
+    }
+  }
+  yield* all(...undimPrivateAnims);
+
+  yield* waitFor(0.5);
+
+  // scroll down to show all private methods
+  const lastLine = code.getLine(lines.length - 1)!;
+  const lastLineY = lastLine.node.y();
+  const scrollTarget = lastLineY - blockHeight / 2 + lineHeight * 2;
+  yield* code.animateScrollY(scrollTarget, 2.0);
+
+  yield* waitFor(1.5);
+
+  // === DIAGRAM: Ousterhout-style decomposition ===
+
+  // dim code to background
+  const bgDimAnims: ThreadGenerator[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const ln = code.getLine(i)!;
+    if (ln.node.opacity() > 0) {
+      bgDimAnims.push(code.setLineTokensOpacity(i, 0.06, 1.0));
+    }
+  }
+  for (const call of createdCalls) {
+    bgDimAnims.push(call.opacity(0.06, 1.0, easeInOutCubic));
+  }
+  yield* all(...bgDimAnims);
+
+  // palette
+  const C_DISPLAY   = 'rgba(255, 140, 163, 0.55)';
+  const C_CONNECT   = 'rgba(163, 205, 255, 0.55)';
+  const C_PHONE     = 'rgba(168, 214, 178, 0.55)';
+  const C_VALIDATE  = 'rgba(244, 241, 235, 0.08)';
+  const C_BORDER    = 'rgba(244, 241, 235, 0.15)';
+  const C_TEXT      = 'rgba(244, 241, 235, 0.92)';
+  const C_TEXT_MUTED = 'rgba(244, 241, 235, 0.5)';
+
+  const sectionW = 280;
+  const sectionH = 56;
+  const gap = 6;
+  const radius = 12;
+  const monolithX = 0;
+  const monolithTopY = -120;
+
+  // build monolith container
+  const monolith = new Node({x: monolithX, y: monolithTopY, opacity: 0});
+  view.add(monolith);
+
+  // validate label
+  const validateLabel = new Txt({
+    text: 'validate',
+    fontFamily: Fonts.code,
+    fontSize: 16,
+    fill: C_TEXT_MUTED,
+    y: -12,
+    offset: [0, 1],
+  });
+  monolith.add(validateLabel);
+
+  // outer frame
+  const totalH = sectionH * 3 + gap * 2 + 24;
+  const outerRect = new Rect({
+    width: sectionW + 24,
+    height: totalH,
+    y: totalH / 2,
+    radius: radius + 4,
+    fill: C_VALIDATE,
+    stroke: C_BORDER,
+    lineWidth: 1,
+  });
+  monolith.add(outerRect);
+
+  const sections = [
+    {label: 'displayName', color: C_DISPLAY},
+    {label: 'connectionType', color: C_CONNECT},
+    {label: 'phoneNumber', color: C_PHONE},
+  ];
+
+  const sectionRects: Node[] = [];
+  const sectionStartY = 12;
+
+  for (let s = 0; s < sections.length; s++) {
+    const sec = sections[s];
+    const sy = sectionStartY + s * (sectionH + gap) + sectionH / 2;
+
+    const container = new Node({y: sy});
+
+    const bg = new Rect({
+      width: sectionW,
+      height: sectionH,
+      radius,
+      fill: sec.color,
+    });
+    container.add(bg);
+
+    const label = new Txt({
+      text: sec.label,
+      fontFamily: Fonts.code,
+      fontSize: 15,
+      fill: C_TEXT,
+    });
+    container.add(label);
+
+    monolith.add(container);
+    sectionRects.push(container);
+  }
+
+  // fade in monolith
+  yield* monolith.opacity(1, 0.8, easeInOutCubic);
+
+  yield* waitFor(1.5);
+
+  // detach sections one by one, moving down
+  const detachGap = 28;
+  const detachBaseY = totalH + 40;
+
+  for (let s = 0; s < sectionRects.length; s++) {
+    const sec = sectionRects[s];
+    const targetY = detachBaseY + s * (sectionH + detachGap);
+
+    yield* sec.y(targetY, 0.7, easeInOutCubic);
+    yield* waitFor(0.3);
+  }
+
+  // shrink outer frame to show validate is now just calls
+  yield* outerRect.height(sectionH + 24, 0.6, easeInOutCubic);
 
   yield* waitFor(2);
 });
