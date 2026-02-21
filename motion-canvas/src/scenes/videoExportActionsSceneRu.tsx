@@ -26,6 +26,7 @@ const SWEEP_COLOR        = 'rgba(244, 230, 200, 0.18)';
 const SCANLINE_COUNT     = 10;
 
 const ICON_Y       = -Screen.height / 2 + 80;
+const ICON_Y2      = ICON_Y + FRAME_H * 0.38 + 20;
 const ICON_SCALE   = 0.38;
 const ICON_SPACING = FRAME_W * 0.38 + 24;
 
@@ -412,6 +413,7 @@ export default makeScene2D(function* (view) {
   yield* waitFor(1.2);
 
   // ── animate runEncoder ───────────────────────────────────────────────────
+
   yield* frameOpacity5(1, Timing.normal, easeInOutCubic);
   yield* waitFor(0.3);
 
@@ -424,4 +426,18 @@ export default makeScene2D(function* (view) {
   }
 
   yield* waitFor(1.2);
+
+  // ── фреймы 3,4,5 уменьшаются и уезжают наверх (тот же уровень ICON_Y) ──
+  yield* all(
+    collapseScale3(ICON_SCALE, 0.8, easeInOutCubic),
+    collapseScale4(ICON_SCALE, 0.8, easeInOutCubic),
+    collapseScale5(ICON_SCALE, 0.8, easeInOutCubic),
+    collapseY3(ICON_Y2, 0.8, easeInOutCubic),
+    collapseY4(ICON_Y2, 0.8, easeInOutCubic),
+    collapseY5(ICON_Y2, 0.8, easeInOutCubic),
+    collapseX3(PANEL_X - ICON_SPACING, 0.8, easeInOutCubic),
+    collapseX4(PANEL_X, 0.8, easeInOutCubic),
+    collapseX5(PANEL_X + ICON_SPACING, 0.8, easeInOutCubic),
+  );
+  yield* waitFor(0.5);
 });
