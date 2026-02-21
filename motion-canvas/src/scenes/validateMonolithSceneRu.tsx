@@ -141,7 +141,7 @@ export default makeScene2D(function* (view) {
   const SOFT_GREEN = 'rgba(168, 214, 178, 0.88)';
   const VAR_LIGHT = 'rgba(244, 241, 235, 0.96)';
   const KEYWORD_COLOR = DryFiltersV3CodeTheme.keyword;
-  const TYPE_CLEAN = 'rgba(200, 186, 255, 0.82)';
+  const TYPE_CLEAN = 'rgba(220, 215, 255, 0.80)';
   const variableTokens = [
     'request',
     'displayName',
@@ -183,15 +183,22 @@ export default makeScene2D(function* (view) {
     if (line.includes('catch (IllegalArgumentException e)')) {
       yield* code.recolorTokens(i, ['e'], VAR_LIGHT, 0);
     }
-    if (line.includes('IllegalArgumentException')) {
-      yield* code.recolorTokens(i, ['IllegalArgumentException'], TYPE_CLEAN, 0);
-    }
     const staticTypes = [
-      'ValidationException', 'Violations', 'ConnectionType', 'StringUtils',
+      'WhatsappChannelCreateRequest', 'ValidationException', 'Violations',
+      'ConnectionType', 'StringUtils', 'IllegalArgumentException',
     ];
     const typesOnLine = staticTypes.filter(t => line.includes(t));
     if (typesOnLine.length > 0) {
       yield* code.recolorTokens(i, typesOnLine, TYPE_CLEAN, 0);
+    }
+    const methodCalls = [
+      'getDisplayName', 'getConnectionType', 'getPhoneNumber',
+      'trimToNull', 'valueOf', 'matches', 'length',
+      'notNullViolation', 'sizeMaxViolation', 'enumViolation', 'patternViolation',
+    ];
+    const methodsOnLine = methodCalls.filter(t => line.includes(t));
+    if (methodsOnLine.length > 0) {
+      yield* code.recolorTokens(i, methodsOnLine, DryFiltersV3CodeTheme.method, 0);
     }
   }
   const privateMethodStart = 39;
@@ -217,19 +224,30 @@ export default makeScene2D(function* (view) {
   ];
 
   let totalCollapsed = 0;
+  const createdCalls: Node[] = [];
 
   for (let b = 0; b < blocks.length; b++) {
     const block = blocks[b];
     const from = block.from;
     const to = block.to;
+    const isLastBlock = b === blocks.length - 1;
 
-    // highlight this block, dim everything else in validate
+    // highlight this block, dim everything else
     const dimAnims: ThreadGenerator[] = [];
     for (let i = 0; i <= validateEnd; i++) {
       const ln = code.getLine(i)!;
       if (ln.node.opacity() === 0) continue;
       const bright = i >= from && i <= to;
       dimAnims.push(code.setLineTokensOpacity(i, bright ? 1 : dimOpacity, 0.8));
+    }
+    for (const prevCall of createdCalls) {
+      dimAnims.push(prevCall.opacity(dimOpacity, 0.8, easeInOutCubic));
+    }
+    for (let i = privateMethodStart; i < lines.length; i++) {
+      const ln = code.getLine(i)!;
+      if (ln.node.opacity() > 0) {
+        dimAnims.push(code.setLineTokensOpacity(i, dimOpacity, 0.8));
+      }
     }
     yield* all(...dimAnims);
 
@@ -265,6 +283,7 @@ export default makeScene2D(function* (view) {
       cx += textWidth(part.text, Fonts.code, fontSize);
     }
     code.getContentContainer().add(callContainer);
+    createdCalls.push(callContainer);
 
     const blockLines = to - from;
     const collapseDistance = blockLines * lineHeight;
@@ -282,7 +301,12 @@ export default makeScene2D(function* (view) {
     for (let i = to + 1; i < lines.length; i++) {
       const ln = code.getLine(i)!;
       if (ln.node.opacity() === 0 && i >= privateMethodStart) {
-        ln.node.y(ln.node.y() - collapseDistance);
+        if (isLastBlock) {
+          anims.push(ln.node.opacity(1, 0.8, easeInOutCubic));
+          anims.push(ln.node.y(ln.node.y() - collapseDistance, 0.8, easeInOutCubic));
+        } else {
+          ln.node.y(ln.node.y() - collapseDistance);
+        }
       } else {
         anims.push(ln.node.y(ln.node.y() - collapseDistance, 0.8, easeInOutCubic));
       }
@@ -294,7 +318,7 @@ export default makeScene2D(function* (view) {
     yield* waitFor(0.5);
   }
 
-  // restore brightness on all visible validate lines
+  // restore brightness on everything
   const restoreAnims: ThreadGenerator[] = [];
   for (let i = 0; i <= validateEnd; i++) {
     const ln = code.getLine(i)!;
@@ -302,20 +326,16 @@ export default makeScene2D(function* (view) {
       restoreAnims.push(code.setLineTokensOpacity(i, 1, 0.6));
     }
   }
-  yield* all(...restoreAnims);
-
-  yield* waitFor(1.5);
-
-  // scroll down to reveal private methods
-  const firstPrivateLine = code.getLine(privateMethodStart + 1)!;
-  const scrollTarget = firstPrivateLine.node.y() - lineHeight * 2;
-
-  const revealAnims: ThreadGenerator[] = [];
-  for (let i = privateMethodStart; i < lines.length; i++) {
-    revealAnims.push(code.getLine(i)!.node.opacity(1, 1.0, easeInOutCubic));
+  for (const call of createdCalls) {
+    restoreAnims.push(call.opacity(1, 0.6, easeInOutCubic));
   }
-  revealAnims.push(code.animateScrollY(scrollTarget, 1.5));
-  yield* all(...revealAnims);
+  for (let i = privateMethodStart; i < lines.length; i++) {
+    const ln = code.getLine(i)!;
+    if (ln.node.opacity() > 0) {
+      restoreAnims.push(code.setLineTokensOpacity(i, 1, 0.6));
+    }
+  }
+  yield* all(...restoreAnims);
 
   yield* waitFor(2);
 });
