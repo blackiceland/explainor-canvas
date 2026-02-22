@@ -89,7 +89,7 @@ export default makeScene2D(function* (view) {
   // ── сигналы applyColorProfile ─────────────────────────────────────────
   const FRAME_FILL_WARM  = 'rgba(255, 182, 193, 0.35)';
   const SWEEP_COLOR      = 'rgba(244, 230, 200, 0.18)';
-  const Y_COLOR_PROFILE  = Y_ENCODER + FRAME_H + 98;
+  const Y_COLOR_PROFILE  = Y_ENCODER + FRAME_H + ITEM_GAP;
   const frameOpColor     = createSignal(0);
   const sweepOpacity     = createSignal(0);
   const paintProgress    = createSignal(0);
@@ -102,9 +102,16 @@ export default makeScene2D(function* (view) {
   const formatLabelOp   = createSignal(0);
   const blockOpacities  = Array.from({length: COLS * ROWS}, () => createSignal(0));
 
-  const yEncoderSig   = createSignal(Y_ENCODER);
-  const yFinalizeSig  = createSignal(Y_FINALIZE);
-  const frameScaleSig = createSignal(1);
+  const ICON_SCALE   = 0.38;
+  const ICON_Y_BOTTOM = Screen.height / 2 - 80;
+  const ICON_SPACING  = FRAME_W * ICON_SCALE + 24;
+
+  const collapseX5    = createSignal(PANEL_X);
+  const collapseY5    = createSignal(Y_ENCODER);
+  const collapseScale5 = createSignal(1);
+  const collapseX6    = createSignal(PANEL_X);
+  const collapseY6    = createSignal(Y_FINALIZE);
+  const collapseScale6 = createSignal(1);
   const fillEncoder   = createSignal(FRAME_FILL_NEUTRAL);
   const fillFinalize  = createSignal(FRAME_FILL_NEUTRAL);
 
@@ -180,9 +187,9 @@ export default makeScene2D(function* (view) {
     />
 
     {/* runEncoder */}
-    <Rect x={PANEL_X} y={yEncoderSig} width={() => FRAME_W * frameScaleSig()} height={() => FRAME_H * frameScaleSig()}
+    <Rect x={collapseX5} y={collapseY5} width={FRAME_W} height={FRAME_H}
       fill={fillEncoder} stroke={FRAME_STROKE_DONE} lineWidth={3} radius={6}
-      opacity={frameOpEncoder} clip
+      scale={collapseScale5} opacity={frameOpEncoder} clip
     >
       {Array.from({length: SCANLINE_COUNT}, (_, i) => {
         const y = -FRAME_H / 2 + ((i + 1) / (SCANLINE_COUNT + 1)) * FRAME_H;
@@ -197,16 +204,14 @@ export default makeScene2D(function* (view) {
     </Rect>
 
     {/* finalizeExport — dashed border */}
-    <Rect x={PANEL_X} y={yFinalizeSig}
-      width={() => (FRAME_W+16) * frameScaleSig()} height={() => (FRAME_H+16) * frameScaleSig()}
+    <Rect x={collapseX6} y={collapseY6} width={FRAME_W+16} height={FRAME_H+16}
       fill={'rgba(0,0,0,0)'} stroke={'rgba(244,241,235,0.50)'} lineWidth={2}
-      lineDash={[10,7]} radius={14} opacity={frameOpFinalize}
+      lineDash={[10,7]} radius={14} scale={collapseScale6} opacity={frameOpFinalize}
     />
     {/* finalizeExport — frame */}
-    <Rect x={PANEL_X} y={yFinalizeSig}
-      width={() => FRAME_W * frameScaleSig()} height={() => FRAME_H * frameScaleSig()}
+    <Rect x={collapseX6} y={collapseY6} width={FRAME_W} height={FRAME_H}
       fill={fillFinalize} stroke={FRAME_STROKE_DONE} lineWidth={3}
-      radius={6} opacity={frameOpFinalize} clip
+      radius={6} scale={collapseScale6} opacity={frameOpFinalize} clip
     >
       {Array.from({length: SCANLINE_COUNT}, (_, i) => {
         const y = -FRAME_H / 2 + ((i + 1) / (SCANLINE_COUNT + 1)) * FRAME_H;
@@ -221,14 +226,15 @@ export default makeScene2D(function* (view) {
     </Rect>
     {/* .mp4 badge */}
     <Rect
-      x={() => PANEL_X + (FRAME_W * frameScaleSig())/2 - 24}
-      y={() => yFinalizeSig() - (FRAME_H * frameScaleSig())/2 + 36 * frameScaleSig()}
-      width={() => 96 * frameScaleSig()} height={() => 40 * frameScaleSig()}
+      x={() => collapseX6() + (FRAME_W/2 - 24) * collapseScale6()}
+      y={() => collapseY6() + (-FRAME_H/2 + 36) * collapseScale6()}
+      width={() => 96 * collapseScale6()} height={() => 40 * collapseScale6()}
       fill={'rgba(30,28,40,0.90)'}
       stroke={'rgba(244,241,235,0.85)'} lineWidth={1.5} radius={6}
       offset={[1,0]} opacity={formatLabelOp}
     >
-      <Txt x={0} y={0} text={'.mp4'} fontFamily={Fonts.code} fontSize={24} fill={'rgba(244,241,235,1.0)'}/>
+      <Txt x={0} y={0} text={'.mp4'} fontFamily={Fonts.code}
+        fontSize={() => 24 * collapseScale6()} fill={'rgba(244,241,235,1.0)'}/>
     </Rect>
   </>);
 
@@ -278,16 +284,18 @@ export default makeScene2D(function* (view) {
 
   // ── v0 → v1 ────────────────────────────────────────────────────────────
 
-  // фреймы v0 плавно уходят
+  // оба фрейма уменьшаются и уезжают вниз рядом, как иконки
   yield* all(
-    frameOpEncoder(0, FADE_IN, easeInOutCubic),
-    frameOpFinalize(0, FADE_IN, easeInOutCubic),
-    formatLabelOp(0, FADE_IN, easeInOutCubic),
+    collapseScale5(ICON_SCALE, 0.8, easeInOutCubic),
+    collapseScale6(ICON_SCALE, 0.8, easeInOutCubic),
+    collapseY5(ICON_Y_BOTTOM, 0.8, easeInOutCubic),
+    collapseY6(ICON_Y_BOTTOM, 0.8, easeInOutCubic),
+    collapseX5(PANEL_X - ICON_SPACING / 2 - 25, 0.8, easeInOutCubic),
+    collapseX6(PANEL_X + ICON_SPACING / 2 - 25, 0.8, easeInOutCubic),
   );
-  for (const sig of blockOpacities) sig(0);
   yield* waitFor(0.4);
 
-  // 1) normalizeFrames появляется справа
+  // теперь появляется normalizeFrames
   yield* frameOpNorm(1, FADE_IN, easeInOutCubic);
   yield* waitFor(0.4);
   yield* guidesOp(1, 0.3, easeInOutCubic);
@@ -337,33 +345,6 @@ export default makeScene2D(function* (view) {
   ], {
     extraColorRules: [{match: 'prepareFrames', color: VAR_LIGHT}],
   });
-
-  yield* waitFor(0.5);
-
-  // ── v1: фреймы encoder/finalize возвращаются трансформированными ──────
-  const V1_Y_ENCODER  = Y_COLOR_PROFILE + FRAME_H + ITEM_GAP;
-  const V1_Y_FINALIZE = V1_Y_ENCODER + FRAME_H * 0.72 + 60;
-  const V1_SCALE      = 0.72;
-
-  yEncoderSig(V1_Y_ENCODER);
-  yFinalizeSig(V1_Y_FINALIZE);
-  frameScaleSig(V1_SCALE);
-  fillEncoder(FRAME_FILL_WARM);
-  fillFinalize(FRAME_FILL_WARM);
-
-  yield* all(
-    frameOpEncoder(1, FADE_IN, easeInOutCubic),
-    frameOpFinalize(1, FADE_IN, easeInOutCubic),
-  );
-  yield* waitFor(0.15);
-
-  const blockOp2 = 0.04;
-  for (let idx = 0; idx < COLS * ROWS; idx++) {
-    yield* blockOpacities[idx](1, blockOp2, easeInOutCubic);
-    if (idx < COLS * ROWS - 1) yield* waitFor(0.008);
-  }
-  yield* waitFor(0.3);
-  yield* formatLabelOp(1, FADE_IN, easeInOutCubic);
 
   yield* waitFor(2);
 });
