@@ -23,7 +23,7 @@ const SCANLINE_COLOR     = 'rgba(244, 241, 235, 0.06)';
 const SCANLINE_COUNT     = 10;
 
 const ITEM_GAP   = 73;
-const Y_ENCODER  = -255;
+const Y_ENCODER  = -305;
 const Y_FINALIZE = Y_ENCODER + FRAME_H + ITEM_GAP;
 
 const CODE_CARD_STYLE = {
@@ -235,7 +235,7 @@ export default makeScene2D(function* (view) {
   // ── один CodeBlock на всю сцену ────────────────────────────────────────
   const cb = CodeBlock.fromCode(V0, {
     x: LEFT_CENTER_X,
-    y: 0,
+    y: -50,
     width: CODE_W,
     height: SafeZone.bottom - SafeZone.top - 36,
     fontSize,
