@@ -1,6 +1,6 @@
 import {Node, Rect, Txt} from '@motion-canvas/2d';
 import {all, createRef, easeInOutCubic, Reference, ThreadGenerator, waitFor} from '@motion-canvas/core';
-import {Token} from '../model/Tokenizer';
+import {Token, tokenizeLine} from '../model/Tokenizer';
 import {getTokenColor, SyntaxTheme} from '../model/SyntaxTheme';
 import {Colors} from '../../theme';
 import {getWorldPosition, Point} from '../shared/Coordinates';
@@ -17,7 +17,7 @@ export interface CodeLineConfig {
     glowAccent?: boolean;
 }
 
-interface TokenData {
+export interface TokenData {
     ref: Reference<Txt>;
     text: string;
     localX: number;
@@ -39,6 +39,23 @@ export class CodeLine {
     constructor(config: CodeLineConfig) {
         this.config = config;
         this.glowAccent = config.glowAccent ?? true;
+    }
+
+    /**
+     * Создаёт CodeLine из уже существующих DOM-нод и токенов.
+     * Используется при splitLine для переноса части токенов на новую строку.
+     */
+    public static fromExisting(
+        container: Node,
+        background: Rect,
+        tokens: TokenData[],
+        sourceLineForConfig: CodeLine,
+    ): CodeLine {
+        const line = new CodeLine(sourceLineForConfig.config);
+        line.containerRef(container);
+        line.backgroundRef(background);
+        (line.tokensData as TokenData[]).push(...tokens);
+        return line;
     }
 
     public build(localY: number): Node {
@@ -122,6 +139,14 @@ export class CodeLine {
 
     public get node(): Node {
         return this.containerRef();
+    }
+
+    public get tokens(): TokenData[] {
+        return this.tokensData;
+    }
+
+    public get background(): Rect {
+        return this.backgroundRef();
     }
 
     public getWorldPosition(): Point {
@@ -336,6 +361,101 @@ export class CodeLine {
         for (let c = 0; c < fullNew.length; c++) {
             txtNode.text(fullNew.slice(0, c + 1));
             yield* waitFor(charDelay);
+        }
+    }
+
+    /**
+     * Вставляет текст перед указанным токеном с анимацией:
+     * 1) Сдвигает целевой токен и все после него вправо
+     * 2) Печатает новые токены посимвольно (typewriter)
+     *
+     * @param beforeText — текст токена, перед которым вставляем (ищем fromEnd если указано)
+     * @param insertText — текст для вставки (будет токенизирован)
+     * @param colorRules — правила раскраски для новых токенов
+     */
+    public *insertBeforeToken(
+        beforeText: string,
+        insertText: string,
+        opts: {
+            charDelay?: number;
+            fromEnd?: boolean;
+            colorRules?: Array<{match: string | RegExp; color: string}>;
+            customTypes?: string[];
+        } = {},
+    ): ThreadGenerator {
+        const {charDelay = 0.012, fromEnd = false, colorRules = [], customTypes = []} = opts;
+
+        const targetIdx = fromEnd
+            ? this.tokensData.reduceRight((found, t, i) => found === -1 && t.text === beforeText ? i : found, -1)
+            : this.tokensData.findIndex(t => t.text === beforeText);
+        if (targetIdx === -1) return;
+
+        const newTokens = tokenizeLine(insertText, customTypes);
+        const totalInsertWidth = newTokens.reduce(
+            (sum, t) => sum + textWidth(t.text, this.config.fontFamily, this.config.fontSize), 0,
+        );
+
+        // 1) Сдвигаем целевой токен и все после него вправо
+        const shiftAnims: ThreadGenerator[] = [];
+        for (let i = targetIdx; i < this.tokensData.length; i++) {
+            this.tokensData[i].localX += totalInsertWidth;
+            shiftAnims.push(this.tokensData[i].ref().x(this.tokensData[i].localX, 0.25, easeInOutCubic));
+        }
+        if (shiftAnims.length > 0) yield* all(...shiftAnims);
+
+        // 2) Создаём новые Txt-ноды и вставляем в tokensData
+        let xOffset = this.tokensData[targetIdx].localX - totalInsertWidth;
+        const container = this.containerRef();
+        const newTokensData: TokenData[] = [];
+
+        for (const token of newTokens) {
+            let tokenColor = token.color ?? getTokenColor(token.type, this.config.theme);
+            for (const rule of colorRules) {
+                const matches = typeof rule.match === 'string'
+                    ? token.text === rule.match || token.text.includes(rule.match)
+                    : rule.match.test(token.text);
+                if (matches) {
+                    tokenColor = rule.color;
+                    break;
+                }
+            }
+
+            const ref = createRef<Txt>();
+            const txt = new Txt({
+                text: '',
+                fontFamily: this.config.fontFamily,
+                fontSize: this.config.fontSize,
+                fill: tokenColor,
+                x: xOffset,
+                offset: [-1, 0],
+                opacity: 1,
+            });
+            ref(txt);
+            container.add(txt);
+
+            const td: TokenData = {
+                ref,
+                text: token.text,
+                localX: xOffset,
+                originalColor: tokenColor,
+                originalShadowBlur: 0,
+                originalShadowColor: 'rgba(0,0,0,0)',
+                originalShadowOffset: [0, 0],
+            };
+            newTokensData.push(td);
+            xOffset += textWidth(token.text, this.config.fontFamily, this.config.fontSize);
+        }
+
+        // Вставляем в массив tokensData перед targetIdx
+        this.tokensData.splice(targetIdx, 0, ...newTokensData);
+
+        // 3) Typewriter — печатаем посимвольно
+        for (const td of newTokensData) {
+            const fullText = td.text;
+            for (let c = 0; c < fullText.length; c++) {
+                td.ref().text(fullText.slice(0, c + 1));
+                yield* waitFor(charDelay);
+            }
         }
     }
 

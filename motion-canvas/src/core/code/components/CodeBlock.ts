@@ -1,13 +1,14 @@
-import {Node, Rect} from '@motion-canvas/2d';
+import {Node, Rect, Txt} from '@motion-canvas/2d';
 import {all, createRef, easeInOutCubic, Reference, ThreadGenerator, waitFor} from '@motion-canvas/core';
 import {CodeDocument} from '../model/CodeDocument';
 import {tokenizeLine} from '../model/Tokenizer';
-import {SyntaxTheme, IntelliJDarkTheme} from '../model/SyntaxTheme';
+import {SyntaxTheme, IntelliJDarkTheme, getTokenColor} from '../model/SyntaxTheme';
 import {CodeCard, CodeCardStyle} from './CodeCard';
 import {CodeLine} from './CodeLine';
 import {getCodePaddingX, getCodePaddingY, getLineHeight} from '../shared/TextMeasure';
 import {getWorldPosition, Point} from '../shared/Coordinates';
 import {Fonts} from '../../theme';
+import {textWidth} from '../../utils/textMeasure';
 
 export interface CodeBlockConfig {
     x?: number;
@@ -524,6 +525,202 @@ export class CodeBlock {
         const docLine = this.document.lines[lineIndex];
         if (docLine) {
             this.document.lines[lineIndex] = docLine.replace(oldText, newText);
+        }
+    }
+
+    /** Вставляет текст перед указанным токеном в строке.
+     *  Сдвигает токен и все после него вправо, печатает новый текст с typewriter. */
+    public *insertInLine(
+        lineIndex: number,
+        beforeText: string,
+        insertText: string,
+        opts: {
+            charDelay?: number;
+            fromEnd?: boolean;
+            colorRules?: Array<{match: string | RegExp; color: string}>;
+        } = {},
+    ): ThreadGenerator {
+        const line = this.lines[lineIndex];
+        if (!line) return;
+        yield* line.insertBeforeToken(beforeText, insertText, {
+            ...opts,
+            colorRules: [...(opts.colorRules ?? []), ...this.savedColorRules],
+            customTypes: this.config.customTypes,
+        });
+
+        const docLine = this.document.lines[lineIndex];
+        if (docLine) {
+            const idx = opts.fromEnd
+                ? docLine.lastIndexOf(beforeText)
+                : docLine.indexOf(beforeText);
+            if (idx >= 0) {
+                this.document.lines[lineIndex] = docLine.slice(0, idx) + insertText + docLine.slice(idx);
+            }
+        }
+    }
+
+    /**
+     * Разбивает строку на две: токены до splitBeforeToken остаются,
+     * splitBeforeToken и все после него плавно съезжают на новую строку.
+     *
+     * @param lineIndex — индекс строки
+     * @param splitBeforeToken — текст токена, перед которым разрезаем
+     * @param newLinePrefix — текст, который появится на новой строке ПЕРЕД перенесёнными токенами
+     *                        (например "        String colorProfile" — отступ + новый параметр).
+     *                        Будет токенизирован, раскрашен и напечатан typewriter-ом.
+     * @param opts.insertBeforeSplit — текст для вставки в старую строку перед split-точкой (например ",")
+     */
+    public *splitLine(
+        lineIndex: number,
+        splitBeforeToken: string,
+        newLinePrefix: string = '        ',
+        opts: {
+            insertBeforeSplit?: string;
+            duration?: number;
+            fromEnd?: boolean;
+            charDelay?: number;
+        } = {},
+    ): ThreadGenerator {
+        if (!this.mounted) return;
+        const {insertBeforeSplit, duration = 0.35, fromEnd = false, charDelay = 0.012} = opts;
+        const srcLine = this.lines[lineIndex];
+        if (!srcLine) return;
+
+        // Если нужно вставить текст перед split-точкой (например запятую)
+        if (insertBeforeSplit) {
+            yield* srcLine.insertBeforeToken(splitBeforeToken, insertBeforeSplit, {
+                charDelay,
+                fromEnd,
+                colorRules: this.savedColorRules,
+                customTypes: this.config.customTypes,
+            });
+        }
+
+        // Находим splitToken (пересчитываем после возможной вставки)
+        const tokens = srcLine.tokens;
+        const newSplitIdx = fromEnd
+            ? tokens.reduceRight((found, t, i) => found === -1 && t.text === splitBeforeToken ? i : found, -1)
+            : tokens.findIndex(t => t.text === splitBeforeToken);
+        if (newSplitIdx === -1) return;
+
+        const lh = this.config.lineHeight;
+        const content = this.contentRef();
+        const srcY = srcLine.node.y();
+        const newY = srcY + lh;
+
+        // Токенизируем prefix
+        const prefixTokens = tokenizeLine(newLinePrefix, this.config.customTypes);
+        const prefixWidth = prefixTokens.reduce(
+            (sum, t) => sum + textWidth(t.text, this.config.fontFamily, this.config.fontSize), 0,
+        );
+
+        // Создаём контейнер для новой строки (начинает на той же Y что и исходная)
+        const newContainer = new Node({y: srcY, opacity: 1});
+        const newBackground = new Rect({
+            width: this.mountedContentWidth,
+            height: lh * 1.15,
+            x: 0, y: 0,
+            radius: this.config.fontSize * 0.5,
+            fill: 'rgba(0,0,0,0)',
+            opacity: 0,
+        });
+        newContainer.add(newBackground);
+        content.add(newContainer);
+
+        // Забираем токены из старой строки
+        const movedTokens = tokens.splice(newSplitIdx);
+
+        // Удаляем trailing whitespace из старой строки
+        while (tokens.length > 0 && tokens[tokens.length - 1].text.trim() === '') {
+            const ws = tokens.pop()!;
+            ws.ref().remove();
+        }
+
+        // Создаём prefix Txt-ноды (скрытые — для typewriter)
+        const prefixTokensData: import('./CodeLine').TokenData[] = [];
+        let xOffset = this.mountedLeftEdge;
+        for (const pt of prefixTokens) {
+            const tokenColor = pt.color ?? getTokenColor(pt.type, this.config.theme);
+            let finalColor = tokenColor;
+            for (const rule of this.savedColorRules) {
+                const matches = typeof rule.match === 'string'
+                    ? pt.text === rule.match || pt.text.includes(rule.match as string)
+                    : (rule.match as RegExp).test(pt.text);
+                if (matches) { finalColor = rule.color; break; }
+            }
+
+            const ref = createRef<Txt>();
+            const txt = new Txt({
+                text: '',
+                fontFamily: this.config.fontFamily,
+                fontSize: this.config.fontSize,
+                fill: finalColor,
+                x: xOffset,
+                offset: [-1, 0],
+                opacity: 1,
+            });
+            ref(txt);
+            newContainer.add(txt);
+            prefixTokensData.push({
+                ref, text: pt.text, localX: xOffset,
+                originalColor: finalColor,
+                originalShadowBlur: 0, originalShadowColor: 'rgba(0,0,0,0)', originalShadowOffset: [0, 0],
+            });
+            xOffset += textWidth(pt.text, this.config.fontFamily, this.config.fontSize);
+        }
+
+        // Перемещаем moved-токены в новый контейнер
+        const movedStartX = xOffset;
+        for (const td of movedTokens) {
+            const txtNode = td.ref();
+            const oldX = td.localX;
+            txtNode.remove();
+            newContainer.add(txtNode);
+            txtNode.x(oldX);
+        }
+
+        // Собираем все токены новой строки
+        const allNewTokens = [...prefixTokensData, ...movedTokens];
+        const newLine = CodeLine.fromExisting(newContainer, newBackground, allNewTokens, srcLine);
+        this.lines.splice(lineIndex + 1, 0, newLine);
+
+        // Обновляем document
+        const docLine = this.document.lines[lineIndex];
+        const docSplitPos = fromEnd ? docLine.lastIndexOf(splitBeforeToken) : docLine.indexOf(splitBeforeToken);
+        if (docSplitPos >= 0) {
+            let before = docLine.slice(0, docSplitPos);
+            if (insertBeforeSplit) before += insertBeforeSplit;
+            before = before.trimEnd();
+            const after = newLinePrefix + docLine.slice(docSplitPos);
+            this.document.lines[lineIndex] = before;
+            this.document.lines.splice(lineIndex + 1, 0, after);
+        }
+
+        // Анимация: новая строка съезжает вниз + moved-токены едут в новые X-позиции
+        const anims: ThreadGenerator[] = [];
+        anims.push(newContainer.y(newY, duration, easeInOutCubic));
+
+        let targetX = movedStartX;
+        for (const td of movedTokens) {
+            anims.push(td.ref().x(targetX, duration, easeInOutCubic));
+            td.localX = targetX;
+            targetX += textWidth(td.text, this.config.fontFamily, this.config.fontSize);
+        }
+
+        for (let i = lineIndex + 2; i < this.lines.length; i++) {
+            const curY = this.lines[i].node.y();
+            anims.push(this.lines[i].node.y(curY + lh, duration, easeInOutCubic));
+        }
+
+        if (anims.length > 0) yield* all(...anims);
+
+        // Typewriter для prefix-токенов
+        for (const td of prefixTokensData) {
+            const fullText = td.text;
+            for (let c = 0; c < fullText.length; c++) {
+                td.ref().text(fullText.slice(0, c + 1));
+                yield* waitFor(charDelay);
+            }
         }
     }
 

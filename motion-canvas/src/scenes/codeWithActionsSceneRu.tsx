@@ -74,7 +74,7 @@ const COLOR_RULES = [
 export default makeScene2D(function* (view) {
   applyBackground(view);
 
-  const fontSize   = 26;
+  const fontSize   = 22;
   const lineHeight = Math.round(fontSize * 1.62 * 10) / 10;
   const paddingY   = getCodePaddingY(fontSize);
   const topInset   = Math.max(8, paddingY - 8);
@@ -320,7 +320,7 @@ export default makeScene2D(function* (view) {
 
   // ── CodeBlock ──────────────────────────────────────────────────────────
   const cb = CodeBlock.fromCode(V0, {
-    x: LEFT_CENTER_X, y: -50,
+    x: LEFT_CENTER_X - 50, y: -50,
     width: CODE_W,
     height: SafeZone.bottom - SafeZone.top - 36,
     fontSize, lineHeight,
@@ -396,22 +396,25 @@ export default makeScene2D(function* (view) {
   yield* sweepOpacity(0, 0.2, easeInOutCubic);
   yield* waitFor(0.3);
 
-  // 4) код: colorProfile в сигнатуру
-  yield* cb.replaceInLine(0, 'String outputFormat)', 'String outputFormat, String colorProfile)');
+  // 4) код: colorProfile в сигнатуру — печатаем ", String colorProfile" и переносим ") {" на новую строку
+  yield* cb.splitLine(0, ')', '        String colorProfile', {
+    insertBeforeSplit: ',',
+    fromEnd: true,
+  });
   yield* waitFor(0.5);
 
-  // 6) вставляем вызов prepareFrames
-  yield* cb.insertLinesAt(1, '    byte[] preparedFrames = prepareFrames(sourceFrames, colorProfile);', {
+  // 6) вставляем вызов prepareFrames (после строки 2: validateInput)
+  yield* cb.insertLinesAt(2, '    byte[] preparedFrames = prepareFrames(sourceFrames, colorProfile);', {
     extraColorRules: [{match: 'prepareFrames', color: METHOD_COLOR}],
   });
   yield* waitFor(0.3);
 
-  // 7) меняем sourceFrames → preparedFrames в runEncoder
-  yield* cb.replaceInLine(3, 'sourceFrames', 'preparedFrames');
+  // 7) меняем sourceFrames → preparedFrames в runEncoder (строка 4 после вставки)
+  yield* cb.replaceInLine(4, 'sourceFrames', 'preparedFrames');
   yield* waitFor(0.8);
 
-  // 8) вставляем реализацию prepareFrames
-  yield* cb.insertLinesAt(6, [
+  // 8) вставляем реализацию prepareFrames (после строки 7)
+  yield* cb.insertLinesAt(7, [
     '',
     'private byte[] prepareFrames(byte[] sourceFrames, String colorProfile) {',
     '    byte[] normalized = normalizeFrames(sourceFrames);',
@@ -470,14 +473,12 @@ export default makeScene2D(function* (view) {
   yield* subtitleBarOp(1, 0.5, easeInOutCubic);
   yield* waitFor(0.5);
 
-  // 3) subtitleTrack добавляется с новой строки
-  // строка 0: ...String colorProfile) {
-  // заменяем последнюю ) на , (отдельный токен-пунктуация)
-  yield* cb.replaceInLine(0, ')', ',', 0.012, null, true);
-  // убираем { с конца строки 0 (тоже отдельный токен)
-  yield* cb.replaceInLine(0, '{', '', 0.012, null, true);
-  // вставляем новую строку после 0
-  yield* cb.insertLinesAt(0, '        String subtitleTrack) {');
+  // 3) subtitleTrack в сигнатуру exportVideo — вставка перед ")" в строке 1
+  yield* cb.insertInLine(1, ')', ', String subtitleTrack', {fromEnd: true});
+  yield* waitFor(0.5);
+
+  // 4) subtitleTrack в вызов prepareFrames — вставка перед ")" в строке 3
+  yield* cb.insertInLine(3, ')', ', subtitleTrack', {fromEnd: true});
 
   yield* waitFor(2);
 });
