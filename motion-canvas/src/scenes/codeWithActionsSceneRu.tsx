@@ -88,18 +88,23 @@ export default makeScene2D(function* (view) {
   const guidesOp     = createSignal(0);
 
   // ── applyColorProfile ──────────────────────────────────────────────────
-  const Y_COLOR_PROFILE = Y_ENCODER + FRAME_H + ITEM_GAP;
-  const frameOpColor    = createSignal(0);
-  const sweepOpacity    = createSignal(0);
-  const paintProgress   = createSignal(0);
+  const Y_COLOR_PROFILE  = Y_ENCODER + FRAME_H + ITEM_GAP;
+  const frameOpColor     = createSignal(0);
+  const sweepOpacity     = createSignal(0);
+  const paintProgress    = createSignal(0);
+
+  // ── runEncoder v1 (покрашенный, третий фрейм) ─────────────────────────
+  const Y_ENCODER_V1     = Y_COLOR_PROFILE + FRAME_H + ITEM_GAP;
+  const frameOpEncoderV1 = createSignal(0);
 
   // ── runEncoder / finalizeExport ────────────────────────────────────────
-  const COLS            = 8; const ROWS = 5;
-  const labelOp         = createSignal(0);
-  const frameOpEncoder  = createSignal(0);
-  const frameOpFinalize = createSignal(0);
-  const formatLabelOp   = createSignal(0);
-  const blockOpacities  = Array.from({length: COLS * ROWS}, () => createSignal(0));
+  const COLS              = 8; const ROWS = 5;
+  const labelOp           = createSignal(0);
+  const frameOpEncoder    = createSignal(0);
+  const frameOpFinalize   = createSignal(0);
+  const formatLabelOp     = createSignal(0);
+  const blockOpacities    = Array.from({length: COLS * ROWS}, () => createSignal(0));
+  const blockOpacitiesV1  = Array.from({length: COLS * ROWS}, () => createSignal(0));
 
   const dividerOp = createSignal(0);
   view.add(
@@ -152,6 +157,24 @@ export default makeScene2D(function* (view) {
           fill={SWEEP_COLOR} opacity={sweepOpacity}
         />
       </Rect>
+    </Rect>
+
+    {/* runEncoder v1 — покрашенный, кубики анимируются */}
+    <Rect x={PANEL_X} y={Y_ENCODER_V1} width={FRAME_W} height={FRAME_H}
+      fill={FRAME_FILL_WARM} stroke={FRAME_STROKE_DONE} lineWidth={3} radius={6}
+      opacity={frameOpEncoderV1} clip
+    >
+      {Array.from({length: SCANLINE_COUNT}, (_, i) => {
+        const y = -FRAME_H/2 + ((i+1)/(SCANLINE_COUNT+1))*FRAME_H;
+        return <Line points={[[-FRAME_W/2+10,y],[FRAME_W/2-10,y]]} stroke={SCANLINE_COLOR} lineWidth={1}/>;
+      })}
+      {Array.from({length: COLS * ROWS}, (_, idx) => {
+        const col = idx % COLS; const row = Math.floor(idx / COLS);
+        const bw = FRAME_W/COLS; const bh = FRAME_H/ROWS;
+        const x = -FRAME_W/2 + col*bw + bw/2; const y = -FRAME_H/2 + row*bh + bh/2;
+        return <Rect key={String(idx)} x={x} y={y} width={bw-2} height={bh-2}
+          fill={'rgba(180,175,220,0.45)'} radius={2} opacity={blockOpacitiesV1[idx]}/>;
+      })}
     </Rect>
 
     {/* section label */}
@@ -289,23 +312,23 @@ export default makeScene2D(function* (view) {
   yield* sweepOpacity(1, 0.15, easeInOutCubic);
   yield* paintProgress(1, 1.0, linear);
   yield* sweepOpacity(0, 0.2, easeInOutCubic);
-  yield* waitFor(0.5);
+  yield* waitFor(0.3);
 
   // 4) код: colorProfile в сигнатуру
   yield* cb.replaceInLine(0, 'String outputFormat)', 'String outputFormat, String colorProfile)');
   yield* waitFor(0.5);
 
-  // 5) вставляем вызов prepareFrames
+  // 6) вставляем вызов prepareFrames
   yield* cb.insertLinesAt(1, '    byte[] preparedFrames = prepareFrames(sourceFrames, colorProfile);', {
     extraColorRules: [{match: 'prepareFrames', color: METHOD_COLOR}],
   });
   yield* waitFor(0.3);
 
-  // 6) меняем sourceFrames → preparedFrames в runEncoder
+  // 7) меняем sourceFrames → preparedFrames в runEncoder
   yield* cb.replaceInLine(3, 'sourceFrames', 'preparedFrames');
   yield* waitFor(0.8);
 
-  // 7) вставляем реализацию prepareFrames
+  // 8) вставляем реализацию prepareFrames
   yield* cb.insertLinesAt(6, [
     '',
     'private byte[] prepareFrames(byte[] sourceFrames, String colorProfile) {',
@@ -315,6 +338,16 @@ export default makeScene2D(function* (view) {
   ], {
     extraColorRules: [{match: 'prepareFrames', color: VAR_LIGHT}],
   });
+  yield* waitFor(0.5);
+
+  // 9) runEncoder v1 появляется после кода — быстрая анимация кубиков
+  yield* frameOpEncoderV1(1, FADE_IN, easeInOutCubic);
+  yield* waitFor(0.1);
+  const blockDelayV1 = 0.004; const blockOpV1 = 0.025;
+  for (let idx = 0; idx < COLS * ROWS; idx++) {
+    yield* blockOpacitiesV1[idx](1, blockOpV1, easeInOutCubic);
+    if (idx < COLS * ROWS - 1) yield* waitFor(blockDelayV1);
+  }
 
   yield* waitFor(2);
 });
