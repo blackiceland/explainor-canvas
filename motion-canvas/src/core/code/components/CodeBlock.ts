@@ -196,6 +196,11 @@ export class CodeBlock {
         return this.lines[index] ?? null;
     }
 
+    /** Ищет строку по подстроке в document.lines. Возвращает индекс или -1. */
+    public findLine(contains: string): number {
+        return this.document.lines.findIndex(l => l.includes(contains));
+    }
+
     public getPosition(): CodeBlockPosition {
         if (!this.mounted) {
             return {x: this.config.x, y: this.config.y};
