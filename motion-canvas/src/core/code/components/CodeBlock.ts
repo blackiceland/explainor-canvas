@@ -372,7 +372,7 @@ export class CodeBlock {
     }
 
     /** Посимвольный typewriter для строки — символ за символом с подсветкой. */
-    public *typewriterLine(lineIndex: number, charDelay: number = 0.024): ThreadGenerator {
+    public *typewriterLine(lineIndex: number, charDelay: number = 0.012): ThreadGenerator {
         const line = this.lines[lineIndex];
         if (!line) return;
         yield* line.typewriter(charDelay);
@@ -401,10 +401,10 @@ export class CodeBlock {
         if (!this.mounted) return;
 
         const {
-            expandDuration = 0.6,
+            expandDuration = 0.35,
             typewriter = true,
-            charDelay = 0.024,
-            lineDelay = 0.08,
+            charDelay = 0.012,
+            lineDelay = 0.04,
             extraColorRules = [],
         } = opts;
 
@@ -483,7 +483,7 @@ export class CodeBlock {
         lineIndex: number,
         oldText: string,
         newText: string,
-        charDelay: number = 0.03,
+        charDelay: number = 0.015,
         highlightColor: string | null = 'rgba(255, 120, 100, 0.95)',
     ): ThreadGenerator {
         const line = this.lines[lineIndex];

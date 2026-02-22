@@ -242,17 +242,7 @@ export default makeScene2D(function* (view) {
   for (const sig of blockOpacities) sig(0);
   yield* waitFor(0.4);
 
-  // 1) вставляем `byte[] prepared = prepareFrames(sourceFrames);` после строки 1
-  yield* cb.insertLinesAt(1, '    byte[] preparedFrames = prepareFrames(sourceFrames);', {
-    extraColorRules: [{match: 'prepareFrames', color: METHOD_COLOR}],
-  });
-  yield* waitFor(0.3);
-
-  // 2) строка 3 (бывшая 2): меняем sourceFrames → prepared в runEncoder
-  yield* cb.replaceInLine(3, 'sourceFrames', 'preparedFrames');
-  yield* waitFor(0.8);
-
-  // 3) normalizeFrames появляется справа
+  // 1) normalizeFrames появляется справа — до нового кода
   yield* frameOpNorm(1, FADE_IN, easeInOutCubic);
   yield* waitFor(0.4);
   yield* guidesOp(1, 0.3, easeInOutCubic);
@@ -269,8 +259,17 @@ export default makeScene2D(function* (view) {
   yield* guidesOp(0, 0.4, easeInOutCubic);
   yield* waitFor(0.5);
 
-  // 4) вставляем метод prepareFrames после строки 6 (закрывающая })
-  // prepareFrames в объявлении — белый (VAR_LIGHT), не красный
+  // 2) теперь печатаем новую строку вызова
+  yield* cb.insertLinesAt(1, '    byte[] preparedFrames = prepareFrames(sourceFrames);', {
+    extraColorRules: [{match: 'prepareFrames', color: METHOD_COLOR}],
+  });
+  yield* waitFor(0.3);
+
+  // 3) меняем sourceFrames → preparedFrames в runEncoder
+  yield* cb.replaceInLine(3, 'sourceFrames', 'preparedFrames');
+  yield* waitFor(0.8);
+
+  // 4) вставляем реализацию prepareFrames
   yield* cb.insertLinesAt(6, [
     '',
     'private byte[] prepareFrames(byte[] sourceFrames) {',

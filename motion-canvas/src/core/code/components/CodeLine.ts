@@ -249,7 +249,7 @@ export class CodeLine {
 
     /** Посимвольный typewriter: раскрывает текст каждого токена символ за символом.
      *  Сохраняет синтаксическую подсветку. Пробелы — быстрее, пунктуация — с паузой. */
-    public *typewriter(charDelay: number = 0.024): ThreadGenerator {
+    public *typewriter(charDelay: number = 0.012): ThreadGenerator {
         for (const tokenData of this.tokensData) {
             const full = tokenData.text;
             if (full.length === 0) continue;
@@ -289,7 +289,7 @@ export class CodeLine {
     public *replaceToken(
         oldText: string,
         newText: string,
-        charDelay: number = 0.03,
+        charDelay: number = 0.015,
         highlightColor: string | null = 'rgba(255, 120, 100, 0.95)',
     ): ThreadGenerator {
         const idx = this.tokensData.findIndex(t => t.text.includes(oldText));
@@ -301,8 +301,8 @@ export class CodeLine {
         const savedFill = String(txtNode.fill());
 
         if (highlightColor) {
-            yield* txtNode.fill(highlightColor, 0.25, easeInOutCubic);
-            yield* waitFor(0.3);
+            yield* txtNode.fill(highlightColor, 0.15, easeInOutCubic);
+            yield* waitFor(0.15);
         }
 
         for (let c = fullOld.length; c >= 0; c--) {
