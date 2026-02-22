@@ -298,3 +298,20 @@ PR: 4 файла изменены, 12 строк добавлено, 12 удал
 Это можно показать буквально как перетаскивание блоков. v3 — вертикальная цепочка (глубокая вложенность). Потом блоки "вытаскиваются" наверх и становятся в ряд — плоская оркестрация. `finalizeExport` отрывается от `encode`, `encodeWithRetry` сжимается до одной обязанности.
 
 Это будет сильный визуальный момент: из дерева — в плоскую структуру. Из транзита — в прямую доставку.
+
+
+Да, остаёмся на утверждённом плане. Просто замена имени:
+
+| Версия | План (было `wrapContainer`) | Реализация (будет `finalizeExport`) |
+|---|---|---|
+| v0 | `return wrapContainer(encoded, outputFormat)` | `return finalizeExport(encoded, outputFormat)` |
+| v2 (внутри `encode`) | `return finalizeExport(encoded, outputFormat)` с валидацией + `wrapContainer` | `return packageOutput(encoded, outputFormat)` с валидацией + `finalizeExport` |
+
+Всё остальное по плану без изменений:
+- v1: `colorProfile` добавляется в сигнатуру `exportVideo`, `prepareFrames(sourceFrames, colorProfile)` — чисто
+- v2: `subtitleTrack` + `encodeWithRetry` — первый pass-through `outputFormat`
+- v3: 6 параметров, 3 транзитом
+- v3.1: тест
+- v3.2: каскадный diff от одного boolean
+
+Значит сейчас нужно поправить v0 и v1 в сцене. Главное изменение — в v1 добавить `colorProfile` как параметр `exportVideo`. 

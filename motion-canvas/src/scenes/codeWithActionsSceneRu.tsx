@@ -1,5 +1,5 @@
 import {Line, makeScene2D, Rect, Txt} from '@motion-canvas/2d';
-import {all, createSignal, easeInOutCubic, easeOutCubic, waitFor} from '@motion-canvas/core';
+import {all, createSignal, easeInOutCubic, easeOutCubic, linear, waitFor} from '@motion-canvas/core';
 import {CodeBlock} from '../core/code/components/CodeBlock';
 import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
 import {getCodePaddingY} from '../core/code/shared/TextMeasure';
@@ -48,17 +48,19 @@ const TYPE_CLEAN   = 'rgba(220, 215, 255, 0.80)';
 const METHOD_COLOR = DryFiltersV3CodeTheme.method;
 
 const COLOR_RULES = [
-  {match: 'sourceFrames', color: VAR_LIGHT},
-  {match: 'outputFormat', color: VAR_LIGHT},
-  {match: 'encodedVideo', color: VAR_LIGHT},
+  {match: 'sourceFrames',  color: VAR_LIGHT},
+  {match: 'outputFormat',  color: VAR_LIGHT},
+  {match: 'colorProfile',  color: VAR_LIGHT},
+  {match: 'encodedVideo',  color: VAR_LIGHT},
+  {match: /^byte$/, color: TYPE_CLEAN},
   {match: 'preparedFrames', color: VAR_LIGHT},
-  {match: 'normalized',   color: VAR_LIGHT},
-  {match: 'exportVideo',  color: VAR_LIGHT},
-  {match: 'String',       color: TYPE_CLEAN},
-  {match: 'validateInput',    color: METHOD_COLOR},
-  {match: 'runEncoder',       color: METHOD_COLOR},
-  {match: 'finalizeExport',   color: METHOD_COLOR},
-  {match: 'normalizeFrames',  color: METHOD_COLOR},
+  {match: 'normalized',    color: VAR_LIGHT},
+  {match: 'exportVideo',   color: VAR_LIGHT},
+  {match: 'String',        color: TYPE_CLEAN},
+  {match: 'validateInput',     color: METHOD_COLOR},
+  {match: 'runEncoder',        color: METHOD_COLOR},
+  {match: 'finalizeExport',    color: METHOD_COLOR},
+  {match: 'normalizeFrames',   color: METHOD_COLOR},
   {match: 'applyColorProfile', color: METHOD_COLOR},
   {match: /^"[^"]*"$/, color: SOFT_GREEN},
 ];
@@ -83,6 +85,14 @@ export default makeScene2D(function* (view) {
   const strokeColor0 = createSignal(FRAME_STROKE);
   const frameOpNorm  = createSignal(0);
   const guidesOp     = createSignal(0);
+
+  // ── сигналы applyColorProfile ─────────────────────────────────────────
+  const FRAME_FILL_WARM  = 'rgba(255, 182, 193, 0.35)';
+  const SWEEP_COLOR      = 'rgba(244, 230, 200, 0.18)';
+  const Y_COLOR_PROFILE  = Y_ENCODER + FRAME_H + 98;
+  const frameOpColor     = createSignal(0);
+  const sweepOpacity     = createSignal(0);
+  const paintProgress    = createSignal(0);
 
   // ── сигналы фреймов ────────────────────────────────────────────────────
   const COLS = 8; const ROWS = 5;
@@ -123,6 +133,31 @@ export default makeScene2D(function* (view) {
         const y = -FRAME_H/2 + ((i+1)/(SCANLINE_COUNT+1))*FRAME_H;
         return <Line points={[[-FRAME_W/2+10,y],[FRAME_W/2-10,y]]} stroke={SCANLINE_COLOR} lineWidth={1}/>;
       })}
+    </Rect>
+
+    {/* applyColorProfile */}
+    <Rect x={PANEL_X} y={Y_COLOR_PROFILE} width={FRAME_W} height={FRAME_H}
+      fill={FRAME_FILL_NEUTRAL} stroke={FRAME_STROKE_DONE} lineWidth={3} radius={6}
+      opacity={frameOpColor} clip
+    >
+      {Array.from({length: SCANLINE_COUNT}, (_, i) => {
+        const y = -FRAME_H/2 + ((i+1)/(SCANLINE_COUNT+1))*FRAME_H;
+        return <Line points={[[-FRAME_W/2+10,y],[FRAME_W/2-10,y]]} stroke={SCANLINE_COLOR} lineWidth={1}/>;
+      })}
+      <Rect
+        x={() => -FRAME_W/2 + (FRAME_W * paintProgress()) / 2}
+        y={0}
+        width={() => FRAME_W * paintProgress()}
+        height={FRAME_H}
+        fill={FRAME_FILL_WARM}
+        clip
+      >
+        <Rect
+          x={() => (FRAME_W * paintProgress()) / 2 - 8}
+          y={0} width={16} height={FRAME_H}
+          fill={SWEEP_COLOR} opacity={sweepOpacity}
+        />
+      </Rect>
     </Rect>
 
     {/* section label */}
@@ -231,7 +266,7 @@ export default makeScene2D(function* (view) {
   yield* formatLabelOp(1, FADE_IN, easeInOutCubic);
   yield* waitFor(2);
 
-  // ── v0 → v1: вставляем строку + метод ─────────────────────────────────
+  // ── v0 → v1 ────────────────────────────────────────────────────────────
 
   // фреймы v0 плавно уходят
   yield* all(
@@ -242,7 +277,7 @@ export default makeScene2D(function* (view) {
   for (const sig of blockOpacities) sig(0);
   yield* waitFor(0.4);
 
-  // 1) normalizeFrames появляется справа — до нового кода
+  // 1) normalizeFrames появляется справа
   yield* frameOpNorm(1, FADE_IN, easeInOutCubic);
   yield* waitFor(0.4);
   yield* guidesOp(1, 0.3, easeInOutCubic);
@@ -257,24 +292,37 @@ export default makeScene2D(function* (view) {
     strokeColor0(FRAME_STROKE_DONE, 0.9, easeOutCubic),
   );
   yield* guidesOp(0, 0.4, easeInOutCubic);
+  yield* waitFor(0.3);
+
+  // 2) applyColorProfile — color sweep
+  yield* frameOpColor(1, FADE_IN, easeInOutCubic);
+  yield* waitFor(0.2);
+  paintProgress(0);
+  yield* sweepOpacity(1, 0.15, easeInOutCubic);
+  yield* paintProgress(1, 1.0, linear);
+  yield* sweepOpacity(0, 0.2, easeInOutCubic);
   yield* waitFor(0.5);
 
-  // 2) теперь печатаем новую строку вызова
-  yield* cb.insertLinesAt(1, '    byte[] preparedFrames = prepareFrames(sourceFrames);', {
+  // 3) добавляем colorProfile в сигнатуру exportVideo
+  yield* cb.replaceInLine(0, 'String outputFormat)', 'String outputFormat, String colorProfile)');
+  yield* waitFor(0.5);
+
+  // 4) вставляем строку вызова prepareFrames
+  yield* cb.insertLinesAt(1, '    byte[] preparedFrames = prepareFrames(sourceFrames, colorProfile);', {
     extraColorRules: [{match: 'prepareFrames', color: METHOD_COLOR}],
   });
   yield* waitFor(0.3);
 
-  // 3) меняем sourceFrames → preparedFrames в runEncoder
+  // 5) меняем encodedVideo → preparedFrames в runEncoder (аргумент)
   yield* cb.replaceInLine(3, 'sourceFrames', 'preparedFrames');
   yield* waitFor(0.8);
 
-  // 4) вставляем реализацию prepareFrames
+  // 6) вставляем реализацию prepareFrames с colorProfile
   yield* cb.insertLinesAt(6, [
     '',
-    'private byte[] prepareFrames(byte[] sourceFrames) {',
+    'private byte[] prepareFrames(byte[] sourceFrames, String colorProfile) {',
     '    byte[] normalized = normalizeFrames(sourceFrames);',
-    '    return applyColorProfile(normalized, "REC709");',
+    '    return applyColorProfile(normalized, colorProfile);',
     '}',
   ], {
     extraColorRules: [{match: 'prepareFrames', color: VAR_LIGHT}],
