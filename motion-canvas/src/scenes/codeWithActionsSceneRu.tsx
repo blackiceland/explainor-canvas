@@ -26,7 +26,7 @@ const SCANLINE_COLOR   = 'rgba(244, 241, 235, 0.06)';
 const SCANLINE_COUNT   = 10;
 
 // два фрейма v0: runEncoder сверху, finalizeExport ниже
-const ITEM_GAP  = 48;
+const ITEM_GAP  = 98;
 const Y_ENCODER = -160;
 const Y_FINALIZE = Y_ENCODER + FRAME_H + ITEM_GAP;
 
