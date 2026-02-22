@@ -15,10 +15,10 @@ const Y1 = Y0 + FRAME_H + ITEM_GAP;    // applyColorProfile
 const Y2 = Y1 + FRAME_H + ITEM_GAP;    // overlaySubtitles
 const Y_ACTIVE = -230;                  // position after collapse — applyWatermark and beyond
 
-const FRAME_FILL_NEUTRAL = 'rgba(244, 241, 235, 0.07)';
-const FRAME_FILL_WARM    = 'rgba(255, 182, 193, 0.22)';
-const FRAME_STROKE       = 'rgba(244, 241, 235, 0.30)';
-const FRAME_STROKE_DONE  = 'rgba(244, 241, 235, 0.55)';
+const FRAME_FILL_NEUTRAL = 'rgba(244, 241, 235, 0.10)';
+const FRAME_FILL_WARM    = 'rgba(255, 182, 193, 0.35)';
+const FRAME_STROKE       = 'rgba(244, 241, 235, 0.50)';
+const FRAME_STROKE_DONE  = 'rgba(244, 241, 235, 0.85)';
 const SCANLINE_COLOR     = 'rgba(244, 241, 235, 0.06)';
 const GUIDE_COLOR        = 'rgba(244, 241, 235, 0.15)';
 const DIVIDER_COLOR      = 'rgba(244, 241, 235, 0.08)';
@@ -73,7 +73,7 @@ export default makeScene2D(function* (view) {
 
   // ── normalizeAudio signals ───────────────────────────────────────────────
   const BAR_COUNT    = 9;
-  const BAR_W        = 14;
+  const BAR_W        = 18;
   const BAR_MAX_H    = 80;
   const BAR_MIN_H    = 10;
   const NORMALIZED_H = 36;
@@ -316,10 +316,10 @@ export default makeScene2D(function* (view) {
           const y   = -FRAME_H / 2 + row * bh + bh / 2;
           return (
             <Rect
-              key={idx}
+              key={String(idx)}
               x={x} y={y}
               width={bw - 2} height={bh - 2}
-              fill={'rgba(30, 30, 40, 0.55)'}
+              fill={'rgba(20, 20, 35, 0.85)'}
               radius={2}
               opacity={blockOpacities[idx]}
             />
@@ -347,8 +347,8 @@ export default makeScene2D(function* (view) {
         width={FRAME_W + 16}
         height={FRAME_H + 16}
         fill={'rgba(0,0,0,0)'}
-        stroke={'rgba(244,241,235,0.40)'}
-        lineWidth={1.5}
+        stroke={'rgba(244,241,235,0.50)'}
+        lineWidth={2}
         lineDash={[10, 7]}
         radius={14}
         opacity={frameOpacity6}
@@ -361,9 +361,9 @@ export default makeScene2D(function* (view) {
         y={collapseY6}
         width={FRAME_W}
         height={FRAME_H}
-        fill={FRAME_FILL_WARM}
-        stroke={'rgba(0,0,0,0)'}
-        lineWidth={0}
+        fill={'rgba(255, 182, 193, 0.50)'}
+        stroke={FRAME_STROKE_DONE}
+        lineWidth={2}
         radius={10}
         opacity={frameOpacity6}
         scale={collapseScale6}
@@ -381,7 +381,7 @@ export default makeScene2D(function* (view) {
           const bh  = FRAME_H / ROWS;
           const x   = -FRAME_W / 2 + col * bw + bw / 2;
           const y   = -FRAME_H / 2 + row * bh + bh / 2;
-          return <Rect key={idx} x={x} y={y} width={bw - 2} height={bh - 2} fill={'rgba(30,30,40,0.55)'} radius={2} />;
+          return <Rect key={String(idx)} x={x} y={y} width={bw - 2} height={bh - 2} fill={'rgba(20,20,35,0.85)'} radius={2} />;
         })}
         {/* inherited audio bars — on top of blocks */}
         {Array.from({length: BAR_COUNT}, (_, i) => {
@@ -394,28 +394,30 @@ export default makeScene2D(function* (view) {
         {/* inherited subtitle */}
         <Rect x={0} y={subtitleY} width={FRAME_W - 40} height={44} fill={'rgba(0,0,0,0.55)'} radius={4} />
         <Txt x={0} y={subtitleY} text={'kuroshima'} fontFamily={Fonts.code} fontSize={26} fill={'rgba(244,241,235,0.96)'} letterSpacing={2} />
-        {/* format badge — top right */}
-        <Rect
-          x={FRAME_W / 2 - 24}
-          y={-FRAME_H / 2 + 40}
-          width={96}
-          height={40}
-          fill={'rgba(244,241,235,0.08)'}
-          stroke={'rgba(244,241,235,0.70)'}
-          lineWidth={1.5}
-          radius={6}
-          offset={[1, 0]}
-          opacity={formatLabelOp}
-        >
-          <Txt
-            x={0}
-            y={0}
-            text={'.mp4'}
-            fontFamily={Fonts.code}
-            fontSize={24}
-            fill={'rgba(244,241,235,0.95)'}
-          />
-        </Rect>
+      </Rect>
+
+      {/* format badge — outside clip, always on top */}
+      <Rect
+        x={() => collapseX6() + FRAME_W / 2 - 24}
+        y={() => collapseY6() - FRAME_H / 2 + 40}
+        width={96}
+        height={40}
+        fill={'rgba(30,28,40,0.90)'}
+        stroke={'rgba(244,241,235,0.85)'}
+        lineWidth={1.5}
+        radius={6}
+        offset={[1, 0]}
+        opacity={() => frameOpacity6() * formatLabelOp()}
+        scale={collapseScale6}
+      >
+        <Txt
+          x={0}
+          y={0}
+          text={'.mp4'}
+          fontFamily={Fonts.code}
+          fontSize={24}
+          fill={'rgba(244,241,235,1.0)'}
+        />
       </Rect>
     </>,
   );
