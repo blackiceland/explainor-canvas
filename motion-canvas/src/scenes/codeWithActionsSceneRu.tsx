@@ -18,6 +18,7 @@ const LEFT_CENTER_X = -Screen.width / 2 + 40 + CODE_W / 2;
 const FRAME_W            = 420;
 const FRAME_H            = 236;
 const FRAME_FILL_NEUTRAL = 'rgba(244, 241, 235, 0.10)';
+const FRAME_FILL_WARM    = 'rgba(255, 182, 193, 0.35)';
 const FRAME_STROKE_DONE  = 'rgba(244, 241, 235, 0.85)';
 const SCANLINE_COLOR     = 'rgba(244, 241, 235, 0.06)';
 const SCANLINE_COUNT     = 10;
@@ -25,6 +26,15 @@ const SCANLINE_COUNT     = 10;
 const ITEM_GAP   = 73;
 const Y_ENCODER  = -305;
 const Y_FINALIZE = Y_ENCODER + FRAME_H + ITEM_GAP;
+
+const FRAME_STROKE = 'rgba(244, 241, 235, 0.50)';
+const GUIDE_COLOR  = 'rgba(244, 241, 235, 0.15)';
+const SWEEP_COLOR  = 'rgba(244, 230, 200, 0.18)';
+
+const SOFT_GREEN   = 'rgba(168, 214, 178, 0.88)';
+const VAR_LIGHT    = 'rgba(244, 241, 235, 0.96)';
+const TYPE_CLEAN   = 'rgba(220, 215, 255, 0.80)';
+const METHOD_COLOR = DryFiltersV3CodeTheme.method;
 
 const CODE_CARD_STYLE = {
   radius: 24, fill: 'rgba(0,0,0,0)', stroke: 'rgba(0,0,0,0)',
@@ -39,32 +49,23 @@ const V0 = `public byte[] exportVideo(byte[] sourceFrames, String outputFormat) 
     return finalizeExport(encodedVideo, outputFormat);
 }`;
 
-const FRAME_STROKE = 'rgba(244, 241, 235, 0.50)';
-const GUIDE_COLOR  = 'rgba(244, 241, 235, 0.15)';
-
-const SOFT_GREEN   = 'rgba(168, 214, 178, 0.88)';
-const VAR_LIGHT    = 'rgba(244, 241, 235, 0.96)';
-const TYPE_CLEAN   = 'rgba(220, 215, 255, 0.80)';
-const METHOD_COLOR = DryFiltersV3CodeTheme.method;
-
 const COLOR_RULES = [
-  {match: 'sourceFrames',  color: VAR_LIGHT},
-  {match: 'outputFormat',  color: VAR_LIGHT},
-  {match: 'colorProfile',  color: VAR_LIGHT},
-  {match: 'encodedVideo',  color: VAR_LIGHT},
-  {match: /^byte$/, color: TYPE_CLEAN},
-  {match: 'preparedFrames', color: VAR_LIGHT},
-  {match: 'normalized',    color: VAR_LIGHT},
-  {match: 'exportVideo',   color: VAR_LIGHT},
-  {match: 'String',        color: TYPE_CLEAN},
+  {match: 'sourceFrames',      color: VAR_LIGHT},
+  {match: 'outputFormat',      color: VAR_LIGHT},
+  {match: 'colorProfile',      color: VAR_LIGHT},
+  {match: 'encodedVideo',      color: VAR_LIGHT},
+  {match: /^byte$/,            color: TYPE_CLEAN},
+  {match: 'preparedFrames',    color: VAR_LIGHT},
+  {match: 'normalized',        color: VAR_LIGHT},
+  {match: 'exportVideo',       color: VAR_LIGHT},
+  {match: 'String',            color: TYPE_CLEAN},
   {match: 'validateInput',     color: METHOD_COLOR},
   {match: 'runEncoder',        color: METHOD_COLOR},
   {match: 'finalizeExport',    color: METHOD_COLOR},
   {match: 'normalizeFrames',   color: METHOD_COLOR},
   {match: 'applyColorProfile', color: METHOD_COLOR},
-  {match: /^"[^"]*"$/, color: SOFT_GREEN},
+  {match: /^"[^"]*"$/,         color: SOFT_GREEN},
 ];
-
 
 export default makeScene2D(function* (view) {
   applyBackground(view);
@@ -74,7 +75,7 @@ export default makeScene2D(function* (view) {
   const paddingY   = getCodePaddingY(fontSize);
   const topInset   = Math.max(8, paddingY - 8);
 
-  // ── сигналы normalizeFrames ──────────────────────────────────────────────
+  // ── normalizeFrames ────────────────────────────────────────────────────
   const Y_NORMALIZE  = Y_ENCODER;
   const skewX        = createSignal(6);
   const skewY        = createSignal(-3);
@@ -86,34 +87,19 @@ export default makeScene2D(function* (view) {
   const frameOpNorm  = createSignal(0);
   const guidesOp     = createSignal(0);
 
-  // ── сигналы applyColorProfile ─────────────────────────────────────────
-  const FRAME_FILL_WARM  = 'rgba(255, 182, 193, 0.35)';
-  const SWEEP_COLOR      = 'rgba(244, 230, 200, 0.18)';
-  const Y_COLOR_PROFILE  = Y_ENCODER + FRAME_H + ITEM_GAP;
-  const frameOpColor     = createSignal(0);
-  const sweepOpacity     = createSignal(0);
-  const paintProgress    = createSignal(0);
+  // ── applyColorProfile ──────────────────────────────────────────────────
+  const Y_COLOR_PROFILE = Y_ENCODER + FRAME_H + ITEM_GAP;
+  const frameOpColor    = createSignal(0);
+  const sweepOpacity    = createSignal(0);
+  const paintProgress   = createSignal(0);
 
-  // ── сигналы фреймов ────────────────────────────────────────────────────
-  const COLS = 8; const ROWS = 5;
+  // ── runEncoder / finalizeExport ────────────────────────────────────────
+  const COLS            = 8; const ROWS = 5;
   const labelOp         = createSignal(0);
   const frameOpEncoder  = createSignal(0);
   const frameOpFinalize = createSignal(0);
   const formatLabelOp   = createSignal(0);
   const blockOpacities  = Array.from({length: COLS * ROWS}, () => createSignal(0));
-
-  const ICON_SCALE   = 0.38;
-  const ICON_Y_BOTTOM = Screen.height / 2 - 80;
-  const ICON_SPACING  = FRAME_W * ICON_SCALE + 24;
-
-  const collapseX5    = createSignal(PANEL_X);
-  const collapseY5    = createSignal(Y_ENCODER);
-  const collapseScale5 = createSignal(1);
-  const collapseX6    = createSignal(PANEL_X);
-  const collapseY6    = createSignal(Y_FINALIZE);
-  const collapseScale6 = createSignal(1);
-  const fillEncoder   = createSignal(FRAME_FILL_NEUTRAL);
-  const fillFinalize  = createSignal(FRAME_FILL_NEUTRAL);
 
   const dividerOp = createSignal(0);
   view.add(
@@ -138,9 +124,7 @@ export default makeScene2D(function* (view) {
       width={FRAME_W} height={FRAME_H}
       fill={FRAME_FILL_NEUTRAL} stroke={strokeColor0} lineWidth={2} radius={radius0}
       opacity={frameOpNorm}
-      skewX={skewX} skewY={skewY}
-      scaleX={scaleXn} scaleY={scaleYn}
-      rotation={rotation}
+      skewX={skewX} skewY={skewY} scaleX={scaleXn} scaleY={scaleYn} rotation={rotation}
     >
       {Array.from({length: SCANLINE_COUNT}, (_, i) => {
         const y = -FRAME_H/2 + ((i+1)/(SCANLINE_COUNT+1))*FRAME_H;
@@ -159,11 +143,8 @@ export default makeScene2D(function* (view) {
       })}
       <Rect
         x={() => -FRAME_W/2 + (FRAME_W * paintProgress()) / 2}
-        y={0}
-        width={() => FRAME_W * paintProgress()}
-        height={FRAME_H}
-        fill={FRAME_FILL_WARM}
-        clip
+        y={0} width={() => FRAME_W * paintProgress()} height={FRAME_H}
+        fill={FRAME_FILL_WARM} clip
       >
         <Rect
           x={() => (FRAME_W * paintProgress()) / 2 - 8}
@@ -175,77 +156,69 @@ export default makeScene2D(function* (view) {
 
     {/* section label */}
     <Txt
-      x={PANEL_X}
-      y={-Screen.height / 2 + 52}
-      text={'VIDEO EXPORT'}
-      fontFamily={Fonts.primary}
-      fontSize={26}
-      fill={'rgba(244,241,235,0.90)'}
-      letterSpacing={6}
-      fontWeight={700}
-      opacity={labelOp}
+      x={PANEL_X} y={-Screen.height / 2 + 52}
+      text={'VIDEO EXPORT'} fontFamily={Fonts.primary}
+      fontSize={26} fill={'rgba(244,241,235,0.90)'}
+      letterSpacing={6} fontWeight={700} opacity={labelOp}
     />
 
     {/* runEncoder */}
-    <Rect x={collapseX5} y={collapseY5} width={FRAME_W} height={FRAME_H}
-      fill={fillEncoder} stroke={FRAME_STROKE_DONE} lineWidth={3} radius={6}
-      scale={collapseScale5} opacity={frameOpEncoder} clip
+    <Rect x={PANEL_X} y={Y_ENCODER} width={FRAME_W} height={FRAME_H}
+      fill={FRAME_FILL_NEUTRAL} stroke={FRAME_STROKE_DONE} lineWidth={3} radius={6}
+      opacity={frameOpEncoder} clip
     >
       {Array.from({length: SCANLINE_COUNT}, (_, i) => {
-        const y = -FRAME_H / 2 + ((i + 1) / (SCANLINE_COUNT + 1)) * FRAME_H;
-        return <Line points={[[-FRAME_W/2+10, y],[FRAME_W/2-10, y]]} stroke={SCANLINE_COLOR} lineWidth={1}/>;
+        const y = -FRAME_H/2 + ((i+1)/(SCANLINE_COUNT+1))*FRAME_H;
+        return <Line points={[[-FRAME_W/2+10,y],[FRAME_W/2-10,y]]} stroke={SCANLINE_COLOR} lineWidth={1}/>;
       })}
       {Array.from({length: COLS * ROWS}, (_, idx) => {
         const col = idx % COLS; const row = Math.floor(idx / COLS);
-        const bw = FRAME_W / COLS; const bh = FRAME_H / ROWS;
+        const bw = FRAME_W/COLS; const bh = FRAME_H/ROWS;
         const x = -FRAME_W/2 + col*bw + bw/2; const y = -FRAME_H/2 + row*bh + bh/2;
-        return <Rect key={String(idx)} x={x} y={y} width={bw-2} height={bh-2} fill={'rgba(180,175,220,0.45)'} radius={2} opacity={blockOpacities[idx]}/>;
+        return <Rect key={String(idx)} x={x} y={y} width={bw-2} height={bh-2}
+          fill={'rgba(180,175,220,0.45)'} radius={2} opacity={blockOpacities[idx]}/>;
       })}
     </Rect>
 
     {/* finalizeExport — dashed border */}
-    <Rect x={collapseX6} y={collapseY6} width={FRAME_W+16} height={FRAME_H+16}
+    <Rect x={PANEL_X} y={Y_FINALIZE} width={FRAME_W+16} height={FRAME_H+16}
       fill={'rgba(0,0,0,0)'} stroke={'rgba(244,241,235,0.50)'} lineWidth={2}
-      lineDash={[10,7]} radius={14} scale={collapseScale6} opacity={frameOpFinalize}
+      lineDash={[10,7]} radius={14} opacity={frameOpFinalize}
     />
     {/* finalizeExport — frame */}
-    <Rect x={collapseX6} y={collapseY6} width={FRAME_W} height={FRAME_H}
-      fill={fillFinalize} stroke={FRAME_STROKE_DONE} lineWidth={3}
-      radius={6} scale={collapseScale6} opacity={frameOpFinalize} clip
+    <Rect x={PANEL_X} y={Y_FINALIZE} width={FRAME_W} height={FRAME_H}
+      fill={FRAME_FILL_NEUTRAL} stroke={FRAME_STROKE_DONE} lineWidth={3}
+      radius={6} opacity={frameOpFinalize} clip
     >
       {Array.from({length: SCANLINE_COUNT}, (_, i) => {
-        const y = -FRAME_H / 2 + ((i + 1) / (SCANLINE_COUNT + 1)) * FRAME_H;
-        return <Line points={[[-FRAME_W/2+10, y],[FRAME_W/2-10, y]]} stroke={SCANLINE_COLOR} lineWidth={1}/>;
+        const y = -FRAME_H/2 + ((i+1)/(SCANLINE_COUNT+1))*FRAME_H;
+        return <Line points={[[-FRAME_W/2+10,y],[FRAME_W/2-10,y]]} stroke={SCANLINE_COLOR} lineWidth={1}/>;
       })}
       {Array.from({length: COLS * ROWS}, (_, idx) => {
         const col = idx % COLS; const row = Math.floor(idx / COLS);
-        const bw = FRAME_W / COLS; const bh = FRAME_H / ROWS;
+        const bw = FRAME_W/COLS; const bh = FRAME_H/ROWS;
         const x = -FRAME_W/2 + col*bw + bw/2; const y = -FRAME_H/2 + row*bh + bh/2;
-        return <Rect key={String(idx)} x={x} y={y} width={bw-2} height={bh-2} fill={'rgba(180,175,220,0.45)'} radius={2}/>;
+        return <Rect key={String(idx)} x={x} y={y} width={bw-2} height={bh-2}
+          fill={'rgba(180,175,220,0.45)'} radius={2}/>;
       })}
     </Rect>
     {/* .mp4 badge */}
     <Rect
-      x={() => collapseX6() + (FRAME_W/2 - 24) * collapseScale6()}
-      y={() => collapseY6() + (-FRAME_H/2 + 36) * collapseScale6()}
-      width={() => 96 * collapseScale6()} height={() => 40 * collapseScale6()}
-      fill={'rgba(30,28,40,0.90)'}
+      x={PANEL_X + FRAME_W/2 - 24} y={Y_FINALIZE - FRAME_H/2 + 36}
+      width={96} height={40} fill={'rgba(30,28,40,0.90)'}
       stroke={'rgba(244,241,235,0.85)'} lineWidth={1.5} radius={6}
       offset={[1,0]} opacity={formatLabelOp}
     >
-      <Txt x={0} y={0} text={'.mp4'} fontFamily={Fonts.code}
-        fontSize={() => 24 * collapseScale6()} fill={'rgba(244,241,235,1.0)'}/>
+      <Txt x={0} y={0} text={'.mp4'} fontFamily={Fonts.code} fontSize={24} fill={'rgba(244,241,235,1.0)'}/>
     </Rect>
   </>);
 
-  // ── один CodeBlock на всю сцену ────────────────────────────────────────
+  // ── CodeBlock ──────────────────────────────────────────────────────────
   const cb = CodeBlock.fromCode(V0, {
-    x: LEFT_CENTER_X,
-    y: -50,
+    x: LEFT_CENTER_X, y: -50,
     width: CODE_W,
     height: SafeZone.bottom - SafeZone.top - 36,
-    fontSize,
-    lineHeight,
+    fontSize, lineHeight,
     contentOffsetY: topInset,
     fontFamily: Fonts.code,
     theme: DryFiltersV3CodeTheme,
@@ -253,7 +226,6 @@ export default makeScene2D(function* (view) {
     glowAccent: false,
     customTypes: ['String', 'RuntimeException', 'IllegalStateException', 'IllegalArgumentException'],
   });
-
   cb.mount(view);
   cb.colorize(COLOR_RULES);
 
@@ -284,18 +256,16 @@ export default makeScene2D(function* (view) {
 
   // ── v0 → v1 ────────────────────────────────────────────────────────────
 
-  // оба фрейма уменьшаются и уезжают вниз рядом, как иконки
+  // 1) старые фреймы плавно исчезают
   yield* all(
-    collapseScale5(ICON_SCALE, 0.8, easeInOutCubic),
-    collapseScale6(ICON_SCALE, 0.8, easeInOutCubic),
-    collapseY5(ICON_Y_BOTTOM, 0.8, easeInOutCubic),
-    collapseY6(ICON_Y_BOTTOM, 0.8, easeInOutCubic),
-    collapseX5(PANEL_X - ICON_SPACING / 2 - 25, 0.8, easeInOutCubic),
-    collapseX6(PANEL_X + ICON_SPACING / 2 - 25, 0.8, easeInOutCubic),
+    frameOpEncoder(0, FADE_IN, easeInOutCubic),
+    frameOpFinalize(0, FADE_IN, easeInOutCubic),
+    formatLabelOp(0, FADE_IN, easeInOutCubic),
   );
-  yield* waitFor(0.4);
+  for (const sig of blockOpacities) sig(0);
+  yield* waitFor(0.3);
 
-  // теперь появляется normalizeFrames
+  // 2) normalizeFrames появляется на том же месте
   yield* frameOpNorm(1, FADE_IN, easeInOutCubic);
   yield* waitFor(0.4);
   yield* guidesOp(1, 0.3, easeInOutCubic);
@@ -312,7 +282,7 @@ export default makeScene2D(function* (view) {
   yield* guidesOp(0, 0.4, easeInOutCubic);
   yield* waitFor(0.3);
 
-  // 2) applyColorProfile — color sweep
+  // 3) applyColorProfile появляется под normalizeFrames
   yield* frameOpColor(1, FADE_IN, easeInOutCubic);
   yield* waitFor(0.2);
   paintProgress(0);
@@ -321,21 +291,21 @@ export default makeScene2D(function* (view) {
   yield* sweepOpacity(0, 0.2, easeInOutCubic);
   yield* waitFor(0.5);
 
-  // 3) добавляем colorProfile в сигнатуру exportVideo
+  // 4) код: colorProfile в сигнатуру
   yield* cb.replaceInLine(0, 'String outputFormat)', 'String outputFormat, String colorProfile)');
   yield* waitFor(0.5);
 
-  // 4) вставляем строку вызова prepareFrames
+  // 5) вставляем вызов prepareFrames
   yield* cb.insertLinesAt(1, '    byte[] preparedFrames = prepareFrames(sourceFrames, colorProfile);', {
     extraColorRules: [{match: 'prepareFrames', color: METHOD_COLOR}],
   });
   yield* waitFor(0.3);
 
-  // 5) меняем encodedVideo → preparedFrames в runEncoder (аргумент)
+  // 6) меняем sourceFrames → preparedFrames в runEncoder
   yield* cb.replaceInLine(3, 'sourceFrames', 'preparedFrames');
   yield* waitFor(0.8);
 
-  // 6) вставляем реализацию prepareFrames с colorProfile
+  // 7) вставляем реализацию prepareFrames
   yield* cb.insertLinesAt(6, [
     '',
     'private byte[] prepareFrames(byte[] sourceFrames, String colorProfile) {',
