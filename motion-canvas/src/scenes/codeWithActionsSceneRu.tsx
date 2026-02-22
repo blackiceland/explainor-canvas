@@ -22,8 +22,8 @@ const FRAME_STROKE_DONE  = 'rgba(244, 241, 235, 0.85)';
 const SCANLINE_COLOR     = 'rgba(244, 241, 235, 0.06)';
 const SCANLINE_COUNT     = 10;
 
-const ITEM_GAP   = 98;
-const Y_ENCODER  = -160;
+const ITEM_GAP   = 73;
+const Y_ENCODER  = -255;
 const Y_FINALIZE = Y_ENCODER + FRAME_H + ITEM_GAP;
 
 const CODE_CARD_STYLE = {
@@ -102,6 +102,12 @@ export default makeScene2D(function* (view) {
   const formatLabelOp   = createSignal(0);
   const blockOpacities  = Array.from({length: COLS * ROWS}, () => createSignal(0));
 
+  const yEncoderSig   = createSignal(Y_ENCODER);
+  const yFinalizeSig  = createSignal(Y_FINALIZE);
+  const frameScaleSig = createSignal(1);
+  const fillEncoder   = createSignal(FRAME_FILL_NEUTRAL);
+  const fillFinalize  = createSignal(FRAME_FILL_NEUTRAL);
+
   const dividerOp = createSignal(0);
   view.add(
     <Line
@@ -174,8 +180,8 @@ export default makeScene2D(function* (view) {
     />
 
     {/* runEncoder */}
-    <Rect x={PANEL_X} y={Y_ENCODER} width={FRAME_W} height={FRAME_H}
-      fill={FRAME_FILL_NEUTRAL} stroke={FRAME_STROKE_DONE} lineWidth={3} radius={6}
+    <Rect x={PANEL_X} y={yEncoderSig} width={() => FRAME_W * frameScaleSig()} height={() => FRAME_H * frameScaleSig()}
+      fill={fillEncoder} stroke={FRAME_STROKE_DONE} lineWidth={3} radius={6}
       opacity={frameOpEncoder} clip
     >
       {Array.from({length: SCANLINE_COUNT}, (_, i) => {
@@ -191,13 +197,15 @@ export default makeScene2D(function* (view) {
     </Rect>
 
     {/* finalizeExport — dashed border */}
-    <Rect x={PANEL_X} y={Y_FINALIZE} width={FRAME_W+16} height={FRAME_H+16}
+    <Rect x={PANEL_X} y={yFinalizeSig}
+      width={() => (FRAME_W+16) * frameScaleSig()} height={() => (FRAME_H+16) * frameScaleSig()}
       fill={'rgba(0,0,0,0)'} stroke={'rgba(244,241,235,0.50)'} lineWidth={2}
       lineDash={[10,7]} radius={14} opacity={frameOpFinalize}
     />
     {/* finalizeExport — frame */}
-    <Rect x={PANEL_X} y={Y_FINALIZE} width={FRAME_W} height={FRAME_H}
-      fill={FRAME_FILL_NEUTRAL} stroke={FRAME_STROKE_DONE} lineWidth={3}
+    <Rect x={PANEL_X} y={yFinalizeSig}
+      width={() => FRAME_W * frameScaleSig()} height={() => FRAME_H * frameScaleSig()}
+      fill={fillFinalize} stroke={FRAME_STROKE_DONE} lineWidth={3}
       radius={6} opacity={frameOpFinalize} clip
     >
       {Array.from({length: SCANLINE_COUNT}, (_, i) => {
@@ -213,8 +221,10 @@ export default makeScene2D(function* (view) {
     </Rect>
     {/* .mp4 badge */}
     <Rect
-      x={() => PANEL_X + FRAME_W/2 - 24} y={() => Y_FINALIZE - FRAME_H/2 + 36}
-      width={96} height={40} fill={'rgba(30,28,40,0.90)'}
+      x={() => PANEL_X + (FRAME_W * frameScaleSig())/2 - 24}
+      y={() => yFinalizeSig() - (FRAME_H * frameScaleSig())/2 + 36 * frameScaleSig()}
+      width={() => 96 * frameScaleSig()} height={() => 40 * frameScaleSig()}
+      fill={'rgba(30,28,40,0.90)'}
       stroke={'rgba(244,241,235,0.85)'} lineWidth={1.5} radius={6}
       offset={[1,0]} opacity={formatLabelOp}
     >
@@ -327,6 +337,33 @@ export default makeScene2D(function* (view) {
   ], {
     extraColorRules: [{match: 'prepareFrames', color: VAR_LIGHT}],
   });
+
+  yield* waitFor(0.5);
+
+  // ── v1: фреймы encoder/finalize возвращаются трансформированными ──────
+  const V1_Y_ENCODER  = Y_COLOR_PROFILE + FRAME_H + ITEM_GAP;
+  const V1_Y_FINALIZE = V1_Y_ENCODER + FRAME_H * 0.72 + 60;
+  const V1_SCALE      = 0.72;
+
+  yEncoderSig(V1_Y_ENCODER);
+  yFinalizeSig(V1_Y_FINALIZE);
+  frameScaleSig(V1_SCALE);
+  fillEncoder(FRAME_FILL_WARM);
+  fillFinalize(FRAME_FILL_WARM);
+
+  yield* all(
+    frameOpEncoder(1, FADE_IN, easeInOutCubic),
+    frameOpFinalize(1, FADE_IN, easeInOutCubic),
+  );
+  yield* waitFor(0.15);
+
+  const blockOp2 = 0.04;
+  for (let idx = 0; idx < COLS * ROWS; idx++) {
+    yield* blockOpacities[idx](1, blockOp2, easeInOutCubic);
+    if (idx < COLS * ROWS - 1) yield* waitFor(0.008);
+  }
+  yield* waitFor(0.3);
+  yield* formatLabelOp(1, FADE_IN, easeInOutCubic);
 
   yield* waitFor(2);
 });
