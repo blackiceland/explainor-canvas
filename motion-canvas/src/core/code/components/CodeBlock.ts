@@ -1,5 +1,5 @@
 import {Node, Rect} from '@motion-canvas/2d';
-import {all, createRef, easeInOutCubic, Reference, ThreadGenerator} from '@motion-canvas/core';
+import {all, createRef, easeInOutCubic, Reference, ThreadGenerator, waitFor} from '@motion-canvas/core';
 import {CodeDocument} from '../model/CodeDocument';
 import {tokenizeLine} from '../model/Tokenizer';
 import {SyntaxTheme, IntelliJDarkTheme} from '../model/SyntaxTheme';
@@ -40,6 +40,19 @@ export interface LineLayout {
     opacity: number;
 }
 
+export interface InsertLinesOptions {
+    expandDuration?: number;
+    typewriter?: boolean;
+    charDelay?: number;
+    lineDelay?: number;
+    extraColorRules?: ColorRule[];
+}
+
+export interface ColorRule {
+    match: string | RegExp;
+    color: string;
+}
+
 export class CodeBlock {
     private readonly containerRef: Reference<Node> = createRef<Node>();
     private readonly contentRef: Reference<Node> = createRef<Node>();
@@ -48,6 +61,11 @@ export class CodeBlock {
     private readonly config: Required<CodeBlockConfig>;
     private card: CodeCard | null = null;
     private mounted = false;
+
+    private mountedContentWidth = 0;
+    private mountedLeftEdge = 0;
+    private mountedStartY = 0;
+    private savedColorRules: ColorRule[] = [];
 
     private constructor(document: CodeDocument, config: CodeBlockConfig) {
         this.document = document;
@@ -132,6 +150,10 @@ export class CodeBlock {
         const topAlignedStartY = -clipHeight / 2 + this.config.contentOffsetY + this.config.lineHeight / 2;
         const centerAlignedStartY = -((lineCount - 1) / 2) * this.config.lineHeight;
         const startY = shouldTopAlign ? topAlignedStartY : centerAlignedStartY;
+
+        this.mountedContentWidth = contentWidth;
+        this.mountedLeftEdge = leftEdge;
+        this.mountedStartY = startY;
 
         for (let i = 0; i < lineCount; i++) {
             const lineText = this.document.getLine(i) ?? '';
@@ -296,7 +318,7 @@ export class CodeBlock {
     }
 
     public get lineCount(): number {
-        return this.document.lineCount;
+        return this.lines.length;
     }
 
     public get width(): number {
@@ -338,6 +360,24 @@ export class CodeBlock {
         line.node.opacity(opacity);
     }
 
+    /** Мгновенно скрывает все токены строки (opacity=0). */
+    public hideLineTokens(lineIndex: number): void {
+        const line = this.lines[lineIndex];
+        if (line) line.hideTokensInstantly();
+    }
+
+    public getLineTokenCount(lineIndex: number): number {
+        const line = this.lines[lineIndex];
+        return line ? line.tokenCount : 0;
+    }
+
+    /** Посимвольный typewriter для строки — символ за символом с подсветкой. */
+    public *typewriterLine(lineIndex: number, charDelay: number = 0.024): ThreadGenerator {
+        const line = this.lines[lineIndex];
+        if (!line) return;
+        yield* line.typewriter(charDelay);
+    }
+
     public setTokenOpacityAt(lineIndex: number, tokenIndex: number, opacity: number): void {
         const line = this.lines[lineIndex];
         if (!line) return;
@@ -348,6 +388,134 @@ export class CodeBlock {
         const line = this.lines[lineIndex];
         if (!line) return;
         yield* line.animateTokenOpacityAt(tokenIndex, opacity, duration);
+    }
+
+    /** Вставляет строки кода после указанной позиции с анимацией раздвижки и typewriter.
+     *  afterLine — индекс строки, после которой вставляем (-1 = в начало).
+     *  code — строка или массив строк для вставки. */
+    public *insertLinesAt(
+        afterLine: number,
+        code: string | string[],
+        opts: InsertLinesOptions = {},
+    ): ThreadGenerator {
+        if (!this.mounted) return;
+
+        const {
+            expandDuration = 0.6,
+            typewriter = true,
+            charDelay = 0.024,
+            lineDelay = 0.08,
+            extraColorRules = [],
+        } = opts;
+
+        const codeLines = typeof code === 'string' ? code.split('\n') : code;
+        const insertAt = afterLine + 1;
+        const count = codeLines.length;
+        const lh = this.config.lineHeight;
+        const content = this.contentRef();
+
+        const newCodeLines: CodeLine[] = [];
+        for (const lineText of codeLines) {
+            const tokens = tokenizeLine(lineText, this.config.customTypes);
+            const codeLine = new CodeLine({
+                tokens,
+                fontSize: this.config.fontSize,
+                lineHeight: this.config.lineHeight,
+                fontFamily: this.config.fontFamily,
+                theme: this.config.theme,
+                contentWidth: this.mountedContentWidth,
+                leftEdge: this.mountedLeftEdge,
+                glowAccent: this.config.glowAccent,
+            });
+
+            const targetY = this.lines[insertAt]?.node.y()
+                ?? (this.lines.length > 0
+                    ? this.lines[this.lines.length - 1].node.y() + lh
+                    : this.mountedStartY);
+
+            const node = codeLine.build(targetY);
+            node.opacity(0);
+            codeLine.hideTokensInstantly();
+            content.add(node);
+            newCodeLines.push(codeLine);
+        }
+
+        this.lines.splice(insertAt, 0, ...newCodeLines);
+        this.document.lines.splice(insertAt, 0, ...codeLines);
+
+        const allRules = [...this.savedColorRules, ...extraColorRules];
+        if (allRules.length > 0) {
+            for (const line of newCodeLines) {
+                for (const rule of allRules) {
+                    line.colorizeByRule(rule.match, rule.color);
+                }
+            }
+        }
+
+        const expandAnims: ThreadGenerator[] = [];
+        for (let i = insertAt + count; i < this.lines.length; i++) {
+            const currentY = this.lines[i].node.y();
+            expandAnims.push(this.lines[i].node.y(currentY + count * lh, expandDuration, easeInOutCubic));
+        }
+        for (let i = 0; i < count; i++) {
+            const targetY = (this.lines[insertAt > 0 ? insertAt - 1 : 0]?.node.y() ?? this.mountedStartY)
+                + (insertAt > 0 ? (i + 1) : i) * lh;
+            expandAnims.push(newCodeLines[i].node.y(targetY, expandDuration, easeInOutCubic));
+            expandAnims.push(newCodeLines[i].node.opacity(1, expandDuration, easeInOutCubic));
+        }
+        if (expandAnims.length > 0) yield* all(...expandAnims);
+
+        if (typewriter) {
+            for (let i = 0; i < count; i++) {
+                yield* this.typewriterLine(insertAt + i, charDelay);
+                if (i < count - 1 && lineDelay > 0) yield* waitFor(lineDelay);
+            }
+        } else {
+            for (let i = 0; i < count; i++) {
+                this.lines[insertAt + i].showTokensInstantly();
+            }
+        }
+    }
+
+    /** Заменяет текст токена в строке с анимацией fade-out / fade-in.
+     *  Находит первый токен, содержащий oldText, и заменяет его на newText. */
+    public *replaceInLine(
+        lineIndex: number,
+        oldText: string,
+        newText: string,
+        charDelay: number = 0.03,
+        highlightColor: string | null = 'rgba(255, 120, 100, 0.95)',
+    ): ThreadGenerator {
+        const line = this.lines[lineIndex];
+        if (!line) return;
+        yield* line.replaceToken(oldText, newText, charDelay, highlightColor);
+
+        const docLine = this.document.lines[lineIndex];
+        if (docLine) {
+            this.document.lines[lineIndex] = docLine.replace(oldText, newText);
+        }
+    }
+
+    /** Применяет правила раскраски ко всем строкам (мгновенно, duration=0).
+     *  Правила сохраняются и автоматически применяются к новым строкам при insertLinesAt. */
+    public colorize(rules: ColorRule[]): void {
+        this.savedColorRules = rules;
+        for (let i = 0; i < this.lines.length; i++) {
+            const line = this.lines[i];
+            for (const rule of rules) {
+                line.colorizeByRule(rule.match, rule.color);
+            }
+        }
+    }
+
+    /** Применяет правила раскраски к диапазону строк. */
+    public colorizeRange(from: number, to: number, rules: ColorRule[]): void {
+        for (let i = from; i <= to && i < this.lines.length; i++) {
+            const line = this.lines[i];
+            for (const rule of rules) {
+                line.colorizeByRule(rule.match, rule.color);
+            }
+        }
     }
 
     public *animateInsertLines(range: [number, number], currentY: number[], duration: number = 0.6): ThreadGenerator {

@@ -1,5 +1,5 @@
 import {Node, Rect, Txt} from '@motion-canvas/2d';
-import {all, createRef, easeInOutCubic, Reference, ThreadGenerator} from '@motion-canvas/core';
+import {all, createRef, easeInOutCubic, Reference, ThreadGenerator, waitFor} from '@motion-canvas/core';
 import {Token} from '../model/Tokenizer';
 import {getTokenColor, SyntaxTheme} from '../model/SyntaxTheme';
 import {Colors} from '../../theme';
@@ -191,6 +191,10 @@ export class CodeLine {
         }
     }
 
+    public get tokenCount(): number {
+        return this.tokensData.length;
+    }
+
     public setTokenOpacityAt(index: number, opacity: number): void {
         const resolved = this.resolveTokenIndex(index);
         const token = this.tokensData[resolved];
@@ -243,9 +247,104 @@ export class CodeLine {
         yield* this.backgroundRef().opacity(0, duration, easeInOutCubic);
     }
 
+    /** Посимвольный typewriter: раскрывает текст каждого токена символ за символом.
+     *  Сохраняет синтаксическую подсветку. Пробелы — быстрее, пунктуация — с паузой. */
+    public *typewriter(charDelay: number = 0.024): ThreadGenerator {
+        for (const tokenData of this.tokensData) {
+            const full = tokenData.text;
+            if (full.length === 0) continue;
+
+            const txtNode = tokenData.ref();
+            txtNode.opacity(1);
+            txtNode.text('');
+
+            for (let c = 0; c < full.length; c++) {
+                txtNode.text(full.slice(0, c + 1));
+                const ch = full[c];
+                const dt =
+                    ch === ' '  ? charDelay * 0.5 :
+                    ch === '\t' ? charDelay * 0.3 :
+                    /[{}()\[\];,.<>:=]/.test(ch) ? charDelay * 1.5 :
+                    charDelay;
+                yield* waitFor(dt);
+            }
+        }
+    }
+
     public hideTokensInstantly(): void {
         for (const tokenData of this.tokensData) {
             tokenData.ref().opacity(0);
+        }
+    }
+
+    public showTokensInstantly(): void {
+        for (const tokenData of this.tokensData) {
+            tokenData.ref().opacity(1);
+        }
+    }
+
+    /** Заменяет текст токена с анимацией:
+     *  1) подсветка старого (highlight), 2) стирание посимвольно, 3) печать нового посимвольно.
+     *  highlightColor — цвет подсветки перед стиранием (null = без подсветки). */
+    public *replaceToken(
+        oldText: string,
+        newText: string,
+        charDelay: number = 0.03,
+        highlightColor: string | null = 'rgba(255, 120, 100, 0.95)',
+    ): ThreadGenerator {
+        const idx = this.tokensData.findIndex(t => t.text.includes(oldText));
+        if (idx === -1) return;
+
+        const tokenData = this.tokensData[idx];
+        const txtNode = tokenData.ref();
+        const fullOld = tokenData.text;
+        const savedFill = String(txtNode.fill());
+
+        if (highlightColor) {
+            yield* txtNode.fill(highlightColor, 0.25, easeInOutCubic);
+            yield* waitFor(0.3);
+        }
+
+        for (let c = fullOld.length; c >= 0; c--) {
+            txtNode.text(fullOld.slice(0, c));
+            yield* waitFor(charDelay * 0.7);
+        }
+
+        const fullNew = fullOld.replace(oldText, newText);
+        tokenData.text = fullNew;
+
+        const oldWidth = textWidth(fullOld, this.config.fontFamily, this.config.fontSize);
+        const newWidth = textWidth(fullNew, this.config.fontFamily, this.config.fontSize);
+        const delta = newWidth - oldWidth;
+
+        if (Math.abs(delta) > 0.5) {
+            const anims: ThreadGenerator[] = [];
+            for (let i = idx + 1; i < this.tokensData.length; i++) {
+                this.tokensData[i].localX += delta;
+                anims.push(this.tokensData[i].ref().x(this.tokensData[i].localX, 0.2, easeInOutCubic));
+            }
+            if (anims.length > 0) yield* all(...anims);
+        }
+
+        if (highlightColor) {
+            txtNode.fill(savedFill);
+        }
+
+        for (let c = 0; c < fullNew.length; c++) {
+            txtNode.text(fullNew.slice(0, c + 1));
+            yield* waitFor(charDelay);
+        }
+    }
+
+    /** Мгновенно окрашивает токены, соответствующие правилу. */
+    public colorizeByRule(match: string | RegExp, color: string): void {
+        for (const tokenData of this.tokensData) {
+            const matches = typeof match === 'string'
+                ? tokenData.text === match || tokenData.text.includes(match)
+                : match.test(tokenData.text);
+            if (matches) {
+                tokenData.ref().fill(color);
+            }
         }
     }
 
