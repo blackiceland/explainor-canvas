@@ -77,7 +77,7 @@ export default makeScene2D(function* (view) {
 
   // ── иконки (collapse) ─────────────────────────────────────────────────
   const ICON_SCALE   = 0.38;
-  const ICON_Y       = -Screen.height / 2 + 130;
+  const ICON_Y       = -Screen.height / 2 + 135;
   const ICON_SPACING = FRAME_W * ICON_SCALE + 24;
 
   // ── normalizeFrames ────────────────────────────────────────────────────
@@ -124,7 +124,6 @@ export default makeScene2D(function* (view) {
   const formatLabelOp     = createSignal(0);
   const blockOpacities    = Array.from({length: COLS * ROWS}, () => createSignal(0));
   const blockOpacitiesV1  = Array.from({length: COLS * ROWS}, () => createSignal(0));
-  const blockOpacitiesFin = Array.from({length: COLS * ROWS}, () => createSignal(0));
 
   const dividerOp = createSignal(0);
   view.add(
@@ -216,7 +215,7 @@ export default makeScene2D(function* (view) {
         const bw = FRAME_W/COLS; const bh = FRAME_H/ROWS;
         const x = -FRAME_W/2 + col*bw + bw/2; const y = -FRAME_H/2 + row*bh + bh/2;
         return <Rect key={String(idx)} x={x} y={y} width={bw-2} height={bh-2}
-          fill={'rgba(180,175,220,0.45)'} radius={2} opacity={blockOpacitiesFin[idx]}/>;
+          fill={'rgba(180,175,220,0.45)'} radius={2}/>;
       })}
     </Rect>
     {/* .mp4 badge v1 */}
@@ -416,14 +415,8 @@ export default makeScene2D(function* (view) {
   );
   yield* waitFor(0.3);
 
-  // 11) finalizeExport v1 появляется — быстрая анимация кубиков
+  // 11) finalizeExport v1 появляется
   yield* frameOpFinalizeV1(1, FADE_IN, easeInOutCubic);
-  yield* waitFor(0.1);
-  const blockDelayFin = 0.004; const blockOpFin = 0.025;
-  for (let idx = 0; idx < COLS * ROWS; idx++) {
-    yield* blockOpacitiesFin[idx](1, blockOpFin, easeInOutCubic);
-    if (idx < COLS * ROWS - 1) yield* waitFor(blockDelayFin);
-  }
   yield* waitFor(0.3);
   yield* formatLabelOpV1(1, FADE_IN, easeInOutCubic);
 
