@@ -75,6 +75,11 @@ export default makeScene2D(function* (view) {
   const paddingY   = getCodePaddingY(fontSize);
   const topInset   = Math.max(8, paddingY - 8);
 
+  // ── иконки (collapse) ─────────────────────────────────────────────────
+  const ICON_SCALE   = 0.38;
+  const ICON_Y       = -Screen.height / 2 + 130;
+  const ICON_SPACING = FRAME_W * ICON_SCALE + 24;
+
   // ── normalizeFrames ────────────────────────────────────────────────────
   const Y_NORMALIZE  = Y_ENCODER;
   const skewX        = createSignal(6);
@@ -86,18 +91,32 @@ export default makeScene2D(function* (view) {
   const strokeColor0 = createSignal(FRAME_STROKE);
   const frameOpNorm  = createSignal(0);
   const guidesOp     = createSignal(0);
+  const collapseX0   = createSignal(PANEL_X);
+  const collapseY0   = createSignal(Y_NORMALIZE);
+  const collapseS0   = createSignal(1);
 
   // ── applyColorProfile ──────────────────────────────────────────────────
   const Y_COLOR_PROFILE  = Y_ENCODER + FRAME_H + ITEM_GAP;
   const frameOpColor     = createSignal(0);
   const sweepOpacity     = createSignal(0);
   const paintProgress    = createSignal(0);
+  const collapseX1       = createSignal(PANEL_X);
+  const collapseY1       = createSignal(Y_COLOR_PROFILE);
+  const collapseS1       = createSignal(1);
 
   // ── runEncoder v1 (покрашенный, третий фрейм) ─────────────────────────
   const Y_ENCODER_V1     = Y_COLOR_PROFILE + FRAME_H + ITEM_GAP;
   const frameOpEncoderV1 = createSignal(0);
+  const collapseX2       = createSignal(PANEL_X);
+  const collapseY2       = createSignal(Y_ENCODER_V1);
+  const collapseS2       = createSignal(1);
 
-  // ── runEncoder / finalizeExport ────────────────────────────────────────
+  // ── finalizeExport v1 ─────────────────────────────────────────────────
+  const Y_FINALIZE_V1    = Y_ENCODER + FRAME_H / 2;
+  const frameOpFinalizeV1 = createSignal(0);
+  const formatLabelOpV1  = createSignal(0);
+
+  // ── runEncoder / finalizeExport v0 ────────────────────────────────────
   const COLS              = 8; const ROWS = 5;
   const labelOp           = createSignal(0);
   const frameOpEncoder    = createSignal(0);
@@ -105,6 +124,7 @@ export default makeScene2D(function* (view) {
   const formatLabelOp     = createSignal(0);
   const blockOpacities    = Array.from({length: COLS * ROWS}, () => createSignal(0));
   const blockOpacitiesV1  = Array.from({length: COLS * ROWS}, () => createSignal(0));
+  const blockOpacitiesFin = Array.from({length: COLS * ROWS}, () => createSignal(0));
 
   const dividerOp = createSignal(0);
   view.add(
@@ -125,11 +145,11 @@ export default makeScene2D(function* (view) {
 
     {/* normalizeFrames — distorted frame */}
     <Rect
-      x={PANEL_X} y={Y_NORMALIZE}
+      x={collapseX0} y={collapseY0}
       width={FRAME_W} height={FRAME_H}
       fill={FRAME_FILL_NEUTRAL} stroke={strokeColor0} lineWidth={2} radius={radius0}
       opacity={frameOpNorm}
-      skewX={skewX} skewY={skewY} scaleX={scaleXn} scaleY={scaleYn} rotation={rotation}
+      skewX={skewX} skewY={skewY} scaleX={() => scaleXn() * collapseS0()} scaleY={() => scaleYn() * collapseS0()} rotation={rotation}
     >
       {Array.from({length: SCANLINE_COUNT}, (_, i) => {
         const y = -FRAME_H/2 + ((i+1)/(SCANLINE_COUNT+1))*FRAME_H;
@@ -138,9 +158,9 @@ export default makeScene2D(function* (view) {
     </Rect>
 
     {/* applyColorProfile */}
-    <Rect x={PANEL_X} y={Y_COLOR_PROFILE} width={FRAME_W} height={FRAME_H}
+    <Rect x={collapseX1} y={collapseY1} width={FRAME_W} height={FRAME_H}
       fill={FRAME_FILL_NEUTRAL} stroke={FRAME_STROKE_DONE} lineWidth={3} radius={6}
-      opacity={frameOpColor} clip
+      opacity={frameOpColor} scale={collapseS1} clip
     >
       {Array.from({length: SCANLINE_COUNT}, (_, i) => {
         const y = -FRAME_H/2 + ((i+1)/(SCANLINE_COUNT+1))*FRAME_H;
@@ -160,9 +180,9 @@ export default makeScene2D(function* (view) {
     </Rect>
 
     {/* runEncoder v1 — покрашенный, кубики анимируются */}
-    <Rect x={PANEL_X} y={Y_ENCODER_V1} width={FRAME_W} height={FRAME_H}
+    <Rect x={collapseX2} y={collapseY2} width={FRAME_W} height={FRAME_H}
       fill={FRAME_FILL_WARM} stroke={FRAME_STROKE_DONE} lineWidth={3} radius={6}
-      opacity={frameOpEncoderV1} clip
+      opacity={frameOpEncoderV1} scale={collapseS2} clip
     >
       {Array.from({length: SCANLINE_COUNT}, (_, i) => {
         const y = -FRAME_H/2 + ((i+1)/(SCANLINE_COUNT+1))*FRAME_H;
@@ -175,6 +195,38 @@ export default makeScene2D(function* (view) {
         return <Rect key={String(idx)} x={x} y={y} width={bw-2} height={bh-2}
           fill={'rgba(180,175,220,0.45)'} radius={2} opacity={blockOpacitiesV1[idx]}/>;
       })}
+    </Rect>
+
+    {/* finalizeExport v1 — dashed border */}
+    <Rect x={PANEL_X} y={Y_FINALIZE_V1} width={FRAME_W+16} height={FRAME_H+16}
+      fill={'rgba(0,0,0,0)'} stroke={'rgba(244,241,235,0.50)'} lineWidth={2}
+      lineDash={[10,7]} radius={14} opacity={frameOpFinalizeV1}
+    />
+    {/* finalizeExport v1 — frame */}
+    <Rect x={PANEL_X} y={Y_FINALIZE_V1} width={FRAME_W} height={FRAME_H}
+      fill={FRAME_FILL_WARM} stroke={FRAME_STROKE_DONE} lineWidth={3}
+      radius={6} opacity={frameOpFinalizeV1} clip
+    >
+      {Array.from({length: SCANLINE_COUNT}, (_, i) => {
+        const y = -FRAME_H/2 + ((i+1)/(SCANLINE_COUNT+1))*FRAME_H;
+        return <Line points={[[-FRAME_W/2+10,y],[FRAME_W/2-10,y]]} stroke={SCANLINE_COLOR} lineWidth={1}/>;
+      })}
+      {Array.from({length: COLS * ROWS}, (_, idx) => {
+        const col = idx % COLS; const row = Math.floor(idx / COLS);
+        const bw = FRAME_W/COLS; const bh = FRAME_H/ROWS;
+        const x = -FRAME_W/2 + col*bw + bw/2; const y = -FRAME_H/2 + row*bh + bh/2;
+        return <Rect key={String(idx)} x={x} y={y} width={bw-2} height={bh-2}
+          fill={'rgba(180,175,220,0.45)'} radius={2} opacity={blockOpacitiesFin[idx]}/>;
+      })}
+    </Rect>
+    {/* .mp4 badge v1 */}
+    <Rect
+      x={PANEL_X + FRAME_W/2 - 24} y={Y_FINALIZE_V1 - FRAME_H/2 + 36}
+      width={96} height={40} fill={'rgba(30,28,40,0.90)'}
+      stroke={'rgba(244,241,235,0.85)'} lineWidth={1.5} radius={6}
+      offset={[1,0]} opacity={formatLabelOpV1}
+    >
+      <Txt x={0} y={0} text={'.mp4'} fontFamily={Fonts.code} fontSize={24} fill={'rgba(244,241,235,1.0)'}/>
     </Rect>
 
     {/* section label */}
@@ -348,6 +400,32 @@ export default makeScene2D(function* (view) {
     yield* blockOpacitiesV1[idx](1, blockOpV1, easeInOutCubic);
     if (idx < COLS * ROWS - 1) yield* waitFor(blockDelayV1);
   }
+  yield* waitFor(0.8);
+
+  // 10) три фрейма уменьшаются и уезжают наверх рядом
+  yield* all(
+    collapseS0(ICON_SCALE, 0.8, easeInOutCubic),
+    collapseS1(ICON_SCALE, 0.8, easeInOutCubic),
+    collapseS2(ICON_SCALE, 0.8, easeInOutCubic),
+    collapseY0(ICON_Y, 0.8, easeInOutCubic),
+    collapseY1(ICON_Y, 0.8, easeInOutCubic),
+    collapseY2(ICON_Y, 0.8, easeInOutCubic),
+    collapseX0(PANEL_X - ICON_SPACING, 0.8, easeInOutCubic),
+    collapseX1(PANEL_X, 0.8, easeInOutCubic),
+    collapseX2(PANEL_X + ICON_SPACING, 0.8, easeInOutCubic),
+  );
+  yield* waitFor(0.3);
+
+  // 11) finalizeExport v1 появляется — быстрая анимация кубиков
+  yield* frameOpFinalizeV1(1, FADE_IN, easeInOutCubic);
+  yield* waitFor(0.1);
+  const blockDelayFin = 0.004; const blockOpFin = 0.025;
+  for (let idx = 0; idx < COLS * ROWS; idx++) {
+    yield* blockOpacitiesFin[idx](1, blockOpFin, easeInOutCubic);
+    if (idx < COLS * ROWS - 1) yield* waitFor(blockDelayFin);
+  }
+  yield* waitFor(0.3);
+  yield* formatLabelOpV1(1, FADE_IN, easeInOutCubic);
 
   yield* waitFor(2);
 });
