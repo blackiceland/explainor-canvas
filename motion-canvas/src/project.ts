@@ -80,9 +80,9 @@ export default makeProject({
         // sphereDigitsDemoSceneRu,
         // guitarHeroPassThroughSceneRu,
 
-        validateMonolithSceneRu,
+        // validateMonolithSceneRu,
         codeWithActionsSceneRu,
-        jackIntroSceneEn,
+        // jackIntroSceneEn,
         videoExportActionsSceneRu,
     ]
 });
