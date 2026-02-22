@@ -464,7 +464,13 @@ export default makeScene2D(function* (view) {
   for (const sig of blockOpacitiesV1) sig(0);
   yield* waitFor(0.3);
 
-  // 2) subtitleTrack добавляется с новой строки
+  // 2) появляется фрейм overlaySubtitles
+  yield* frameOpSubtitles(1, FADE_IN, easeInOutCubic);
+  yield* waitFor(0.3);
+  yield* subtitleBarOp(1, 0.5, easeInOutCubic);
+  yield* waitFor(0.5);
+
+  // 3) subtitleTrack добавляется с новой строки
   // строка 0: ...String colorProfile) {
   // заменяем последнюю ) на , (отдельный токен-пунктуация)
   yield* cb.replaceInLine(0, ')', ',', 0.012, null, true);
