@@ -31,6 +31,7 @@ import jackIntroSceneEn from './scenes/jackIntroSceneEn?scene';
 import validateMonolithSceneRu from './scenes/validateMonolithSceneRu?scene';
 import videoExportEvolutionSceneRu from './scenes/videoExportEvolutionSceneRu?scene';
 import videoExportActionsSceneRu from './scenes/videoExportActionsSceneRu?scene';
+import codeWithActionsSceneRu from './scenes/codeWithActionsSceneRu?scene';
 import splitDtoScene from './scenes/splitDtoScene?scene';
 import splitDtoSceneV3 from './scenes/splitDtoSceneV3?scene';
 import typewriterCodeScene from './scenes/typewriterCodeScene?scene';
@@ -79,9 +80,9 @@ export default makeProject({
         // sphereDigitsDemoSceneRu,
         // guitarHeroPassThroughSceneRu,
 
-        // validateMonolithSceneRu,
-        // jackIntroSceneEn,
-        // videoExportEvolutionSceneRu,
+        validateMonolithSceneRu,
+        codeWithActionsSceneRu,
+        jackIntroSceneEn,
         videoExportActionsSceneRu,
     ]
 });
