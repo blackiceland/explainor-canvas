@@ -64,6 +64,10 @@ const COLOR_RULES = [
   {match: 'finalizeExport',    color: METHOD_COLOR},
   {match: 'normalizeFrames',   color: METHOD_COLOR},
   {match: 'applyColorProfile', color: METHOD_COLOR},
+  {match: 'overlaySubtitles',  color: METHOD_COLOR},
+  {match: 'encodeWithRetry',   color: METHOD_COLOR},
+  {match: 'subtitleTrack',     color: VAR_LIGHT},
+  {match: 'recolored',         color: VAR_LIGHT},
   {match: /^"[^"]*"$/,         color: SOFT_GREEN},
 ];
 
@@ -112,9 +116,18 @@ export default makeScene2D(function* (view) {
   const collapseS2       = createSignal(1);
 
   // ── finalizeExport v1 ─────────────────────────────────────────────────
-  const Y_FINALIZE_V1    = Y_ENCODER + FRAME_H / 2;
+  const Y_FINALIZE_V1     = Y_ENCODER + FRAME_H / 2;
   const frameOpFinalizeV1 = createSignal(0);
-  const formatLabelOpV1  = createSignal(0);
+  const formatLabelOpV1   = createSignal(0);
+  const collapseXFin      = createSignal(PANEL_X);
+  const collapseYFin      = createSignal(Y_FINALIZE_V1);
+  const collapsesFin      = createSignal(1);
+
+  // ── overlaySubtitles v2 ───────────────────────────────────────────────
+  const Y_SUBTITLES       = Y_FINALIZE_V1;
+  const SUBTITLE_Y        = FRAME_H / 2 - 52;
+  const frameOpSubtitles  = createSignal(0);
+  const subtitleBarOp     = createSignal(0);
 
   // ── runEncoder / finalizeExport v0 ────────────────────────────────────
   const COLS              = 8; const ROWS = 5;
@@ -197,14 +210,14 @@ export default makeScene2D(function* (view) {
     </Rect>
 
     {/* finalizeExport v1 — dashed border */}
-    <Rect x={PANEL_X} y={Y_FINALIZE_V1} width={FRAME_W+16} height={FRAME_H+16}
+    <Rect x={collapseXFin} y={collapseYFin} width={FRAME_W+16} height={FRAME_H+16}
       fill={'rgba(0,0,0,0)'} stroke={'rgba(244,241,235,0.50)'} lineWidth={2}
-      lineDash={[10,7]} radius={14} opacity={frameOpFinalizeV1}
+      lineDash={[10,7]} radius={14} scale={collapsesFin} opacity={frameOpFinalizeV1}
     />
     {/* finalizeExport v1 — frame */}
-    <Rect x={PANEL_X} y={Y_FINALIZE_V1} width={FRAME_W} height={FRAME_H}
+    <Rect x={collapseXFin} y={collapseYFin} width={FRAME_W} height={FRAME_H}
       fill={FRAME_FILL_WARM} stroke={FRAME_STROKE_DONE} lineWidth={3}
-      radius={6} opacity={frameOpFinalizeV1} clip
+      radius={6} scale={collapsesFin} opacity={frameOpFinalizeV1} clip
     >
       {Array.from({length: SCANLINE_COUNT}, (_, i) => {
         const y = -FRAME_H/2 + ((i+1)/(SCANLINE_COUNT+1))*FRAME_H;
@@ -220,12 +233,30 @@ export default makeScene2D(function* (view) {
     </Rect>
     {/* .mp4 badge v1 */}
     <Rect
-      x={PANEL_X + FRAME_W/2 - 24} y={Y_FINALIZE_V1 - FRAME_H/2 + 36}
-      width={96} height={40} fill={'rgba(30,28,40,0.90)'}
+      x={() => collapseXFin() + (FRAME_W/2 - 24) * collapsesFin()}
+      y={() => collapseYFin() + (-FRAME_H/2 + 36) * collapsesFin()}
+      width={() => 96 * collapsesFin()} height={() => 40 * collapsesFin()}
+      fill={'rgba(30,28,40,0.90)'}
       stroke={'rgba(244,241,235,0.85)'} lineWidth={1.5} radius={6}
       offset={[1,0]} opacity={formatLabelOpV1}
     >
-      <Txt x={0} y={0} text={'.mp4'} fontFamily={Fonts.code} fontSize={24} fill={'rgba(244,241,235,1.0)'}/>
+      <Txt x={0} y={0} text={'.mp4'} fontFamily={Fonts.code}
+        fontSize={() => 24 * collapsesFin()} fill={'rgba(244,241,235,1.0)'}/>
+    </Rect>
+
+    {/* overlaySubtitles v2 — на базе покраски, без макроблоков */}
+    <Rect x={PANEL_X} y={Y_SUBTITLES} width={FRAME_W} height={FRAME_H}
+      fill={FRAME_FILL_WARM} stroke={FRAME_STROKE_DONE} lineWidth={3}
+      radius={6} opacity={frameOpSubtitles} clip
+    >
+      {Array.from({length: SCANLINE_COUNT}, (_, i) => {
+        const y = -FRAME_H/2 + ((i+1)/(SCANLINE_COUNT+1))*FRAME_H;
+        return <Line points={[[-FRAME_W/2+10,y],[FRAME_W/2-10,y]]} stroke={SCANLINE_COLOR} lineWidth={1}/>;
+      })}
+      <Rect x={0} y={SUBTITLE_Y} width={FRAME_W - 40} height={44}
+        fill={'rgba(0,0,0,0.55)'} radius={4} opacity={subtitleBarOp}/>
+      <Txt x={0} y={SUBTITLE_Y} text={'kuroshima'} fontFamily={Fonts.code}
+        fontSize={26} fill={'rgba(244,241,235,0.96)'} letterSpacing={2} opacity={subtitleBarOp}/>
     </Rect>
 
     {/* section label */}
@@ -415,10 +446,32 @@ export default makeScene2D(function* (view) {
   );
   yield* waitFor(0.3);
 
-  // 11) finalizeExport v1 появляется
-  yield* frameOpFinalizeV1(1, FADE_IN, easeInOutCubic);
+  // 11) finalizeExport v1 появляется вместе с .mp4 badge
+  yield* all(
+    frameOpFinalizeV1(1, FADE_IN, easeInOutCubic),
+    formatLabelOpV1(1, FADE_IN, easeInOutCubic),
+  );
+  yield* waitFor(2);
+
+  // ── v1 → v2 ────────────────────────────────────────────────────────────
+
+  // 1) два фрейма исчезают
+  yield* all(
+    frameOpFinalizeV1(0, FADE_IN, easeInOutCubic),
+    formatLabelOpV1(0, FADE_IN, easeInOutCubic),
+    frameOpEncoderV1(0, FADE_IN, easeInOutCubic),
+  );
+  for (const sig of blockOpacitiesV1) sig(0);
   yield* waitFor(0.3);
-  yield* formatLabelOpV1(1, FADE_IN, easeInOutCubic);
+
+  // 2) subtitleTrack добавляется с новой строки
+  // строка 0: ...String colorProfile) {
+  // заменяем последнюю ) на , (отдельный токен-пунктуация)
+  yield* cb.replaceInLine(0, ')', ',', 0.012, null, true);
+  // убираем { с конца строки 0 (тоже отдельный токен)
+  yield* cb.replaceInLine(0, '{', '', 0.012, null, true);
+  // вставляем новую строку после 0
+  yield* cb.insertLinesAt(0, '        String subtitleTrack) {');
 
   yield* waitFor(2);
 });

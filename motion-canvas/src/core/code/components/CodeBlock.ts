@@ -477,18 +477,49 @@ export class CodeBlock {
         }
     }
 
+    /** Удаляет строки с анимацией: fade out + схлопывание. */
+    public *removeLines(
+        startLine: number,
+        count: number = 1,
+        duration: number = 0.35,
+    ): ThreadGenerator {
+        if (!this.mounted) return;
+        const lh = this.config.lineHeight;
+
+        const fadeAnims: ThreadGenerator[] = [];
+        for (let i = startLine; i < startLine + count && i < this.lines.length; i++) {
+            fadeAnims.push(this.lines[i].node.opacity(0, duration * 0.6, easeInOutCubic));
+        }
+        if (fadeAnims.length > 0) yield* all(...fadeAnims);
+
+        for (let i = startLine; i < startLine + count && i < this.lines.length; i++) {
+            this.lines[i].node.remove();
+        }
+
+        this.lines.splice(startLine, count);
+        this.document.lines.splice(startLine, count);
+
+        const collapseAnims: ThreadGenerator[] = [];
+        for (let i = startLine; i < this.lines.length; i++) {
+            const currentY = this.lines[i].node.y();
+            collapseAnims.push(this.lines[i].node.y(currentY - count * lh, duration, easeInOutCubic));
+        }
+        if (collapseAnims.length > 0) yield* all(...collapseAnims);
+    }
+
     /** Заменяет текст токена в строке с анимацией fade-out / fade-in.
-     *  Находит первый токен, содержащий oldText, и заменяет его на newText. */
+     *  Находит первый (или последний при fromEnd=true) токен, содержащий oldText. */
     public *replaceInLine(
         lineIndex: number,
         oldText: string,
         newText: string,
         charDelay: number = 0.015,
         highlightColor: string | null = 'rgba(255, 120, 100, 0.95)',
+        fromEnd: boolean = false,
     ): ThreadGenerator {
         const line = this.lines[lineIndex];
         if (!line) return;
-        yield* line.replaceToken(oldText, newText, charDelay, highlightColor);
+        yield* line.replaceToken(oldText, newText, charDelay, highlightColor, fromEnd);
 
         const docLine = this.document.lines[lineIndex];
         if (docLine) {

@@ -291,8 +291,11 @@ export class CodeLine {
         newText: string,
         charDelay: number = 0.015,
         highlightColor: string | null = 'rgba(255, 120, 100, 0.95)',
+        fromEnd: boolean = false,
     ): ThreadGenerator {
-        const idx = this.tokensData.findIndex(t => t.text.includes(oldText));
+        const idx = fromEnd
+            ? this.tokensData.reduceRight((found, t, i) => found === -1 && t.text.includes(oldText) ? i : found, -1)
+            : this.tokensData.findIndex(t => t.text.includes(oldText));
         if (idx === -1) return;
 
         const tokenData = this.tokensData[idx];
