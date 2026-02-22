@@ -396,25 +396,22 @@ export default makeScene2D(function* (view) {
   yield* sweepOpacity(0, 0.2, easeInOutCubic);
   yield* waitFor(0.3);
 
-  // 4) код: colorProfile в сигнатуру — печатаем ", String colorProfile" и переносим ") {" на новую строку
-  yield* cb.splitLine(0, ')', '        String colorProfile', {
-    insertBeforeSplit: ',',
-    fromEnd: true,
-  });
+  // 4) код: colorProfile в сигнатуру — вставка перед ")" в строке 0
+  yield* cb.insertInLine(0, ')', ', String colorProfile', {fromEnd: true});
   yield* waitFor(0.5);
 
-  // 6) вставляем вызов prepareFrames (после строки 2: validateInput)
-  yield* cb.insertLinesAt(2, '    byte[] preparedFrames = prepareFrames(sourceFrames, colorProfile);', {
+  // 6) вставляем вызов prepareFrames (после строки 1: validateInput)
+  yield* cb.insertLinesAt(1, '    byte[] preparedFrames = prepareFrames(sourceFrames, colorProfile);', {
     extraColorRules: [{match: 'prepareFrames', color: METHOD_COLOR}],
   });
   yield* waitFor(0.3);
 
-  // 7) меняем sourceFrames → preparedFrames в runEncoder (строка 4 после вставки)
-  yield* cb.replaceInLine(4, 'sourceFrames', 'preparedFrames');
+  // 7) меняем sourceFrames → preparedFrames в runEncoder (строка 3)
+  yield* cb.replaceInLine(3, 'sourceFrames', 'preparedFrames');
   yield* waitFor(0.8);
 
-  // 8) вставляем реализацию prepareFrames (после строки 7)
-  yield* cb.insertLinesAt(7, [
+  // 8) вставляем реализацию prepareFrames (после строки 6)
+  yield* cb.insertLinesAt(6, [
     '',
     'private byte[] prepareFrames(byte[] sourceFrames, String colorProfile) {',
     '    byte[] normalized = normalizeFrames(sourceFrames);',
@@ -473,11 +470,15 @@ export default makeScene2D(function* (view) {
   yield* subtitleBarOp(1, 0.5, easeInOutCubic);
   yield* waitFor(0.5);
 
-  // 3) subtitleTrack в сигнатуру exportVideo — вставка перед ")" в строке 1
-  yield* cb.insertInLine(1, ')', ', String subtitleTrack', {fromEnd: true});
+  // 3) subtitleTrack в сигнатуру exportVideo — перенос ") {" на новую строку
+  yield* cb.splitLine(0, ')', '        String subtitleTrack', {
+    insertBeforeSplit: ',',
+    fromEnd: true,
+  });
   yield* waitFor(0.5);
 
   // 4) subtitleTrack в вызов prepareFrames — вставка перед ")" в строке 3
+  //    (строка 2 стала 3 после split)
   yield* cb.insertInLine(3, ')', ', subtitleTrack', {fromEnd: true});
 
   yield* waitFor(2);
