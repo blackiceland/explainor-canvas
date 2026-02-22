@@ -20,8 +20,8 @@ const LEFT_CENTER_X = -Screen.width / 2 + 40 + CODE_W / 2;
 // ── визуал фреймов (из videoExportActionsSceneRu) ────────────────────────────
 const FRAME_W          = 420;
 const FRAME_H          = 236;
-const FRAME_FILL_WARM  = 'rgba(255, 182, 193, 0.35)';
-const FRAME_STROKE_DONE = 'rgba(244, 241, 235, 0.85)';
+const FRAME_FILL_NEUTRAL = 'rgba(244, 241, 235, 0.10)';
+const FRAME_STROKE_DONE  = 'rgba(244, 241, 235, 0.85)';
 const SCANLINE_COLOR   = 'rgba(244, 241, 235, 0.06)';
 const SCANLINE_COUNT   = 10;
 
@@ -92,7 +92,7 @@ export default makeScene2D(function* (view) {
 
     {/* runEncoder */}
     <Rect x={PANEL_X} y={Y_ENCODER} width={FRAME_W} height={FRAME_H}
-      fill={FRAME_FILL_WARM} stroke={FRAME_STROKE_DONE} lineWidth={3} radius={6}
+      fill={FRAME_FILL_NEUTRAL} stroke={FRAME_STROKE_DONE} lineWidth={3} radius={6}
       opacity={frameOpEncoder} clip
     >
       {Array.from({length: SCANLINE_COUNT}, (_, i) => {
@@ -103,7 +103,7 @@ export default makeScene2D(function* (view) {
         const col = idx % COLS; const row = Math.floor(idx / COLS);
         const bw = FRAME_W / COLS; const bh = FRAME_H / ROWS;
         const x = -FRAME_W/2 + col*bw + bw/2; const y = -FRAME_H/2 + row*bh + bh/2;
-        return <Rect key={String(idx)} x={x} y={y} width={bw-2} height={bh-2} fill={'rgba(20,20,35,0.85)'} radius={2} opacity={blockOpacities[idx]}/>;
+        return <Rect key={String(idx)} x={x} y={y} width={bw-2} height={bh-2} fill={'rgba(180,175,220,0.45)'} radius={2} opacity={blockOpacities[idx]}/>;
       })}
     </Rect>
 
@@ -114,7 +114,7 @@ export default makeScene2D(function* (view) {
     />
     {/* finalizeExport — frame */}
     <Rect x={PANEL_X} y={Y_FINALIZE} width={FRAME_W} height={FRAME_H}
-      fill={'rgba(255,182,193,0.50)'} stroke={FRAME_STROKE_DONE} lineWidth={3}
+      fill={FRAME_FILL_NEUTRAL} stroke={FRAME_STROKE_DONE} lineWidth={3}
       radius={6} opacity={frameOpFinalize} clip
     >
       {Array.from({length: SCANLINE_COUNT}, (_, i) => {
@@ -125,7 +125,7 @@ export default makeScene2D(function* (view) {
         const col = idx % COLS; const row = Math.floor(idx / COLS);
         const bw = FRAME_W / COLS; const bh = FRAME_H / ROWS;
         const x = -FRAME_W/2 + col*bw + bw/2; const y = -FRAME_H/2 + row*bh + bh/2;
-        return <Rect key={String(idx)} x={x} y={y} width={bw-2} height={bh-2} fill={'rgba(20,20,35,0.85)'} radius={2}/>;
+        return <Rect key={String(idx)} x={x} y={y} width={bw-2} height={bh-2} fill={'rgba(180,175,220,0.45)'} radius={2}/>;
       })}
     </Rect>
     {/* .mp4 badge */}
