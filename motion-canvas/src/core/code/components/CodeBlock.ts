@@ -219,6 +219,15 @@ export class CodeBlock {
         return this.document.lines.findIndex(l => l.includes(contains));
     }
 
+    /** Ищет последнее вхождение подстроки в document.lines. Возвращает индекс или -1. */
+    public findLastLine(contains: string): number {
+        const lines = this.document.lines;
+        for (let i = lines.length - 1; i >= 0; i--) {
+            if (lines[i].includes(contains)) return i;
+        }
+        return -1;
+    }
+
     public getPosition(): CodeBlockPosition {
         if (!this.mounted) {
             return {x: this.config.x, y: this.config.y};
@@ -790,6 +799,17 @@ export class CodeBlock {
                 line.colorizeByRule(rule.match, rule.color);
             }
         }
+    }
+
+    public *colorizeRangeAnimated(from: number, to: number, rules: ColorRule[], duration: number = 0.4): ThreadGenerator {
+        const anims: ThreadGenerator[] = [];
+        for (let i = from; i <= to && i < this.lines.length; i++) {
+            const line = this.lines[i];
+            for (const rule of rules) {
+                anims.push(...line.colorizeByRuleAnimated(rule.match, rule.color, duration));
+            }
+        }
+        if (anims.length > 0) yield* all(...anims);
     }
 
     public *animateInsertLines(range: [number, number], currentY: number[], duration: number = 0.6): ThreadGenerator {

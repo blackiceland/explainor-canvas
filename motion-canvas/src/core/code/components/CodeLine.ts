@@ -509,6 +509,20 @@ export class CodeLine {
         }
     }
 
+    /** Плавно окрашивает токены, соответствующие правилу. Возвращает массив анимаций. */
+    public colorizeByRuleAnimated(match: string | RegExp, color: string, duration: number = 0.4): ThreadGenerator[] {
+        const anims: ThreadGenerator[] = [];
+        for (const tokenData of this.tokensData) {
+            const matches = typeof match === 'string'
+                ? tokenData.text === match || tokenData.text.includes(match)
+                : match.test(tokenData.text);
+            if (matches) {
+                anims.push(tokenData.ref().fill(color, duration, easeInOutCubic));
+            }
+        }
+        return anims;
+    }
+
     public cloneTokensAsGhost(): Txt[] {
         const clones: Txt[] = [];
         for (const tokenData of this.tokensData) {

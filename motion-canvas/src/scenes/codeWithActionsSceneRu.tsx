@@ -31,10 +31,11 @@ const FRAME_STROKE = 'rgba(244, 241, 235, 0.50)';
 const GUIDE_COLOR  = 'rgba(244, 241, 235, 0.15)';
 const SWEEP_COLOR  = 'rgba(244, 230, 200, 0.18)';
 
-const SOFT_GREEN   = 'rgba(168, 214, 178, 0.88)';
-const VAR_LIGHT    = 'rgba(244, 241, 235, 0.96)';
-const TYPE_CLEAN   = 'rgba(220, 215, 255, 0.80)';
-const METHOD_COLOR = DryFiltersV3CodeTheme.method;
+const SOFT_GREEN    = 'rgba(168, 214, 178, 0.88)';
+const VAR_LIGHT     = 'rgba(244, 241, 235, 0.96)';
+const TYPE_CLEAN    = 'rgba(220, 215, 255, 0.80)';
+const METHOD_COLOR  = DryFiltersV3CodeTheme.method;
+const PASS_THROUGH  = 'rgba(255, 100, 130, 0.95)';
 
 const CODE_CARD_STYLE = {
   radius: 24, fill: 'rgba(0,0,0,0)', stroke: 'rgba(0,0,0,0)',
@@ -533,6 +534,50 @@ export default makeScene2D(function* (view) {
     '    return finalizeExport(encodedVideo, outputFormat);',
     '}',
   ]);
+
+  yield* waitFor(1.5);
+
+  const passRule = [{match: 'outputFormat', color: PASS_THROUGH}];
+
+  yield* cb.scrollToLine(0, 1.0);
+  yield* waitFor(0.8);
+
+  yield* cb.dimLines(0, cb.lineCount - 1, 0.3, 0.6);
+  yield* waitFor(0.4);
+
+  const exportVideoLine  = cb.findLine('public byte[] exportVideo');
+  const exportCallLine   = cb.findLine('encodeWithRetry(preparedFrames, outputFormat)');
+  const retrySignature   = cb.findLine('private byte[] encodeWithRetry');
+  const encodeCall       = cb.findLine('return encode(preparedFrames');
+  const encodeSignature  = cb.findLine('private byte[] encode(');
+  const finalizeCall     = cb.findLastLine('return finalizeExport(encodedVideo, outputFormat)');
+
+  const highlight = (from: number, to: number) => all(
+    cb.dimLines(from, to, 1, 0.35),
+    cb.colorizeRangeAnimated(from, to, passRule, 0.35),
+  );
+
+  yield* highlight(exportVideoLine, exportVideoLine + 1);
+  yield* waitFor(0.8);
+
+  yield* highlight(exportCallLine, exportCallLine);
+  yield* waitFor(1.0);
+
+  yield* cb.scrollToLine(retrySignature, 1.2);
+  yield* highlight(retrySignature, retrySignature);
+  yield* waitFor(0.8);
+
+  yield* highlight(encodeCall, encodeCall);
+  yield* waitFor(0.8);
+
+  yield* highlight(encodeSignature, encodeSignature);
+  yield* waitFor(0.8);
+
+  yield* highlight(finalizeCall, finalizeCall);
+  yield* waitFor(2.0);
+
+  yield* cb.showAllLines(0.5);
+  cb.colorize(COLOR_RULES);
 
   yield* waitFor(2);
 });
