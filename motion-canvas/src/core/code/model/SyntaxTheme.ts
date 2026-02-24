@@ -58,7 +58,7 @@ export const ExplainorCodeTheme: SyntaxTheme = {
 
 // V3 code look used in dryFiltersSceneV3 (dark UI text, subtle punctuation, accent methods).
 export const DryFiltersV3CodeTheme: SyntaxTheme = {
-    plain: 'rgba(244,241,235,0.72)',
+    plain: 'rgba(244,241,235,0.96)',
     punctuation: 'rgba(244,241,235,0.58)',
     operator: 'rgba(244,241,235,0.58)',
     keyword: 'rgba(163,205,255,0.82)',

@@ -780,6 +780,11 @@ export class CodeBlock {
         }
     }
 
+    /** Только сохраняет правила без применения — для последующего colorizeRangeAnimated. */
+    public saveColorRules(rules: ColorRule[]): void {
+        this.savedColorRules = rules;
+    }
+
     /** Применяет правила раскраски ко всем строкам (мгновенно, duration=0).
      *  Правила сохраняются и автоматически применяются к новым строкам при insertLinesAt. */
     public colorize(rules: ColorRule[]): void {

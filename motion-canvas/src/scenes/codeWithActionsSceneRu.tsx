@@ -60,13 +60,13 @@ const COLOR_RULES = [
   {match: 'normalizedFrames',  color: VAR_LIGHT},
   {match: 'exportVideo',       color: VAR_LIGHT},
   {match: 'String',            color: TYPE_CLEAN},
-  {match: 'validateInput',     color: METHOD_COLOR},
-  {match: 'runEncoder',        color: METHOD_COLOR},
-  {match: 'finalizeExport',    color: METHOD_COLOR},
-  {match: 'normalizeFrames',   color: METHOD_COLOR},
-  {match: 'applyColorProfile', color: METHOD_COLOR},
-  {match: 'overlaySubtitles',  color: METHOD_COLOR},
-  {match: 'encodeWithRetry',   color: METHOD_COLOR},
+  {match: 'validateInput',     color: METHOD_COLOR, onlyTypes: ['method']},
+  {match: 'runEncoder',        color: METHOD_COLOR, onlyTypes: ['method']},
+  {match: 'finalizeExport',    color: METHOD_COLOR, onlyTypes: ['method']},
+  {match: 'normalizeFrames',   color: METHOD_COLOR, onlyTypes: ['method']},
+  {match: 'applyColorProfile', color: METHOD_COLOR, onlyTypes: ['method']},
+  {match: 'overlaySubtitles',  color: METHOD_COLOR, onlyTypes: ['method']},
+  {match: 'encodeWithRetry',   color: METHOD_COLOR, onlyTypes: ['method']},
   {match: /^encode$/,          color: METHOD_COLOR, onlyTypes: ['method']},
   {match: 'subtitleTrack',     color: VAR_LIGHT},
   {match: 'coloredFrames',     color: VAR_LIGHT},
@@ -579,8 +579,11 @@ export default makeScene2D(function* (view) {
   yield* highlight(finalizeCall, finalizeCall);
   yield* waitFor(2.0);
 
-  yield* cb.showAllLines(0.5);
-  cb.colorize(COLOR_RULES);
+  cb.saveColorRules(COLOR_RULES);
+  yield* all(
+    cb.showAllLines(0.5),
+    cb.colorizeRangeAnimated(0, cb.lineCount - 1, COLOR_RULES, 0.5),
+  );
 
   yield* waitFor(2);
 });
