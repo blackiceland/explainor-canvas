@@ -542,9 +542,6 @@ export default makeScene2D(function* (view) {
   yield* cb.scrollToLine(0, 1.0);
   yield* waitFor(0.8);
 
-  yield* cb.dimLines(0, cb.lineCount - 1, 0.3, 0.6);
-  yield* waitFor(0.4);
-
   const exportVideoLine  = cb.findLine('public byte[] exportVideo');
   const exportCallLine   = cb.findLine('encodeWithRetry(preparedFrames, outputFormat)');
   const retrySignature   = cb.findLine('private byte[] encodeWithRetry');
@@ -553,11 +550,15 @@ export default makeScene2D(function* (view) {
   const finalizeCall     = cb.findLastLine('return finalizeExport(encodedVideo, outputFormat)');
 
   const highlight = (from: number, to: number) => all(
-    cb.dimLines(from, to, 1, 0.35),
-    cb.colorizeRangeAnimated(from, to, passRule, 0.35),
+    cb.dimLines(from, to, 1, 0.4),
+    cb.colorizeRangeAnimated(from, to, passRule, 0.4),
   );
 
-  yield* highlight(exportVideoLine, exportVideoLine + 1);
+  yield* all(
+    cb.dimLines(0, exportVideoLine - 1, 0.25, 0.5),
+    cb.dimLines(exportVideoLine + 2, cb.lineCount - 1, 0.25, 0.5),
+    highlight(exportVideoLine, exportVideoLine + 1),
+  );
   yield* waitFor(0.8);
 
   yield* highlight(exportCallLine, exportCallLine);
