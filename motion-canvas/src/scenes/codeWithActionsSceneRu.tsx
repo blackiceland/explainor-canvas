@@ -67,9 +67,11 @@ const COLOR_RULES = [
   {match: 'applyColorProfile', color: METHOD_COLOR},
   {match: 'overlaySubtitles',  color: METHOD_COLOR},
   {match: 'encodeWithRetry',   color: METHOD_COLOR},
-  {match: /^encode$/,          color: METHOD_COLOR},
+  {match: /^encode$/,          color: METHOD_COLOR, onlyTypes: ['method']},
   {match: 'subtitleTrack',     color: VAR_LIGHT},
   {match: 'coloredFrames',     color: VAR_LIGHT},
+  {match: 'attemptsLeft',      color: VAR_LIGHT},
+  {match: 'maxAttempts',       color: VAR_LIGHT},
   {match: /^"[^"]*"$/,         color: SOFT_GREEN},
 ];
 

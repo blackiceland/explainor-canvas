@@ -52,6 +52,7 @@ export interface InsertLinesOptions {
 export interface ColorRule {
     match: string | RegExp;
     color: string;
+    onlyTypes?: string[];
 }
 
 export class CodeBlock {
@@ -480,7 +481,7 @@ export class CodeBlock {
         if (allRules.length > 0) {
             for (const line of newCodeLines) {
                 for (const rule of allRules) {
-                    line.colorizeByRule(rule.match, rule.color);
+                    line.colorizeByRule(rule.match, rule.color, rule.onlyTypes);
                 }
             }
         }
@@ -717,7 +718,7 @@ export class CodeBlock {
             ref(txt);
             newContainer.add(txt);
             prefixTokensData.push({
-                ref, text: pt.text, localX: xOffset,
+                ref, text: pt.text, type: pt.type ?? 'plain', localX: xOffset,
                 originalColor: finalColor,
                 originalShadowBlur: 0, originalShadowColor: 'rgba(0,0,0,0)', originalShadowOffset: [0, 0],
             });
@@ -786,7 +787,7 @@ export class CodeBlock {
         for (let i = 0; i < this.lines.length; i++) {
             const line = this.lines[i];
             for (const rule of rules) {
-                line.colorizeByRule(rule.match, rule.color);
+                line.colorizeByRule(rule.match, rule.color, rule.onlyTypes);
             }
         }
     }
@@ -796,7 +797,7 @@ export class CodeBlock {
         for (let i = from; i <= to && i < this.lines.length; i++) {
             const line = this.lines[i];
             for (const rule of rules) {
-                line.colorizeByRule(rule.match, rule.color);
+                line.colorizeByRule(rule.match, rule.color, rule.onlyTypes);
             }
         }
     }

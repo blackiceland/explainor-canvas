@@ -70,8 +70,12 @@ function classifyWord(
     ) {
         return 'type';
     }
-    // Вызов метода: только после точки (obj.method())
-    if (nextChar === '(' && previousMeaningful?.text === '.') return 'method';
+    if (nextChar === '(') {
+        // Определение метода: предыдущий значимый токен — тип возврата (type) или ']' (byte[])
+        const prev = previousMeaningful;
+        const isDefinition = prev && (prev.type === 'type' || prev.text === ']');
+        if (!isDefinition) return 'method';
+    }
     if (isConstant(word)) return 'constant';
     return 'plain';
 }

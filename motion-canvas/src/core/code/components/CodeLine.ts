@@ -20,6 +20,7 @@ export interface CodeLineConfig {
 export interface TokenData {
     ref: Reference<Txt>;
     text: string;
+    type: string;
     localX: number;
     originalColor: string;
     originalShadowBlur: number;
@@ -97,6 +98,7 @@ export class CodeLine {
                     this.tokensData.push({
                         ref,
                         text: i === 0 ? token.text : '',
+                        type: token.type,
                         localX: xOffset,
                         originalColor: tokenColor,
                         originalShadowBlur: 0,
@@ -124,6 +126,7 @@ export class CodeLine {
             this.tokensData.push({
                 ref,
                 text: token.text,
+                type: token.type,
                 localX: xOffset,
                 originalColor: tokenColor,
                 originalShadowBlur: 0,
@@ -436,6 +439,7 @@ export class CodeLine {
             const td: TokenData = {
                 ref,
                 text: token.text,
+                type: token.type,
                 localX: xOffset,
                 originalColor: tokenColor,
                 originalShadowBlur: 0,
@@ -498,12 +502,12 @@ export class CodeLine {
     }
 
     /** Мгновенно окрашивает токены, соответствующие правилу. */
-    public colorizeByRule(match: string | RegExp, color: string): void {
+    public colorizeByRule(match: string | RegExp, color: string, onlyTypes?: string[]): void {
         for (const tokenData of this.tokensData) {
             const matches = typeof match === 'string'
                 ? tokenData.text === match || tokenData.text.includes(match)
                 : match.test(tokenData.text);
-            if (matches) {
+            if (matches && (!onlyTypes || onlyTypes.includes(tokenData.type))) {
                 tokenData.ref().fill(color);
             }
         }
