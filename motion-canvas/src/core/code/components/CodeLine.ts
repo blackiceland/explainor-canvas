@@ -459,6 +459,44 @@ export class CodeLine {
         }
     }
 
+    /**
+     * Стирает токен посимвольно и удаляет его ноду.
+     * Сдвигает все последующие токены влево.
+     */
+    public *removeToken(
+        tokenText: string,
+        charDelay: number = 0.012,
+        fromEnd: boolean = false,
+    ): ThreadGenerator {
+        const idx = fromEnd
+            ? this.tokensData.reduceRight((found, t, i) => found === -1 && t.text === tokenText ? i : found, -1)
+            : this.tokensData.findIndex(t => t.text === tokenText);
+        if (idx === -1) return;
+
+        const td = this.tokensData[idx];
+        const txtNode = td.ref();
+        const fullText = td.text;
+        const tokenWidth = textWidth(fullText, this.config.fontFamily, this.config.fontSize);
+
+        // Стираем посимвольно
+        for (let c = fullText.length; c >= 0; c--) {
+            txtNode.text(fullText.slice(0, c));
+            yield* waitFor(charDelay * 0.7);
+        }
+
+        // Удаляем ноду и из массива
+        txtNode.remove();
+        this.tokensData.splice(idx, 1);
+
+        // Сдвигаем последующие токены влево
+        const anims: ThreadGenerator[] = [];
+        for (let i = idx; i < this.tokensData.length; i++) {
+            this.tokensData[i].localX -= tokenWidth;
+            anims.push(this.tokensData[i].ref().x(this.tokensData[i].localX, 0.2, easeInOutCubic));
+        }
+        if (anims.length > 0) yield* all(...anims);
+    }
+
     /** Мгновенно окрашивает токены, соответствующие правилу. */
     public colorizeByRule(match: string | RegExp, color: string): void {
         for (const tokenData of this.tokensData) {

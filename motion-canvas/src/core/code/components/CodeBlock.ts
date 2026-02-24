@@ -67,6 +67,7 @@ export class CodeBlock {
     private mountedLeftEdge = 0;
     private mountedStartY = 0;
     private savedColorRules: ColorRule[] = [];
+    public get savedRules(): ColorRule[] { return this.savedColorRules; }
 
     private constructor(document: CodeDocument, config: CodeBlockConfig) {
         this.document = document;
@@ -530,6 +531,26 @@ export class CodeBlock {
         const docLine = this.document.lines[lineIndex];
         if (docLine) {
             this.document.lines[lineIndex] = docLine.replace(oldText, newText);
+        }
+    }
+
+    /** Стирает токен посимвольно и удаляет его из строки. */
+    public *removeInLine(
+        lineIndex: number,
+        tokenText: string,
+        charDelay: number = 0.012,
+        fromEnd: boolean = false,
+    ): ThreadGenerator {
+        const line = this.lines[lineIndex];
+        if (!line) return;
+        yield* line.removeToken(tokenText, charDelay, fromEnd);
+
+        const docLine = this.document.lines[lineIndex];
+        if (docLine) {
+            const idx = fromEnd ? docLine.lastIndexOf(tokenText) : docLine.indexOf(tokenText);
+            if (idx >= 0) {
+                this.document.lines[lineIndex] = docLine.slice(0, idx) + docLine.slice(idx + tokenText.length);
+            }
         }
     }
 

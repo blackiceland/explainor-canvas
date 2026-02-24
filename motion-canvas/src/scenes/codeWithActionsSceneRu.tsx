@@ -480,6 +480,19 @@ export default makeScene2D(function* (view) {
   // 4) subtitleTrack в вызов prepareFrames — вставка перед ")" в строке 3
   //    (строка 2 стала 3 после split)
   yield* cb.insertInLine(3, ')', ', subtitleTrack', {fromEnd: true});
+  yield* waitFor(0.8);
+
+  // 5) мутация prepareFrames: "return applyColorProfile(...)" → две строки
+  //    вставляем "byte[] recolored = " перед "return", затем стираем "return"
+  const recoloredLineIdx = cb.findLine('return applyColorProfile');
+  yield* cb.insertInLine(recoloredLineIdx, 'return', 'byte[] recolored = ');
+  yield* cb.removeInLine(recoloredLineIdx, 'return');
+  yield* waitFor(0.3);
+  //    вставляем пустую строку + "return overlaySubtitles(...)" после текущей строки
+  yield* cb.insertLinesAt(recoloredLineIdx, [
+    '',
+    '    return overlaySubtitles(recolored, subtitleTrack);',
+  ]);
 
   yield* waitFor(2);
 });
