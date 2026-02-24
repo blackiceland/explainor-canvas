@@ -56,7 +56,7 @@ const COLOR_RULES = [
   {match: 'encodedVideo',      color: VAR_LIGHT},
   {match: /^byte$/,            color: TYPE_CLEAN},
   {match: 'preparedFrames',    color: VAR_LIGHT},
-  {match: 'normalized',        color: VAR_LIGHT},
+  {match: 'normalizedFrames',  color: VAR_LIGHT},
   {match: 'exportVideo',       color: VAR_LIGHT},
   {match: 'String',            color: TYPE_CLEAN},
   {match: 'validateInput',     color: METHOD_COLOR},
@@ -66,8 +66,9 @@ const COLOR_RULES = [
   {match: 'applyColorProfile', color: METHOD_COLOR},
   {match: 'overlaySubtitles',  color: METHOD_COLOR},
   {match: 'encodeWithRetry',   color: METHOD_COLOR},
+  {match: /^encode$/,          color: METHOD_COLOR},
   {match: 'subtitleTrack',     color: VAR_LIGHT},
-  {match: 'recolored',         color: VAR_LIGHT},
+  {match: 'coloredFrames',     color: VAR_LIGHT},
   {match: /^"[^"]*"$/,         color: SOFT_GREEN},
 ];
 
@@ -414,8 +415,8 @@ export default makeScene2D(function* (view) {
   yield* cb.insertLinesAt(6, [
     '',
     'private byte[] prepareFrames(byte[] sourceFrames, String colorProfile) {',
-    '    byte[] normalized = normalizeFrames(sourceFrames);',
-    '    return applyColorProfile(normalized, colorProfile);',
+    '    byte[] normalizedFrames = normalizeFrames(sourceFrames);',
+    '    return applyColorProfile(normalizedFrames, colorProfile);',
     '}',
   ], {
     extraColorRules: [{match: 'prepareFrames', color: VAR_LIGHT}],
@@ -485,13 +486,52 @@ export default makeScene2D(function* (view) {
   // 5) мутация prepareFrames: "return applyColorProfile(...)" → две строки
   //    вставляем "byte[] recolored = " перед "return", затем стираем "return"
   const recoloredLineIdx = cb.findLine('return applyColorProfile');
-  yield* cb.insertInLine(recoloredLineIdx, 'return', 'byte[] recolored = ');
-  yield* cb.removeInLine(recoloredLineIdx, 'return');
-  yield* waitFor(0.3);
-  //    вставляем пустую строку + "return overlaySubtitles(...)" после текущей строки
-  yield* cb.insertLinesAt(recoloredLineIdx, [
+  yield* cb.removeLines(recoloredLineIdx, 1, 0.15);
+  yield* cb.insertLinesAt(recoloredLineIdx - 1, [
+    '    byte[] coloredFrames = applyColorProfile(normalizedFrames, colorProfile);',
     '',
-    '    return overlaySubtitles(recolored, subtitleTrack);',
+    '    return overlaySubtitles(coloredFrames, subtitleTrack);',
+  ]);
+
+  yield* waitFor(0.8);
+
+  // 6) runEncoder → encodeWithRetry, добавляем outputFormat
+  const encoderLineIdx = cb.findLine('runEncoder(preparedFrames)');
+  yield* cb.replaceInLine(encoderLineIdx, 'runEncoder', 'encodeWithRetry', 0.012, null);
+  cb.colorizeRange(encoderLineIdx, encoderLineIdx, cb.savedRules);
+  yield* cb.insertInLine(encoderLineIdx, ')', ', outputFormat', {fromEnd: true});
+
+  yield* waitFor(0.8);
+
+  // 7) вставляем encodeWithRetry после prepareFrames — прокручиваем к месту вставки
+  yield* cb.scrollToLine(cb.findLine('return overlaySubtitles') + 1);
+  yield* cb.insertLinesAt(cb.findLine('return overlaySubtitles') + 1, [
+    '',
+    'private byte[] encodeWithRetry(byte[] preparedFrames, String outputFormat) {',
+    '    int attemptsLeft = this.maxAttempts;',
+    '',
+    '    while (attemptsLeft-- > 0) {',
+    '        try {',
+    '            return encode(preparedFrames, outputFormat);',
+    '        } catch (RuntimeException ex) { /* retry */ }',
+    '    }',
+    '',
+    '    throw new IllegalStateException("Encoding failed");',
+    '}',
+  ], {
+    extraColorRules: [{match: 'encodeWithRetry', color: VAR_LIGHT}],
+  });
+
+  yield* waitFor(0.8);
+
+  yield* cb.scrollToLine(cb.findLine('throw new IllegalStateException') + 1, 0.8);
+  yield* cb.insertLinesAt(cb.findLine('throw new IllegalStateException') + 1, [
+    '',
+    'private byte[] encode(byte[] preparedFrames, String outputFormat) {',
+    '    byte[] encodedVideo = runEncoder(preparedFrames);',
+    '',
+    '    return finalizeExport(encodedVideo, outputFormat);',
+    '}',
   ]);
 
   yield* waitFor(2);

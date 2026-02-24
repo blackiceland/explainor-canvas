@@ -197,6 +197,23 @@ export class CodeBlock {
         return this.lines[index] ?? null;
     }
 
+    /**
+     * Плавно прокручивает код вверх так, чтобы строка lineIndex была видна.
+     * Смещает contentContainer по Y.
+     */
+    public *scrollToLine(lineIndex: number, duration: number = 0.5): ThreadGenerator {
+        const lh = this.config.lineHeight;
+        const line = this.lines[lineIndex];
+        if (!line) return;
+        const lineY = line.node.y();
+        const content = this.contentRef();
+        const currentOffset = content.y();
+        const newOffset = -lineY + this.mountedStartY;
+        if (Math.abs(newOffset - currentOffset) > 1) {
+            yield* content.y(newOffset, duration, easeInOutCubic);
+        }
+    }
+
     /** Ищет строку по подстроке в document.lines. Возвращает индекс или -1. */
     public findLine(contains: string): number {
         return this.document.lines.findIndex(l => l.includes(contains));
@@ -534,22 +551,25 @@ export class CodeBlock {
         }
     }
 
-    /** Стирает токен посимвольно и удаляет его из строки. */
+    /** Стирает токен по точному тексту и следующий за ним токен (если nextToo=true). */
     public *removeInLine(
         lineIndex: number,
         tokenText: string,
         charDelay: number = 0.012,
         fromEnd: boolean = false,
+        nextToo: boolean = false,
     ): ThreadGenerator {
         const line = this.lines[lineIndex];
         if (!line) return;
         yield* line.removeToken(tokenText, charDelay, fromEnd);
+        if (nextToo) yield* line.removeToken(' ', 0, fromEnd);
 
         const docLine = this.document.lines[lineIndex];
         if (docLine) {
             const idx = fromEnd ? docLine.lastIndexOf(tokenText) : docLine.indexOf(tokenText);
             if (idx >= 0) {
-                this.document.lines[lineIndex] = docLine.slice(0, idx) + docLine.slice(idx + tokenText.length);
+                const removeLen = tokenText.length + (nextToo ? 1 : 0);
+                this.document.lines[lineIndex] = docLine.slice(0, idx) + docLine.slice(idx + removeLen);
             }
         }
     }
