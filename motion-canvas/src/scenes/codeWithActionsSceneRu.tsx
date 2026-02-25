@@ -133,6 +133,30 @@ export default makeScene2D(function* (view) {
   const frameOpSubtitles  = createSignal(0);
   const subtitleBarOp     = createSignal(0);
 
+  // ── applyWatermark v3 ─────────────────────────────────────────────────
+  const Y_WATERMARK       = Y_SUBTITLES + FRAME_H + 50;
+  const frameOpWatermark  = createSignal(0);
+  const watermarkOp       = createSignal(0);
+  const collapseXW        = createSignal(PANEL_X);
+  const collapseYW        = createSignal(Y_WATERMARK);
+  const collapseSW        = createSignal(1);
+
+  // ── normalizeAudio v3 ─────────────────────────────────────────────────
+  const BAR_COUNT         = 9;
+  const BAR_W             = 18;
+  const BAR_MAX_H         = 80;
+  const BAR_MIN_H         = 10;
+  const NORMALIZED_H      = 36;
+  const Y_AUDIO           = Y_WATERMARK + FRAME_H + 50;
+  const frameOpAudio      = createSignal(0);
+  const collapseXA        = createSignal(PANEL_X);
+  const collapseYA        = createSignal(Y_AUDIO);
+  const collapseSA        = createSignal(1);
+  const barHeights        = Array.from({length: BAR_COUNT}, (_, i) =>
+    createSignal(BAR_MIN_H + Math.abs(Math.sin(i * 1.7 + 0.5)) * (BAR_MAX_H - BAR_MIN_H))
+  );
+  const barsOpacity       = createSignal(0);
+
   // ── runEncoder / finalizeExport v0 ────────────────────────────────────
   const COLS              = 8; const ROWS = 5;
   const labelOp           = createSignal(0);
@@ -261,6 +285,45 @@ export default makeScene2D(function* (view) {
         fill={'rgba(0,0,0,0.55)'} radius={4} opacity={subtitleBarOp}/>
       <Txt x={0} y={SUBTITLE_Y} text={'kuroshima'} fontFamily={Fonts.code}
         fontSize={26} fill={'rgba(244,241,235,0.96)'} letterSpacing={2} opacity={subtitleBarOp}/>
+    </Rect>
+
+    {/* applyWatermark v3 — inherits subtitle from previous step */}
+    <Rect x={collapseXW} y={collapseYW} width={FRAME_W} height={FRAME_H}
+      fill={FRAME_FILL_WARM} stroke={FRAME_STROKE_DONE} lineWidth={2}
+      radius={10} opacity={frameOpWatermark} scale={collapseSW} clip
+    >
+      {Array.from({length: SCANLINE_COUNT}, (_, i) => {
+        const y = -FRAME_H/2 + ((i+1)/(SCANLINE_COUNT+1))*FRAME_H;
+        return <Line points={[[-FRAME_W/2+10,y],[FRAME_W/2-10,y]]} stroke={SCANLINE_COLOR} lineWidth={1}/>;
+      })}
+      <Rect x={0} y={SUBTITLE_Y} width={FRAME_W-40} height={44} fill={'rgba(0,0,0,0.55)'} radius={4}/>
+      <Txt x={0} y={SUBTITLE_Y} text={'kuroshima'} fontFamily={Fonts.code} fontSize={26} fill={'rgba(244,241,235,0.96)'} letterSpacing={2}/>
+      <Txt
+        x={-FRAME_W/2 + 26} y={-FRAME_H/2 + 44}
+        text={'©'} fontFamily={Fonts.primary}
+        fontSize={48} fill={'rgba(244, 241, 235, 0.60)'}
+        offset={[-1, 0]} opacity={watermarkOp}
+      />
+    </Rect>
+
+    {/* normalizeAudio v3 — inherits subtitle + watermark */}
+    <Rect x={collapseXA} y={collapseYA} width={FRAME_W} height={FRAME_H}
+      fill={FRAME_FILL_WARM} stroke={FRAME_STROKE_DONE} lineWidth={2}
+      radius={10} opacity={frameOpAudio} scale={collapseSA} clip
+    >
+      {Array.from({length: SCANLINE_COUNT}, (_, i) => {
+        const y = -FRAME_H/2 + ((i+1)/(SCANLINE_COUNT+1))*FRAME_H;
+        return <Line points={[[-FRAME_W/2+10,y],[FRAME_W/2-10,y]]} stroke={SCANLINE_COLOR} lineWidth={1}/>;
+      })}
+      <Rect x={0} y={SUBTITLE_Y} width={FRAME_W-40} height={44} fill={'rgba(0,0,0,0.55)'} radius={4}/>
+      <Txt x={0} y={SUBTITLE_Y} text={'kuroshima'} fontFamily={Fonts.code} fontSize={26} fill={'rgba(244,241,235,0.96)'} letterSpacing={2}/>
+      <Txt x={-FRAME_W/2+26} y={-FRAME_H/2+44} text={'©'} fontFamily={Fonts.primary} fontSize={48} fill={'rgba(244,241,235,0.60)'} offset={[-1,0]}/>
+      {Array.from({length: BAR_COUNT}, (_, i) => {
+        const totalW = BAR_COUNT * BAR_W + (BAR_COUNT - 1) * 6;
+        const x = -totalW/2 + i*(BAR_W+6) + BAR_W/2;
+        return <Rect key={String(i)} x={x} y={0} width={BAR_W} height={barHeights[i]}
+          fill={'rgba(244, 241, 235, 0.90)'} radius={3} opacity={barsOpacity}/>;
+      })}
     </Rect>
 
     {/* section label */}
@@ -607,10 +670,11 @@ export default makeScene2D(function* (view) {
   );
   yield* waitFor(1.2);
 
-  yield* cb.dimLines(encodeCallLine, encodeCallLine, 0.2, 0.0);
-  yield* cb.dimLines(encodeCallLine, encodeCallLine, 1.0, 0.1);
-  yield* cb.dimLines(encodeCallLine, encodeCallLine, 0.2, 0.2);
-  yield* cb.dimLines(encodeCallLine, encodeCallLine, 1.0, 0.1);
+  yield* cb.dimLines(encodeCallLine, encodeCallLine, 0.12, 0.0);
+  yield* cb.dimLines(encodeCallLine, encodeCallLine, 0.25, 0.12);
+  yield* waitFor(0.1);
+  yield* cb.dimLines(encodeCallLine, encodeCallLine, 0.12, 0.12);
+  yield* cb.dimLines(encodeCallLine, encodeCallLine, 0.25, 0.12);
   yield* waitFor(0.5);
 
   cb.saveColorRules(COLOR_RULES);
@@ -622,4 +686,29 @@ export default makeScene2D(function* (view) {
   );
 
   yield* waitFor(1.5);
+
+  // ── v3: applyWatermark ────────────────────────────────────────────────
+  yield* frameOpWatermark(1, Timing.slow, easeInOutCubic);
+  yield* waitFor(0.3);
+  yield* watermarkOp(1, 0.5, easeInOutCubic);
+  yield* waitFor(1.2);
+
+  // ── v3: normalizeAudio ────────────────────────────────────────────────
+  yield* frameOpAudio(1, Timing.slow, easeInOutCubic);
+  yield* waitFor(0.2);
+  yield* barsOpacity(1, 0.3, easeInOutCubic);
+
+  for (let round = 0; round < 6; round++) {
+    yield* all(
+      ...barHeights.map((h, i) =>
+        h(BAR_MIN_H + Math.abs(Math.sin(i * 2.3 + round * 1.1)) * (BAR_MAX_H - BAR_MIN_H), 0.08, easeInOutCubic)
+      ),
+    );
+  }
+
+  yield* all(
+    ...barHeights.map(h => h(NORMALIZED_H, 0.4, easeInOutCubic)),
+  );
+
+  yield* waitFor(1.2);
 });
