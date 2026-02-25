@@ -86,6 +86,7 @@ export default makeScene2D(function* (view) {
   // ── иконки (collapse) ─────────────────────────────────────────────────
   const ICON_SCALE   = 0.38;
   const ICON_Y       = -Screen.height / 2 + 135;
+  const ICON_Y2      = ICON_Y + FRAME_H * ICON_SCALE + 20;
   const ICON_SPACING = FRAME_W * ICON_SCALE + 24;
 
   // ── normalizeFrames ────────────────────────────────────────────────────
@@ -132,6 +133,9 @@ export default makeScene2D(function* (view) {
   const SUBTITLE_Y        = FRAME_H / 2 - 52;
   const frameOpSubtitles  = createSignal(0);
   const subtitleBarOp     = createSignal(0);
+  const collapseXSub      = createSignal(PANEL_X);
+  const collapseYSub      = createSignal(Y_SUBTITLES);
+  const collapseSSub      = createSignal(1);
 
   // ── applyWatermark v3 ─────────────────────────────────────────────────
   const Y_WATERMARK       = Y_SUBTITLES + FRAME_H + 50;
@@ -273,9 +277,9 @@ export default makeScene2D(function* (view) {
     </Rect>
 
     {/* overlaySubtitles v2 — на базе покраски, без макроблоков */}
-    <Rect x={PANEL_X} y={Y_SUBTITLES} width={FRAME_W} height={FRAME_H}
+    <Rect x={collapseXSub} y={collapseYSub} width={FRAME_W} height={FRAME_H}
       fill={FRAME_FILL_WARM} stroke={FRAME_STROKE_DONE} lineWidth={3}
-      radius={6} opacity={frameOpSubtitles} clip
+      radius={6} opacity={frameOpSubtitles} scale={collapseSSub} clip
     >
       {Array.from({length: SCANLINE_COUNT}, (_, i) => {
         const y = -FRAME_H/2 + ((i+1)/(SCANLINE_COUNT+1))*FRAME_H;
@@ -711,4 +715,19 @@ export default makeScene2D(function* (view) {
   );
 
   yield* waitFor(1.2);
+
+  // ── схлопывание: subtitles → линия 1 позиция 3, watermark → линия 2 поз 1, audio → линия 2 поз 2
+  yield* all(
+    collapseSSub(ICON_SCALE, 0.8, easeInOutCubic),
+    collapseYSub(ICON_Y, 0.8, easeInOutCubic),
+    collapseXSub(PANEL_X + ICON_SPACING, 0.8, easeInOutCubic),
+    collapseSW(ICON_SCALE, 0.8, easeInOutCubic),
+    collapseYW(ICON_Y2, 0.8, easeInOutCubic),
+    collapseXW(PANEL_X - ICON_SPACING, 0.8, easeInOutCubic),
+    collapseSA(ICON_SCALE, 0.8, easeInOutCubic),
+    collapseYA(ICON_Y2, 0.8, easeInOutCubic),
+    collapseXA(PANEL_X, 0.8, easeInOutCubic),
+  );
+
+  yield* waitFor(1.0);
 });
