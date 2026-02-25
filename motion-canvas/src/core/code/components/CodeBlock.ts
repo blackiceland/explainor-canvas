@@ -224,8 +224,8 @@ export class CodeBlock {
     }
 
     /** Ищет строку по подстроке в document.lines. Возвращает индекс или -1. */
-    public findLine(contains: string): number {
-        return this.document.lines.findIndex(l => l.includes(contains));
+    public findLine(contains: string, fromLine: number = 0): number {
+        return this.document.lines.findIndex((l, i) => i >= fromLine && l.includes(contains));
     }
 
     /** Ищет последнее вхождение подстроки в document.lines. Возвращает индекс или -1. */
@@ -235,6 +235,59 @@ export class CodeBlock {
             if (lines[i].includes(contains)) return i;
         }
         return -1;
+    }
+
+    /**
+     * Добавляет параметр в сигнатуру метода начиная с fromLine.
+     * Находит строку с закрывающей ')' сигнатуры (первую строку содержащую ') {' или одиночную ')').
+     * Если строка после добавления не влезает — переносит параметр на новую строку через splitLine.
+     * paramText — текст нового параметра (без запятой), например 'String watermarkMode'.
+     * indent — отступ новой строки, например '    '.
+     */
+    public *addParam(
+        fromLine: number,
+        paramText: string,
+        indent: string = '    ',
+    ): ThreadGenerator {
+        if (!this.mounted) return;
+
+        // Ищем строку с закрывающей ')' сигнатуры начиная с fromLine
+        let lineIdx = -1;
+        for (let i = fromLine; i < this.document.lines.length; i++) {
+            const l = this.document.lines[i];
+            if (l.includes(') {') || l.trim() === ')') {
+                lineIdx = i;
+                break;
+            }
+        }
+        if (lineIdx === -1) return;
+
+        const line = this.document.lines[lineIdx];
+        const isClosingOnly = line.trim() === ') {' || line.trim() === ')';
+
+        if (isClosingOnly) {
+            // Сигнатура уже разбита — добавляем запятую к предыдущей строке,
+            // затем вставляем новую строку с параметром перед ') {'
+            const prevIdx = lineIdx - 1;
+            if (prevIdx >= 0) {
+                const prevText = this.document.lines[prevIdx];
+                const lastToken = prevText.trimEnd().split(/\s+/).pop() ?? '';
+                if (lastToken && !lastToken.endsWith(',')) {
+                    yield* this.replaceInLine(prevIdx, lastToken, lastToken + ',', 0.012, null, true);
+                }
+            }
+            yield* this.insertLinesAt(lineIdx - 1, [indent + paramText]);
+        } else {
+            // Однострочная сигнатура — проверяем влезет ли параметр
+            const withCommaAndParam = line.replace(/\)\s*\{/, ', ' + paramText + ') {');
+            const lineWidthAfter = textWidth(withCommaAndParam, this.config.fontFamily, this.config.fontSize);
+
+            if (lineWidthAfter <= this.mountedContentWidth) {
+                yield* this.insertInLine(lineIdx, ')', ', ' + paramText, {fromEnd: true});
+            } else {
+                yield* this.splitLine(lineIdx, ')', indent + paramText, {insertBeforeSplit: ',', fromEnd: true});
+            }
+        }
     }
 
     public getPosition(): CodeBlockPosition {

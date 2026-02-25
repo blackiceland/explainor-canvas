@@ -72,6 +72,14 @@ const COLOR_RULES = [
   {match: 'coloredFrames',     color: VAR_LIGHT},
   {match: 'attemptsLeft',      color: VAR_LIGHT},
   {match: 'maxAttempts',       color: VAR_LIGHT},
+  {match: 'watermarkMode',     color: VAR_LIGHT},
+  {match: 'audioProfile',      color: VAR_LIGHT},
+  {match: 'subtitledFrames',   color: VAR_LIGHT},
+  {match: 'watermarkedFrames', color: VAR_LIGHT},
+  {match: 'container',         color: VAR_LIGHT},
+  {match: 'isSupportedFormat', color: METHOD_COLOR, onlyTypes: ['method']},
+  {match: 'applyWatermark',    color: METHOD_COLOR, onlyTypes: ['method']},
+  {match: 'normalizeAudio',    color: METHOD_COLOR, onlyTypes: ['method']},
   {match: /^"[^"]*"$/,         color: SOFT_GREEN},
 ];
 
@@ -474,7 +482,7 @@ export default makeScene2D(function* (view) {
     theme: DryFiltersV3CodeTheme,
     cardStyle: CODE_CARD_STYLE,
     glowAccent: false,
-    customTypes: ['String', 'RuntimeException', 'IllegalStateException', 'IllegalArgumentException'],
+    customTypes: ['String', 'RuntimeException', 'IllegalStateException', 'IllegalArgumentException', 'Muxer', 'Container'],
   });
   cb.mount(view);
   cb.colorize(COLOR_RULES);
@@ -625,10 +633,13 @@ export default makeScene2D(function* (view) {
   // 4) subtitleTrack в вызов prepareFrames — вставка перед ")" в строке 3
   //    (строка 2 стала 3 после split)
   yield* cb.insertInLine(3, ')', ', subtitleTrack', {fromEnd: true});
-  yield* waitFor(0.8);
+  yield* waitFor(0.5);
+
+  // 4b) subtitleTrack сразу в сигнатуру prepareFrames
+  yield* cb.addParam(cb.findLine('private byte[] prepareFrames'), 'String subtitleTrack', '    ');
+  yield* waitFor(0.5);
 
   // 5) мутация prepareFrames: "return applyColorProfile(...)" → две строки
-  //    вставляем "byte[] recolored = " перед "return", затем стираем "return"
   const recoloredLineIdx = cb.findLine('return applyColorProfile');
   yield* cb.removeLines(recoloredLineIdx, 1, 0.15);
   yield* cb.insertLinesAt(recoloredLineIdx - 1, [
@@ -765,13 +776,22 @@ export default makeScene2D(function* (view) {
 
   yield* waitFor(1.5);
 
-  // ── v3: applyWatermark ────────────────────────────────────────────────
+  // ── v3: exportVideo — watermarkMode, audioProfile ────────────────────
+  yield* cb.scrollToLine(0, 0.8);
+  {
+    const exportStart = cb.findLine('public byte[] exportVideo');
+    yield* cb.addParam(exportStart, 'String watermarkMode', '        ');
+    yield* cb.addParam(exportStart, 'String audioProfile', '        ');
+  }
+  yield* waitFor(0.5);
+
+  // ── v3: watermark фрейм ───────────────────────────────────────────────
   yield* frameOpWatermark(1, Timing.slow, easeInOutCubic);
   yield* waitFor(0.3);
   yield* watermarkOp(1, 0.5, easeInOutCubic);
-  yield* waitFor(1.2);
+  yield* waitFor(0.3);
 
-  // ── v3: normalizeAudio ────────────────────────────────────────────────
+  // ── v3: audio фрейм ───────────────────────────────────────────────────
   yield* frameOpAudio(1, Timing.slow, easeInOutCubic);
   yield* waitFor(0.2);
   yield* barsOpacity(1, 0.3, easeInOutCubic);
@@ -783,14 +803,10 @@ export default makeScene2D(function* (view) {
       ),
     );
   }
-
-  yield* all(
-    ...barHeights.map(h => h(NORMALIZED_H, 0.4, easeInOutCubic)),
-  );
-
+  yield* all(...barHeights.map(h => h(NORMALIZED_H, 0.4, easeInOutCubic)));
   yield* waitFor(1.2);
 
-  // ── схлопывание: subtitles → линия 1 позиция 3, watermark → линия 2 поз 1, audio → линия 2 поз 2
+  // ── схлопывание ───────────────────────────────────────────────────────
   yield* all(
     collapseSSub(ICON_SCALE, 0.8, easeInOutCubic),
     collapseYSub(ICON_Y, 0.8, easeInOutCubic),
@@ -802,10 +818,9 @@ export default makeScene2D(function* (view) {
     collapseYA(ICON_Y2, 0.8, easeInOutCubic),
     collapseXA(PANEL_X, 0.8, easeInOutCubic),
   );
+  yield* waitFor(0.3);
 
-  yield* waitFor(0.5);
-
-  // ── v3: runEncoder ────────────────────────────────────────────────────
+  // ── v3: runEncoder визуал ─────────────────────────────────────────────
   yield* frameOpEncoderV3(1, Timing.slow, easeInOutCubic);
   yield* waitFor(0.2);
   const blockDelayV3 = 0.004; const blockOpV3 = 0.025;
@@ -813,11 +828,96 @@ export default makeScene2D(function* (view) {
     yield* blockOpacitiesV3[idx](1, blockOpV3, easeInOutCubic);
     if (idx < COLS * ROWS - 1) yield* waitFor(blockDelayV3);
   }
+  yield* waitFor(0.5);
+
+  // ── v3: finalizeExport визуал — mp4 сразу ────────────────────────────
+  yield* all(
+    frameOpFinalizeV3(1, Timing.slow, easeInOutCubic),
+    formatLabelOpV3(1, Timing.slow, easeInOutCubic),
+  );
   yield* waitFor(1.0);
 
-  // ── v3: finalizeExport ────────────────────────────────────────────────
-  yield* frameOpFinalizeV3(1, Timing.slow, easeInOutCubic);
-  yield* waitFor(0.3);
-  yield* formatLabelOpV3(1, 0.5, easeInOutCubic);
+  // ── v3: exportVideo — обновляем вызовы (сверху вниз) ────────────────
+  {
+    const exportStart = cb.findLine('public byte[] exportVideo');
+    yield* cb.scrollToLine(exportStart, 0.8);
+    const prepareCall = cb.findLine('prepareFrames(sourceFrames, colorProfile, subtitleTrack)');
+    yield* cb.insertInLine(prepareCall, ')', ', watermarkMode, audioProfile', {fromEnd: true});
+    const retryCall = cb.findLine('return encodeWithRetry(preparedFrames, outputFormat)');
+    yield* cb.insertInLine(retryCall, ')', ', watermarkMode, audioProfile', {fromEnd: true});
+  }
+  yield* waitFor(0.5);
+
+  // ── v3: prepareFrames — сигнатура + тело ─────────────────────────────
+  {
+    const prepareStart = cb.findLine('private byte[] prepareFrames');
+    yield* cb.scrollToLine(prepareStart, 0.8);
+    yield* cb.addParam(prepareStart, 'String watermarkMode', '    ');
+    yield* cb.addParam(prepareStart, 'String audioProfile', '    ');
+    yield* waitFor(0.3);
+
+    const overlayLine = cb.findLine('return overlaySubtitles', prepareStart);
+    yield* cb.removeLines(overlayLine, 1, 0.12);
+    yield* cb.insertLinesAt(overlayLine - 1, [
+      '    byte[] subtitledFrames = overlaySubtitles(coloredFrames, subtitleTrack);',
+      '    byte[] watermarkedFrames = applyWatermark(subtitledFrames, watermarkMode);',
+      '',
+      '    return normalizeAudio(watermarkedFrames, audioProfile);',
+    ]);
+  }
+  yield* waitFor(0.5);
+
+  // ── v3: encodeWithRetry — сигнатура + вызов encode ───────────────────
+  {
+    const retryStart = cb.findLine('private byte[] encodeWithRetry');
+    yield* cb.scrollToLine(retryStart, 0.8);
+    yield* cb.addParam(retryStart, 'String watermarkMode', '    ');
+    yield* cb.addParam(retryStart, 'String audioProfile', '    ');
+    const encodeCall = cb.findLine('return encode(preparedFrames, outputFormat)', retryStart);
+    yield* cb.insertInLine(encodeCall, ')', ', watermarkMode, audioProfile', {fromEnd: true});
+  }
+  yield* waitFor(0.5);
+
+  // ── v3: encode + finalizeExport (вставка + мутации) ─────────────────
+  {
+    const encodeStart = cb.findLine('private byte[] encode(');
+    yield* cb.scrollToLine(encodeStart, 0.8);
+
+    // сначала вставляем finalizeExport метод пока вызов ещё без новых параметров
+    const finalizeCallLine = cb.findLine('return finalizeExport(encodedVideo, outputFormat)', encodeStart);
+    yield* cb.insertLinesAt(finalizeCallLine + 1, [
+      '',
+      'private byte[] finalizeExport(byte[] encodedVideo, String outputFormat) {',
+      '    if (!isSupportedFormat(outputFormat)) {',
+      '        throw new IllegalArgumentException("Unsupported: " + outputFormat);',
+      '    }',
+      '',
+      '    return Muxer.mux(encodedVideo, outputFormat);',
+      '}',
+    ]);
+    yield* waitFor(0.3);
+
+    // мутируем encode: добавляем параметры + обновляем вызов finalizeExport
+    yield* cb.addParam(encodeStart, 'String watermarkMode', '    ');
+    yield* cb.addParam(encodeStart, 'String audioProfile', '    ');
+    const finalizeCall = cb.findLine('return finalizeExport(encodedVideo, outputFormat)', encodeStart);
+    yield* cb.insertInLine(finalizeCall, ')', ', watermarkMode, audioProfile', {fromEnd: true});
+    yield* waitFor(0.3);
+
+    // мутируем finalizeExport
+    const finalizeStart = cb.findLine('private byte[] finalizeExport');
+    yield* cb.scrollToLine(finalizeStart, 0.8);
+    yield* cb.addParam(finalizeStart, 'String watermarkMode', '    ');
+    yield* cb.addParam(finalizeStart, 'String audioProfile', '    ');
+    const muxLine = cb.findLine('return Muxer.mux(encodedVideo, outputFormat)', finalizeStart);
+    yield* cb.removeLines(muxLine, 1, 0.12);
+    yield* cb.insertLinesAt(muxLine - 1, [
+      '    Container container = Muxer.mux(encodedVideo, outputFormat);',
+      '    container.applyWatermark(watermarkMode);',
+      '    container.normalizeAudio(audioProfile);',
+      '',
+      '    return container;',
+    ]);
+  }
   yield* waitFor(1.5);
 });
