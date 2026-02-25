@@ -9,6 +9,25 @@
 не хочу, чтобы сениоры меня уничтожили критикой в комментариях.
 
 
+ПРАВИЛА ДЛЯ КОДА В АНИМАЦИИ:
+- Имена переменных — существительные: normalizedFrames, coloredFrames, encodedVideo (не normalized, recolored, encoded)
+- Пустые строки между логическими блоками внутри метода
+- Без комментариев, кроме осмысленных намерений (/* retry */)
+- Все переменные, методы, типы — в COLOR_RULES
+- byte[] — TYPE_CLEAN, String — TYPE_CLEAN
+- Имена методов в объявлении — VAR_LIGHT, в вызовах — METHOD_COLOR
+- regex ^name$ для точного матча чтобы не захватить подстроки
+- findLine() вызывать ДО мутаций строки
+- После replaceInLine — colorizeRange если цвет токена изменился
+- removeInLine с nextToo:true если нужно убрать пробел после токена
+
+
+
+Вызовы методов — розовый (#FF8CA3)
+Определения методов — белый (через extraColorRules с VAR_LIGHT)
+Акцент — розовый (rgba(255, 100, 130, 0.95))
+
+
 прочти:
 C:\Users\anton\IdeaProjects\canvas\motion-canvas\DAEDALUS.txt
 C:\Users\anton\IdeaProjects\canvas\motion-canvas\DESIGN_SYSTEM.txt
