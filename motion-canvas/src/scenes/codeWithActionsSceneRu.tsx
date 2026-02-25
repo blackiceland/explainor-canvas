@@ -579,11 +579,47 @@ export default makeScene2D(function* (view) {
   yield* highlight(finalizeCall, finalizeCall);
   yield* waitFor(2.0);
 
+  const STRIPE_COLOR  = 'rgba(255, 80, 120, 0.18)';
+  const stripeW       = CODE_W + 40;
+  const stripeH       = lineHeight * 1.15;
+  const stripeX       = -Screen.width / 2 + stripeW / 2;
+
+  const retryDefLine    = cb.findLine('private byte[] encodeWithRetry');
+  const finalizeOutLine = cb.findLastLine('return finalizeExport(encodedVideo, outputFormat)');
+  const encodeCallLine  = cb.findLine('return encode(preparedFrames');
+
+  const stripeRetry = new Rect({
+    width: stripeW, height: stripeH,
+    x: stripeX, y: cb.getLineSceneY(retryDefLine),
+    fill: STRIPE_COLOR, opacity: 0, radius: 4,
+  });
+  const stripeFinal = new Rect({
+    width: stripeW, height: stripeH,
+    x: stripeX, y: cb.getLineSceneY(finalizeOutLine),
+    fill: STRIPE_COLOR, opacity: 0, radius: 4,
+  });
+  view.add(stripeRetry);
+  view.add(stripeFinal);
+
+  yield* all(
+    stripeRetry.opacity(1, 0.5, easeInOutCubic),
+    stripeFinal.opacity(1, 0.5, easeInOutCubic),
+  );
+  yield* waitFor(1.2);
+
+  yield* cb.dimLines(encodeCallLine, encodeCallLine, 0.2, 0.0);
+  yield* cb.dimLines(encodeCallLine, encodeCallLine, 1.0, 0.1);
+  yield* cb.dimLines(encodeCallLine, encodeCallLine, 0.2, 0.2);
+  yield* cb.dimLines(encodeCallLine, encodeCallLine, 1.0, 0.1);
+  yield* waitFor(0.5);
+
   cb.saveColorRules(COLOR_RULES);
   yield* all(
+    stripeRetry.opacity(0, 0.5, easeInOutCubic),
+    stripeFinal.opacity(0, 0.5, easeInOutCubic),
     cb.showAllLines(0.5),
     cb.colorizeRangeAnimated(0, cb.lineCount - 1, COLOR_RULES, 0.5),
   );
 
-  yield* waitFor(2);
+  yield* waitFor(1.5);
 });

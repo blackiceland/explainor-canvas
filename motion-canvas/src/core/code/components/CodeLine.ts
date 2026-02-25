@@ -514,13 +514,13 @@ export class CodeLine {
     }
 
     /** Плавно окрашивает токены, соответствующие правилу. Возвращает массив анимаций. */
-    public colorizeByRuleAnimated(match: string | RegExp, color: string, duration: number = 0.4): ThreadGenerator[] {
+    public colorizeByRuleAnimated(match: string | RegExp, color: string, duration: number = 0.4, onlyTypes?: string[]): ThreadGenerator[] {
         const anims: ThreadGenerator[] = [];
         for (const tokenData of this.tokensData) {
             const matches = typeof match === 'string'
                 ? tokenData.text === match || tokenData.text.includes(match)
                 : match.test(tokenData.text);
-            if (matches) {
+            if (matches && (!onlyTypes || onlyTypes.includes(tokenData.type))) {
                 anims.push(tokenData.ref().fill(color, duration, easeInOutCubic));
             }
         }

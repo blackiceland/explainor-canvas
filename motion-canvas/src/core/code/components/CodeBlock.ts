@@ -198,6 +198,14 @@ export class CodeBlock {
         return this.lines[index] ?? null;
     }
 
+    /** Возвращает Y строки в координатах сцены (с учётом скролла и позиции блока). */
+    public getLineSceneY(index: number): number {
+        const line = this.lines[index];
+        if (!line) return 0;
+        const contentY = this.contentRef().y();
+        return this.config.y + contentY + line.node.y();
+    }
+
     /**
      * Плавно прокручивает код вверх так, чтобы строка lineIndex была видна.
      * Смещает contentContainer по Y.
@@ -812,8 +820,24 @@ export class CodeBlock {
         for (let i = from; i <= to && i < this.lines.length; i++) {
             const line = this.lines[i];
             for (const rule of rules) {
-                anims.push(...line.colorizeByRuleAnimated(rule.match, rule.color, duration));
+                anims.push(...line.colorizeByRuleAnimated(rule.match, rule.color, duration, rule.onlyTypes));
             }
+        }
+        if (anims.length > 0) yield* all(...anims);
+    }
+
+    public *showLinesBackground(from: number, to: number, color: string, duration: number = 0.4): ThreadGenerator {
+        const anims: ThreadGenerator[] = [];
+        for (let i = Math.max(0, from); i <= to && i < this.lines.length; i++) {
+            anims.push(this.lines[i].showBackground(color, duration));
+        }
+        if (anims.length > 0) yield* all(...anims);
+    }
+
+    public *hideLinesBackground(from: number, to: number, duration: number = 0.4): ThreadGenerator {
+        const anims: ThreadGenerator[] = [];
+        for (let i = Math.max(0, from); i <= to && i < this.lines.length; i++) {
+            anims.push(this.lines[i].hideBackground(duration));
         }
         if (anims.length > 0) yield* all(...anims);
     }
