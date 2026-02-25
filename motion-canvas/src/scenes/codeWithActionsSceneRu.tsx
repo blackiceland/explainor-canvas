@@ -670,11 +670,11 @@ export default makeScene2D(function* (view) {
   );
   yield* waitFor(1.2);
 
-  yield* cb.dimLines(encodeCallLine, encodeCallLine, 0.12, 0.0);
-  yield* cb.dimLines(encodeCallLine, encodeCallLine, 0.25, 0.12);
-  yield* waitFor(0.1);
-  yield* cb.dimLines(encodeCallLine, encodeCallLine, 0.12, 0.12);
-  yield* cb.dimLines(encodeCallLine, encodeCallLine, 0.25, 0.12);
+  yield* cb.dimLines(encodeCallLine, encodeCallLine, 1.0, 0.18);
+  yield* cb.dimLines(encodeCallLine, encodeCallLine, 0.25, 0.18);
+  yield* cb.dimLines(encodeCallLine, encodeCallLine, 1.0, 0.18);
+  yield* cb.dimLines(encodeCallLine, encodeCallLine, 0.25, 0.18);
+  yield* cb.dimLines(encodeCallLine, encodeCallLine, 1.0, 0.18);
   yield* waitFor(0.5);
 
   cb.saveColorRules(COLOR_RULES);
