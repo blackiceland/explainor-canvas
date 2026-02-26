@@ -21,7 +21,9 @@
 - После replaceInLine — colorizeRange если цвет токена изменился
 - removeInLine с nextToo:true если нужно убрать пробел после токена
 
+используй CodeBlock2
 
+Manticore
 
 Вызовы методов — розовый (#FF8CA3)
 Определения методов — белый (через extraColorRules с VAR_LIGHT)

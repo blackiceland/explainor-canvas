@@ -1,6 +1,6 @@
 import {Line, makeScene2D, Rect, Txt} from '@motion-canvas/2d';
 import {all, createSignal, easeInOutCubic, easeOutCubic, linear, waitFor} from '@motion-canvas/core';
-import {CodeBlock} from '../core/code/components/CodeBlock';
+import {Manticore} from '../core/code/components/Manticore';
 import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
 import {getCodePaddingY} from '../core/code/shared/TextMeasure';
 import {SafeZone} from '../core/ScreenGrid';
@@ -43,11 +43,319 @@ const CODE_CARD_STYLE = {
   shadowOffsetX: 0, shadowOffsetY: 0, edge: false,
 } as const;
 
-const V0 = `public byte[] exportVideo(byte[] sourceFrames, String outputFormat) {
+const CODE_V0 = `public byte[] exportVideo(byte[] sourceFrames, String outputFormat) {
     validateInput(sourceFrames, outputFormat);
-    byte[] encodedVideo = runEncoder(sourceFrames);
+
+    return runEncoder(sourceFrames);
+}`;
+
+const CODE_V1a = `public byte[] exportVideo(byte[] sourceFrames, String outputFormat, String colorProfile) {
+    validateInput(sourceFrames, outputFormat);
+
+    return runEncoder(sourceFrames);
+}`;
+
+const CODE_V1b = `public byte[] exportVideo(byte[] sourceFrames, String outputFormat, String colorProfile) {
+    validateInput(sourceFrames, outputFormat);
+    byte[] preparedFrames = prepareFrames(sourceFrames, colorProfile);
+
+    return runEncoder(preparedFrames);
+}`;
+
+const CODE_V1c = `public byte[] exportVideo(byte[] sourceFrames, String outputFormat, String colorProfile) {
+    validateInput(sourceFrames, outputFormat);
+    byte[] preparedFrames = prepareFrames(sourceFrames, colorProfile);
+
+    return runEncoder(preparedFrames);
+}
+
+private byte[] prepareFrames(byte[] sourceFrames, String colorProfile) {
+    byte[] normalizedFrames = normalizeFrames(sourceFrames);
+    return applyColorProfile(normalizedFrames, colorProfile);
+}`;
+
+const CODE_V2a = `public byte[] exportVideo(byte[] sourceFrames, String outputFormat, String colorProfile,
+        String subtitleTrack) {
+    validateInput(sourceFrames, outputFormat);
+    byte[] preparedFrames = prepareFrames(sourceFrames, colorProfile, subtitleTrack);
+
+    return runEncoder(preparedFrames);
+}
+
+private byte[] prepareFrames(byte[] sourceFrames, String colorProfile,
+    String subtitleTrack) {
+    byte[] normalizedFrames = normalizeFrames(sourceFrames);
+    byte[] coloredFrames = applyColorProfile(normalizedFrames, colorProfile);
+
+    return overlaySubtitles(coloredFrames, subtitleTrack);
+}`;
+
+const CODE_V2b = `public byte[] exportVideo(byte[] sourceFrames, String outputFormat, String colorProfile,
+        String subtitleTrack) {
+    validateInput(sourceFrames, outputFormat);
+    byte[] preparedFrames = prepareFrames(sourceFrames, colorProfile, subtitleTrack);
+
+    return encodeWithRetry(preparedFrames, outputFormat);
+}
+
+private byte[] prepareFrames(byte[] sourceFrames, String colorProfile,
+    String subtitleTrack) {
+    byte[] normalizedFrames = normalizeFrames(sourceFrames);
+    byte[] coloredFrames = applyColorProfile(normalizedFrames, colorProfile);
+
+    return overlaySubtitles(coloredFrames, subtitleTrack);
+}
+
+private byte[] encodeWithRetry(byte[] preparedFrames, String outputFormat) {
+    int attemptsLeft = this.maxAttempts;
+
+    while (attemptsLeft-- > 0) {
+        try {
+            return encode(preparedFrames, outputFormat);
+        } catch (RuntimeException ex) { /* retry */ }
+    }
+
+    throw new IllegalStateException("Encoding failed");
+}
+
+private byte[] encode(byte[] preparedFrames, String outputFormat) {
+    byte[] encodedVideo = runEncoder(preparedFrames);
 
     return finalizeExport(encodedVideo, outputFormat);
+}`;
+
+const CODE_V3a = `public byte[] exportVideo(byte[] sourceFrames, String outputFormat, String colorProfile,
+        String subtitleTrack, String watermarkMode) {
+    validateInput(sourceFrames, outputFormat);
+    byte[] preparedFrames = prepareFrames(sourceFrames, colorProfile, subtitleTrack);
+
+    return encodeWithRetry(preparedFrames, outputFormat);
+}
+
+private byte[] prepareFrames(byte[] sourceFrames, String colorProfile,
+    String subtitleTrack) {
+    byte[] normalizedFrames = normalizeFrames(sourceFrames);
+    byte[] coloredFrames = applyColorProfile(normalizedFrames, colorProfile);
+
+    return overlaySubtitles(coloredFrames, subtitleTrack);
+}
+
+private byte[] encodeWithRetry(byte[] preparedFrames, String outputFormat) {
+    int attemptsLeft = this.maxAttempts;
+
+    while (attemptsLeft-- > 0) {
+        try {
+            return encode(preparedFrames, outputFormat);
+        } catch (RuntimeException ex) { /* retry */ }
+    }
+
+    throw new IllegalStateException("Encoding failed");
+}
+
+private byte[] encode(byte[] preparedFrames, String outputFormat) {
+    byte[] encodedVideo = runEncoder(preparedFrames);
+
+    return finalizeExport(encodedVideo, outputFormat);
+}`;
+
+const CODE_V3b = `public byte[] exportVideo(byte[] sourceFrames, String outputFormat, String colorProfile,
+        String subtitleTrack, String watermarkMode, String audioProfile) {
+    validateInput(sourceFrames, outputFormat);
+    byte[] preparedFrames = prepareFrames(sourceFrames, colorProfile, subtitleTrack);
+
+    return encodeWithRetry(preparedFrames, outputFormat);
+}
+
+private byte[] prepareFrames(byte[] sourceFrames, String colorProfile,
+    String subtitleTrack) {
+    byte[] normalizedFrames = normalizeFrames(sourceFrames);
+    byte[] coloredFrames = applyColorProfile(normalizedFrames, colorProfile);
+
+    return overlaySubtitles(coloredFrames, subtitleTrack);
+}
+
+private byte[] encodeWithRetry(byte[] preparedFrames, String outputFormat) {
+    int attemptsLeft = this.maxAttempts;
+
+    while (attemptsLeft-- > 0) {
+        try {
+            return encode(preparedFrames, outputFormat);
+        } catch (RuntimeException ex) { /* retry */ }
+    }
+
+    throw new IllegalStateException("Encoding failed");
+}
+
+private byte[] encode(byte[] preparedFrames, String outputFormat) {
+    byte[] encodedVideo = runEncoder(preparedFrames);
+
+    return finalizeExport(encodedVideo, outputFormat);
+}`;
+
+const CODE_V3c = `public byte[] exportVideo(byte[] sourceFrames, String outputFormat, String colorProfile,
+        String subtitleTrack, String watermarkMode, String audioProfile) {
+    validateInput(sourceFrames, outputFormat);
+    byte[] preparedFrames = prepareFrames(sourceFrames, colorProfile,
+        subtitleTrack, watermarkMode, audioProfile);
+
+    return encodeWithRetry(preparedFrames, outputFormat,
+        watermarkMode, audioProfile);
+}
+
+private byte[] prepareFrames(byte[] sourceFrames, String colorProfile,
+    String subtitleTrack) {
+    byte[] normalizedFrames = normalizeFrames(sourceFrames);
+    byte[] coloredFrames = applyColorProfile(normalizedFrames, colorProfile);
+
+    return overlaySubtitles(coloredFrames, subtitleTrack);
+}
+
+private byte[] encodeWithRetry(byte[] preparedFrames, String outputFormat) {
+    int attemptsLeft = this.maxAttempts;
+
+    while (attemptsLeft-- > 0) {
+        try {
+            return encode(preparedFrames, outputFormat);
+        } catch (RuntimeException ex) { /* retry */ }
+    }
+
+    throw new IllegalStateException("Encoding failed");
+}
+
+private byte[] encode(byte[] preparedFrames, String outputFormat) {
+    byte[] encodedVideo = runEncoder(preparedFrames);
+
+    return finalizeExport(encodedVideo, outputFormat);
+}`;
+
+const CODE_V3d = `public byte[] exportVideo(byte[] sourceFrames, String outputFormat, String colorProfile,
+        String subtitleTrack, String watermarkMode, String audioProfile) {
+    validateInput(sourceFrames, outputFormat);
+    byte[] preparedFrames = prepareFrames(sourceFrames, colorProfile,
+        subtitleTrack, watermarkMode, audioProfile);
+
+    return encodeWithRetry(preparedFrames, outputFormat,
+        watermarkMode, audioProfile);
+}
+
+private byte[] prepareFrames(byte[] sourceFrames, String colorProfile,
+    String subtitleTrack, String watermarkMode, String audioProfile) {
+    byte[] normalizedFrames = normalizeFrames(sourceFrames);
+    byte[] coloredFrames = applyColorProfile(normalizedFrames, colorProfile);
+    byte[] subtitledFrames = overlaySubtitles(coloredFrames, subtitleTrack);
+    byte[] watermarkedFrames = applyWatermark(subtitledFrames, watermarkMode);
+
+    return normalizeAudio(watermarkedFrames, audioProfile);
+}
+
+private byte[] encodeWithRetry(byte[] preparedFrames, String outputFormat) {
+    int attemptsLeft = this.maxAttempts;
+
+    while (attemptsLeft-- > 0) {
+        try {
+            return encode(preparedFrames, outputFormat);
+        } catch (RuntimeException ex) { /* retry */ }
+    }
+
+    throw new IllegalStateException("Encoding failed");
+}
+
+private byte[] encode(byte[] preparedFrames, String outputFormat) {
+    byte[] encodedVideo = runEncoder(preparedFrames);
+
+    return finalizeExport(encodedVideo, outputFormat);
+}`;
+
+const CODE_V3e = `public byte[] exportVideo(byte[] sourceFrames, String outputFormat, String colorProfile,
+        String subtitleTrack, String watermarkMode, String audioProfile) {
+    validateInput(sourceFrames, outputFormat);
+    byte[] preparedFrames = prepareFrames(sourceFrames, colorProfile,
+        subtitleTrack, watermarkMode, audioProfile);
+
+    return encodeWithRetry(preparedFrames, outputFormat,
+        watermarkMode, audioProfile);
+}
+
+private byte[] prepareFrames(byte[] sourceFrames, String colorProfile,
+    String subtitleTrack, String watermarkMode, String audioProfile) {
+    byte[] normalizedFrames = normalizeFrames(sourceFrames);
+    byte[] coloredFrames = applyColorProfile(normalizedFrames, colorProfile);
+    byte[] subtitledFrames = overlaySubtitles(coloredFrames, subtitleTrack);
+    byte[] watermarkedFrames = applyWatermark(subtitledFrames, watermarkMode);
+
+    return normalizeAudio(watermarkedFrames, audioProfile);
+}
+
+private byte[] encodeWithRetry(byte[] preparedFrames, String outputFormat,
+    String watermarkMode, String audioProfile) {
+    int attemptsLeft = this.maxAttempts;
+
+    while (attemptsLeft-- > 0) {
+        try {
+            return encode(preparedFrames, outputFormat, watermarkMode, audioProfile);
+        } catch (RuntimeException ex) { /* retry */ }
+    }
+
+    throw new IllegalStateException("Encoding failed");
+}
+
+private byte[] encode(byte[] preparedFrames, String outputFormat) {
+    byte[] encodedVideo = runEncoder(preparedFrames);
+
+    return finalizeExport(encodedVideo, outputFormat);
+}`;
+
+const CODE_V3f = `public byte[] exportVideo(byte[] sourceFrames, String outputFormat, String colorProfile,
+        String subtitleTrack, String watermarkMode, String audioProfile) {
+    validateInput(sourceFrames, outputFormat);
+    byte[] preparedFrames = prepareFrames(sourceFrames, colorProfile,
+        subtitleTrack, watermarkMode, audioProfile);
+
+    return encodeWithRetry(preparedFrames, outputFormat,
+        watermarkMode, audioProfile);
+}
+
+private byte[] prepareFrames(byte[] sourceFrames, String colorProfile,
+    String subtitleTrack, String watermarkMode, String audioProfile) {
+    byte[] normalizedFrames = normalizeFrames(sourceFrames);
+    byte[] coloredFrames = applyColorProfile(normalizedFrames, colorProfile);
+    byte[] subtitledFrames = overlaySubtitles(coloredFrames, subtitleTrack);
+    byte[] watermarkedFrames = applyWatermark(subtitledFrames, watermarkMode);
+
+    return normalizeAudio(watermarkedFrames, audioProfile);
+}
+
+private byte[] encodeWithRetry(byte[] preparedFrames, String outputFormat,
+    String watermarkMode, String audioProfile) {
+    int attemptsLeft = this.maxAttempts;
+
+    while (attemptsLeft-- > 0) {
+        try {
+            return encode(preparedFrames, outputFormat, watermarkMode, audioProfile);
+        } catch (RuntimeException ex) { /* retry */ }
+    }
+
+    throw new IllegalStateException("Encoding failed");
+}
+
+private byte[] encode(byte[] preparedFrames, String outputFormat,
+    String watermarkMode, String audioProfile) {
+    byte[] encodedVideo = runEncoder(preparedFrames);
+
+    return finalizeExport(encodedVideo, outputFormat, watermarkMode, audioProfile);
+}
+
+private byte[] finalizeExport(byte[] encodedVideo, String outputFormat,
+    String watermarkMode, String audioProfile) {
+    if (!isSupportedFormat(outputFormat)) {
+        throw new IllegalArgumentException("Unsupported: " + outputFormat);
+    }
+
+    Container container = Muxer.mux(encodedVideo, outputFormat);
+    container.applyWatermark(watermarkMode);
+    container.normalizeAudio(audioProfile);
+
+    return container;
 }`;
 
 const COLOR_RULES = [
@@ -254,7 +562,7 @@ export default makeScene2D(function* (view) {
         const col = idx % COLS; const row = Math.floor(idx / COLS);
         const bw = FRAME_W/COLS; const bh = FRAME_H/ROWS;
         const x = -FRAME_W/2 + col*bw + bw/2; const y = -FRAME_H/2 + row*bh + bh/2;
-        return <Rect key={String(idx)} x={x} y={y} width={bw-2} height={bh-2}
+        return <Rect key={`ev1-${idx}`} x={x} y={y} width={bw-2} height={bh-2}
           fill={'rgba(180,175,220,0.45)'} radius={2} opacity={blockOpacitiesV1[idx]}/>;
       })}
     </Rect>
@@ -277,7 +585,7 @@ export default makeScene2D(function* (view) {
         const col = idx % COLS; const row = Math.floor(idx / COLS);
         const bw = FRAME_W/COLS; const bh = FRAME_H/ROWS;
         const x = -FRAME_W/2 + col*bw + bw/2; const y = -FRAME_H/2 + row*bh + bh/2;
-        return <Rect key={String(idx)} x={x} y={y} width={bw-2} height={bh-2}
+        return <Rect key={`fv1-${idx}`} x={x} y={y} width={bw-2} height={bh-2}
           fill={'rgba(180,175,220,0.45)'} radius={2}/>;
       })}
     </Rect>
@@ -343,7 +651,7 @@ export default makeScene2D(function* (view) {
       {Array.from({length: BAR_COUNT}, (_, i) => {
         const totalW = BAR_COUNT * BAR_W + (BAR_COUNT - 1) * 6;
         const x = -totalW/2 + i*(BAR_W+6) + BAR_W/2;
-        return <Rect key={String(i)} x={x} y={0} width={BAR_W} height={barHeights[i]}
+        return <Rect key={`ab-${i}`} x={x} y={0} width={BAR_W} height={barHeights[i]}
           fill={'rgba(244, 241, 235, 0.90)'} radius={3} opacity={barsOpacity}/>;
       })}
     </Rect>
@@ -361,13 +669,13 @@ export default makeScene2D(function* (view) {
         const col = idx % COLS; const row = Math.floor(idx / COLS);
         const bw = FRAME_W/COLS; const bh = FRAME_H/ROWS;
         const x = -FRAME_W/2 + col*bw + bw/2; const y = -FRAME_H/2 + row*bh + bh/2;
-        return <Rect key={String(idx)} x={x} y={y} width={bw-2} height={bh-2}
+        return <Rect key={`ev3-${idx}`} x={x} y={y} width={bw-2} height={bh-2}
           fill={'rgba(20,20,35,0.65)'} radius={2} opacity={blockOpacitiesV3[idx]}/>;
       })}
       {Array.from({length: BAR_COUNT}, (_, i) => {
         const totalW = BAR_COUNT * BAR_W + (BAR_COUNT - 1) * 6;
         const x = -totalW/2 + i*(BAR_W+6) + BAR_W/2;
-        return <Rect key={String(i)} x={x} y={0} width={BAR_W} height={NORMALIZED_H}
+        return <Rect key={`ev3b-${i}`} x={x} y={0} width={BAR_W} height={NORMALIZED_H}
           fill={'rgba(244,241,235,0.90)'} radius={3}/>;
       })}
       <Txt x={-FRAME_W/2+26} y={-FRAME_H/2+44} text={'©'} fontFamily={Fonts.primary} fontSize={48} fill={'rgba(244,241,235,0.85)'} offset={[-1,0]}/>
@@ -392,12 +700,12 @@ export default makeScene2D(function* (view) {
         const col = idx % COLS; const row = Math.floor(idx / COLS);
         const bw = FRAME_W/COLS; const bh = FRAME_H/ROWS;
         const x = -FRAME_W/2 + col*bw + bw/2; const y = -FRAME_H/2 + row*bh + bh/2;
-        return <Rect key={String(idx)} x={x} y={y} width={bw-2} height={bh-2} fill={'rgba(20,20,35,0.65)'} radius={2}/>;
+        return <Rect key={`fv3-${idx}`} x={x} y={y} width={bw-2} height={bh-2} fill={'rgba(20,20,35,0.65)'} radius={2}/>;
       })}
       {Array.from({length: BAR_COUNT}, (_, i) => {
         const totalW = BAR_COUNT * BAR_W + (BAR_COUNT - 1) * 6;
         const x = -totalW/2 + i*(BAR_W+6) + BAR_W/2;
-        return <Rect key={String(i)} x={x} y={0} width={BAR_W} height={NORMALIZED_H} fill={'rgba(244,241,235,0.90)'} radius={3}/>;
+        return <Rect key={`fv3b-${i}`} x={x} y={0} width={BAR_W} height={NORMALIZED_H} fill={'rgba(244,241,235,0.90)'} radius={3}/>;
       })}
       <Txt x={-FRAME_W/2+26} y={-FRAME_H/2+44} text={'©'} fontFamily={Fonts.primary} fontSize={48} fill={'rgba(244,241,235,0.85)'} offset={[-1,0]}/>
       <Rect x={0} y={SUBTITLE_Y} width={FRAME_W-40} height={44} fill={'rgba(0,0,0,0.55)'} radius={4}/>
@@ -433,7 +741,7 @@ export default makeScene2D(function* (view) {
         const col = idx % COLS; const row = Math.floor(idx / COLS);
         const bw = FRAME_W/COLS; const bh = FRAME_H/ROWS;
         const x = -FRAME_W/2 + col*bw + bw/2; const y = -FRAME_H/2 + row*bh + bh/2;
-        return <Rect key={String(idx)} x={x} y={y} width={bw-2} height={bh-2}
+        return <Rect key={`eg-${idx}`} x={x} y={y} width={bw-2} height={bh-2}
           fill={'rgba(180,175,220,0.45)'} radius={2} opacity={blockOpacities[idx]}/>;
       })}
     </Rect>
@@ -456,7 +764,7 @@ export default makeScene2D(function* (view) {
         const col = idx % COLS; const row = Math.floor(idx / COLS);
         const bw = FRAME_W/COLS; const bh = FRAME_H/ROWS;
         const x = -FRAME_W/2 + col*bw + bw/2; const y = -FRAME_H/2 + row*bh + bh/2;
-        return <Rect key={String(idx)} x={x} y={y} width={bw-2} height={bh-2}
+        return <Rect key={`fg-${idx}`} x={x} y={y} width={bw-2} height={bh-2}
           fill={'rgba(180,175,220,0.45)'} radius={2}/>;
       })}
     </Rect>
@@ -472,7 +780,7 @@ export default makeScene2D(function* (view) {
   </>);
 
   // ── CodeBlock ──────────────────────────────────────────────────────────
-  const cb = CodeBlock.fromCode(V0, {
+  const cb = Manticore.create(CODE_V0, {
     x: LEFT_CENTER_X - 50, y: -50,
     width: CODE_W,
     height: SafeZone.bottom - SafeZone.top - 36,
@@ -512,9 +820,8 @@ export default makeScene2D(function* (view) {
   yield* formatLabelOp(1, FADE_IN, easeInOutCubic);
   yield* waitFor(2);
 
-  // ── v0 → v1 ────────────────────────────────────────────────────────────
+  // ── v0 → v1: normalizeFrames + applyColorProfile ──────────────────────
 
-  // 1) старые фреймы плавно исчезают
   yield* all(
     frameOpEncoder(0, FADE_IN, easeInOutCubic),
     frameOpFinalize(0, FADE_IN, easeInOutCubic),
@@ -523,7 +830,6 @@ export default makeScene2D(function* (view) {
   for (const sig of blockOpacities) sig(0);
   yield* waitFor(0.3);
 
-  // 2) normalizeFrames появляется на том же месте
   yield* frameOpNorm(1, FADE_IN, easeInOutCubic);
   yield* waitFor(0.4);
   yield* guidesOp(1, 0.3, easeInOutCubic);
@@ -540,7 +846,6 @@ export default makeScene2D(function* (view) {
   yield* guidesOp(0, 0.4, easeInOutCubic);
   yield* waitFor(0.3);
 
-  // 3) applyColorProfile появляется под normalizeFrames
   yield* frameOpColor(1, FADE_IN, easeInOutCubic);
   yield* waitFor(0.2);
   paintProgress(0);
@@ -549,33 +854,15 @@ export default makeScene2D(function* (view) {
   yield* sweepOpacity(0, 0.2, easeInOutCubic);
   yield* waitFor(0.3);
 
-  // 4) код: colorProfile в сигнатуру — вставка перед ")" в строке 0
-  yield* cb.insertInLine(0, ')', ', String colorProfile', {fromEnd: true});
+  yield* cb.morphTo(CODE_V1a);
   yield* waitFor(0.5);
 
-  // 6) вставляем вызов prepareFrames (после строки 1: validateInput)
-  yield* cb.insertLinesAt(1, '    byte[] preparedFrames = prepareFrames(sourceFrames, colorProfile);', {
-    extraColorRules: [{match: 'prepareFrames', color: METHOD_COLOR}],
-  });
-  yield* waitFor(0.3);
-
-  // 7) меняем sourceFrames → preparedFrames в runEncoder (строка 3)
-  yield* cb.replaceInLine(3, 'sourceFrames', 'preparedFrames');
+  yield* cb.morphTo(CODE_V1b);
   yield* waitFor(0.8);
 
-  // 8) вставляем реализацию prepareFrames (после строки 6)
-  yield* cb.insertLinesAt(6, [
-    '',
-    'private byte[] prepareFrames(byte[] sourceFrames, String colorProfile) {',
-    '    byte[] normalizedFrames = normalizeFrames(sourceFrames);',
-    '    return applyColorProfile(normalizedFrames, colorProfile);',
-    '}',
-  ], {
-    extraColorRules: [{match: 'prepareFrames', color: VAR_LIGHT}],
-  });
+  yield* cb.morphTo(CODE_V1c);
   yield* waitFor(0.5);
 
-  // 9) runEncoder v1 появляется после кода — быстрая анимация кубиков
   yield* frameOpEncoderV1(1, FADE_IN, easeInOutCubic);
   yield* waitFor(0.1);
   const blockDelayV1 = 0.004; const blockOpV1 = 0.025;
@@ -585,7 +872,6 @@ export default makeScene2D(function* (view) {
   }
   yield* waitFor(0.8);
 
-  // 10) три фрейма уменьшаются и уезжают наверх рядом
   yield* all(
     collapseS0(ICON_SCALE, 0.8, easeInOutCubic),
     collapseS1(ICON_SCALE, 0.8, easeInOutCubic),
@@ -599,16 +885,14 @@ export default makeScene2D(function* (view) {
   );
   yield* waitFor(0.3);
 
-  // 11) finalizeExport v1 появляется вместе с .mp4 badge
   yield* all(
     frameOpFinalizeV1(1, FADE_IN, easeInOutCubic),
     formatLabelOpV1(1, FADE_IN, easeInOutCubic),
   );
   yield* waitFor(2);
 
-  // ── v1 → v2 ────────────────────────────────────────────────────────────
+  // ── v1 → v2: subtitles + encodeWithRetry + encode ─────────────────────
 
-  // 1) два фрейма исчезают
   yield* all(
     frameOpFinalizeV1(0, FADE_IN, easeInOutCubic),
     formatLabelOpV1(0, FADE_IN, easeInOutCubic),
@@ -617,95 +901,32 @@ export default makeScene2D(function* (view) {
   for (const sig of blockOpacitiesV1) sig(0);
   yield* waitFor(0.3);
 
-  // 2) появляется фрейм overlaySubtitles
   yield* frameOpSubtitles(1, FADE_IN, easeInOutCubic);
   yield* waitFor(0.3);
   yield* subtitleBarOp(1, 0.5, easeInOutCubic);
   yield* waitFor(0.5);
 
-  // 3) subtitleTrack в сигнатуру exportVideo — перенос ") {" на новую строку
-  yield* cb.splitLine(0, ')', '        String subtitleTrack', {
-    insertBeforeSplit: ',',
-    fromEnd: true,
-  });
-  yield* waitFor(0.5);
-
-  // 4) subtitleTrack в вызов prepareFrames — вставка перед ")" в строке 3
-  //    (строка 2 стала 3 после split)
-  yield* cb.insertInLine(3, ')', ', subtitleTrack', {fromEnd: true});
-  yield* waitFor(0.5);
-
-  // 4b) subtitleTrack сразу в сигнатуру prepareFrames
-  yield* cb.addParam(cb.findLine('private byte[] prepareFrames'), 'String subtitleTrack', '    ');
-  yield* waitFor(0.5);
-
-  // 5) мутация prepareFrames: "return applyColorProfile(...)" → две строки
-  const recoloredLineIdx = cb.findLine('return applyColorProfile');
-  yield* cb.removeLines(recoloredLineIdx, 1, 0.15);
-  yield* cb.insertLinesAt(recoloredLineIdx - 1, [
-    '    byte[] coloredFrames = applyColorProfile(normalizedFrames, colorProfile);',
-    '',
-    '    return overlaySubtitles(coloredFrames, subtitleTrack);',
-  ]);
-
+  yield* cb.morphTo(CODE_V2a);
   yield* waitFor(0.8);
 
-  // 6) runEncoder → encodeWithRetry, добавляем outputFormat
-  const encoderLineIdx = cb.findLine('runEncoder(preparedFrames)');
-  yield* cb.replaceInLine(encoderLineIdx, 'runEncoder', 'encodeWithRetry', 0.012, null);
-  cb.colorizeRange(encoderLineIdx, encoderLineIdx, cb.savedRules);
-  yield* cb.insertInLine(encoderLineIdx, ')', ', outputFormat', {fromEnd: true});
-
-  yield* waitFor(0.8);
-
-  // 7) вставляем encodeWithRetry после prepareFrames — прокручиваем к месту вставки
-  yield* cb.scrollToLine(cb.findLine('return overlaySubtitles') + 1);
-  yield* cb.insertLinesAt(cb.findLine('return overlaySubtitles') + 1, [
-    '',
-    'private byte[] encodeWithRetry(byte[] preparedFrames, String outputFormat) {',
-    '    int attemptsLeft = this.maxAttempts;',
-    '',
-    '    while (attemptsLeft-- > 0) {',
-    '        try {',
-    '            return encode(preparedFrames, outputFormat);',
-    '        } catch (RuntimeException ex) { /* retry */ }',
-    '    }',
-    '',
-    '    throw new IllegalStateException("Encoding failed");',
-    '}',
-  ], {
-    extraColorRules: [{match: 'encodeWithRetry', color: VAR_LIGHT}],
-  });
-
-  yield* waitFor(0.8);
-
-  yield* cb.scrollToLine(cb.findLine('throw new IllegalStateException') + 1, 0.8);
-  yield* cb.insertLinesAt(cb.findLine('throw new IllegalStateException') + 1, [
-    '',
-    'private byte[] encode(byte[] preparedFrames, String outputFormat) {',
-    '    byte[] encodedVideo = runEncoder(preparedFrames);',
-    '',
-    '    return finalizeExport(encodedVideo, outputFormat);',
-    '}',
-  ]);
-
+  yield* cb.morphTo(CODE_V2b);
   yield* waitFor(1.5);
 
   const passRule = [{match: 'outputFormat', color: PASS_THROUGH}];
 
-  yield* cb.scrollToLine(0, 1.0);
+  yield* cb.scrollTo(0, 1.0);
   yield* waitFor(0.8);
 
   const exportVideoLine  = cb.findLine('public byte[] exportVideo');
-  const exportCallLine   = cb.findLine('encodeWithRetry(preparedFrames, outputFormat)');
+  const exportCallLine   = cb.findLine('return encodeWithRetry(preparedFrames, outputFormat)');
   const retrySignature   = cb.findLine('private byte[] encodeWithRetry');
   const encodeCall       = cb.findLine('return encode(preparedFrames');
   const encodeSignature  = cb.findLine('private byte[] encode(');
-  const finalizeCall     = cb.findLastLine('return finalizeExport(encodedVideo, outputFormat)');
+  const finalizeCallIdx  = cb.findLine('return finalizeExport(encodedVideo, outputFormat)');
 
   const highlight = (from: number, to: number) => all(
     cb.dimLines(from, to, 1, 0.4),
-    cb.colorizeRangeAnimated(from, to, passRule, 0.4),
+    cb.colorizeAnimated(from, to, 0.4, passRule),
   );
 
   yield* all(
@@ -718,7 +939,7 @@ export default makeScene2D(function* (view) {
   yield* highlight(exportCallLine, exportCallLine);
   yield* waitFor(1.0);
 
-  yield* cb.scrollToLine(retrySignature, 1.2);
+  yield* cb.scrollTo(retrySignature, 1.2);
   yield* highlight(retrySignature, retrySignature);
   yield* waitFor(0.8);
 
@@ -728,7 +949,7 @@ export default makeScene2D(function* (view) {
   yield* highlight(encodeSignature, encodeSignature);
   yield* waitFor(0.8);
 
-  yield* highlight(finalizeCall, finalizeCall);
+  yield* highlight(finalizeCallIdx, finalizeCallIdx);
   yield* waitFor(2.0);
 
   const STRIPE_COLOR  = 'rgba(255, 80, 120, 0.18)';
@@ -737,8 +958,8 @@ export default makeScene2D(function* (view) {
   const stripeX       = -Screen.width / 2 + stripeW / 2;
 
   const retryDefLine    = cb.findLine('private byte[] encodeWithRetry');
-  const finalizeOutLine = cb.findLastLine('return finalizeExport(encodedVideo, outputFormat)');
-  const encodeCallLine  = cb.findLine('return encode(preparedFrames');
+  const finalizeOutLine = cb.findLine('return finalizeExport(encodedVideo, outputFormat)');
+  const encodeCallLine2 = cb.findLine('return encode(preparedFrames');
 
   const stripeRetry = new Rect({
     width: stripeW, height: stripeH,
@@ -759,39 +980,33 @@ export default makeScene2D(function* (view) {
   );
   yield* waitFor(1.2);
 
-  yield* cb.dimLines(encodeCallLine, encodeCallLine, 1.0, 0.18);
-  yield* cb.dimLines(encodeCallLine, encodeCallLine, 0.25, 0.18);
-  yield* cb.dimLines(encodeCallLine, encodeCallLine, 1.0, 0.18);
-  yield* cb.dimLines(encodeCallLine, encodeCallLine, 0.25, 0.18);
-  yield* cb.dimLines(encodeCallLine, encodeCallLine, 1.0, 0.18);
+  yield* cb.dimLines(encodeCallLine2, encodeCallLine2, 1.0, 0.18);
+  yield* cb.dimLines(encodeCallLine2, encodeCallLine2, 0.25, 0.18);
+  yield* cb.dimLines(encodeCallLine2, encodeCallLine2, 1.0, 0.18);
+  yield* cb.dimLines(encodeCallLine2, encodeCallLine2, 0.25, 0.18);
+  yield* cb.dimLines(encodeCallLine2, encodeCallLine2, 1.0, 0.18);
   yield* waitFor(0.5);
 
-  cb.saveColorRules(COLOR_RULES);
   yield* all(
     stripeRetry.opacity(0, 0.5, easeInOutCubic),
     stripeFinal.opacity(0, 0.5, easeInOutCubic),
     cb.showAllLines(0.5),
-    cb.colorizeRangeAnimated(0, cb.lineCount - 1, COLOR_RULES, 0.5),
+    cb.colorizeAnimated(0, cb.lineCount - 1, 0.5),
   );
 
   yield* waitFor(1.5);
 
-  // ── v3: exportVideo — watermarkMode, audioProfile ────────────────────
-  yield* cb.scrollToLine(0, 0.8);
-  {
-    const exportStart = cb.findLine('public byte[] exportVideo');
-    yield* cb.addParam(exportStart, 'String watermarkMode', '        ');
-    yield* cb.addParam(exportStart, 'String audioProfile', '        ');
-  }
-  yield* waitFor(0.5);
-
-  // ── v3: watermark фрейм ───────────────────────────────────────────────
+  // ── v3: watermark фрейм → параметр ──────────────────────────────────
   yield* frameOpWatermark(1, Timing.slow, easeInOutCubic);
   yield* waitFor(0.3);
   yield* watermarkOp(1, 0.5, easeInOutCubic);
   yield* waitFor(0.3);
 
-  // ── v3: audio фрейм ───────────────────────────────────────────────────
+  yield* cb.scrollTo(0, 0.8);
+  yield* cb.morphTo(CODE_V3a);
+  yield* waitFor(0.5);
+
+  // ── v3: audio фрейм → параметр ────────────────────────────────────────
   yield* frameOpAudio(1, Timing.slow, easeInOutCubic);
   yield* waitFor(0.2);
   yield* barsOpacity(1, 0.3, easeInOutCubic);
@@ -804,7 +1019,10 @@ export default makeScene2D(function* (view) {
     );
   }
   yield* all(...barHeights.map(h => h(NORMALIZED_H, 0.4, easeInOutCubic)));
-  yield* waitFor(1.2);
+  yield* waitFor(0.5);
+
+  yield* cb.morphTo(CODE_V3b);
+  yield* waitFor(0.5);
 
   // ── схлопывание ───────────────────────────────────────────────────────
   yield* all(
@@ -830,94 +1048,30 @@ export default makeScene2D(function* (view) {
   }
   yield* waitFor(0.5);
 
-  // ── v3: finalizeExport визуал — mp4 сразу ────────────────────────────
+  // ── v3: finalizeExport визуал ─────────────────────────────────────────
   yield* all(
     frameOpFinalizeV3(1, Timing.slow, easeInOutCubic),
     formatLabelOpV3(1, Timing.slow, easeInOutCubic),
   );
   yield* waitFor(1.0);
 
-  // ── v3: exportVideo — обновляем вызовы (сверху вниз) ────────────────
-  {
-    const exportStart = cb.findLine('public byte[] exportVideo');
-    yield* cb.scrollToLine(exportStart, 0.8);
-    const prepareCall = cb.findLine('prepareFrames(sourceFrames, colorProfile, subtitleTrack)');
-    yield* cb.insertInLine(prepareCall, ')', ', watermarkMode, audioProfile', {fromEnd: true});
-    const retryCall = cb.findLine('return encodeWithRetry(preparedFrames, outputFormat)');
-    yield* cb.insertInLine(retryCall, ')', ', watermarkMode, audioProfile', {fromEnd: true});
-  }
+  // ── v3: обновляем вызовы в exportVideo ────────────────────────────────
+  yield* cb.scrollTo(0, 0.8);
+  yield* cb.morphTo(CODE_V3c);
   yield* waitFor(0.5);
 
   // ── v3: prepareFrames — сигнатура + тело ─────────────────────────────
-  {
-    const prepareStart = cb.findLine('private byte[] prepareFrames');
-    yield* cb.scrollToLine(prepareStart, 0.8);
-    yield* cb.addParam(prepareStart, 'String watermarkMode', '    ');
-    yield* cb.addParam(prepareStart, 'String audioProfile', '    ');
-    yield* waitFor(0.3);
-
-    const overlayLine = cb.findLine('return overlaySubtitles', prepareStart);
-    yield* cb.removeLines(overlayLine, 1, 0.12);
-    yield* cb.insertLinesAt(overlayLine - 1, [
-      '    byte[] subtitledFrames = overlaySubtitles(coloredFrames, subtitleTrack);',
-      '    byte[] watermarkedFrames = applyWatermark(subtitledFrames, watermarkMode);',
-      '',
-      '    return normalizeAudio(watermarkedFrames, audioProfile);',
-    ]);
-  }
+  yield* cb.scrollTo('private byte[] prepareFrames', 0.8);
+  yield* cb.morphTo(CODE_V3d);
   yield* waitFor(0.5);
 
   // ── v3: encodeWithRetry — сигнатура + вызов encode ───────────────────
-  {
-    const retryStart = cb.findLine('private byte[] encodeWithRetry');
-    yield* cb.scrollToLine(retryStart, 0.8);
-    yield* cb.addParam(retryStart, 'String watermarkMode', '    ');
-    yield* cb.addParam(retryStart, 'String audioProfile', '    ');
-    const encodeCall = cb.findLine('return encode(preparedFrames, outputFormat)', retryStart);
-    yield* cb.insertInLine(encodeCall, ')', ', watermarkMode, audioProfile', {fromEnd: true});
-  }
+  yield* cb.scrollTo('private byte[] encodeWithRetry', 0.8);
+  yield* cb.morphTo(CODE_V3e);
   yield* waitFor(0.5);
 
-  // ── v3: encode + finalizeExport (вставка + мутации) ─────────────────
-  {
-    const encodeStart = cb.findLine('private byte[] encode(');
-    yield* cb.scrollToLine(encodeStart, 0.8);
-
-    // сначала вставляем finalizeExport метод пока вызов ещё без новых параметров
-    const finalizeCallLine = cb.findLine('return finalizeExport(encodedVideo, outputFormat)', encodeStart);
-    yield* cb.insertLinesAt(finalizeCallLine + 1, [
-      '',
-      'private byte[] finalizeExport(byte[] encodedVideo, String outputFormat) {',
-      '    if (!isSupportedFormat(outputFormat)) {',
-      '        throw new IllegalArgumentException("Unsupported: " + outputFormat);',
-      '    }',
-      '',
-      '    return Muxer.mux(encodedVideo, outputFormat);',
-      '}',
-    ]);
-    yield* waitFor(0.3);
-
-    // мутируем encode: добавляем параметры + обновляем вызов finalizeExport
-    yield* cb.addParam(encodeStart, 'String watermarkMode', '    ');
-    yield* cb.addParam(encodeStart, 'String audioProfile', '    ');
-    const finalizeCall = cb.findLine('return finalizeExport(encodedVideo, outputFormat)', encodeStart);
-    yield* cb.insertInLine(finalizeCall, ')', ', watermarkMode, audioProfile', {fromEnd: true});
-    yield* waitFor(0.3);
-
-    // мутируем finalizeExport
-    const finalizeStart = cb.findLine('private byte[] finalizeExport');
-    yield* cb.scrollToLine(finalizeStart, 0.8);
-    yield* cb.addParam(finalizeStart, 'String watermarkMode', '    ');
-    yield* cb.addParam(finalizeStart, 'String audioProfile', '    ');
-    const muxLine = cb.findLine('return Muxer.mux(encodedVideo, outputFormat)', finalizeStart);
-    yield* cb.removeLines(muxLine, 1, 0.12);
-    yield* cb.insertLinesAt(muxLine - 1, [
-      '    Container container = Muxer.mux(encodedVideo, outputFormat);',
-      '    container.applyWatermark(watermarkMode);',
-      '    container.normalizeAudio(audioProfile);',
-      '',
-      '    return container;',
-    ]);
-  }
+  // ── v3: encode + finalizeExport ──────────────────────────────────────
+  yield* cb.scrollTo('private byte[] encode(', 0.8);
+  yield* cb.morphTo(CODE_V3f);
   yield* waitFor(1.5);
 });

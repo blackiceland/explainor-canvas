@@ -311,6 +311,71 @@ export class CodeLine {
         }
     }
 
+    public showTokensUpTo(charPos: number): void {
+        let pos = 0;
+        for (const tokenData of this.tokensData) {
+            const len = tokenData.text.length;
+            if (pos + len <= charPos) {
+                tokenData.ref().opacity(1);
+                tokenData.ref().text(tokenData.text);
+            } else if (pos < charPos) {
+                tokenData.ref().opacity(1);
+                tokenData.ref().text(tokenData.text.slice(0, charPos - pos));
+            } else {
+                tokenData.ref().opacity(0);
+            }
+            pos += len;
+        }
+    }
+
+    public hideTokensFrom(charPos: number): void {
+        let pos = 0;
+        for (const tokenData of this.tokensData) {
+            const len = tokenData.text.length;
+            if (pos >= charPos) {
+                tokenData.ref().opacity(0);
+            }
+            pos += len;
+        }
+    }
+
+    public *typewriterFrom(charPos: number, charDelay: number = 0.012): ThreadGenerator {
+        let pos = 0;
+        for (const tokenData of this.tokensData) {
+            const full = tokenData.text;
+            if (full.length === 0) continue;
+            const txtNode = tokenData.ref();
+
+            if (pos + full.length <= charPos) {
+                txtNode.opacity(1);
+                txtNode.text(full);
+                pos += full.length;
+                continue;
+            }
+
+            txtNode.opacity(1);
+            const startChar = Math.max(0, charPos - pos);
+
+            if (startChar > 0) {
+                txtNode.text(full.slice(0, startChar));
+            } else {
+                txtNode.text('');
+            }
+
+            for (let c = startChar; c < full.length; c++) {
+                txtNode.text(full.slice(0, c + 1));
+                const ch = full[c];
+                const dt =
+                    ch === ' '  ? charDelay * 0.5 :
+                    ch === '\t' ? charDelay * 0.3 :
+                    /[{}()\[\];,.<>:=]/.test(ch) ? charDelay * 1.5 :
+                    charDelay;
+                yield* waitFor(dt);
+            }
+            pos += full.length;
+        }
+    }
+
     /** Заменяет текст токена с анимацией:
      *  1) подсветка старого (highlight), 2) стирание посимвольно, 3) печать нового посимвольно.
      *  highlightColor — цвет подсветки перед стиранием (null = без подсветки). */
