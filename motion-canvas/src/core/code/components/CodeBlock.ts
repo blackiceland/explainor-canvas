@@ -244,6 +244,13 @@ export class CodeBlock {
      * paramText — текст нового параметра (без запятой), например 'String watermarkMode'.
      * indent — отступ новой строки, например '    '.
      */
+    /**
+     * Добавляет параметр в сигнатуру метода. Существующий код не мигает.
+     *
+     * Путь A: однострочная сигнатура, параметр влезает → insertInLine
+     * Путь B: однострочная, не влезает → splitLine (перенос ') {') + insertLinesAt
+     * Путь C: уже многострочная (') {' на отдельной строке) → insertLinesAt
+     */
     public *addParam(
         fromLine: number,
         paramText: string,
@@ -251,41 +258,46 @@ export class CodeBlock {
     ): ThreadGenerator {
         if (!this.mounted) return;
 
-        // Ищем строку с закрывающей ')' сигнатуры начиная с fromLine
-        let lineIdx = -1;
+        let closingIdx = -1;
         for (let i = fromLine; i < this.document.lines.length; i++) {
             const l = this.document.lines[i];
             if (l.includes(') {') || l.trim() === ')') {
-                lineIdx = i;
+                closingIdx = i;
                 break;
             }
         }
-        if (lineIdx === -1) return;
+        if (closingIdx === -1) return;
 
-        const line = this.document.lines[lineIdx];
-        const isClosingOnly = line.trim() === ') {' || line.trim() === ')';
+        const closingLine = this.document.lines[closingIdx];
+        const isMultiline = closingIdx > fromLine &&
+            (closingLine.trim() === ') {' || closingLine.trim() === ')');
 
-        if (isClosingOnly) {
-            // Сигнатура уже разбита — добавляем запятую к предыдущей строке,
-            // затем вставляем новую строку с параметром перед ') {'
-            const prevIdx = lineIdx - 1;
-            if (prevIdx >= 0) {
-                const prevText = this.document.lines[prevIdx];
-                const lastToken = prevText.trimEnd().split(/\s+/).pop() ?? '';
-                if (lastToken && !lastToken.endsWith(',')) {
-                    yield* this.replaceInLine(prevIdx, lastToken, lastToken + ',', 0.012, null, true);
-                }
+        if (isMultiline) {
+            // Путь C: сигнатура уже разбита. Добавляем запятую + новую строку.
+            const prevIdx = closingIdx - 1;
+            const prevDoc = this.document.lines[prevIdx];
+            if (prevDoc && !prevDoc.trimEnd().endsWith(',')) {
+                yield* this.insertInLine(prevIdx, prevDoc.trim().split(/\s+/).pop()!, ',');
             }
-            yield* this.insertLinesAt(lineIdx - 1, [indent + paramText]);
+            yield* this.insertLinesAt(closingIdx - 1, [indent + paramText]);
         } else {
-            // Однострочная сигнатура — проверяем влезет ли параметр
-            const withCommaAndParam = line.replace(/\)\s*\{/, ', ' + paramText + ') {');
-            const lineWidthAfter = textWidth(withCommaAndParam, this.config.fontFamily, this.config.fontSize);
+            // Однострочная сигнатура
+            const line = this.document.lines[closingIdx];
+            const withParam = line.replace(/\)\s*\{/, ', ' + paramText + ') {');
+            const w = textWidth(withParam, this.config.fontFamily, this.config.fontSize);
 
-            if (lineWidthAfter <= this.mountedContentWidth) {
-                yield* this.insertInLine(lineIdx, ')', ', ' + paramText, {fromEnd: true});
+            if (w <= this.mountedContentWidth) {
+                // Путь A: влезает inline
+                yield* this.insertInLine(closingIdx, ')', ', ' + paramText, {fromEnd: true});
             } else {
-                yield* this.splitLine(lineIdx, ')', indent + paramText, {insertBeforeSplit: ',', fromEnd: true});
+                // Путь B: не влезает.
+                // 1) splitLine: запятая + перенос ') {' на отдельную строку
+                yield* this.splitLine(closingIdx, ')', '', {
+                    insertBeforeSplit: ',',
+                    fromEnd: true,
+                });
+                // 2) вставляем строку с параметром между сигнатурой и ') {'
+                yield* this.insertLinesAt(closingIdx, [indent + paramText]);
             }
         }
     }
