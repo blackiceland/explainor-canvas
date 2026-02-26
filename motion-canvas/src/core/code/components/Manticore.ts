@@ -63,6 +63,7 @@ export class Manticore {
     private colorRules: ColorRule[] = [];
 
     private contentWidth = 0;
+    private clipHeight = 0;
     private leftEdge = 0;
     private startY = 0;
 
@@ -106,10 +107,10 @@ export class Manticore {
         this.card = new CodeCard({width: cardWidth, height: cardHeight, style: this.cfg.cardStyle});
         container.add(this.card.build());
 
-        const clipHeight = Math.max(0, cardHeight - paddingY * 2);
+        this.clipHeight = Math.max(0, cardHeight - paddingY * 2);
         const clip = new Rect({
             width: this.contentWidth,
-            height: clipHeight,
+            height: this.clipHeight,
             radius: 0,
             fill: '#00000000',
             clip: true,
@@ -124,7 +125,7 @@ export class Manticore {
         this.leftEdge = -this.contentWidth / 2 + this.cfg.contentOffsetX;
         const shouldTopAlign = this.cfg.height > 0 && cardHeight !== contentHeight;
         this.startY = shouldTopAlign
-            ? -clipHeight / 2 + this.cfg.contentOffsetY + this.cfg.lineHeight / 2
+            ? -this.clipHeight / 2 + this.cfg.contentOffsetY + this.cfg.lineHeight / 2
             : -((this.code.length - 1) / 2) * this.cfg.lineHeight;
 
         for (let i = 0; i < this.code.length; i++) {
@@ -235,6 +236,28 @@ export class Manticore {
         const newOffset = -this.lineY(idx) + this.startY;
         if (Math.abs(newOffset - content.y()) > 1) {
             yield* content.y(newOffset, duration, easeInOutCubic);
+        }
+    }
+
+    private *ensureRangeVisible(firstLine: number, lastLine: number, duration = 0.3): ThreadGenerator {
+        const content = this.contentRef();
+        const halfClip = this.clipHeight / 2;
+        const halfLine = this.cfg.lineHeight / 2;
+        const padding = this.cfg.lineHeight * 1.5;
+        const topEdge = this.lineY(firstLine) + content.y() - halfLine;
+        const bottomEdge = this.lineY(lastLine) + content.y() + halfLine;
+
+        if (bottomEdge - topEdge > this.clipHeight - padding * 2) {
+            if (topEdge < -halfClip + padding) {
+                yield* content.y(-this.lineY(firstLine) + halfLine - halfClip + padding, duration, easeInOutCubic);
+            }
+            return;
+        }
+
+        if (bottomEdge > halfClip - padding) {
+            yield* content.y(-this.lineY(lastLine) - halfLine + halfClip - padding, duration, easeInOutCubic);
+        } else if (topEdge < -halfClip + padding) {
+            yield* content.y(-this.lineY(firstLine) + halfLine - halfClip + padding, duration, easeInOutCubic);
         }
     }
 
@@ -394,16 +417,36 @@ export class Manticore {
 
         if (phase2.length > 0) yield* all(...phase2);
 
-        for (const p of plan) {
-            if (p.kind === 'modify') {
-                const vis = this.resolveTokenVisibility(p.tokenDiff!);
-                yield* this.typewriterNewTokens(modifyMap.get(p.newIndex)!, vis, charDelay);
+        const typewriterPlan = plan.filter(p => p.kind === 'modify' || p.kind === 'add');
+        let ti = 0;
+        while (ti < typewriterPlan.length) {
+            let blockEnd = ti;
+            while (blockEnd + 1 < typewriterPlan.length
+                && typewriterPlan[blockEnd + 1].newIndex === typewriterPlan[blockEnd].newIndex + 1) {
+                blockEnd++;
+            }
+
+            const blockSize = blockEnd - ti + 1;
+            const previewEnd = Math.max(ti, blockEnd - Math.ceil(blockSize * 0.3));
+            yield* this.ensureRangeVisible(
+                typewriterPlan[ti].newIndex,
+                typewriterPlan[previewEnd].newIndex,
+                moveDuration,
+            );
+
+            for (let bi = ti; bi <= blockEnd; bi++) {
+                const p = typewriterPlan[bi];
+                yield* this.ensureRangeVisible(p.newIndex, p.newIndex, moveDuration);
+                if (p.kind === 'modify') {
+                    const vis = this.resolveTokenVisibility(p.tokenDiff!);
+                    yield* this.typewriterNewTokens(modifyMap.get(p.newIndex)!, vis, charDelay);
+                } else {
+                    yield* result[p.newIndex]!.typewriter(charDelay);
+                }
                 if (lineDelay > 0) yield* waitFor(lineDelay);
             }
-            if (p.kind === 'add') {
-                yield* result[p.newIndex]!.typewriter(charDelay);
-                if (lineDelay > 0) yield* waitFor(lineDelay);
-            }
+
+            ti = blockEnd + 1;
         }
 
         this.lines = result as CodeLine[];
