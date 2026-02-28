@@ -91,7 +91,7 @@ export class JavaClass {
 
     updateCallArgs(methodName: string, callName: string, args: string[]): void {
         const m = this.getMethod(methodName);
-        const re = new RegExp(`(.*\\b${callName}\\()([^)]*)(\\).*)`, 's');
+        const re = new RegExp(`(.*\\b${callName}\\()([^)]*)(\\).*)`);
         for (let i = 0; i < m.body.length; i++) {
             const match = m.body[i].match(re);
             if (match) {

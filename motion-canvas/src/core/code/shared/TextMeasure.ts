@@ -39,7 +39,12 @@ export function getLineHeight(fontSize: number): number {
     return fontSize * DEFAULT_LINE_HEIGHT_RATIO;
 }
 
+const PUNCT_RE = /[{}()\[\];,.<>:=]/;
 
-
-
+export function charDelay(ch: string, baseDelay: number): number {
+    if (ch === ' ') return baseDelay * 0.5;
+    if (ch === '\t') return baseDelay * 0.3;
+    if (PUNCT_RE.test(ch)) return baseDelay * 1.5;
+    return baseDelay;
+}
 

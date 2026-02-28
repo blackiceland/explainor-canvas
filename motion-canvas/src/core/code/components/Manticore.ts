@@ -4,7 +4,7 @@ import {tokenizeLine, TokenType} from '../model/Tokenizer';
 import {SyntaxTheme, IntelliJDarkTheme} from '../model/SyntaxTheme';
 import {CodeCard, CodeCardStyle} from './CodeCard';
 import {CodeLine, TokenData} from './CodeLine';
-import {getCodePaddingX, getCodePaddingY, getLineHeight} from '../shared/TextMeasure';
+import {getCodePaddingX, getCodePaddingY, getLineHeight, charDelay as charDelayFn} from '../shared/TextMeasure';
 import {Fonts} from '../../theme';
 import {diffLines} from '../diff/LineDiff';
 import {diffTokens, TokenDiffEntry} from '../diff/TokenDiff';
@@ -57,7 +57,6 @@ interface LinePlan {
 
 interface TokenVisibility {
     kept: Set<number>;
-    total: number;
 }
 
 interface MorphResolvedOptions {
@@ -229,11 +228,7 @@ export class Manticore {
             if (!isWhitespace && !isClosingPunct) kept.add(entry.newIndex);
         }
 
-        let total = 0;
-        for (const entry of td) {
-            total = Math.max(total, entry.newIndex + 1);
-        }
-        return {kept, total};
+        return {kept};
     }
 
     private mapTokenDataToNewIndex(tokens: TokenData[]): number[] {
@@ -309,27 +304,31 @@ export class Manticore {
         return y - halfLine >= -halfClip && y + halfLine <= halfClip;
     }
 
+    private viewMetrics() {
+        return {
+            contentY: this.contentRef().y(),
+            halfClip: this.clipHeight / 2,
+            halfLine: this.cfg.lineHeight / 2,
+            topPad: Math.min(8, this.cfg.lineHeight * 0.25),
+            bottomPad: this.cfg.lineHeight,
+        };
+    }
+
     private isRangeVisible(
         firstLine: number,
         lastLine: number,
         linesRef?: (CodeLine | null)[],
     ): boolean {
-        const content = this.contentRef();
-        const halfClip = this.clipHeight / 2;
-        const halfLine = this.cfg.lineHeight / 2;
-        const topPadding = Math.min(8, this.cfg.lineHeight * 0.25);
-        const bottomPadding = this.cfg.lineHeight;
+        const {contentY, halfClip, halfLine, topPad, bottomPad} = this.viewMetrics();
         const lines = linesRef ?? this.lines;
-
         const firstY = lines[firstLine]?.node.y() ?? this.lineY(firstLine);
         const lastY = lines[lastLine]?.node.y() ?? this.lineY(lastLine);
-        const topEdge = firstY + content.y() - halfLine;
-        const bottomEdge = lastY + content.y() + halfLine;
-        const available = this.clipHeight - topPadding - bottomPadding;
+        const topEdge = firstY + contentY - halfLine;
+        const bottomEdge = lastY + contentY + halfLine;
 
-        if (bottomEdge - topEdge > available) return false;
-        if (bottomEdge > halfClip - bottomPadding) return false;
-        if (firstLine > 0 && topEdge < -halfClip + topPadding) return false;
+        if (bottomEdge - topEdge > this.clipHeight - topPad - bottomPad) return false;
+        if (bottomEdge > halfClip - bottomPad) return false;
+        if (firstLine > 0 && topEdge < -halfClip + topPad) return false;
         return true;
     }
 
@@ -351,30 +350,25 @@ export class Manticore {
         duration = 0.3,
         linesRef?: (CodeLine | null)[],
     ): ThreadGenerator {
+        const {contentY, halfClip, halfLine, topPad, bottomPad} = this.viewMetrics();
         const content = this.contentRef();
-        const halfClip = this.clipHeight / 2;
-        const halfLine = this.cfg.lineHeight / 2;
-        const topPadding = Math.min(8, this.cfg.lineHeight * 0.25);
-        const bottomPadding = this.cfg.lineHeight;
         const lines = linesRef ?? this.lines;
-
         const firstY = lines[firstLine]?.node.y() ?? this.lineY(firstLine);
         const lastY = lines[lastLine]?.node.y() ?? this.lineY(lastLine);
+        const topEdge = firstY + contentY - halfLine;
+        const bottomEdge = lastY + contentY + halfLine;
 
-        const topEdge = firstY + content.y() - halfLine;
-        const bottomEdge = lastY + content.y() + halfLine;
-
-        if (bottomEdge - topEdge > this.clipHeight - topPadding - bottomPadding) {
-            if (firstLine > 0 && topEdge < -halfClip + topPadding) {
-                yield* content.y(-firstY + halfLine - halfClip + topPadding, duration, easeInOutCubic);
+        if (bottomEdge - topEdge > this.clipHeight - topPad - bottomPad) {
+            if (firstLine > 0 && topEdge < -halfClip + topPad) {
+                yield* content.y(-firstY + halfLine - halfClip + topPad, duration, easeInOutCubic);
             }
             return;
         }
 
-        if (bottomEdge > halfClip - bottomPadding) {
-            yield* content.y(-lastY - halfLine + halfClip - bottomPadding, duration, easeInOutCubic);
-        } else if (firstLine > 0 && topEdge < -halfClip + topPadding) {
-            yield* content.y(-firstY + halfLine - halfClip + topPadding, duration, easeInOutCubic);
+        if (bottomEdge > halfClip - bottomPad) {
+            yield* content.y(-lastY - halfLine + halfClip - bottomPad, duration, easeInOutCubic);
+        } else if (firstLine > 0 && topEdge < -halfClip + topPad) {
+            yield* content.y(-firstY + halfLine - halfClip + topPad, duration, easeInOutCubic);
         }
     }
 
@@ -690,7 +684,7 @@ export class Manticore {
         }
     }
 
-    private *typewriterNewTokens(cl: CodeLine, vis: TokenVisibility, charDelay: number): ThreadGenerator {
+    private *typewriterNewTokens(cl: CodeLine, vis: TokenVisibility, delay: number): ThreadGenerator {
         const mapping = this.mapTokenDataToNewIndex(cl.tokens);
         for (let i = 0; i < cl.tokens.length; i++) {
             const newIdx = mapping[i];
@@ -705,13 +699,7 @@ export class Manticore {
 
             for (let c = 0; c < full.length; c++) {
                 txtNode.text(full.slice(0, c + 1));
-                const ch = full[c];
-                const dt =
-                    ch === ' '  ? charDelay * 0.5 :
-                    ch === '\t' ? charDelay * 0.3 :
-                    /[{}()\[\];,.<>:=]/.test(ch) ? charDelay * 1.5 :
-                    charDelay;
-                yield* waitFor(dt);
+                yield* waitFor(charDelayFn(full[c], delay));
             }
         }
     }

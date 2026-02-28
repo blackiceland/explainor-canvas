@@ -1,40 +1,43 @@
 import {MAX_LINE_CHARS} from './codeWithActionsSceneRu.config';
-
-function wrapLine(line: string, maxChars: number): string[] {
-    if (line.length <= maxChars) return [line];
-
-    const indent = line.match(/^(\s*)/)?.[0] ?? '';
-    const continuation = indent.length >= 8 ? indent : indent + '        ';
-    const result: string[] = [];
-    let current = line;
-
-    while (current.length > maxChars) {
-        let splitAt = -1;
-        for (let i = maxChars - 1; i > indent.length; i--) {
-            if (current[i] === ',' && i + 1 < current.length && current[i + 1] === ' ') {
-                splitAt = i;
-                break;
-            }
-        }
-        if (splitAt < 0) break;
-
-        result.push(current.slice(0, splitAt + 1));
-        current = continuation + current.slice(splitAt + 2);
-    }
-    result.push(current);
-    return result;
-}
+import {JavaClass, method, param} from '../core/code/model/JavaModel';
 
 function f(code: string): string {
-    return code.split('\n').flatMap(l => wrapLine(l, MAX_LINE_CHARS)).join('\n');
+    const methods = parseRawMethods(code);
+    return JavaClass.create(methods, MAX_LINE_CHARS).render();
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  Правило: каждый state transition меняет ровно один метод.
-//  Сигнатуры переносятся через f() (formatJava) автоматически.
-//  Перенос сигнатуры (1→2 строки) — одноразовое событие для каждого метода,
-//  Manticore анимирует сдвиг тела плавно через moveDuration.
-// ═══════════════════════════════════════════════════════════════════════════════
+function parseRawMethods(code: string): ReturnType<typeof method>[] {
+    const results: ReturnType<typeof method>[] = [];
+    const lines = code.split('\n');
+    let i = 0;
+
+    while (i < lines.length) {
+        const sig = lines[i].match(/^(public|private)\s+(\S+)\s+(\w+)\s*\(([^)]*)\)\s*\{/);
+        if (!sig) { i++; continue; }
+
+        const [, access, returnType, name, paramStr] = sig;
+        const params = paramStr.trim().length === 0
+            ? []
+            : paramStr.split(',').map(p => {
+                const parts = p.trim().split(/\s+/);
+                return param(parts.slice(0, -1).join(' '), parts[parts.length - 1]);
+            });
+
+        const body: string[] = [];
+        i++;
+        while (i < lines.length) {
+            if (lines[i] === '}') break;
+            body.push(lines[i].replace(/^    /, ''));
+            i++;
+        }
+        i++;
+
+        results.push(method(access, returnType, name, params, body));
+        if (i < lines.length && lines[i].trim() === '') i++;
+    }
+
+    return results;
+}
 
 export const CODE_V0 = f(`public byte[] exportVideo(byte[] sourceFrames, String outputFormat) {
     validateInput(sourceFrames, outputFormat);

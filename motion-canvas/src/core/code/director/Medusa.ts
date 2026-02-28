@@ -78,11 +78,12 @@ export class Medusa {
         fallbackProfile?: MorphProfileName,
     ): ThreadGenerator {
         const effective = this.resolveMorphOptions(opts, fallbackProfile);
-        yield* this.manticore.morphTo(this.model.render(), effective);
+        const code = this.model.render();
+        yield* this.manticore.morphTo(code, effective);
         if (this.cfg.runtimeValidation.enabled) {
             validateRuntimeMorph({
                 manticore: this.manticore,
-                renderedCode: this.model.render(),
+                renderedCode: code,
                 maxChars: this.model.maxChars,
                 anchorPrefix: anchorMethod ? this.methodPrefix(anchorMethod) : null,
                 opts: effective,
@@ -203,16 +204,10 @@ export class Medusa {
     }
 
     private *scrollToMethod(methodName: string): ThreadGenerator {
-        const sigPrefix = this.findMethodSignaturePrefix(methodName);
-        if (!sigPrefix) return;
-        const idx = this.manticore.findLine(sigPrefix);
+        const prefix = this.methodPrefix(methodName);
+        const idx = this.manticore.findLine(prefix);
         if (idx < 0) return;
         if (this.manticore.isLineVisible(idx)) return;
         yield* this.manticore.scrollTo(idx, 0.6);
-    }
-
-    private findMethodSignaturePrefix(methodName: string): string | null {
-        const m = this.model.getMethod(methodName);
-        return `${m.returnType} ${m.name}(`;
     }
 }

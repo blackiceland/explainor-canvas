@@ -6,6 +6,7 @@ import {TokenDiffEntry} from '../diff/TokenDiff';
 import {Colors} from '../../theme';
 import {getWorldPosition, Point} from '../shared/Coordinates';
 import {textWidth} from '../../utils/textMeasure';
+import {charDelay as charDelayFn} from '../shared/TextMeasure';
 
 export interface CodeLineConfig {
     tokens: Token[];
@@ -381,7 +382,6 @@ export class CodeLine {
         return Math.min(index, Math.max(0, this.tokensData.length - 1));
     }
 
-
     private getGlowAnimations(tokenData: TokenData, color: string, duration: number): ThreadGenerator[] {
         if (!this.glowAccent) {
             return [];
@@ -414,7 +414,7 @@ export class CodeLine {
 
     /** Посимвольный typewriter: раскрывает текст каждого токена символ за символом.
      *  Сохраняет синтаксическую подсветку. Пробелы — быстрее, пунктуация — с паузой. */
-    public *typewriter(charDelay: number = 0.012): ThreadGenerator {
+    public *typewriter(delay: number = 0.012): ThreadGenerator {
         for (const tokenData of this.tokensData) {
             const full = tokenData.text;
             if (full.length === 0) continue;
@@ -425,13 +425,7 @@ export class CodeLine {
 
             for (let c = 0; c < full.length; c++) {
                 txtNode.text(full.slice(0, c + 1));
-                const ch = full[c];
-                const dt =
-                    ch === ' '  ? charDelay * 0.5 :
-                    ch === '\t' ? charDelay * 0.3 :
-                    /[{}()\[\];,.<>:=]/.test(ch) ? charDelay * 1.5 :
-                    charDelay;
-                yield* waitFor(dt);
+                yield* waitFor(charDelayFn(full[c], delay));
             }
         }
     }
@@ -476,7 +470,7 @@ export class CodeLine {
         }
     }
 
-    public *typewriterFrom(charPos: number, charDelay: number = 0.012): ThreadGenerator {
+    public *typewriterFrom(charPos: number, delay: number = 0.012): ThreadGenerator {
         let pos = 0;
         for (const tokenData of this.tokensData) {
             const full = tokenData.text;
@@ -492,22 +486,11 @@ export class CodeLine {
 
             txtNode.opacity(1);
             const startChar = Math.max(0, charPos - pos);
-
-            if (startChar > 0) {
-                txtNode.text(full.slice(0, startChar));
-            } else {
-                txtNode.text('');
-            }
+            txtNode.text(startChar > 0 ? full.slice(0, startChar) : '');
 
             for (let c = startChar; c < full.length; c++) {
                 txtNode.text(full.slice(0, c + 1));
-                const ch = full[c];
-                const dt =
-                    ch === ' '  ? charDelay * 0.5 :
-                    ch === '\t' ? charDelay * 0.3 :
-                    /[{}()\[\];,.<>:=]/.test(ch) ? charDelay * 1.5 :
-                    charDelay;
-                yield* waitFor(dt);
+                yield* waitFor(charDelayFn(full[c], delay));
             }
             pos += full.length;
         }
@@ -762,6 +745,3 @@ export class CodeLine {
         return null;
     }
 }
-
-
-

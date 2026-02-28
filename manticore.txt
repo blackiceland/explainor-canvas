@@ -10,6 +10,8 @@
 - `Medusa` — режиссер: применяет высокоуровневые команды к модели и вызывает движок.
 - `Manticore` — низкоуровневый движок морфинга строк и токенов.
 - `MorphDirector` — вычисление блоков анимации (`start/end/safeEnd`) для скролла.
+- `MorphProfiles` — именованные пресеты MorphOptions для стандартизации стиля анимаций.
+- `ManticoreRuntimeValidator` — runtime-проверки после каждого morph.
 - `LineDiff` — LCS-diff по строкам.
 - `TokenDiff` — LCS-diff по токенам внутри строки.
 - `CodeLine` — визуальный слой одной строки (токены, цвета, opacity, typewriter).
@@ -36,54 +38,56 @@
 6) Скролл-стратегии
 - `block` — скролл блоками, без построчного сопровождения хвоста.
 - `blockWithTail` — блочно + мягкое сопровождение хвоста больших вставок.
-- `safeEnd` вычисляется в `MorphDirector` (для малых блоков хвост отключен).
+- `auto` — интеллектуальный выбор: если блок целиком видим — без скролла; если нет — jump к концу блока. Линейный скролл не используется.
+- `safeEnd` вычисляется в `MorphDirector` (для малых блоков ≤6 строк хвост отключен).
 - `Medusa` дополнительно не скроллит к методу, если строка уже видима (`isLineVisible`).
 
 7) Качество анимации
 - Modify выполняется in-place через token diff, без полного исчезновения строки.
 - Add поддерживает `typewriter` и `fade`.
+- Flash removed tokens поддерживает `reverseType` — посимвольное стирание с подсветкой.
 - Цвета пере-применяются после mutate/add через `applyRules`.
-- Убраны лишние дубли скролла и мертвые ветки.
+- Character delay логика унифицирована через `charDelay()` в TextMeasure (единая точка).
 
-8) Что уже очищено архитектурно
-- `morphTo` декомпозирован на приватные шаги (опции, remove, prepare, animate).
-- Удалены неиспользуемые части (`preScroll`, лишние helper-ветки, мертвые методы).
-- Сцена переведена на API `Medusa` вместо прямого доступа к model/cb в критичных мутациях.
+8) Архитектурная чистота (ревизия)
+- `morphTo` декомпозирован на приватные фазы (опции, remove, prepare, animate).
+- Дублирование viewport-вычислений устранено (`viewMetrics()`).
+- Мёртвое поле `TokenVisibility.total` удалено.
+- Дубликат `findMethodSignaturePrefix` в `Medusa` удалён — используется `methodPrefix`.
+- Двойной вызов `model.render()` в `Medusa.morph()` устранён (кэширование).
+- `states.ts` использует `JavaModel.render()` вместо дублированной `wrapLine`.
+- Бесполезный regex-флаг `'s'` убран из `JavaModel.updateCallArgs`.
+- Trailing blank lines и мёртвый formatting вычищены по всей кодовой базе.
+- `charDelay` timing для typewriter извлечён в единый хелпер (3 точки → 1).
 
-9) Расширяемость (практическая)
-- Новые scene-скрипты пишутся командами `Medusa` + редкими low-level вызовами `dir.cb`.
-- Можно добавлять новые Morph-политики (например, иной settle/scroll профиль) без переписывания модели.
-- Можно расширять `JavaModel` новыми примитивами (например, reorder params) без изменений в сценах.
+9) Morph-профили
+- Профили: `stableExpand`, `methodAdd`, `methodAddFade`, `argSwap`.
+- `Medusa` принимает `profile` в morph-опциях и выбирает fallback-профиль по типу операции.
+- Профили снимают ручную настройку `MorphOptions` в сценах.
 
-10) Текущие ограничения
-- `morphTo` все еще остается сложным узлом (это нормальная "точка сложности" движка).
-- `blockWithTail` требует аккуратной настройки порогов для разных длин блоков.
+10) Runtime-валидация
+- `ManticoreRuntimeValidator` проверяет после каждого morph:
+  `LINE_OVERFLOW`, `ANCHOR_NOT_VISIBLE`, `BLOCK_SCROLL_VIOLATION`.
+- `Manticore` предоставляет `getLastMorphReport()` с телеметрией.
+- `Medusa` автоматически вызывает валидатор (configurable: enabled/strict/logger).
 
-11) Практический стандарт использования
+11) Golden checks
+- Скрипт: `scripts/manticore-golden.mjs`, команда: `npm run test:manticore:golden`.
+- Проверяет ключевые переходы: subtitleTrack, encodeWithRetry, prepareFrames expansion, finalizeExport.
+
+12) Расширяемость
+- Новые сцены пишутся командами `Medusa` + редкими low-level вызовами `dir.cb`.
+- Morph-профили расширяются добавлением строки в `MorphProfiles.ts`.
+- `JavaModel` расширяется новыми примитивами без изменений в сценах.
+- `CodeLine` содержит полный набор low-level анимаций (typewriter, replaceToken, insertBefore, removeToken) для прямого использования в сложных сценах.
+
+13) Текущие ограничения
+- `JavaModel` поддерживает только Java; для других языков потребуется аналогичная модель.
+- `Tokenizer` использует regex-эвристику, не полноценный парсер. Для покрытия 100% синтаксиса Java потребуется tree-sitter/shiki.
+- `blockWithTail` требует аккуратной настройки порогов для больших блоков.
+
+14) Практический стандарт использования
 - Логику кода описывать через `JavaModel`.
 - Переходы сценария выражать через `Medusa`.
 - В `Manticore` менять только алгоритмические части рендера/морфинга.
 - Избегать ручных state-строк и ad-hoc скроллов в сценах.
-
-12) Усиления, добавленные сейчас
-- Runtime-валидатор морфинга: `ManticoreRuntimeValidator`.
-- Проверки в runtime: переполнение строки (`LINE_OVERFLOW`), видимость якоря (`ANCHOR_NOT_VISIBLE`), нарушение блочного скролла (`BLOCK_SCROLL_VIOLATION`).
-- В `Manticore` добавлен runtime-отчет `getLastMorphReport()` (в т.ч. `tailScrollEvents`).
-- В `Medusa` добавлена поддержка runtime validation (`enabled/strict/logger`).
-
-13) Morph-профили (стандартизация переходов)
-- Новый модуль: `MorphProfiles`.
-- Профили: `stableExpand`, `methodAdd`, `methodAddFade`, `argSwap`.
-- `Medusa` умеет принимать `profile` в morph-опциях и выбирать fallback-профиль по типу операции.
-- Профили снимают ручную настройку `MorphOptions` в сценах и стабилизируют визуальный стиль.
-
-14) Golden checks (защита от регрессий)
-- Новый скрипт: `scripts/manticore-golden.mjs`.
-- npm-команда: `npm run test:manticore:golden`.
-- Проверяются ключевые переходы `codeWithActionsSceneRu.states.ts`:
-- корректный шаг появления `subtitleTrack` в `prepareFrames`,
-- замена `runEncoder` -> `encodeWithRetry`,
-- появление `encodeWithRetry` и `encode`,
-- расширение `prepareFrames` watermark/audio,
-- финальный шаг с `finalizeExport`.
-- Назначение: быстро ловить логические и структурные регрессии до визуального прогона сцены.
