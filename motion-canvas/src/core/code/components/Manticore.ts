@@ -36,6 +36,9 @@ export interface MorphOptions {
     moveDuration?: number;
     charDelay?: number;
     lineDelay?: number;
+    flashRemovedColor?: string;
+    flashRemovedDuration?: number;
+    scrollStrategy?: 'block' | 'blockWithTail';
 }
 
 interface LinePlan {
@@ -102,14 +105,14 @@ export class Manticore {
         const cardWidth = this.cfg.width;
         const contentHeight = this.code.length * this.cfg.lineHeight + paddingY * 2;
         const cardHeight = this.cfg.height > 0 ? this.cfg.height : contentHeight;
-        this.contentWidth = Math.max(cardWidth - paddingX * 2, 0);
+        this.contentWidth = cardWidth;
 
         this.card = new CodeCard({width: cardWidth, height: cardHeight, style: this.cfg.cardStyle});
         container.add(this.card.build());
 
         this.clipHeight = Math.max(0, cardHeight - paddingY * 2);
         const clip = new Rect({
-            width: this.contentWidth,
+            width: cardWidth,
             height: this.clipHeight,
             radius: 0,
             fill: '#00000000',
@@ -122,7 +125,7 @@ export class Manticore {
         this.contentRef(content);
         clip.add(content);
 
-        this.leftEdge = -this.contentWidth / 2 + this.cfg.contentOffsetX;
+        this.leftEdge = -cardWidth / 2 + paddingX + this.cfg.contentOffsetX;
         const shouldTopAlign = this.cfg.height > 0 && cardHeight !== contentHeight;
         this.startY = shouldTopAlign
             ? -this.clipHeight / 2 + this.cfg.contentOffsetY + this.cfg.lineHeight / 2
@@ -165,10 +168,26 @@ export class Manticore {
     }
 
     private resolveTokenVisibility(td: TokenDiffEntry[]): TokenVisibility {
+        let firstAddIdx = Infinity;
+        for (const entry of td) {
+            if (entry.op === 'add' && entry.newIndex < firstAddIdx) {
+                firstAddIdx = entry.newIndex;
+            }
+        }
+
         const kept = new Set<number>();
         for (const entry of td) {
-            if (entry.op === 'keep') kept.add(entry.newIndex);
+            if (entry.op !== 'keep') continue;
+            if (entry.newIndex < firstAddIdx) {
+                kept.add(entry.newIndex);
+                continue;
+            }
+            const trimmed = entry.token.text.trim();
+            const isWhitespace = entry.token.type === 'plain' && trimmed.length === 0;
+            const isClosingPunct = entry.token.type === 'punctuation' && /^[)\]}]+$/.test(trimmed);
+            if (!isWhitespace && !isClosingPunct) kept.add(entry.newIndex);
         }
+
         let total = 0;
         for (const entry of td) {
             total = Math.max(total, entry.newIndex + 1);
@@ -239,25 +258,35 @@ export class Manticore {
         }
     }
 
-    private *ensureRangeVisible(firstLine: number, lastLine: number, duration = 0.3): ThreadGenerator {
+    private *ensureRangeVisible(
+        firstLine: number,
+        lastLine: number,
+        duration = 0.3,
+        linesRef?: (CodeLine | null)[],
+    ): ThreadGenerator {
         const content = this.contentRef();
         const halfClip = this.clipHeight / 2;
         const halfLine = this.cfg.lineHeight / 2;
         const padding = this.cfg.lineHeight * 1.5;
-        const topEdge = this.lineY(firstLine) + content.y() - halfLine;
-        const bottomEdge = this.lineY(lastLine) + content.y() + halfLine;
+        const lines = linesRef ?? this.lines;
+
+        const firstY = lines[firstLine]?.node.y() ?? this.lineY(firstLine);
+        const lastY = lines[lastLine]?.node.y() ?? this.lineY(lastLine);
+
+        const topEdge = firstY + content.y() - halfLine;
+        const bottomEdge = lastY + content.y() + halfLine;
 
         if (bottomEdge - topEdge > this.clipHeight - padding * 2) {
             if (topEdge < -halfClip + padding) {
-                yield* content.y(-this.lineY(firstLine) + halfLine - halfClip + padding, duration, easeInOutCubic);
+                yield* content.y(-firstY + halfLine - halfClip + padding, duration, easeInOutCubic);
             }
             return;
         }
 
         if (bottomEdge > halfClip - padding) {
-            yield* content.y(-this.lineY(lastLine) - halfLine + halfClip - padding, duration, easeInOutCubic);
+            yield* content.y(-lastY - halfLine + halfClip - padding, duration, easeInOutCubic);
         } else if (topEdge < -halfClip + padding) {
-            yield* content.y(-this.lineY(firstLine) + halfLine - halfClip + padding, duration, easeInOutCubic);
+            yield* content.y(-firstY + halfLine - halfClip + padding, duration, easeInOutCubic);
         }
     }
 
@@ -351,6 +380,9 @@ export class Manticore {
             moveDuration = 0.3,
             charDelay = 0.012,
             lineDelay = 0.03,
+            flashRemovedColor,
+            flashRemovedDuration = 0.15,
+            scrollStrategy = 'blockWithTail',
         } = opts;
 
         const newLines = newCode.split('\n');
@@ -365,12 +397,15 @@ export class Manticore {
 
         const result: (CodeLine | null)[] = new Array(newLines.length).fill(null);
         const modifyMap = new Map<number, CodeLine>();
-        const addList: CodeLine[] = [];
 
         for (const p of plan) {
             if (p.kind === 'keep') {
                 result[p.newIndex] = this.lines[p.oldIndex];
             }
+        }
+
+        if (flashRemovedColor) {
+            yield* this.flashRemovedTokens(plan, flashRemovedColor, flashRemovedDuration);
         }
 
         for (const p of removes) {
@@ -398,24 +433,22 @@ export class Manticore {
             this.applyRules(cl);
             content.add(cl.node);
             result[p.newIndex] = cl;
-            addList.push(cl);
         }
 
-        const phase2: ThreadGenerator[] = [];
-
+        const moveAnims: ThreadGenerator[] = [];
         for (let i = 0; i < result.length; i++) {
             const cl = result[i]!;
             const targetY = this.startY + i * lh;
             if (Math.abs(targetY - cl.node.y()) > 0.5) {
-                phase2.push(cl.node.y(targetY, moveDuration, easeInOutCubic));
+                moveAnims.push(cl.node.y(targetY, moveDuration, easeInOutCubic));
             }
         }
-
-        for (const cl of addList) {
-            phase2.push(cl.node.opacity(1, moveDuration, easeInOutCubic));
+        for (const p of plan) {
+            if (p.kind === 'add') {
+                moveAnims.push(result[p.newIndex]!.node.opacity(1, moveDuration, easeInOutCubic));
+            }
         }
-
-        if (phase2.length > 0) yield* all(...phase2);
+        if (moveAnims.length > 0) yield* all(...moveAnims);
 
         const typewriterPlan = plan.filter(p => p.kind === 'modify' || p.kind === 'add');
         let ti = 0;
@@ -427,16 +460,22 @@ export class Manticore {
             }
 
             const blockSize = blockEnd - ti + 1;
-            const previewEnd = Math.max(ti, blockEnd - Math.ceil(blockSize * 0.3));
+            const safeEnd = blockSize > 3
+                ? Math.max(ti, blockEnd - Math.ceil(blockSize * 0.25))
+                : blockEnd;
+
             yield* this.ensureRangeVisible(
                 typewriterPlan[ti].newIndex,
-                typewriterPlan[previewEnd].newIndex,
+                typewriterPlan[safeEnd].newIndex,
                 moveDuration,
+                result,
             );
 
             for (let bi = ti; bi <= blockEnd; bi++) {
                 const p = typewriterPlan[bi];
-                yield* this.ensureRangeVisible(p.newIndex, p.newIndex, moveDuration);
+                if (scrollStrategy === 'blockWithTail' && bi > safeEnd) {
+                    yield* this.ensureRangeVisible(p.newIndex, p.newIndex, moveDuration * 0.6, result);
+                }
                 if (p.kind === 'modify') {
                     const vis = this.resolveTokenVisibility(p.tokenDiff!);
                     yield* this.typewriterNewTokens(modifyMap.get(p.newIndex)!, vis, charDelay);
@@ -451,6 +490,33 @@ export class Manticore {
 
         this.lines = result as CodeLine[];
         this.code = newLines;
+    }
+
+    private *flashRemovedTokens(
+        plan: LinePlan[],
+        color: string,
+        duration: number,
+    ): ThreadGenerator {
+        const anims: ThreadGenerator[] = [];
+        for (const p of plan) {
+            if (p.kind !== 'modify' || !p.tokenDiff) continue;
+            const oldLine = this.lines[p.oldIndex];
+            const removed = new Set(
+                p.tokenDiff.filter(e => e.op === 'remove').map(e => e.oldIndex)
+            );
+            const mapping = this.mapTokenDataToNewIndex(oldLine.tokens);
+            for (let i = 0; i < oldLine.tokens.length; i++) {
+                const tokenIdx = mapping[i];
+                if (tokenIdx < 0 || !removed.has(tokenIdx)) continue;
+                const token = oldLine.tokens[i];
+                if (token.type === 'method') continue;
+                anims.push(token.ref().fill(color, duration, easeInOutCubic));
+            }
+        }
+        if (anims.length > 0) {
+            yield* all(...anims);
+            yield* waitFor(duration);
+        }
     }
 
     private setTokenVisibility(cl: CodeLine, vis: TokenVisibility): void {
