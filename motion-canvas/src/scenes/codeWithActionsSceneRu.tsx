@@ -226,7 +226,7 @@ export default makeScene2D(function* (view) {
       'return finalizeExport(encodedVideo, outputFormat);',
       'return encodeWithRetry(preparedFrames, outputFormat);',
     );
-  }, {flashRemovedColor: 'rgba(255, 80, 80, 0.95)', flashRemovedDuration: 0.2});
+  }, {profile: 'argSwap'});
 
   // v2b: encodeWithRetry появляется
   yield* dir.addMethod(

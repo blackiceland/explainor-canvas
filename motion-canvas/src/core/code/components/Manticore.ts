@@ -1,6 +1,6 @@
 import {Node, Rect} from '@motion-canvas/2d';
 import {all, createRef, easeInOutCubic, Reference, ThreadGenerator, waitFor} from '@motion-canvas/core';
-import {tokenizeLine} from '../model/Tokenizer';
+import {tokenizeLine, TokenType} from '../model/Tokenizer';
 import {SyntaxTheme, IntelliJDarkTheme} from '../model/SyntaxTheme';
 import {CodeCard, CodeCardStyle} from './CodeCard';
 import {CodeLine, TokenData} from './CodeLine';
@@ -39,7 +39,11 @@ export interface MorphOptions {
     lineDelay?: number;
     flashRemovedColor?: string;
     flashRemovedDuration?: number;
-    scrollStrategy?: 'block' | 'blockWithTail';
+    flashRemovedIncludeTypes?: TokenType[];
+    flashRemovedExcludeTypes?: TokenType[];
+    flashRemovedErase?: 'none' | 'reverseType';
+    flashRemovedEraseCharDelay?: number;
+    scrollStrategy?: 'block' | 'blockWithTail' | 'auto';
     addStyle?: 'typewriter' | 'fade';
 }
 
@@ -56,6 +60,42 @@ interface TokenVisibility {
     total: number;
 }
 
+interface MorphResolvedOptions {
+    removeDuration: number;
+    moveDuration: number;
+    charDelay: number;
+    lineDelay: number;
+    flashRemovedColor?: string;
+    flashRemovedDuration: number;
+    flashRemovedIncludeTypes?: TokenType[];
+    flashRemovedExcludeTypes: TokenType[];
+    flashRemovedErase: 'none' | 'reverseType';
+    flashRemovedEraseCharDelay: number;
+    scrollStrategy: 'block' | 'blockWithTail' | 'auto';
+    addStyle: 'typewriter' | 'fade';
+}
+
+interface MorphPreparedState {
+    result: (CodeLine | null)[];
+    modifyMap: Map<number, CodeLine>;
+    settleAnims: ThreadGenerator[];
+    activePlan: LinePlan[];
+    blocks: ReturnType<typeof buildMorphBlocks>;
+}
+
+export interface MorphRuntimeReport {
+    blockCount: number;
+    activeItems: number;
+    tailScrollEvents: number;
+    scrollStrategy: 'block' | 'blockWithTail' | 'auto';
+    lineCountBefore: number;
+    lineCountAfter: number;
+}
+
+interface MorphRuntimeAccumulator {
+    tailScrollEvents: number;
+}
+
 export class Manticore {
     private readonly containerRef: Reference<Node> = createRef<Node>();
     private readonly contentRef: Reference<Node> = createRef<Node>();
@@ -65,6 +105,7 @@ export class Manticore {
     private card: CodeCard | null = null;
     private mounted = false;
     private colorRules: ColorRule[] = [];
+    private lastMorphReport: MorphRuntimeReport | null = null;
 
     private contentWidth = 0;
     private clipHeight = 0;
@@ -213,6 +254,7 @@ export class Manticore {
     get cardRect(): Rect | null { return this.card?.node ?? null; }
     get lineCount(): number { return this.lines.length; }
     get currentCode(): string[] { return [...this.code]; }
+    getLastMorphReport(): MorphRuntimeReport | null { return this.lastMorphReport; }
 
     *appear(duration = 0.6): ThreadGenerator {
         yield* this.containerRef().opacity(1, duration, easeInOutCubic);
@@ -265,6 +307,42 @@ export class Manticore {
         const halfLine = this.cfg.lineHeight / 2;
         const y = this.lines[lineIdx].node.y() + content.y();
         return y - halfLine >= -halfClip && y + halfLine <= halfClip;
+    }
+
+    private isRangeVisible(
+        firstLine: number,
+        lastLine: number,
+        linesRef?: (CodeLine | null)[],
+    ): boolean {
+        const content = this.contentRef();
+        const halfClip = this.clipHeight / 2;
+        const halfLine = this.cfg.lineHeight / 2;
+        const topPadding = Math.min(8, this.cfg.lineHeight * 0.25);
+        const bottomPadding = this.cfg.lineHeight;
+        const lines = linesRef ?? this.lines;
+
+        const firstY = lines[firstLine]?.node.y() ?? this.lineY(firstLine);
+        const lastY = lines[lastLine]?.node.y() ?? this.lineY(lastLine);
+        const topEdge = firstY + content.y() - halfLine;
+        const bottomEdge = lastY + content.y() + halfLine;
+        const available = this.clipHeight - topPadding - bottomPadding;
+
+        if (bottomEdge - topEdge > available) return false;
+        if (bottomEdge > halfClip - bottomPadding) return false;
+        if (firstLine > 0 && topEdge < -halfClip + topPadding) return false;
+        return true;
+    }
+
+    private resolveTailScrollMode(
+        scrollStrategy: 'block' | 'blockWithTail' | 'auto',
+        block: ReturnType<typeof buildMorphBlocks>[number],
+        state: MorphPreparedState,
+    ): 'none' | 'line' | 'jump' {
+        if (scrollStrategy === 'blockWithTail') return 'line';
+        if (scrollStrategy === 'block') return 'none';
+        const startIdx = state.activePlan[block.start].newIndex;
+        const endIdx = state.activePlan[block.end].newIndex;
+        return this.isRangeVisible(startIdx, endIdx, state.result) ? 'none' : 'jump';
     }
 
     private *ensureRangeVisible(
@@ -390,137 +468,192 @@ export class Manticore {
     *morphTo(newCode: string, opts: MorphOptions = {}): ThreadGenerator {
         if (!this.mounted) return;
 
-        const {
-            removeDuration = 0.2,
-            moveDuration = 0.3,
-            charDelay = 0.012,
-            lineDelay = 0.03,
-            flashRemovedColor,
-            flashRemovedDuration = 0.15,
-            scrollStrategy = 'blockWithTail',
-            addStyle = 'typewriter',
-        } = opts;
-
+        const o = this.resolveMorphOptions(opts);
+        const lineCountBefore = this.code.length;
         const newLines = newCode.split('\n');
         const plan = this.buildPlan(newLines);
         const lh = this.cfg.lineHeight;
+        yield* this.runRemovePhase(plan, o);
+        const state = this.prepareMorphState(newLines, plan, lh, o);
+        const stats: MorphRuntimeAccumulator = {tailScrollEvents: 0};
+        yield* this.runAnimatePhase(state, o, stats);
+        this.lines = state.result as CodeLine[];
+        this.code = newLines;
+        this.lastMorphReport = {
+            blockCount: state.blocks.length,
+            activeItems: state.activePlan.length,
+            tailScrollEvents: stats.tailScrollEvents,
+            scrollStrategy: o.scrollStrategy,
+            lineCountBefore,
+            lineCountAfter: newLines.length,
+        };
+    }
 
-        // ── Phase 1: remove ────────────────────────────────────────────────
+    private resolveMorphOptions(opts: MorphOptions): MorphResolvedOptions {
+        return {
+            removeDuration: opts.removeDuration ?? 0.2,
+            moveDuration: opts.moveDuration ?? 0.3,
+            charDelay: opts.charDelay ?? 0.012,
+            lineDelay: opts.lineDelay ?? 0.03,
+            flashRemovedColor: opts.flashRemovedColor,
+            flashRemovedDuration: opts.flashRemovedDuration ?? 0.15,
+            flashRemovedIncludeTypes: opts.flashRemovedIncludeTypes,
+            flashRemovedExcludeTypes: opts.flashRemovedExcludeTypes ?? ['method'],
+            flashRemovedErase: opts.flashRemovedErase ?? 'none',
+            flashRemovedEraseCharDelay: opts.flashRemovedEraseCharDelay ?? 0.01,
+            scrollStrategy: opts.scrollStrategy ?? 'blockWithTail',
+            addStyle: opts.addStyle ?? 'typewriter',
+        };
+    }
+
+    private *runRemovePhase(plan: LinePlan[], opts: MorphResolvedOptions): ThreadGenerator {
         const removes = plan.filter(p => p.kind === 'remove');
         if (removes.length > 0) {
-            yield* all(...removes.map(p => this.lines[p.oldIndex].setOpacity(0, removeDuration)));
+            yield* all(...removes.map(p => this.lines[p.oldIndex].setOpacity(0, opts.removeDuration)));
         }
-        if (flashRemovedColor) {
-            yield* this.flashRemovedTokens(plan, flashRemovedColor, flashRemovedDuration);
+        if (opts.flashRemovedColor) {
+            yield* this.flashRemovedTokens(
+                plan,
+                opts.flashRemovedColor,
+                opts.flashRemovedDuration,
+                opts.flashRemovedIncludeTypes,
+                opts.flashRemovedExcludeTypes,
+                opts.flashRemovedErase,
+                opts.flashRemovedEraseCharDelay,
+            );
         }
-        for (const p of removes) this.lines[p.oldIndex].node.remove();
+        for (const p of removes) {
+            this.lines[p.oldIndex].node.remove();
+        }
+    }
 
-        // ── Phase 2: build result array ────────────────────────────────────
+    private prepareMorphState(
+        newLines: string[],
+        plan: LinePlan[],
+        lh: number,
+        opts: MorphResolvedOptions,
+    ): MorphPreparedState {
         const result: (CodeLine | null)[] = new Array(newLines.length).fill(null);
         const modifyMap = new Map<number, CodeLine>();
 
         for (const p of plan) {
             if (p.kind === 'keep') {
                 result[p.newIndex] = this.lines[p.oldIndex];
-            } else if (p.kind === 'modify') {
+                continue;
+            }
+            if (p.kind === 'modify') {
                 result[p.newIndex] = this.lines[p.oldIndex];
                 modifyMap.set(p.newIndex, this.lines[p.oldIndex]);
-            } else if (p.kind === 'add') {
+                continue;
+            }
+            if (p.kind === 'add') {
                 const cl = this.buildLine(p.newText, this.startY + p.newIndex * lh);
                 cl.node.opacity(0);
-                if (addStyle === 'typewriter') cl.hideTokensInstantly();
+                if (opts.addStyle === 'typewriter') cl.hideTokensInstantly();
                 this.applyRules(cl);
                 this.contentRef().add(cl.node);
                 result[p.newIndex] = cl;
             }
         }
 
-        // ── Phase 3: settle — move all reused lines to target Y ────────────
         const settleAnims: ThreadGenerator[] = [];
         for (const p of plan) {
             if (p.kind !== 'keep' && p.kind !== 'modify') continue;
             const cl = result[p.newIndex]!;
             const targetY = this.startY + p.newIndex * lh;
             if (Math.abs(targetY - cl.node.y()) > 0.5) {
-                settleAnims.push(cl.node.y(targetY, moveDuration, easeInOutCubic));
+                settleAnims.push(cl.node.y(targetY, opts.moveDuration, easeInOutCubic));
             }
         }
 
-        // ── Phase 4: animate add/modify blocks ─────────────────────────────
         const activePlan = plan.filter(p => p.kind === 'modify' || p.kind === 'add');
         const blocks = buildMorphBlocks(activePlan.map(p => p.newIndex));
 
-        if (activePlan.length === 0) {
-            if (settleAnims.length > 0) yield* all(...settleAnims);
-            this.lines = result as CodeLine[];
-            this.code = newLines;
+        return {result, modifyMap, settleAnims, activePlan, blocks};
+    }
+
+    private *runAnimatePhase(
+        state: MorphPreparedState,
+        opts: MorphResolvedOptions,
+        stats: MorphRuntimeAccumulator,
+    ): ThreadGenerator {
+        if (state.activePlan.length === 0) {
+            if (state.settleAnims.length > 0) yield* all(...state.settleAnims);
             return;
         }
 
-        const isAddOnly = activePlan.every(p => p.kind === 'add');
-
+        const isAddOnly = state.activePlan.every(p => p.kind === 'add');
         if (isAddOnly) {
-            for (const p of activePlan) {
-                settleAnims.push(result[p.newIndex]!.node.opacity(1, moveDuration, easeInOutCubic));
+            for (const p of state.activePlan) {
+                state.settleAnims.push(state.result[p.newIndex]!.node.opacity(1, opts.moveDuration, easeInOutCubic));
             }
-            if (settleAnims.length > 0) yield* all(...settleAnims);
+            if (state.settleAnims.length > 0) yield* all(...state.settleAnims);
         }
 
-        for (const block of blocks) {
+        for (const block of state.blocks) {
             yield* this.ensureRangeVisible(
-                activePlan[block.start].newIndex,
-                activePlan[block.safeEnd].newIndex,
-                moveDuration,
-                result,
+                state.activePlan[block.start].newIndex,
+                state.activePlan[block.safeEnd].newIndex,
+                opts.moveDuration,
+                state.result,
             );
+            const tailScrollMode = this.resolveTailScrollMode(opts.scrollStrategy, block, state);
+            const blockEndIdx = state.activePlan[block.end].newIndex;
 
             for (let bi = block.start; bi <= block.end; bi++) {
-                const p = activePlan[bi];
+                const p = state.activePlan[bi];
 
-                if (scrollStrategy === 'blockWithTail' && bi > block.safeEnd) {
-                    yield* this.ensureRangeVisible(p.newIndex, p.newIndex, moveDuration * 0.6, result);
+                if (tailScrollMode === 'line' && bi > block.safeEnd) {
+                    stats.tailScrollEvents++;
+                    yield* this.ensureRangeVisible(p.newIndex, p.newIndex, opts.moveDuration * 0.6, state.result);
+                }
+                if (tailScrollMode === 'jump' && bi === block.safeEnd + 1) {
+                    yield* this.ensureRangeVisible(p.newIndex, blockEndIdx, opts.moveDuration, state.result);
                 }
 
                 const lineAnims: ThreadGenerator[] = [];
-                if (settleAnims.length > 0) {
-                    lineAnims.push(...settleAnims.splice(0));
+                if (state.settleAnims.length > 0) {
+                    lineAnims.push(...state.settleAnims.splice(0));
                 }
 
                 if (p.kind === 'modify') {
-                    const cl = modifyMap.get(p.newIndex)!;
+                    const cl = state.modifyMap.get(p.newIndex)!;
                     const newTokens = tokenizeLine(p.newText, this.cfg.customTypes);
                     const vis = this.resolveTokenVisibility(p.tokenDiff!);
                     cl.mutateInPlace(p.tokenDiff!, newTokens, vis.kept);
                     this.applyRules(cl);
-                    lineAnims.push(this.typewriterNewTokens(cl, vis, charDelay));
+                    lineAnims.push(this.typewriterNewTokens(cl, vis, opts.charDelay));
                 } else {
-                    const addCl = result[p.newIndex]!;
+                    const addCl = state.result[p.newIndex]!;
                     if (addCl.node.opacity() < 1) {
-                        lineAnims.push(addCl.node.opacity(1, moveDuration * 0.5, easeInOutCubic));
+                        lineAnims.push(addCl.node.opacity(1, opts.moveDuration * 0.5, easeInOutCubic));
                     }
-                    if (addStyle === 'typewriter') {
-                        lineAnims.push(addCl.typewriter(charDelay));
+                    if (opts.addStyle === 'typewriter') {
+                        lineAnims.push(addCl.typewriter(opts.charDelay));
                     }
                 }
 
                 if (lineAnims.length > 0) yield* all(...lineAnims);
-
-                if (lineDelay > 0) yield* waitFor(lineDelay);
+                if (opts.lineDelay > 0) yield* waitFor(opts.lineDelay);
             }
         }
 
-        if (settleAnims.length > 0) yield* all(...settleAnims);
-
-        this.lines = result as CodeLine[];
-        this.code = newLines;
+        if (state.settleAnims.length > 0) yield* all(...state.settleAnims);
     }
 
     private *flashRemovedTokens(
         plan: LinePlan[],
         color: string,
         duration: number,
+        includeTypes?: TokenType[],
+        excludeTypes: TokenType[] = ['method'],
+        eraseMode: 'none' | 'reverseType' = 'none',
+        eraseCharDelay = 0.01,
     ): ThreadGenerator {
         const anims: ThreadGenerator[] = [];
+        const eraseAnims: ThreadGenerator[] = [];
+        const include = includeTypes ? new Set(includeTypes) : null;
+        const exclude = new Set(excludeTypes);
         for (const p of plan) {
             if (p.kind !== 'modify' || !p.tokenDiff) continue;
             const oldLine = this.lines[p.oldIndex];
@@ -532,13 +665,28 @@ export class Manticore {
                 const tokenIdx = mapping[i];
                 if (tokenIdx < 0 || !removed.has(tokenIdx)) continue;
                 const token = oldLine.tokens[i];
-                if (token.type === 'method') continue;
-                anims.push(token.ref().fill(color, duration, easeInOutCubic));
+                if (include && !include.has(token.type)) continue;
+                if (exclude.has(token.type)) continue;
+                if (token.text.trim().length === 0) continue;
+                const node = token.ref();
+                anims.push(node.fill(color, duration, easeInOutCubic));
+                if (eraseMode === 'reverseType') {
+                    const full = token.text;
+                    eraseAnims.push((function* (): ThreadGenerator {
+                        for (let c = full.length; c >= 0; c--) {
+                            node.text(full.slice(0, c));
+                            yield* waitFor(eraseCharDelay);
+                        }
+                    })());
+                }
             }
         }
         if (anims.length > 0) {
             yield* all(...anims);
             yield* waitFor(duration);
+        }
+        if (eraseAnims.length > 0) {
+            yield* all(...eraseAnims);
         }
     }
 
