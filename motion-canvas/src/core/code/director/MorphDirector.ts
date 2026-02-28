@@ -17,7 +17,7 @@ export function buildMorphBlocks(indices: number[]): MorphBlock[] {
         }
 
         const size = end - i + 1;
-        const safeEnd = size > 3
+        const safeEnd = size > 6
             ? Math.max(i, end - Math.ceil(size * 0.25))
             : end;
 

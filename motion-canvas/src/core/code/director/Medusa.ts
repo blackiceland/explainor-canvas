@@ -137,12 +137,11 @@ export class Medusa {
 
     private *scrollToMethod(methodName: string): ThreadGenerator {
         const sigPrefix = this.findMethodSignaturePrefix(methodName);
-        if (sigPrefix) {
-            const idx = this.manticore.findLine(sigPrefix);
-            if (idx >= 0) {
-                yield* this.manticore.scrollTo(idx, 0.6);
-            }
-        }
+        if (!sigPrefix) return;
+        const idx = this.manticore.findLine(sigPrefix);
+        if (idx < 0) return;
+        if (this.manticore.isLineVisible(idx)) return;
+        yield* this.manticore.scrollTo(idx, 0.6);
     }
 
     private findMethodSignaturePrefix(methodName: string): string | null {

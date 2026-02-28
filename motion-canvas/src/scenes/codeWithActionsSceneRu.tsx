@@ -228,32 +228,32 @@ export default makeScene2D(function* (view) {
     );
   }, {flashRemovedColor: 'rgba(255, 80, 80, 0.95)', flashRemovedDuration: 0.2});
 
-  // v2b: encodeWithRetry + encode появляются
-  yield* dir.apply(m => {
-    m.addMethod(
-      method('private', 'byte[]', 'encodeWithRetry',
-        [param('byte[]', 'preparedFrames'), param('String', 'outputFormat')],
-        ['int attemptsLeft = this.maxAttempts;',
-         '',
-         'while (attemptsLeft-- > 0) {',
-         '    try {',
-         '        return encode(preparedFrames, outputFormat);',
-         '    } catch (RuntimeException ex) { /* retry */ }',
-         '}',
-         '',
-         'throw new IllegalStateException("Encoding failed");']),
-      'prepareFrames',
-    );
-    m.addMethod(
-      method('private', 'byte[]', 'encode',
-        [param('byte[]', 'preparedFrames'), param('String', 'outputFormat')],
-        ['byte[] encodedVideo = runEncoder(preparedFrames);',
-         '',
-         'return finalizeExport(encodedVideo, outputFormat);']),
-      'encodeWithRetry',
-    );
-  }, {scrollStrategy: 'blockWithTail'});
-  yield* waitFor(1.0);
+  // v2b: encodeWithRetry появляется
+  yield* dir.addMethod(
+    method('private', 'byte[]', 'encodeWithRetry',
+      [param('byte[]', 'preparedFrames'), param('String', 'outputFormat')],
+      ['int attemptsLeft = this.maxAttempts;',
+       '',
+       'while (attemptsLeft-- > 0) {',
+       '    try {',
+       '        return encode(preparedFrames, outputFormat);',
+       '    } catch (RuntimeException ex) { /* retry */ }',
+       '}',
+       '',
+       'throw new IllegalStateException("Encoding failed");']),
+    'prepareFrames',
+  );
+
+  // v2b: encode появляется
+  yield* dir.addMethod(
+    method('private', 'byte[]', 'encode',
+      [param('byte[]', 'preparedFrames'), param('String', 'outputFormat')],
+      ['byte[] encodedVideo = runEncoder(preparedFrames);',
+       '',
+       'return finalizeExport(encodedVideo, outputFormat);']),
+    'encodeWithRetry',
+  );
+  yield* waitFor(0.5);
 
   // ── highlight: outputFormat pass-through ──────────────────────────────
   const cb = dir.cb;
