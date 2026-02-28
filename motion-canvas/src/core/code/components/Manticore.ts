@@ -8,6 +8,7 @@ import {getCodePaddingX, getCodePaddingY, getLineHeight} from '../shared/TextMea
 import {Fonts} from '../../theme';
 import {diffLines} from '../diff/LineDiff';
 import {diffTokens, TokenDiffEntry} from '../diff/TokenDiff';
+import {buildMorphBlocks} from '../director/MorphDirector';
 
 export interface ColorRule {
     match: string | RegExp;
@@ -39,6 +40,7 @@ export interface MorphOptions {
     flashRemovedColor?: string;
     flashRemovedDuration?: number;
     scrollStrategy?: 'block' | 'blockWithTail';
+    preScroll?: 'auto' | 'off';
 }
 
 interface LinePlan {
@@ -159,6 +161,16 @@ export class Manticore {
         });
         cl.build(y);
         return cl;
+    }
+
+    private findNeighborY(newIndex: number, result: (CodeLine | null)[], lh: number): number {
+        for (let i = newIndex - 1; i >= 0; i--) {
+            if (result[i]) return result[i]!.node.y();
+        }
+        for (let i = newIndex + 1; i < result.length; i++) {
+            if (result[i]) return result[i]!.node.y();
+        }
+        return this.startY + newIndex * lh;
     }
 
     private applyRules(cl: CodeLine): void {
@@ -359,6 +371,20 @@ export class Manticore {
                 continue;
             }
 
+            if (entry.op === 'add' && di + 1 < diff.length && diff[di + 1].op === 'remove') {
+                const oldTokens = tokenizeLine(this.code[diff[di + 1].oldIndex], this.cfg.customTypes);
+                const newTokens = tokenizeLine(entry.text, this.cfg.customTypes);
+                plan.push({
+                    kind: 'modify',
+                    oldIndex: diff[di + 1].oldIndex,
+                    newIndex: entry.newIndex,
+                    newText: entry.text,
+                    tokenDiff: diffTokens(oldTokens, newTokens),
+                });
+                di += 2;
+                continue;
+            }
+
             if (entry.op === 'remove') {
                 plan.push({kind: 'remove', oldIndex: entry.oldIndex, newIndex: -1, newText: ''});
                 di++;
@@ -383,6 +409,7 @@ export class Manticore {
             flashRemovedColor,
             flashRemovedDuration = 0.15,
             scrollStrategy = 'blockWithTail',
+            preScroll = 'auto',
         } = opts;
 
         const newLines = newCode.split('\n');
@@ -412,25 +439,17 @@ export class Manticore {
             this.lines[p.oldIndex].node.remove();
         }
 
-        const oldModifyLines: CodeLine[] = [];
         for (const p of plan) {
             if (p.kind !== 'modify') continue;
             const oldLine = this.lines[p.oldIndex];
-            const cl = this.buildLine(p.newText, oldLine.node.y());
-            this.applyRules(cl);
-            cl.hideTokensInstantly();
-            const vis = this.resolveTokenVisibility(p.tokenDiff!);
-            this.setTokenVisibility(cl, vis);
-            content.add(cl.node);
-            oldLine.node.opacity(0);
-            oldModifyLines.push(oldLine);
-            result[p.newIndex] = cl;
-            modifyMap.set(p.newIndex, cl);
+            result[p.newIndex] = oldLine;
+            modifyMap.set(p.newIndex, oldLine);
         }
 
         for (const p of plan) {
             if (p.kind !== 'add') continue;
-            const cl = this.buildLine(p.newText, this.startY + p.newIndex * lh);
+            const neighborY = this.findNeighborY(p.newIndex, result, lh);
+            const cl = this.buildLine(p.newText, neighborY);
             cl.node.opacity(0);
             cl.hideTokensInstantly();
             this.applyRules(cl);
@@ -438,65 +457,78 @@ export class Manticore {
             result[p.newIndex] = cl;
         }
 
-        const expandDuration = moveDuration * 1.6;
+        const typewriterPlan = plan.filter(p => p.kind === 'modify' || p.kind === 'add');
+        const blocks = buildMorphBlocks(typewriterPlan.map(p => p.newIndex));
+        const hasModify = typewriterPlan.some(p => p.kind === 'modify');
 
-        const moveAnims: ThreadGenerator[] = [];
-        for (let i = 0; i < result.length; i++) {
-            const cl = result[i]!;
-            const targetY = this.startY + i * lh;
-            if (Math.abs(targetY - cl.node.y()) > 0.5) {
-                moveAnims.push(cl.node.y(targetY, expandDuration, easeInOutCubic));
+        if (!hasModify) {
+            const moveAnims: ThreadGenerator[] = [];
+            for (let i = 0; i < result.length; i++) {
+                const cl = result[i]!;
+                const targetY = this.startY + i * lh;
+                if (Math.abs(targetY - cl.node.y()) > 0.5) {
+                    moveAnims.push(cl.node.y(targetY, moveDuration, easeInOutCubic));
+                }
             }
-        }
-        for (const p of plan) {
-            if (p.kind === 'add') {
-                moveAnims.push(result[p.newIndex]!.node.opacity(1, expandDuration, easeInOutCubic));
+            for (const p of plan) {
+                if (p.kind === 'add') {
+                    moveAnims.push(result[p.newIndex]!.node.opacity(1, moveDuration, easeInOutCubic));
+                }
             }
-        }
-
-        const modifyEntries = plan.filter(p => p.kind === 'modify');
-        const modifyTypewriters: ThreadGenerator[] = modifyEntries.map(p => {
-            const vis = this.resolveTokenVisibility(p.tokenDiff!);
-            return this.typewriterNewTokens(modifyMap.get(p.newIndex)!, vis, charDelay);
-        });
-
-        if (moveAnims.length > 0 || modifyTypewriters.length > 0) {
-            yield* all(...moveAnims, ...modifyTypewriters);
+            if (moveAnims.length > 0) yield* all(...moveAnims);
         }
 
-        for (const ol of oldModifyLines) ol.node.remove();
-
-        const addPlan = plan.filter(p => p.kind === 'add');
-        let ti = 0;
-        while (ti < addPlan.length) {
-            let blockEnd = ti;
-            while (blockEnd + 1 < addPlan.length
-                && addPlan[blockEnd + 1].newIndex === addPlan[blockEnd].newIndex + 1) {
-                blockEnd++;
-            }
-
-            const blockSize = blockEnd - ti + 1;
-            const safeEnd = blockSize > 3
-                ? Math.max(ti, blockEnd - Math.ceil(blockSize * 0.25))
-                : blockEnd;
-
+        if (preScroll === 'auto' && blocks.length > 0) {
+            const first = blocks[0];
             yield* this.ensureRangeVisible(
-                addPlan[ti].newIndex,
-                addPlan[safeEnd].newIndex,
+                typewriterPlan[first.start].newIndex,
+                typewriterPlan[first.safeEnd].newIndex,
+                moveDuration,
+                result,
+            );
+        }
+
+        for (const block of blocks) {
+            yield* this.ensureRangeVisible(
+                typewriterPlan[block.start].newIndex,
+                typewriterPlan[block.safeEnd].newIndex,
                 moveDuration,
                 result,
             );
 
-            for (let bi = ti; bi <= blockEnd; bi++) {
-                const p = addPlan[bi];
-                if (scrollStrategy === 'blockWithTail' && bi > safeEnd) {
+            for (let bi = block.start; bi <= block.end; bi++) {
+                const p = typewriterPlan[bi];
+                if (scrollStrategy === 'blockWithTail' && bi > block.safeEnd) {
                     yield* this.ensureRangeVisible(p.newIndex, p.newIndex, moveDuration * 0.6, result);
                 }
-                yield* result[p.newIndex]!.typewriter(charDelay);
+                if (p.kind === 'modify') {
+                    const cl = modifyMap.get(p.newIndex)!;
+                    const newTokens = tokenizeLine(p.newText, this.cfg.customTypes);
+                    const vis = this.resolveTokenVisibility(p.tokenDiff!);
+                    cl.mutateInPlace(p.tokenDiff!, newTokens, vis.kept);
+                    this.applyRules(cl);
+                    yield* this.typewriterNewTokens(cl, vis, charDelay);
+                } else {
+                    const addCl = result[p.newIndex]!;
+                    if (addCl.node.opacity() < 1) {
+                        yield* addCl.node.opacity(1, moveDuration * 0.5, easeInOutCubic);
+                    }
+                    yield* addCl.typewriter(charDelay);
+                }
                 if (lineDelay > 0) yield* waitFor(lineDelay);
             }
 
-            ti = blockEnd + 1;
+            if (hasModify) {
+                const expandAnims: ThreadGenerator[] = [];
+                for (let i = 0; i < result.length; i++) {
+                    const cl = result[i]!;
+                    const targetY = this.startY + i * lh;
+                    if (Math.abs(targetY - cl.node.y()) > 0.5) {
+                        expandAnims.push(cl.node.y(targetY, moveDuration, easeInOutCubic));
+                    }
+                }
+                if (expandAnims.length > 0) yield* all(...expandAnims);
+            }
         }
 
         this.lines = result as CodeLine[];
@@ -530,7 +562,7 @@ export class Manticore {
         }
     }
 
-    private setTokenVisibility(cl: CodeLine, vis: TokenVisibility): void {
+    private showKeptTokens(cl: CodeLine, vis: TokenVisibility): void {
         const mapping = this.mapTokenDataToNewIndex(cl.tokens);
         for (let i = 0; i < cl.tokens.length; i++) {
             const newIdx = mapping[i];

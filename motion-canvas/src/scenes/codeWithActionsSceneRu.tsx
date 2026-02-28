@@ -75,7 +75,7 @@ export default makeScene2D(function* (view) {
   cb.mount(view);
   cb.colorize(COLOR_RULES);
   const morph = (code: string, opts: Parameters<typeof cb.morphTo>[1] = {}) =>
-    cb.morphTo(code, {scrollStrategy: 'block', removeDuration: 0, moveDuration: 0.5, ...opts});
+    cb.morphTo(code, {scrollStrategy: 'block', removeDuration: 0, moveDuration: 0.6, ...opts});
 
   const FADE_IN = Timing.slow;
 

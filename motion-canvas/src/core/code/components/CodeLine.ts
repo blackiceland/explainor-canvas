@@ -2,6 +2,7 @@ import {Node, Rect, Txt} from '@motion-canvas/2d';
 import {all, createRef, easeInOutCubic, Reference, ThreadGenerator, waitFor} from '@motion-canvas/core';
 import {Token, tokenizeLine} from '../model/Tokenizer';
 import {getTokenColor, SyntaxTheme} from '../model/SyntaxTheme';
+import {TokenDiffEntry} from '../diff/TokenDiff';
 import {Colors} from '../../theme';
 import {getWorldPosition, Point} from '../shared/Coordinates';
 import {textWidth} from '../../utils/textMeasure';
@@ -138,6 +139,142 @@ export class CodeLine {
         }
 
         return container;
+    }
+
+    public mutateInPlace(
+        tokenDiff: TokenDiffEntry[],
+        newTokens: Token[],
+        visibleKept: Set<number>,
+    ): void {
+        const container = this.containerRef();
+        const {fontFamily, fontSize, theme, leftEdge} = this.config;
+
+        const oldGroups = new Map<number, number[]>();
+        let logIdx = 0;
+        for (let i = 0; i < this.tokensData.length; i++) {
+            if (this.tokensData[i].text.length > 0) {
+                oldGroups.set(logIdx, [i]);
+                logIdx++;
+            } else {
+                oldGroups.get(logIdx - 1)?.push(i);
+            }
+        }
+
+        const keepMap = new Map<number, number>();
+        const removeSet = new Set<number>();
+        for (const e of tokenDiff) {
+            if (e.op === 'keep') keepMap.set(e.newIndex, e.oldIndex);
+            else if (e.op === 'remove') removeSet.add(e.oldIndex);
+        }
+
+        let xOff = leftEdge;
+        const xPositions: number[] = [];
+        for (const t of newTokens) {
+            xPositions.push(xOff);
+            xOff += textWidth(t.text, fontFamily, fontSize);
+        }
+
+        const newData: TokenData[] = [];
+
+        for (let ni = 0; ni < newTokens.length; ni++) {
+            const token = newTokens[ni];
+            const x = xPositions[ni];
+
+            if (keepMap.has(ni)) {
+                const group = oldGroups.get(keepMap.get(ni)!)!;
+                const visible = visibleKept.has(ni);
+
+                if (group.length === 1) {
+                    const td = this.tokensData[group[0]];
+                    td.ref().x(x);
+                    td.localX = x;
+                    if (!visible) {
+                        td.ref().opacity(0);
+                        td.ref().text('');
+                    }
+                    newData.push(td);
+                } else {
+                    let cx = x;
+                    for (let gi = 0; gi < group.length; gi++) {
+                        const td = this.tokensData[group[gi]];
+                        td.ref().x(cx);
+                        td.localX = cx;
+                        if (!visible) {
+                            td.ref().opacity(0);
+                            td.ref().text('');
+                        }
+                        newData.push(td);
+                        if (gi < token.text.length) {
+                            cx += textWidth(token.text[gi], fontFamily, fontSize);
+                        }
+                    }
+                }
+                continue;
+            }
+
+            const color = token.color ?? getTokenColor(token.type, theme);
+
+            if (token.type === 'operator' && LIGATURE_OPERATORS.has(token.text)) {
+                let cx = x;
+                for (let c = 0; c < token.text.length; c++) {
+                    const ref = createRef<Txt>();
+                    const txt = new Txt({
+                        text: '',
+                        fontFamily,
+                        fontSize,
+                        fill: color,
+                        x: cx,
+                        offset: [-1, 0],
+                        opacity: 0,
+                    });
+                    ref(txt);
+                    container.add(txt);
+                    newData.push({
+                        ref,
+                        text: c === 0 ? token.text : '',
+                        type: token.type,
+                        localX: cx,
+                        originalColor: color,
+                        originalShadowBlur: 0,
+                        originalShadowColor: 'rgba(0,0,0,0)',
+                        originalShadowOffset: [0, 0],
+                    });
+                    cx += textWidth(token.text[c], fontFamily, fontSize);
+                }
+            } else {
+                const ref = createRef<Txt>();
+                const txt = new Txt({
+                    text: '',
+                    fontFamily,
+                    fontSize,
+                    fill: color,
+                    x,
+                    offset: [-1, 0],
+                    opacity: 0,
+                });
+                ref(txt);
+                container.add(txt);
+                newData.push({
+                    ref,
+                    text: token.text,
+                    type: token.type,
+                    localX: x,
+                    originalColor: color,
+                    originalShadowBlur: 0,
+                    originalShadowColor: 'rgba(0,0,0,0)',
+                    originalShadowOffset: [0, 0],
+                });
+            }
+        }
+
+        for (const oldIdx of removeSet) {
+            const group = oldGroups.get(oldIdx);
+            if (!group) continue;
+            for (const gi of group) this.tokensData[gi].ref().remove();
+        }
+
+        this.tokensData.length = 0;
+        this.tokensData.push(...newData);
     }
 
     public get node(): Node {
