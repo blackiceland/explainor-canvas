@@ -269,7 +269,8 @@ export class Manticore {
         const content = this.contentRef();
         const halfClip = this.clipHeight / 2;
         const halfLine = this.cfg.lineHeight / 2;
-        const padding = this.cfg.lineHeight;
+        const topPadding = Math.min(8, this.cfg.lineHeight * 0.25);
+        const bottomPadding = this.cfg.lineHeight;
         const lines = linesRef ?? this.lines;
 
         const firstY = lines[firstLine]?.node.y() ?? this.lineY(firstLine);
@@ -278,17 +279,17 @@ export class Manticore {
         const topEdge = firstY + content.y() - halfLine;
         const bottomEdge = lastY + content.y() + halfLine;
 
-        if (bottomEdge - topEdge > this.clipHeight - padding * 2) {
-            if (topEdge < -halfClip + padding) {
-                yield* content.y(-firstY + halfLine - halfClip + padding, duration, easeInOutCubic);
+        if (bottomEdge - topEdge > this.clipHeight - topPadding - bottomPadding) {
+            if (firstLine > 0 && topEdge < -halfClip + topPadding) {
+                yield* content.y(-firstY + halfLine - halfClip + topPadding, duration, easeInOutCubic);
             }
             return;
         }
 
-        if (bottomEdge > halfClip - padding) {
-            yield* content.y(-lastY - halfLine + halfClip - padding, duration, easeInOutCubic);
-        } else if (topEdge < -halfClip + padding) {
-            yield* content.y(-firstY + halfLine - halfClip + padding, duration, easeInOutCubic);
+        if (bottomEdge > halfClip - bottomPadding) {
+            yield* content.y(-lastY - halfLine + halfClip - bottomPadding, duration, easeInOutCubic);
+        } else if (firstLine > 0 && topEdge < -halfClip + topPadding) {
+            yield* content.y(-firstY + halfLine - halfClip + topPadding, duration, easeInOutCubic);
         }
     }
 
@@ -469,12 +470,15 @@ export class Manticore {
 
         if (preScroll === 'auto' && blocks.length > 0) {
             const first = blocks[0];
-            yield* this.ensureRangeVisible(
-                typewriterPlan[first.start].newIndex,
-                typewriterPlan[first.safeEnd].newIndex,
-                moveDuration,
-                result,
-            );
+            const firstLine = typewriterPlan[first.start].newIndex;
+            if (firstLine > 0) {
+                yield* this.ensureRangeVisible(
+                    firstLine,
+                    typewriterPlan[first.safeEnd].newIndex,
+                    moveDuration,
+                    result,
+                );
+            }
         }
 
         for (const block of blocks) {
