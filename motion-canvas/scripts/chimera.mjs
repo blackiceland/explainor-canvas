@@ -13,6 +13,11 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
 
 const MAX_LINE_CHARS = 93;
+const FONT_SIZE = 22;
+const LINE_HEIGHT = Math.round(FONT_SIZE * 1.62 * 10) / 10;
+const FRAME_HEIGHT = 924;
+const VISIBLE_LINES = Math.floor(FRAME_HEIGHT / LINE_HEIGHT);
+
 const PASS = '\x1b[32m✓\x1b[0m';
 const FAIL = '\x1b[31m✗\x1b[0m';
 const WARN = '\x1b[33m!\x1b[0m';
@@ -53,6 +58,7 @@ function extractMethods(code) {
     const methods = [];
     let current = null;
     let braceDepth = 0;
+    let sigFound = false;
 
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
@@ -61,12 +67,16 @@ function extractMethods(code) {
         if (sigMatch && braceDepth === 0) {
             if (current) methods.push(current);
             current = {name: sigMatch[2], startLine: i, lines: [line], sigLines: 0};
+            sigFound = false;
             braceDepth = 0;
         }
 
         if (current) {
             if (current.lines[current.lines.length - 1] !== line) current.lines.push(line);
-            if (!current.sigLines && line.includes(') {')) current.sigLines = i - current.startLine + 1;
+            if (!sigFound && line.includes(') {')) {
+                current.sigLines = i - current.startLine + 1;
+                sigFound = true;
+            }
             for (const ch of line) {
                 if (ch === '{') braceDepth++;
                 if (ch === '}') braceDepth--;
@@ -74,6 +84,7 @@ function extractMethods(code) {
             if (braceDepth === 0 && current.lines.length > 1) {
                 methods.push(current);
                 current = null;
+                sigFound = false;
             }
         }
     }
@@ -227,6 +238,18 @@ for (let i = 0; i < sceneLines.length; i++) {
         } else {
             warn(`morph(${stateName}) at line ${i+1}: no pre-scroll (first morph)`);
         }
+    }
+}
+
+console.log(`\n\x1b[1m[6] Overflow check (visible lines: ${VISIBLE_LINES})\x1b[0m`);
+for (let i = 0; i < states.length; i++) {
+    const {name, formatted} = states[i];
+    const lineCount = formatted.split('\n').length;
+    if (lineCount <= VISIBLE_LINES) {
+        pass(`${name}: ${lineCount} lines (fits)`);
+    } else {
+        const overflow = lineCount - VISIBLE_LINES;
+        warn(`${name}: ${lineCount} lines (${overflow} lines overflow → needs scroll)`);
     }
 }
 

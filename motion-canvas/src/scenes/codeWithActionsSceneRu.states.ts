@@ -29,10 +29,12 @@ function f(code: string): string {
     return code.split('\n').flatMap(l => wrapLine(l, MAX_LINE_CHARS)).join('\n');
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// V0: начальное состояние — два метода, минимальные параметры
-// exportVideo sig = 1 line, prepareFrames отсутствует
-// ─────────────────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+//  Правило: каждый state transition меняет ровно один метод.
+//  Сигнатуры переносятся через f() (formatJava) автоматически.
+//  Перенос сигнатуры (1→2 строки) — одноразовое событие для каждого метода,
+//  Manticore анимирует сдвиг тела плавно через moveDuration.
+// ═══════════════════════════════════════════════════════════════════════════════
 
 export const CODE_V0 = f(`public byte[] exportVideo(byte[] sourceFrames, String outputFormat) {
     validateInput(sourceFrames, outputFormat);
@@ -41,20 +43,12 @@ export const CODE_V0 = f(`public byte[] exportVideo(byte[] sourceFrames, String 
     return finalizeExport(encodedVideo, outputFormat);
 }`);
 
-// ─────────────────────────────────────────────────────────────────────────────
-// V0 → V1a: exportVideo получает colorProfile (сигнатура растёт, тело не меняется)
-// ─────────────────────────────────────────────────────────────────────────────
-
 export const CODE_V1a = f(`public byte[] exportVideo(byte[] sourceFrames, String outputFormat, String colorProfile) {
     validateInput(sourceFrames, outputFormat);
     byte[] encodedVideo = runEncoder(sourceFrames);
 
     return finalizeExport(encodedVideo, outputFormat);
 }`);
-
-// ─────────────────────────────────────────────────────────────────────────────
-// V1a → V1b: ТОЛЬКО тело exportVideo — добавляется prepareFrames вызов
-// ─────────────────────────────────────────────────────────────────────────────
 
 export const CODE_V1b = f(`public byte[] exportVideo(byte[] sourceFrames, String outputFormat, String colorProfile) {
     validateInput(sourceFrames, outputFormat);
@@ -63,10 +57,6 @@ export const CODE_V1b = f(`public byte[] exportVideo(byte[] sourceFrames, String
 
     return finalizeExport(encodedVideo, outputFormat);
 }`);
-
-// ─────────────────────────────────────────────────────────────────────────────
-// V1b → V1c: появляется метод prepareFrames (НОВЫЙ метод, exportVideo не меняется)
-// ─────────────────────────────────────────────────────────────────────────────
 
 export const CODE_V1c = f(`public byte[] exportVideo(byte[] sourceFrames, String outputFormat, String colorProfile) {
     validateInput(sourceFrames, outputFormat);
@@ -81,11 +71,6 @@ private byte[] prepareFrames(byte[] sourceFrames, String colorProfile) {
     return applyColorProfile(normalizedFrames, colorProfile);
 }`);
 
-// ─────────────────────────────────────────────────────────────────────────────
-// V1c → V2a_export: ТОЛЬКО exportVideo — добавляется subtitleTrack в сигнатуру + вызов
-// prepareFrames НЕ меняется (вызов с 3 args, сигнатура пока с 2 — намеренно)
-// ─────────────────────────────────────────────────────────────────────────────
-
 export const CODE_V2a_export = f(`public byte[] exportVideo(byte[] sourceFrames, String outputFormat, String colorProfile, String subtitleTrack) {
     validateInput(sourceFrames, outputFormat);
     byte[] preparedFrames = prepareFrames(sourceFrames, colorProfile, subtitleTrack);
@@ -98,11 +83,6 @@ private byte[] prepareFrames(byte[] sourceFrames, String colorProfile) {
     byte[] normalizedFrames = normalizeFrames(sourceFrames);
     return applyColorProfile(normalizedFrames, colorProfile);
 }`);
-
-// ─────────────────────────────────────────────────────────────────────────────
-// V2a_export → V2a: ТОЛЬКО prepareFrames — принимает subtitleTrack, тело расширяется
-// exportVideo НЕ меняется
-// ─────────────────────────────────────────────────────────────────────────────
 
 export const CODE_V2a = f(`public byte[] exportVideo(byte[] sourceFrames, String outputFormat, String colorProfile, String subtitleTrack) {
     validateInput(sourceFrames, outputFormat);
@@ -119,11 +99,6 @@ private byte[] prepareFrames(byte[] sourceFrames, String colorProfile, String su
     return overlaySubtitles(coloredFrames, subtitleTrack);
 }`);
 
-// ─────────────────────────────────────────────────────────────────────────────
-// V2a → V2b_export: ТОЛЬКО exportVideo — runEncoder заменяется на encodeWithRetry
-// prepareFrames и ниже НЕ меняются
-// ─────────────────────────────────────────────────────────────────────────────
-
 export const CODE_V2b_export = f(`public byte[] exportVideo(byte[] sourceFrames, String outputFormat, String colorProfile, String subtitleTrack) {
     validateInput(sourceFrames, outputFormat);
     byte[] preparedFrames = prepareFrames(sourceFrames, colorProfile, subtitleTrack);
@@ -137,11 +112,6 @@ private byte[] prepareFrames(byte[] sourceFrames, String colorProfile, String su
 
     return overlaySubtitles(coloredFrames, subtitleTrack);
 }`);
-
-// ─────────────────────────────────────────────────────────────────────────────
-// V2b_export → V2b: появляются encodeWithRetry + encode (НОВЫЕ методы)
-// exportVideo и prepareFrames НЕ меняются
-// ─────────────────────────────────────────────────────────────────────────────
 
 export const CODE_V2b = f(`public byte[] exportVideo(byte[] sourceFrames, String outputFormat, String colorProfile, String subtitleTrack) {
     validateInput(sourceFrames, outputFormat);
@@ -175,10 +145,6 @@ private byte[] encode(byte[] preparedFrames, String outputFormat) {
     return finalizeExport(encodedVideo, outputFormat);
 }`);
 
-// ─────────────────────────────────────────────────────────────────────────────
-// V2b → V3a: ТОЛЬКО exportVideo — добавляется watermarkMode
-// ─────────────────────────────────────────────────────────────────────────────
-
 export const CODE_V3a = f(`public byte[] exportVideo(byte[] sourceFrames, String outputFormat, String colorProfile, String subtitleTrack, String watermarkMode) {
     validateInput(sourceFrames, outputFormat);
     byte[] preparedFrames = prepareFrames(sourceFrames, colorProfile, subtitleTrack);
@@ -210,10 +176,6 @@ private byte[] encode(byte[] preparedFrames, String outputFormat) {
 
     return finalizeExport(encodedVideo, outputFormat);
 }`);
-
-// ─────────────────────────────────────────────────────────────────────────────
-// V3a → V3b: ТОЛЬКО exportVideo — добавляется audioProfile
-// ─────────────────────────────────────────────────────────────────────────────
 
 export const CODE_V3b = f(`public byte[] exportVideo(byte[] sourceFrames, String outputFormat, String colorProfile, String subtitleTrack, String watermarkMode, String audioProfile) {
     validateInput(sourceFrames, outputFormat);
@@ -247,10 +209,6 @@ private byte[] encode(byte[] preparedFrames, String outputFormat) {
     return finalizeExport(encodedVideo, outputFormat);
 }`);
 
-// ─────────────────────────────────────────────────────────────────────────────
-// V3b → V3c: ТОЛЬКО exportVideo тело — вызовы получают доп. аргументы
-// ─────────────────────────────────────────────────────────────────────────────
-
 export const CODE_V3c = f(`public byte[] exportVideo(byte[] sourceFrames, String outputFormat, String colorProfile, String subtitleTrack, String watermarkMode, String audioProfile) {
     validateInput(sourceFrames, outputFormat);
     byte[] preparedFrames = prepareFrames(sourceFrames, colorProfile, subtitleTrack, watermarkMode, audioProfile);
@@ -282,10 +240,6 @@ private byte[] encode(byte[] preparedFrames, String outputFormat) {
 
     return finalizeExport(encodedVideo, outputFormat);
 }`);
-
-// ─────────────────────────────────────────────────────────────────────────────
-// V3c → V3d: ТОЛЬКО prepareFrames — сигнатура + тело расширяются
-// ─────────────────────────────────────────────────────────────────────────────
 
 export const CODE_V3d = f(`public byte[] exportVideo(byte[] sourceFrames, String outputFormat, String colorProfile, String subtitleTrack, String watermarkMode, String audioProfile) {
     validateInput(sourceFrames, outputFormat);
@@ -321,10 +275,6 @@ private byte[] encode(byte[] preparedFrames, String outputFormat) {
     return finalizeExport(encodedVideo, outputFormat);
 }`);
 
-// ─────────────────────────────────────────────────────────────────────────────
-// V3d → V3e: ТОЛЬКО encodeWithRetry — сигнатура + вызов encode расширяются
-// ─────────────────────────────────────────────────────────────────────────────
-
 export const CODE_V3e = f(`public byte[] exportVideo(byte[] sourceFrames, String outputFormat, String colorProfile, String subtitleTrack, String watermarkMode, String audioProfile) {
     validateInput(sourceFrames, outputFormat);
     byte[] preparedFrames = prepareFrames(sourceFrames, colorProfile, subtitleTrack, watermarkMode, audioProfile);
@@ -359,10 +309,6 @@ private byte[] encode(byte[] preparedFrames, String outputFormat) {
     return finalizeExport(encodedVideo, outputFormat);
 }`);
 
-// ─────────────────────────────────────────────────────────────────────────────
-// V3e → V3f_encode: ТОЛЬКО encode — сигнатура + вызов finalizeExport расширяются
-// ─────────────────────────────────────────────────────────────────────────────
-
 export const CODE_V3f_encode = f(`public byte[] exportVideo(byte[] sourceFrames, String outputFormat, String colorProfile, String subtitleTrack, String watermarkMode, String audioProfile) {
     validateInput(sourceFrames, outputFormat);
     byte[] preparedFrames = prepareFrames(sourceFrames, colorProfile, subtitleTrack, watermarkMode, audioProfile);
@@ -396,10 +342,6 @@ private byte[] encode(byte[] preparedFrames, String outputFormat, String waterma
 
     return finalizeExport(encodedVideo, outputFormat, watermarkMode, audioProfile);
 }`);
-
-// ─────────────────────────────────────────────────────────────────────────────
-// V3f_encode → V3f: появляется finalizeExport (НОВЫЙ метод)
-// ─────────────────────────────────────────────────────────────────────────────
 
 export const CODE_V3f = f(`public byte[] exportVideo(byte[] sourceFrames, String outputFormat, String colorProfile, String subtitleTrack, String watermarkMode, String audioProfile) {
     validateInput(sourceFrames, outputFormat);

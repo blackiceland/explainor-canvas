@@ -75,7 +75,7 @@ export default makeScene2D(function* (view) {
   cb.mount(view);
   cb.colorize(COLOR_RULES);
   const morph = (code: string, opts: Parameters<typeof cb.morphTo>[1] = {}) =>
-    cb.morphTo(code, {scrollStrategy: 'block', removeDuration: 0, ...opts});
+    cb.morphTo(code, {scrollStrategy: 'block', removeDuration: 0, moveDuration: 0.5, ...opts});
 
   const FADE_IN = Timing.slow;
 
@@ -192,7 +192,6 @@ export default makeScene2D(function* (view) {
   yield* morph(CODE_V2a_export);
   yield* waitFor(0.5);
 
-  yield* cb.scrollTo('private byte[] prepareFrames', 0.8);
   yield* morph(CODE_V2a);
   yield* waitFor(0.8);
 
@@ -200,7 +199,6 @@ export default makeScene2D(function* (view) {
   yield* morph(CODE_V2b_export, {flashRemovedColor: 'rgba(255, 80, 80, 0.95)', flashRemovedDuration: 0.2});
   yield* waitFor(0.5);
 
-  yield* cb.scrollTo('private byte[] encodeWithRetry', 1.0);
   yield* morph(CODE_V2b);
   yield* waitFor(1.5);
 
@@ -355,7 +353,6 @@ export default makeScene2D(function* (view) {
   yield* waitFor(0.5);
 
   // ── v3: prepareFrames — сигнатура + тело ─────────────────────────────
-  yield* cb.scrollTo('private byte[] prepareFrames', 0.8);
   yield* morph(CODE_V3d);
   yield* waitFor(0.5);
 

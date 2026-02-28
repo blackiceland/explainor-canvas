@@ -267,7 +267,7 @@ export class Manticore {
         const content = this.contentRef();
         const halfClip = this.clipHeight / 2;
         const halfLine = this.cfg.lineHeight / 2;
-        const padding = this.cfg.lineHeight * 1.5;
+        const padding = this.cfg.lineHeight;
         const lines = linesRef ?? this.lines;
 
         const firstY = lines[firstLine]?.node.y() ?? this.lineY(firstLine);
@@ -412,6 +412,7 @@ export class Manticore {
             this.lines[p.oldIndex].node.remove();
         }
 
+        const oldModifyLines: CodeLine[] = [];
         for (const p of plan) {
             if (p.kind !== 'modify') continue;
             const oldLine = this.lines[p.oldIndex];
@@ -421,7 +422,8 @@ export class Manticore {
             const vis = this.resolveTokenVisibility(p.tokenDiff!);
             this.setTokenVisibility(cl, vis);
             content.add(cl.node);
-            oldLine.node.remove();
+            oldLine.node.opacity(0);
+            oldModifyLines.push(oldLine);
             result[p.newIndex] = cl;
             modifyMap.set(p.newIndex, cl);
         }
@@ -436,27 +438,40 @@ export class Manticore {
             result[p.newIndex] = cl;
         }
 
+        const expandDuration = moveDuration * 1.6;
+
         const moveAnims: ThreadGenerator[] = [];
         for (let i = 0; i < result.length; i++) {
             const cl = result[i]!;
             const targetY = this.startY + i * lh;
             if (Math.abs(targetY - cl.node.y()) > 0.5) {
-                moveAnims.push(cl.node.y(targetY, moveDuration, easeInOutCubic));
+                moveAnims.push(cl.node.y(targetY, expandDuration, easeInOutCubic));
             }
         }
         for (const p of plan) {
             if (p.kind === 'add') {
-                moveAnims.push(result[p.newIndex]!.node.opacity(1, moveDuration, easeInOutCubic));
+                moveAnims.push(result[p.newIndex]!.node.opacity(1, expandDuration, easeInOutCubic));
             }
         }
-        if (moveAnims.length > 0) yield* all(...moveAnims);
 
-        const typewriterPlan = plan.filter(p => p.kind === 'modify' || p.kind === 'add');
+        const modifyEntries = plan.filter(p => p.kind === 'modify');
+        const modifyTypewriters: ThreadGenerator[] = modifyEntries.map(p => {
+            const vis = this.resolveTokenVisibility(p.tokenDiff!);
+            return this.typewriterNewTokens(modifyMap.get(p.newIndex)!, vis, charDelay);
+        });
+
+        if (moveAnims.length > 0 || modifyTypewriters.length > 0) {
+            yield* all(...moveAnims, ...modifyTypewriters);
+        }
+
+        for (const ol of oldModifyLines) ol.node.remove();
+
+        const addPlan = plan.filter(p => p.kind === 'add');
         let ti = 0;
-        while (ti < typewriterPlan.length) {
+        while (ti < addPlan.length) {
             let blockEnd = ti;
-            while (blockEnd + 1 < typewriterPlan.length
-                && typewriterPlan[blockEnd + 1].newIndex === typewriterPlan[blockEnd].newIndex + 1) {
+            while (blockEnd + 1 < addPlan.length
+                && addPlan[blockEnd + 1].newIndex === addPlan[blockEnd].newIndex + 1) {
                 blockEnd++;
             }
 
@@ -466,23 +481,18 @@ export class Manticore {
                 : blockEnd;
 
             yield* this.ensureRangeVisible(
-                typewriterPlan[ti].newIndex,
-                typewriterPlan[safeEnd].newIndex,
+                addPlan[ti].newIndex,
+                addPlan[safeEnd].newIndex,
                 moveDuration,
                 result,
             );
 
             for (let bi = ti; bi <= blockEnd; bi++) {
-                const p = typewriterPlan[bi];
+                const p = addPlan[bi];
                 if (scrollStrategy === 'blockWithTail' && bi > safeEnd) {
                     yield* this.ensureRangeVisible(p.newIndex, p.newIndex, moveDuration * 0.6, result);
                 }
-                if (p.kind === 'modify') {
-                    const vis = this.resolveTokenVisibility(p.tokenDiff!);
-                    yield* this.typewriterNewTokens(modifyMap.get(p.newIndex)!, vis, charDelay);
-                } else {
-                    yield* result[p.newIndex]!.typewriter(charDelay);
-                }
+                yield* result[p.newIndex]!.typewriter(charDelay);
                 if (lineDelay > 0) yield* waitFor(lineDelay);
             }
 
