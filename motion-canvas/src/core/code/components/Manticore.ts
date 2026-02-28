@@ -41,6 +41,7 @@ export interface MorphOptions {
     flashRemovedDuration?: number;
     scrollStrategy?: 'block' | 'blockWithTail';
     preScroll?: 'auto' | 'off';
+    addStyle?: 'typewriter' | 'fade';
 }
 
 interface LinePlan {
@@ -340,50 +341,41 @@ export class Manticore {
         let di = 0;
 
         while (di < diff.length) {
-            const entry = diff[di];
-
-            if (entry.op === 'keep') {
-                plan.push({kind: 'keep', oldIndex: entry.oldIndex, newIndex: entry.newIndex, newText: entry.text});
+            if (diff[di].op === 'keep') {
+                const e = diff[di];
+                plan.push({kind: 'keep', oldIndex: e.oldIndex, newIndex: e.newIndex, newText: e.text});
                 di++;
                 continue;
             }
 
-            if (entry.op === 'remove' && di + 1 < diff.length && diff[di + 1].op === 'add') {
-                const oldTokens = tokenizeLine(this.code[entry.oldIndex], this.cfg.customTypes);
-                const newTokens = tokenizeLine(diff[di + 1].text, this.cfg.customTypes);
-                plan.push({
-                    kind: 'modify',
-                    oldIndex: entry.oldIndex,
-                    newIndex: diff[di + 1].newIndex,
-                    newText: diff[di + 1].text,
-                    tokenDiff: diffTokens(oldTokens, newTokens),
-                });
-                di += 2;
-                continue;
-            }
-
-            if (entry.op === 'add' && di + 1 < diff.length && diff[di + 1].op === 'remove') {
-                const oldTokens = tokenizeLine(this.code[diff[di + 1].oldIndex], this.cfg.customTypes);
-                const newTokens = tokenizeLine(entry.text, this.cfg.customTypes);
-                plan.push({
-                    kind: 'modify',
-                    oldIndex: diff[di + 1].oldIndex,
-                    newIndex: entry.newIndex,
-                    newText: entry.text,
-                    tokenDiff: diffTokens(oldTokens, newTokens),
-                });
-                di += 2;
-                continue;
-            }
-
-            if (entry.op === 'remove') {
-                plan.push({kind: 'remove', oldIndex: entry.oldIndex, newIndex: -1, newText: ''});
+            const removes: typeof diff = [];
+            const adds: typeof diff = [];
+            while (di < diff.length && diff[di].op !== 'keep') {
+                if (diff[di].op === 'remove') removes.push(diff[di]);
+                else adds.push(diff[di]);
                 di++;
-                continue;
             }
 
-            plan.push({kind: 'add', oldIndex: -1, newIndex: entry.newIndex, newText: entry.text});
-            di++;
+            const pairs = Math.min(removes.length, adds.length);
+            for (let k = 0; k < pairs; k++) {
+                const r = removes[k];
+                const a = adds[k];
+                const oldTokens = tokenizeLine(this.code[r.oldIndex], this.cfg.customTypes);
+                const newTokens = tokenizeLine(a.text, this.cfg.customTypes);
+                plan.push({
+                    kind: 'modify',
+                    oldIndex: r.oldIndex,
+                    newIndex: a.newIndex,
+                    newText: a.text,
+                    tokenDiff: diffTokens(oldTokens, newTokens),
+                });
+            }
+            for (let k = pairs; k < removes.length; k++) {
+                plan.push({kind: 'remove', oldIndex: removes[k].oldIndex, newIndex: -1, newText: ''});
+            }
+            for (let k = pairs; k < adds.length; k++) {
+                plan.push({kind: 'add', oldIndex: -1, newIndex: adds[k].newIndex, newText: adds[k].text});
+            }
         }
 
         return plan;
@@ -401,6 +393,7 @@ export class Manticore {
             flashRemovedDuration = 0.15,
             scrollStrategy = 'blockWithTail',
             preScroll = 'auto',
+            addStyle = 'typewriter',
         } = opts;
 
         const newLines = newCode.split('\n');
@@ -441,7 +434,7 @@ export class Manticore {
             if (p.kind !== 'add') continue;
             const cl = this.buildLine(p.newText, this.startY + p.newIndex * lh);
             cl.node.opacity(0);
-            cl.hideTokensInstantly();
+            if (addStyle === 'typewriter') cl.hideTokensInstantly();
             this.applyRules(cl);
             content.add(cl.node);
             result[p.newIndex] = cl;
@@ -519,7 +512,9 @@ export class Manticore {
                     if (addCl.node.opacity() < 1) {
                         yield* addCl.node.opacity(1, moveDuration * 0.5, easeInOutCubic);
                     }
-                    yield* addCl.typewriter(charDelay);
+                    if (addStyle === 'typewriter') {
+                        yield* addCl.typewriter(charDelay);
+                    }
                 }
                 if (lineDelay > 0) yield* waitFor(lineDelay);
             }

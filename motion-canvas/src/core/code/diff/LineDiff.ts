@@ -33,7 +33,7 @@ export function diffLines(oldLines: string[], newLines: string[]): DiffEntry[] {
             stack.push({op: 'keep', oldIndex: i - 1, newIndex: j - 1, text: oldLines[i - 1]});
             i--;
             j--;
-        } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+        } else if (j > 0 && (i === 0 || dp[i][j - 1] > dp[i - 1][j])) {
             stack.push({op: 'add', oldIndex: -1, newIndex: j - 1, text: newLines[j - 1]});
             j--;
         } else {

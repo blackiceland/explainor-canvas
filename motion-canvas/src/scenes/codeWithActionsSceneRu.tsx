@@ -6,32 +6,18 @@ import {getCodePaddingY} from '../core/code/shared/TextMeasure';
 import {SafeZone} from '../core/ScreenGrid';
 import {Fonts, Screen, Timing} from '../core/theme';
 import {applyBackground} from '../core/utils';
+import {JavaClass, method, param} from '../core/code/model/JavaModel';
+import {Medusa} from '../core/code/director/Medusa';
 import {
   CODE_CARD_STYLE,
   CODE_W,
   COLOR_RULES,
   FRAME_STROKE_DONE,
   LEFT_CENTER_X,
+  MAX_LINE_CHARS,
   PANEL_X,
   PASS_THROUGH,
 } from './codeWithActionsSceneRu.config';
-import {
-  CODE_V0,
-  CODE_V1a,
-  CODE_V1b,
-  CODE_V1c,
-  CODE_V2a_export,
-  CODE_V2a,
-  CODE_V2b_export,
-  CODE_V2b,
-  CODE_V3a,
-  CODE_V3b,
-  CODE_V3c,
-  CODE_V3d,
-  CODE_V3e,
-  CODE_V3f_encode,
-  CODE_V3f,
-} from './codeWithActionsSceneRu.states';
 import {createRightPanel} from './codeWithActionsSceneRu.rightPanel';
 
 export default makeScene2D(function* (view) {
@@ -59,8 +45,18 @@ export default makeScene2D(function* (view) {
     dividerOp,
   } = createRightPanel(view);
 
-  // ── CodeBlock ──────────────────────────────────────────────────────────
-  const cb = Manticore.create(CODE_V0, {
+  // ── Модель ──────────────────────────────────────────────────────────────
+  const model = JavaClass.create([
+    method('public', 'byte[]', 'exportVideo',
+      [param('byte[]', 'sourceFrames'), param('String', 'outputFormat')],
+      ['validateInput(sourceFrames, outputFormat);',
+       'byte[] encodedVideo = runEncoder(sourceFrames);',
+       '',
+       'return finalizeExport(encodedVideo, outputFormat);']),
+  ], MAX_LINE_CHARS);
+
+  // ── Manticore ───────────────────────────────────────────────────────────
+  const manticore = Manticore.create(model.render(), {
     x: LEFT_CENTER_X - 50, y: -50,
     width: CODE_W,
     height: SafeZone.bottom - SafeZone.top - 36,
@@ -72,16 +68,20 @@ export default makeScene2D(function* (view) {
     glowAccent: false,
     customTypes: ['String', 'RuntimeException', 'IllegalStateException', 'IllegalArgumentException', 'Muxer', 'Container'],
   });
-  cb.mount(view);
-  cb.colorize(COLOR_RULES);
-  const morph = (code: string, opts: Parameters<typeof cb.morphTo>[1] = {}) =>
-    cb.morphTo(code, {scrollStrategy: 'block', removeDuration: 0, moveDuration: 0.6, ...opts});
+  manticore.mount(view);
+  manticore.colorize(COLOR_RULES);
+
+  // ── Медуза ──────────────────────────────────────────────────────────────
+  const dir = new Medusa(model, manticore, {
+    morphDefaults: {scrollStrategy: 'block', removeDuration: 0, moveDuration: 0.6},
+    pauseAfterMorph: 0.5,
+  });
 
   const FADE_IN = Timing.slow;
 
   // ── v0: появление ─────────────────────────────────────────────────────
   yield* dividerOp(1, FADE_IN, easeInOutCubic);
-  yield* cb.appear(FADE_IN);
+  yield* dir.cb.appear(FADE_IN);
   yield* waitFor(0.5);
 
   yield* all(
@@ -136,14 +136,25 @@ export default makeScene2D(function* (view) {
   yield* sweepOpacity(0, 0.2, easeInOutCubic);
   yield* waitFor(0.3);
 
-  yield* morph(CODE_V1a);
-  yield* waitFor(0.5);
+  // v1a: +colorProfile
+  yield* dir.addParam('exportVideo', param('String', 'colorProfile'));
 
-  yield* morph(CODE_V1b);
-  yield* waitFor(0.8);
+  // v1b: prepareFrames call + pass preparedFrames
+  yield* dir.apply(m => m.replaceLine('exportVideo',
+    'byte[] encodedVideo = runEncoder(sourceFrames);',
+    'byte[] preparedFrames = prepareFrames(sourceFrames, colorProfile);',
+    'byte[] encodedVideo = runEncoder(preparedFrames);',
+  ));
+  yield* waitFor(0.3);
 
-  yield* morph(CODE_V1c);
-  yield* waitFor(0.5);
+  // v1c: prepareFrames появляется
+  yield* dir.addMethod(
+    method('private', 'byte[]', 'prepareFrames',
+      [param('byte[]', 'sourceFrames'), param('String', 'colorProfile')],
+      ['byte[] normalizedFrames = normalizeFrames(sourceFrames);',
+       'return applyColorProfile(normalizedFrames, colorProfile);']),
+    'exportVideo',
+  );
 
   yield* frameOpEncoderV1(1, FADE_IN, easeInOutCubic);
   yield* waitFor(0.1);
@@ -188,20 +199,64 @@ export default makeScene2D(function* (view) {
   yield* subtitleBarOp(1, 0.5, easeInOutCubic);
   yield* waitFor(0.5);
 
-  yield* cb.scrollTo(0, 0.6);
-  yield* morph(CODE_V2a_export);
-  yield* waitFor(0.5);
+  // v2a_export: +subtitleTrack в exportVideo + обновить вызов prepareFrames
+  yield* dir.scrollTo(0, 0.6);
+  yield* dir.apply(m => {
+    m.addParam('exportVideo', param('String', 'subtitleTrack'));
+    m.updateCallArgs('exportVideo', 'prepareFrames', ['sourceFrames', 'colorProfile', 'subtitleTrack']);
+  });
 
-  yield* morph(CODE_V2a);
-  yield* waitFor(0.8);
+  // v2a_prepare: +subtitleTrack в prepareFrames (только сигнатура)
+  yield* dir.addParam('prepareFrames', param('String', 'subtitleTrack'));
 
-  yield* cb.scrollTo(0, 0.8);
-  yield* morph(CODE_V2b_export, {flashRemovedColor: 'rgba(255, 80, 80, 0.95)', flashRemovedDuration: 0.2});
-  yield* waitFor(0.5);
+  // v2a: тело prepareFrames обогащается
+  yield* dir.setBody('prepareFrames', [
+    'byte[] normalizedFrames = normalizeFrames(sourceFrames);',
+    'byte[] coloredFrames = applyColorProfile(normalizedFrames, colorProfile);',
+    '',
+    'return overlaySubtitles(coloredFrames, subtitleTrack);',
+  ]);
+  yield* waitFor(0.3);
 
-  yield* morph(CODE_V2b);
-  yield* waitFor(1.5);
+  // v2b_export: заменить runEncoder → encodeWithRetry в exportVideo
+  yield* dir.scrollTo(0, 0.8);
+  yield* dir.apply(m => {
+    m.removeLine('exportVideo', 'byte[] encodedVideo = runEncoder(preparedFrames);');
+    m.replaceLine('exportVideo',
+      'return finalizeExport(encodedVideo, outputFormat);',
+      'return encodeWithRetry(preparedFrames, outputFormat);',
+    );
+  }, {flashRemovedColor: 'rgba(255, 80, 80, 0.95)', flashRemovedDuration: 0.2});
 
+  // v2b: encodeWithRetry + encode появляются
+  yield* dir.apply(m => {
+    m.addMethod(
+      method('private', 'byte[]', 'encodeWithRetry',
+        [param('byte[]', 'preparedFrames'), param('String', 'outputFormat')],
+        ['int attemptsLeft = this.maxAttempts;',
+         '',
+         'while (attemptsLeft-- > 0) {',
+         '    try {',
+         '        return encode(preparedFrames, outputFormat);',
+         '    } catch (RuntimeException ex) { /* retry */ }',
+         '}',
+         '',
+         'throw new IllegalStateException("Encoding failed");']),
+      'prepareFrames',
+    );
+    m.addMethod(
+      method('private', 'byte[]', 'encode',
+        [param('byte[]', 'preparedFrames'), param('String', 'outputFormat')],
+        ['byte[] encodedVideo = runEncoder(preparedFrames);',
+         '',
+         'return finalizeExport(encodedVideo, outputFormat);']),
+      'encodeWithRetry',
+    );
+  }, {scrollStrategy: 'blockWithTail'});
+  yield* waitFor(1.0);
+
+  // ── highlight: outputFormat pass-through ──────────────────────────────
+  const cb = dir.cb;
   const passRule = [{match: 'outputFormat', color: PASS_THROUGH}];
 
   yield* cb.scrollTo(0, 1.0);
@@ -242,6 +297,7 @@ export default makeScene2D(function* (view) {
   yield* highlight(finalizeCallIdx, finalizeCallIdx);
   yield* waitFor(2.0);
 
+  // ── stripe подсветка encodeWithRetry → finalizeExport ─────────────────
   const STRIPE_COLOR  = 'rgba(255, 80, 120, 0.18)';
   const stripeW       = CODE_W + 40;
   const stripeH       = lineHeight * 1.15;
@@ -286,7 +342,7 @@ export default makeScene2D(function* (view) {
 
   yield* waitFor(1.5);
 
-  // ── v3: скролл наверх → watermark фрейм → параметр ─────────────────
+  // ── v3: watermark ─────────────────────────────────────────────────────
   yield* cb.scrollTo(0, 0.8);
   yield* waitFor(0.3);
 
@@ -295,10 +351,9 @@ export default makeScene2D(function* (view) {
   yield* watermarkOp(1, 0.5, easeInOutCubic);
   yield* waitFor(0.3);
 
-  yield* morph(CODE_V3a);
-  yield* waitFor(0.5);
+  yield* dir.addParam('exportVideo', param('String', 'watermarkMode'));
 
-  // ── v3: audio фрейм → параметр ────────────────────────────────────────
+  // ── v3: audio ─────────────────────────────────────────────────────────
   yield* frameOpAudio(1, Timing.slow, easeInOutCubic);
   yield* waitFor(0.2);
   yield* barsOpacity(1, 0.3, easeInOutCubic);
@@ -313,8 +368,7 @@ export default makeScene2D(function* (view) {
   yield* all(...barHeights.map(h => h(NORMALIZED_H, 0.4, easeInOutCubic)));
   yield* waitFor(0.5);
 
-  yield* morph(CODE_V3b);
-  yield* waitFor(0.5);
+  yield* dir.addParam('exportVideo', param('String', 'audioProfile'));
 
   // ── схлопывание ───────────────────────────────────────────────────────
   yield* all(
@@ -347,26 +401,65 @@ export default makeScene2D(function* (view) {
   );
   yield* waitFor(1.0);
 
-  // ── v3: обновляем вызовы в exportVideo ────────────────────────────────
-  yield* cb.scrollTo(0, 0.8);
-  yield* morph(CODE_V3c);
-  yield* waitFor(0.5);
+  // ── v3c: обновляем вызовы в exportVideo ───────────────────────────────
+  yield* dir.scrollTo(0, 0.8);
+  yield* dir.apply(m => {
+    m.updateCallArgs('exportVideo', 'prepareFrames', ['sourceFrames', 'colorProfile', 'subtitleTrack', 'watermarkMode', 'audioProfile']);
+    m.updateCallArgs('exportVideo', 'encodeWithRetry', ['preparedFrames', 'outputFormat', 'watermarkMode', 'audioProfile']);
+  });
 
-  // ── v3: prepareFrames — сигнатура + тело ─────────────────────────────
-  yield* morph(CODE_V3d);
-  yield* waitFor(0.5);
+  // ── v3d: prepareFrames — сигнатура + тело ─────────────────────────────
+  yield* dir.addParamsAndUpdateBody('prepareFrames',
+    [param('String', 'watermarkMode'), param('String', 'audioProfile')],
+    ['byte[] normalizedFrames = normalizeFrames(sourceFrames);',
+     'byte[] coloredFrames = applyColorProfile(normalizedFrames, colorProfile);',
+     'byte[] subtitledFrames = overlaySubtitles(coloredFrames, subtitleTrack);',
+     'byte[] watermarkedFrames = applyWatermark(subtitledFrames, watermarkMode);',
+     '',
+     'return normalizeAudio(watermarkedFrames, audioProfile);'],
+    ['byte[] normalizedFrames = normalizeFrames(sourceFrames);',
+     'byte[] coloredFrames = applyColorProfile(normalizedFrames, colorProfile);',
+     'byte[] subtitledFrames = overlaySubtitles(coloredFrames, subtitleTrack);',
+     '',
+     'return subtitledFrames;'],
+  );
 
-  // ── v3: encodeWithRetry — сигнатура + вызов encode ───────────────────
-  yield* cb.scrollTo('private byte[] encodeWithRetry', 0.8);
-  yield* morph(CODE_V3e);
-  yield* waitFor(0.5);
+  // ── v3e: encodeWithRetry — сигнатура + вызов encode ───────────────────
+  yield* dir.scrollTo('private byte[] encodeWithRetry', 0.8);
+  yield* dir.apply(m => {
+    m.addParam('encodeWithRetry', param('String', 'watermarkMode'));
+    m.addParam('encodeWithRetry', param('String', 'audioProfile'));
+    m.replaceLine('encodeWithRetry',
+      'return encode(preparedFrames, outputFormat);',
+      'return encode(preparedFrames, outputFormat, watermarkMode, audioProfile);',
+    );
+  });
 
-  // ── v3: encode — сигнатура + вызов finalizeExport расширяются ──────
-  yield* cb.scrollTo('private byte[] encode(', 0.8);
-  yield* morph(CODE_V3f_encode);
-  yield* waitFor(0.5);
+  // ── v3f_encode: encode — сигнатура + вызов finalizeExport ─────────────
+  yield* dir.scrollTo('private byte[] encode(', 0.8);
+  yield* dir.apply(m => {
+    m.addParam('encode', param('String', 'watermarkMode'));
+    m.addParam('encode', param('String', 'audioProfile'));
+    m.replaceLine('encode',
+      'return finalizeExport(encodedVideo, outputFormat);',
+      'return finalizeExport(encodedVideo, outputFormat, watermarkMode, audioProfile);',
+    );
+  });
 
-  // ── v3: finalizeExport появляется ─────────────────────────────────
-  yield* morph(CODE_V3f);
-  yield* waitFor(1.5);
+  // ── v3f: finalizeExport появляется ────────────────────────────────────
+  yield* dir.addMethodFade(
+    method('private', 'byte[]', 'finalizeExport',
+      [param('byte[]', 'encodedVideo'), param('String', 'outputFormat'), param('String', 'watermarkMode'), param('String', 'audioProfile')],
+      ['if (!isSupportedFormat(outputFormat)) {',
+       '    throw new IllegalArgumentException("Unsupported: " + outputFormat);',
+       '}',
+       '',
+       'Container container = Muxer.mux(encodedVideo, outputFormat);',
+       'container.applyWatermark(watermarkMode);',
+       'container.normalizeAudio(audioProfile);',
+       '',
+       'return container;']),
+    'encode',
+  );
+  yield* waitFor(1.0);
 });
