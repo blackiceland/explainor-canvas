@@ -22,12 +22,14 @@ import {
   CODE_V1c,
   CODE_V2a_export,
   CODE_V2a,
+  CODE_V2b_export,
   CODE_V2b,
   CODE_V3a,
   CODE_V3b,
   CODE_V3c,
   CODE_V3d,
   CODE_V3e,
+  CODE_V3f_encode,
   CODE_V3f,
 } from './codeWithActionsSceneRu.states';
 import {createRightPanel} from './codeWithActionsSceneRu.rightPanel';
@@ -73,7 +75,7 @@ export default makeScene2D(function* (view) {
   cb.mount(view);
   cb.colorize(COLOR_RULES);
   const morph = (code: string, opts: Parameters<typeof cb.morphTo>[1] = {}) =>
-    cb.morphTo(code, {scrollStrategy: 'block', ...opts});
+    cb.morphTo(code, {scrollStrategy: 'block', removeDuration: 0, ...opts});
 
   const FADE_IN = Timing.slow;
 
@@ -186,6 +188,7 @@ export default makeScene2D(function* (view) {
   yield* subtitleBarOp(1, 0.5, easeInOutCubic);
   yield* waitFor(0.5);
 
+  yield* cb.scrollTo(0, 0.6);
   yield* morph(CODE_V2a_export);
   yield* waitFor(0.5);
 
@@ -194,7 +197,11 @@ export default makeScene2D(function* (view) {
   yield* waitFor(0.8);
 
   yield* cb.scrollTo(0, 0.8);
-  yield* morph(CODE_V2b, {flashRemovedColor: 'rgba(255, 80, 80, 0.95)', flashRemovedDuration: 0.2});
+  yield* morph(CODE_V2b_export, {flashRemovedColor: 'rgba(255, 80, 80, 0.95)', flashRemovedDuration: 0.2});
+  yield* waitFor(0.5);
+
+  yield* cb.scrollTo('private byte[] encodeWithRetry', 1.0);
+  yield* morph(CODE_V2b);
   yield* waitFor(1.5);
 
   const passRule = [{match: 'outputFormat', color: PASS_THROUGH}];
@@ -357,8 +364,12 @@ export default makeScene2D(function* (view) {
   yield* morph(CODE_V3e);
   yield* waitFor(0.5);
 
-  // ── v3: encode + finalizeExport ──────────────────────────────────────
+  // ── v3: encode — сигнатура + вызов finalizeExport расширяются ──────
   yield* cb.scrollTo('private byte[] encode(', 0.8);
+  yield* morph(CODE_V3f_encode);
+  yield* waitFor(0.5);
+
+  // ── v3: finalizeExport появляется ─────────────────────────────────
   yield* morph(CODE_V3f);
   yield* waitFor(1.5);
 });

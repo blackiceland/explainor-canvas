@@ -418,7 +418,8 @@ export class Manticore {
             const cl = this.buildLine(p.newText, oldLine.node.y());
             this.applyRules(cl);
             cl.hideTokensInstantly();
-            this.setTokenVisibility(cl, this.resolveTokenVisibility(p.tokenDiff!));
+            const vis = this.resolveTokenVisibility(p.tokenDiff!);
+            this.setTokenVisibility(cl, vis);
             content.add(cl.node);
             oldLine.node.remove();
             result[p.newIndex] = cl;

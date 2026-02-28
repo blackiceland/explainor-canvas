@@ -1,6 +1,9 @@
 import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
 import {ColorRule} from '../core/code/components/Manticore';
+import {measureChar, getCodePaddingX} from '../core/code/shared/TextMeasure';
 import {Screen} from '../core/theme';
+
+export const CODE_FONT_SIZE = 22;
 
 export const PANEL_W = Screen.width * 5 / 16;
 export const PANEL_X = Screen.width / 2 - PANEL_W / 2;
@@ -9,6 +12,10 @@ export const DIVIDER_X = PANEL_X - PANEL_W / 2;
 export const CODE_RIGHT = DIVIDER_X;
 export const CODE_W = CODE_RIGHT - (-Screen.width / 2 + 40);
 export const LEFT_CENTER_X = -Screen.width / 2 + 40 + CODE_W / 2;
+
+export const MAX_LINE_CHARS = Math.floor(
+  (CODE_W - getCodePaddingX(CODE_FONT_SIZE)) / measureChar(CODE_FONT_SIZE),
+);
 
 export const FRAME_W = 420;
 export const FRAME_H = 236;
