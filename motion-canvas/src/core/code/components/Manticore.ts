@@ -163,16 +163,6 @@ export class Manticore {
         return cl;
     }
 
-    private findNeighborY(newIndex: number, result: (CodeLine | null)[], lh: number): number {
-        for (let i = newIndex - 1; i >= 0; i--) {
-            if (result[i]) return result[i]!.node.y();
-        }
-        for (let i = newIndex + 1; i < result.length; i++) {
-            if (result[i]) return result[i]!.node.y();
-        }
-        return this.startY + newIndex * lh;
-    }
-
     private applyRules(cl: CodeLine): void {
         for (const rule of this.colorRules) {
             cl.colorizeByRule(rule.match, rule.color, rule.onlyTypes);
@@ -448,8 +438,7 @@ export class Manticore {
 
         for (const p of plan) {
             if (p.kind !== 'add') continue;
-            const neighborY = this.findNeighborY(p.newIndex, result, lh);
-            const cl = this.buildLine(p.newText, neighborY);
+            const cl = this.buildLine(p.newText, this.startY + p.newIndex * lh);
             cl.node.opacity(0);
             cl.hideTokensInstantly();
             this.applyRules(cl);
@@ -496,6 +485,7 @@ export class Manticore {
                 result,
             );
 
+            let shiftedBelowBlock = false;
             for (let bi = block.start; bi <= block.end; bi++) {
                 const p = typewriterPlan[bi];
                 if (scrollStrategy === 'blockWithTail' && bi > block.safeEnd) {
@@ -509,6 +499,18 @@ export class Manticore {
                     this.applyRules(cl);
                     yield* this.typewriterNewTokens(cl, vis, charDelay);
                 } else {
+                    if (hasModify && !shiftedBelowBlock) {
+                        const shiftBelow: ThreadGenerator[] = [];
+                        for (let i = typewriterPlan[block.end].newIndex + 1; i < result.length; i++) {
+                            const cl = result[i]!;
+                            const targetY = this.startY + i * lh;
+                            if (Math.abs(targetY - cl.node.y()) > 0.5) {
+                                shiftBelow.push(cl.node.y(targetY, moveDuration, easeInOutCubic));
+                            }
+                        }
+                        if (shiftBelow.length > 0) yield* all(...shiftBelow);
+                        shiftedBelowBlock = true;
+                    }
                     const addCl = result[p.newIndex]!;
                     if (addCl.node.opacity() < 1) {
                         yield* addCl.node.opacity(1, moveDuration * 0.5, easeInOutCubic);
@@ -519,15 +521,17 @@ export class Manticore {
             }
 
             if (hasModify) {
-                const expandAnims: ThreadGenerator[] = [];
-                for (let i = 0; i < result.length; i++) {
-                    const cl = result[i]!;
-                    const targetY = this.startY + i * lh;
+                const settleModified: ThreadGenerator[] = [];
+                for (let bi = block.start; bi <= block.end; bi++) {
+                    const p = typewriterPlan[bi];
+                    if (p.kind !== 'modify') continue;
+                    const cl = result[p.newIndex]!;
+                    const targetY = this.startY + p.newIndex * lh;
                     if (Math.abs(targetY - cl.node.y()) > 0.5) {
-                        expandAnims.push(cl.node.y(targetY, moveDuration, easeInOutCubic));
+                        settleModified.push(cl.node.y(targetY, moveDuration, easeInOutCubic));
                     }
                 }
-                if (expandAnims.length > 0) yield* all(...expandAnims);
+                if (settleModified.length > 0) yield* all(...settleModified);
             }
         }
 
