@@ -1,5 +1,5 @@
-import {makeScene2D} from '@motion-canvas/2d';
-import {all, createSignal, easeInOutCubic, tween, waitFor} from '@motion-canvas/core';
+import {makeScene2D, Rect} from '@motion-canvas/2d';
+import {all, easeInOutCubic, waitFor} from '@motion-canvas/core';
 import {Manticore} from '../core/code/components/Manticore';
 import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
 import {getCodePaddingY} from '../core/code/shared/TextMeasure';
@@ -16,8 +16,6 @@ import {
   PANEL_X,
 } from './codeWithActionsSceneRu.config';
 import {createRightPanel} from './codeWithActionsSceneRu.rightPanel';
-import {createThreeView} from '../core/three/ThreeCanvas';
-import {createCodePlaneScene, renderCodeToCanvas, updateTexture} from '../core/three/CodePlaneScene';
 
 export default makeScene2D(function* (view) {
   applyBackground(view);
@@ -103,6 +101,7 @@ export default makeScene2D(function* (view) {
   const lineHeight = Math.round(fontSize * 1.62 * 10) / 10;
   const paddingY = getCodePaddingY(fontSize);
   const topInset = Math.max(8, paddingY - 8);
+  const customTypes = ['String', 'RuntimeException', 'IllegalStateException', 'IllegalArgumentException', 'Muxer', 'Container'];
 
   const cb = Manticore.create(CODE_V3f, {
     x: LEFT_CENTER_X - 50,
@@ -116,7 +115,7 @@ export default makeScene2D(function* (view) {
     theme: DryFiltersV3CodeTheme,
     cardStyle: CODE_CARD_STYLE,
     glowAccent: false,
-    customTypes: ['String', 'RuntimeException', 'IllegalStateException', 'IllegalArgumentException', 'Muxer', 'Container'],
+    customTypes,
   });
 
   cb.mount(view);
@@ -141,50 +140,27 @@ export default makeScene2D(function* (view) {
 
   yield* waitFor(0.4);
 
-  const codeLines = cb.currentCode;
-  const customTypes = ['String', 'RuntimeException', 'IllegalStateException', 'IllegalArgumentException', 'Muxer', 'Container'];
-  const codeCanvas = renderCodeToCanvas(codeLines, DryFiltersV3CodeTheme, Fonts.code, fontSize, customTypes, CODE_W);
-  const aspect = codeCanvas.height / codeCanvas.width;
-  const planeW = 6;
-  const planeH = planeW * aspect;
-  const {scene: threeScene, camera, plane, texture} = createCodePlaneScene({
-    planeWidth: planeW,
-    planeHeight: planeH,
-    cameraFov: 50,
-    cameraZ: 5.5,
-  });
-  updateTexture(texture, codeCanvas);
+  // --- Step 1: capture entire view as freeze frame ---
+  const w = Screen.width;
+  const h = Screen.height;
 
-  const tiltAngle = createSignal(0);
-  const scrollOffset = createSignal(0);
+  const offscreen = document.createElement('canvas');
+  offscreen.width = w;
+  offscreen.height = h;
+  const ctx = offscreen.getContext('2d')!;
+  view.render(ctx);
 
-  const threeView = createThreeView({
-    width: Screen.width,
-    height: Screen.height,
-    scene: threeScene,
-    camera: camera,
-    quality: 2,
-    onRender: (renderer, s, cam) => {
-      plane.rotation.x = tiltAngle();
-      plane.position.y = scrollOffset();
-      renderer.render(s, cam);
-    },
-  });
-  threeView.node.opacity(0);
-  view.add(threeView.node);
+  const freeze = new Rect({width: w, height: h});
+  const origDraw = (freeze as any).draw.bind(freeze);
+  (freeze as any).draw = function (c: CanvasRenderingContext2D) {
+    c.drawImage(offscreen, -w / 2, -h / 2, w, h);
+  };
 
-  yield* all(
-    cb.node.opacity(0, 0.6, easeInOutCubic),
-    threeView.node.opacity(1, 0.6, easeInOutCubic),
-  );
+  // Hide all live children, add freeze on top
+  for (const child of view.children()) {
+    child.opacity(0);
+  }
+  view.add(freeze);
 
-  yield* tween(2.0, t => {
-    tiltAngle(-0.65 * easeInOutCubic(t));
-  });
-
-  yield* tween(10.0, t => {
-    scrollOffset(easeInOutCubic(t) * planeH * 0.35);
-  });
-
-  yield* waitFor(2.0);
+  yield* waitFor(3.0);
 });
