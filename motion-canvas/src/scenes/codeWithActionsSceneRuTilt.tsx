@@ -146,23 +146,24 @@ export default makeScene2D(function* (view) {
   const w = Screen.width;
   const h = Screen.height;
   const codeLines = cb.currentCode;
+  const crawlFontSize = 25;
   const opaque = (c: string) => c.replace(
     /rgba\(\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*[^)]+\)/gi,
     'rgb($1,$2,$3)',
   );
   const crawlTheme = {
     ...DryFiltersV3CodeTheme,
-    plain: opaque(DryFiltersV3CodeTheme.plain),
-    punctuation: opaque(DryFiltersV3CodeTheme.punctuation),
-    operator: opaque(DryFiltersV3CodeTheme.operator),
-    keyword: opaque(DryFiltersV3CodeTheme.keyword),
-    annotation: opaque(DryFiltersV3CodeTheme.annotation),
-    type: opaque(DryFiltersV3CodeTheme.type),
-    constant: opaque(DryFiltersV3CodeTheme.constant),
+    plain: '#F8F6F0',
+    punctuation: '#D7DBE4',
+    operator: '#D7DBE4',
+    keyword: '#A9D5FF',
+    annotation: '#A9D5FF',
+    type: '#D3B7FF',
+    constant: '#D3B7FF',
     method: opaque(DryFiltersV3CodeTheme.method),
-    string: opaque(DryFiltersV3CodeTheme.string),
-    number: opaque(DryFiltersV3CodeTheme.number),
-    comment: opaque(DryFiltersV3CodeTheme.comment),
+    string: '#E8E4DA',
+    number: '#D3B7FF',
+    comment: '#B6BBC8',
   };
 
   // Build centered texture so code sits in the middle of camera frame.
@@ -170,13 +171,16 @@ export default makeScene2D(function* (view) {
     codeLines,
     crawlTheme,
     Fonts.code,
-    fontSize,
+    crawlFontSize,
     customTypes,
     CODE_W,
     'rgba(0,0,0,0)',
   );
   const textureW = w;
-  const textureH = rawCodeCanvas.height / 2;
+  const rawLogicalH = rawCodeCanvas.height / 2;
+  const extraTop = Math.round(crawlFontSize * 3.2);
+  const extraBottom = Math.round(crawlFontSize * 9.0);
+  const textureH = rawLogicalH + extraTop + extraBottom;
   const codeCanvas = document.createElement('canvas');
   codeCanvas.width = textureW * 2;
   codeCanvas.height = textureH * 2;
@@ -185,9 +189,9 @@ export default makeScene2D(function* (view) {
   codeCtx.drawImage(
     rawCodeCanvas,
     (textureW - CODE_W) / 2,
-    0,
+    extraTop,
     CODE_W,
-    textureH,
+    rawLogicalH,
   );
 
   // Plane sized to fill screen width. Height = proportional to texture.
@@ -213,23 +217,24 @@ export default makeScene2D(function* (view) {
 
   const TILT = -0.92;
   const projectedHalfH = (planeH * Math.cos(Math.abs(TILT))) / 2;
-  const planeBaseY = -visibleH / 2 + projectedHalfH + visibleH * 0.08;
+  const planeBaseY = -visibleH / 2 + projectedHalfH + visibleH * 0.14;
 
   // Keep plane fixed and scroll text via UV offset.
   const progress = createSignal(0);
-  texture.offset.set(0, -0.06);
+  const startOffsetY = -0.02;
+  texture.offset.set(0, startOffsetY);
 
   const threeView = createThreeView({
     width: w,
     height: h,
     scene: threeScene,
     camera,
-    quality: 2,
+    quality: 3,
     onRender: (renderer, s, cam) => {
       plane.rotation.x = TILT;
       plane.position.y = planeBaseY;
       plane.position.z = 0;
-      texture.offset.y = -0.06 + progress() * 0.96;
+      texture.offset.y = startOffsetY + progress() * 1.24;
       renderer.render(s, cam);
     },
   });
