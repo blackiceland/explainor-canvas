@@ -1,0 +1,95 @@
+import {Rect} from '@motion-canvas/2d';
+import {createSignal, SimpleSignal} from '@motion-canvas/core';
+import {
+  Camera,
+  Color,
+  OrthographicCamera,
+  PerspectiveCamera,
+  Scene,
+  WebGLRenderer,
+} from 'three';
+
+export interface ThreeViewConfig {
+  width: number;
+  height: number;
+  scene: Scene;
+  camera: Camera;
+  quality?: number;
+  background?: string | null;
+  onRender?: (renderer: WebGLRenderer, scene: Scene, camera: Camera) => void;
+}
+
+export interface ThreeView {
+  node: Rect;
+  dispose: () => void;
+}
+
+export function createThreeView(cfg: ThreeViewConfig): ThreeView {
+  const quality = cfg.quality ?? 2;
+  const renderer = borrowRenderer();
+  renderer.setSize(cfg.width * quality, cfg.height * quality);
+
+  if (cfg.background) {
+    cfg.scene.background = new Color(cfg.background);
+  }
+
+  if (cfg.camera instanceof PerspectiveCamera) {
+    cfg.camera.aspect = cfg.width / cfg.height;
+    cfg.camera.updateProjectionMatrix();
+  } else if (cfg.camera instanceof OrthographicCamera) {
+    const ratio = cfg.width / cfg.height;
+    const scale = 0.5;
+    cfg.camera.left = -ratio * scale;
+    cfg.camera.right = ratio * scale;
+    cfg.camera.bottom = -scale;
+    cfg.camera.top = scale;
+    cfg.camera.updateProjectionMatrix();
+  }
+
+  const render = cfg.onRender ?? ((r, s, c) => r.render(s, c));
+
+  const offscreen = document.createElement('canvas');
+  offscreen.width = cfg.width * quality;
+  offscreen.height = cfg.height * quality;
+
+  const rect = new Rect({
+    width: cfg.width,
+    height: cfg.height,
+    fill: '#00000000',
+  });
+
+  const origDraw = (rect as any).draw.bind(rect);
+  (rect as any).draw = function (context: CanvasRenderingContext2D) {
+    render(renderer, cfg.scene, cfg.camera);
+    context.imageSmoothingEnabled = false;
+    context.drawImage(
+      renderer.domElement,
+      0, 0,
+      quality * cfg.width,
+      quality * cfg.height,
+      cfg.width / -2,
+      cfg.height / -2,
+      cfg.width,
+      cfg.height,
+    );
+    origDraw(context);
+  };
+
+  return {
+    node: rect,
+    dispose: () => disposeRenderer(renderer),
+  };
+}
+
+const pool: WebGLRenderer[] = [];
+function borrowRenderer(): WebGLRenderer {
+  if (pool.length) return pool.pop()!;
+  return new WebGLRenderer({
+    canvas: document.createElement('canvas'),
+    alpha: true,
+    antialias: true,
+  });
+}
+function disposeRenderer(renderer: WebGLRenderer) {
+  pool.push(renderer);
+}

@@ -13,7 +13,10 @@
   "dependencies": {
     "@motion-canvas/2d": "^3.17.2",
     "@motion-canvas/core": "^3.17.2",
-    "pg": "^8.11.3"
+    "@types/three": "^0.183.1",
+    "motion-canvas-3d": "^0.4.0",
+    "pg": "^8.11.3",
+    "three": "^0.183.2"
   },
   "devDependencies": {
     "@motion-canvas/ui": "^3.17.2",
