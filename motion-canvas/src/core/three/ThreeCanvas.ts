@@ -1,8 +1,9 @@
 import {Rect} from '@motion-canvas/2d';
-import {createSignal, SimpleSignal} from '@motion-canvas/core';
 import {
   Camera,
   Color,
+  SRGBColorSpace,
+  NoToneMapping,
   OrthographicCamera,
   PerspectiveCamera,
   Scene,
@@ -48,10 +49,6 @@ export function createThreeView(cfg: ThreeViewConfig): ThreeView {
 
   const render = cfg.onRender ?? ((r, s, c) => r.render(s, c));
 
-  const offscreen = document.createElement('canvas');
-  offscreen.width = cfg.width * quality;
-  offscreen.height = cfg.height * quality;
-
   const rect = new Rect({
     width: cfg.width,
     height: cfg.height,
@@ -61,7 +58,7 @@ export function createThreeView(cfg: ThreeViewConfig): ThreeView {
   const origDraw = (rect as any).draw.bind(rect);
   (rect as any).draw = function (context: CanvasRenderingContext2D) {
     render(renderer, cfg.scene, cfg.camera);
-    context.imageSmoothingEnabled = false;
+    context.imageSmoothingEnabled = true;
     context.drawImage(
       renderer.domElement,
       0, 0,
@@ -84,11 +81,14 @@ export function createThreeView(cfg: ThreeViewConfig): ThreeView {
 const pool: WebGLRenderer[] = [];
 function borrowRenderer(): WebGLRenderer {
   if (pool.length) return pool.pop()!;
-  return new WebGLRenderer({
+  const r = new WebGLRenderer({
     canvas: document.createElement('canvas'),
     alpha: true,
     antialias: true,
   });
+  r.outputColorSpace = SRGBColorSpace;
+  r.toneMapping = NoToneMapping;
+  return r;
 }
 function disposeRenderer(renderer: WebGLRenderer) {
   pool.push(renderer);

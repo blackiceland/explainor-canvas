@@ -15,23 +15,27 @@ export interface CodePlaneConfig {
   planeWidth: number;
   planeHeight: number;
   cameraFov: number;
-  cameraZ: number;
+  cameraZ?: number;
+  aspect?: number;
 }
 
-const DEFAULTS: CodePlaneConfig = {
+const DEFAULTS: Omit<CodePlaneConfig, 'cameraZ' | 'aspect'> = {
   planeWidth: 6,
   planeHeight: 10,
   cameraFov: 50,
-  cameraZ: 7,
 };
 
 export function createCodePlaneScene(cfg: Partial<CodePlaneConfig> = {}) {
   const c = {...DEFAULTS, ...cfg};
 
+  const fovRad = (c.cameraFov * Math.PI) / 180;
+  const cameraZ = c.cameraZ ?? (c.planeHeight / 2) / Math.tan(fovRad / 2);
+  const aspect = c.aspect ?? c.planeWidth / c.planeHeight;
+
   const scene = new Scene();
 
-  const camera = new PerspectiveCamera(c.cameraFov, 1, 0.1, 100);
-  camera.position.set(0, 0, c.cameraZ);
+  const camera = new PerspectiveCamera(c.cameraFov, aspect, 0.1, 100);
+  camera.position.set(0, 0, cameraZ);
 
   const geometry = new PlaneGeometry(c.planeWidth, c.planeHeight);
   const texture = new CanvasTexture(document.createElement('canvas'));

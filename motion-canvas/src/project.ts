@@ -79,12 +79,12 @@ export default makeProject({
         // oneCargoSceneRu,
         // passThroughMonolithScrollSceneRu,
         // sphereDigitsDemoSceneRu,
-         guitarHeroPassThroughSceneRu,
 
         // validateMonolithSceneRu,
-        // codeWithActionsSceneRu,
+        codeWithActionsSceneRu,
         codeWithActionsSceneRuTilt,
+        guitarHeroPassThroughSceneRu,
         // jackIntroSceneEn,
-        videoExportActionsSceneRu,
+        // videoExportActionsSceneRu,
     ]
 });

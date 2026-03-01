@@ -1,11 +1,13 @@
-import {makeScene2D, Rect} from '@motion-canvas/2d';
-import {all, easeInOutCubic, waitFor} from '@motion-canvas/core';
+import {makeScene2D} from '@motion-canvas/2d';
+import {all, createSignal, easeInOutCubic, linear, tween, waitFor} from '@motion-canvas/core';
 import {Manticore} from '../core/code/components/Manticore';
 import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
 import {getCodePaddingY} from '../core/code/shared/TextMeasure';
 import {SafeZone} from '../core/ScreenGrid';
-import {Fonts, Screen} from '../core/theme';
+import {Colors, Fonts, Screen} from '../core/theme';
 import {applyBackground} from '../core/utils';
+import {createCodePlaneScene, renderCodeToCanvas, updateTexture} from '../core/three/CodePlaneScene';
+import {createThreeView} from '../core/three/ThreeCanvas';
 import {CODE_V3f} from './codeWithActionsSceneRu.states';
 import {
   CODE_CARD_STYLE,
@@ -140,27 +142,113 @@ export default makeScene2D(function* (view) {
 
   yield* waitFor(0.4);
 
-  // --- Step 1: capture entire view as freeze frame ---
+  // --- 3D Star Wars crawl ---
   const w = Screen.width;
   const h = Screen.height;
-
-  const offscreen = document.createElement('canvas');
-  offscreen.width = w;
-  offscreen.height = h;
-  const ctx = offscreen.getContext('2d')!;
-  view.render(ctx);
-
-  const freeze = new Rect({width: w, height: h});
-  const origDraw = (freeze as any).draw.bind(freeze);
-  (freeze as any).draw = function (c: CanvasRenderingContext2D) {
-    c.drawImage(offscreen, -w / 2, -h / 2, w, h);
+  const codeLines = cb.currentCode;
+  const opaque = (c: string) => c.replace(
+    /rgba\(\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*[^)]+\)/gi,
+    'rgb($1,$2,$3)',
+  );
+  const crawlTheme = {
+    ...DryFiltersV3CodeTheme,
+    plain: opaque(DryFiltersV3CodeTheme.plain),
+    punctuation: opaque(DryFiltersV3CodeTheme.punctuation),
+    operator: opaque(DryFiltersV3CodeTheme.operator),
+    keyword: opaque(DryFiltersV3CodeTheme.keyword),
+    annotation: opaque(DryFiltersV3CodeTheme.annotation),
+    type: opaque(DryFiltersV3CodeTheme.type),
+    constant: opaque(DryFiltersV3CodeTheme.constant),
+    method: opaque(DryFiltersV3CodeTheme.method),
+    string: opaque(DryFiltersV3CodeTheme.string),
+    number: opaque(DryFiltersV3CodeTheme.number),
+    comment: opaque(DryFiltersV3CodeTheme.comment),
   };
 
-  // Hide all live children, add freeze on top
-  for (const child of view.children()) {
-    child.opacity(0);
-  }
-  view.add(freeze);
+  // Build centered texture so code sits in the middle of camera frame.
+  const rawCodeCanvas = renderCodeToCanvas(
+    codeLines,
+    crawlTheme,
+    Fonts.code,
+    fontSize,
+    customTypes,
+    CODE_W,
+    'rgba(0,0,0,0)',
+  );
+  const textureW = w;
+  const textureH = rawCodeCanvas.height / 2;
+  const codeCanvas = document.createElement('canvas');
+  codeCanvas.width = textureW * 2;
+  codeCanvas.height = textureH * 2;
+  const codeCtx = codeCanvas.getContext('2d')!;
+  codeCtx.scale(2, 2);
+  codeCtx.drawImage(
+    rawCodeCanvas,
+    (textureW - CODE_W) / 2,
+    0,
+    CODE_W,
+    textureH,
+  );
 
-  yield* waitFor(3.0);
+  // Plane sized to fill screen width. Height = proportional to texture.
+  const FOV = 50;
+  const CAMERA_Z = 4.0;
+  const fovRad = (FOV * Math.PI) / 180;
+  const visibleH = 2 * CAMERA_Z * Math.tan(fovRad / 2);
+  const visibleW = visibleH * (w / h);
+
+  // Keep a margin so the whole crawl sheet is fully visible in frame.
+  const planeW = visibleW * 0.88;
+  const codeCanvasLogicalH = codeCanvas.height / 2;
+  const planeH = planeW * (codeCanvasLogicalH / textureW);
+
+  const {scene: threeScene, camera, plane, texture} = createCodePlaneScene({
+    planeWidth: planeW,
+    planeHeight: planeH,
+    cameraFov: FOV,
+    cameraZ: CAMERA_Z,
+    aspect: w / h,
+  });
+  updateTexture(texture, codeCanvas);
+
+  const TILT = -0.92;
+  const projectedHalfH = (planeH * Math.cos(Math.abs(TILT))) / 2;
+  const planeBaseY = -visibleH / 2 + projectedHalfH + visibleH * 0.08;
+
+  // Keep plane fixed and scroll text via UV offset.
+  const progress = createSignal(0);
+  texture.offset.set(0, -0.06);
+
+  const threeView = createThreeView({
+    width: w,
+    height: h,
+    scene: threeScene,
+    camera,
+    quality: 2,
+    onRender: (renderer, s, cam) => {
+      plane.rotation.x = TILT;
+      plane.position.y = planeBaseY;
+      plane.position.z = 0;
+      texture.offset.y = -0.06 + progress() * 0.96;
+      renderer.render(s, cam);
+    },
+  });
+
+  threeView.node.opacity(0);
+  view.add(threeView.node);
+
+  // Cross-fade: Manticore out, 3D crawl in.
+  yield* all(
+    cb.node.opacity(0, 0.6, easeInOutCubic),
+    threeView.node.opacity(1, 0.6, easeInOutCubic),
+  );
+
+  // Crawl: advance along plane local axis.
+  const crawlDuration = 22;
+  yield* tween(crawlDuration, v => {
+    progress(linear(v));
+  });
+
+  yield* waitFor(0.5);
+  threeView.dispose();
 });
