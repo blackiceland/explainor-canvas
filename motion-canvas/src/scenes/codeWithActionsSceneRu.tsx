@@ -274,17 +274,35 @@ export default makeScene2D(function* (view) {
     cb.colorizeAnimated(from, to, 0.4, passRule),
   );
 
+  // stripe A — создаём до появления exportVideo
+  const STRIPE_COLOR  = 'rgba(255, 80, 120, 0.18)';
+  const stripeW       = CODE_W + 40;
+  const stripeH       = lineHeight * 1.15;
+  const stripeX       = -Screen.width / 2 + stripeW / 2;
+
+  const stripeExport = new Rect({
+    width: stripeW, height: stripeH,
+    x: stripeX, y: cb.getLineSceneY(exportVideoLine),
+    fill: STRIPE_COLOR, opacity: 0, radius: 4,
+  });
+  view.add(stripeExport);
+
+  // stripe A появляется вместе с highlight exportVideo
   yield* all(
     cb.dimLines(0, exportVideoLine - 1, 0.25, 0.5),
     cb.dimLines(exportVideoLine + 2, cb.lineCount - 1, 0.25, 0.5),
     highlight(exportVideoLine, exportVideoLine + 1),
+    stripeExport.opacity(1, 0.5, easeInOutCubic),
   );
   yield* waitFor(0.8);
 
   yield* highlight(exportCallLine, exportCallLine);
   yield* waitFor(1.0);
 
-  yield* cb.scrollTo(retrySignature, 1.2);
+  yield* all(
+    stripeExport.opacity(0, 0.7, easeInOutCubic),
+    cb.scrollTo(retrySignature, 1.2),
+  );
   yield* highlight(retrySignature, retrySignature);
   yield* waitFor(0.8);
 
@@ -294,53 +312,39 @@ export default makeScene2D(function* (view) {
   yield* highlight(encodeSignature, encodeSignature);
   yield* waitFor(0.8);
 
-  yield* highlight(finalizeCallIdx, finalizeCallIdx);
-  yield* waitFor(2.0);
-
-  // ── stripe подсветка encodeWithRetry → finalizeExport ─────────────────
-  const STRIPE_COLOR  = 'rgba(255, 80, 120, 0.18)';
-  const stripeW       = CODE_W + 40;
-  const stripeH       = lineHeight * 1.15;
-  const stripeX       = -Screen.width / 2 + stripeW / 2;
-
-  const retryDefLine    = cb.findLine('private byte[] encodeWithRetry');
-  const finalizeOutLine = cb.findLine('return finalizeExport(encodedVideo, outputFormat)');
-  const encodeCallLine2 = cb.findLine('return encode(preparedFrames');
-
-  const stripeRetry = new Rect({
-    width: stripeW, height: stripeH,
-    x: stripeX, y: cb.getLineSceneY(retryDefLine),
-    fill: STRIPE_COLOR, opacity: 0, radius: 4,
-  });
+  // stripe Б — создаём после скролла, когда finalizeExport уже в кадре
   const stripeFinal = new Rect({
     width: stripeW, height: stripeH,
-    x: stripeX, y: cb.getLineSceneY(finalizeOutLine),
+    x: stripeX, y: cb.getLineSceneY(finalizeCallIdx),
     fill: STRIPE_COLOR, opacity: 0, radius: 4,
   });
-  view.add(stripeRetry);
   view.add(stripeFinal);
 
+  // stripe Б появляется вместе с highlight finalizeExport
   yield* all(
-    stripeRetry.opacity(1, 0.5, easeInOutCubic),
+    highlight(finalizeCallIdx, finalizeCallIdx),
     stripeFinal.opacity(1, 0.5, easeInOutCubic),
   );
   yield* waitFor(1.2);
 
-  yield* cb.dimLines(encodeCallLine2, encodeCallLine2, 1.0, 0.18);
-  yield* cb.dimLines(encodeCallLine2, encodeCallLine2, 0.25, 0.18);
-  yield* cb.dimLines(encodeCallLine2, encodeCallLine2, 1.0, 0.18);
-  yield* cb.dimLines(encodeCallLine2, encodeCallLine2, 0.25, 0.18);
-  yield* cb.dimLines(encodeCallLine2, encodeCallLine2, 1.0, 0.18);
+  // мигание транзитного метода encodeWithRetry
+  yield* cb.dimLines(retrySignature, retrySignature, 1.0, 0.18);
+  yield* cb.dimLines(retrySignature, retrySignature, 0.25, 0.18);
+  yield* cb.dimLines(retrySignature, retrySignature, 1.0, 0.18);
+  yield* cb.dimLines(retrySignature, retrySignature, 0.25, 0.18);
+  yield* cb.dimLines(retrySignature, retrySignature, 1.0, 0.18);
   yield* waitFor(0.5);
 
+  // плавный выход
   yield* all(
-    stripeRetry.opacity(0, 0.5, easeInOutCubic),
-    stripeFinal.opacity(0, 0.5, easeInOutCubic),
-    cb.showAllLines(0.5),
-    cb.colorizeAnimated(0, cb.lineCount - 1, 0.5),
+    stripeExport.opacity(0, 0.8, easeInOutCubic),
+    stripeFinal.opacity(0, 0.8, easeInOutCubic),
   );
-
-  yield* waitFor(1.5);
+  yield* all(
+    cb.showAllLines(0.8),
+    cb.colorizeAnimated(0, cb.lineCount - 1, 0.8),
+  );
+  yield* waitFor(1.0);
 
   // ── v3: watermark ─────────────────────────────────────────────────────
   yield* cb.scrollTo(0, 0.8);
