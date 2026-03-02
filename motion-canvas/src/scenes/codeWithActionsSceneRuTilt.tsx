@@ -1,5 +1,5 @@
-import {makeScene2D} from '@motion-canvas/2d';
-import {all, chain, easeInOutCubic, waitFor} from '@motion-canvas/core';
+import {makeScene2D, Txt} from '@motion-canvas/2d';
+import {all, chain, easeInQuad, easeInOutCubic, ThreadGenerator, waitFor} from '@motion-canvas/core';
 import {Manticore} from '../core/code/components/Manticore';
 import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
 import {getCodePaddingY} from '../core/code/shared/TextMeasure';
@@ -214,7 +214,7 @@ export default makeScene2D(function* (view) {
 
   const PINK = '#FF8CA3';
   const codeV4 = cbV4.currentCode;
-  const fadeAnims: Generator[] = [];
+  const fadeAnims: ThreadGenerator[] = [];
 
   for (let i = 0; i < cbV4.lineCount; i++) {
     const line = cbV4.getLine(i);
@@ -235,9 +235,64 @@ export default makeScene2D(function* (view) {
 
   yield* all(...fadeAnims);
 
-  yield* waitFor(0.4);
+  const contentNode = cbV4.getLine(0)!.node.parent()!;
 
-  yield* cbV4.scrollTo(0, 2.8, easeInOutCubic);
+  const ofLocalPositions: {localX: number; lineY: number}[] = [];
+  for (let i = 0; i < cbV4.lineCount; i++) {
+    if (!codeV4[i].includes('outputFormat')) continue;
+    const line = cbV4.getLine(i);
+    if (!line) continue;
+    const tok = line.findToken('outputFormat');
+    if (!tok) continue;
+    ofLocalPositions.push({localX: tok.localX, lineY: line.node.y()});
+  }
+
+  const xValues = ofLocalPositions.map(p => p.localX);
+  const xMin = Math.min(...xValues);
+  const xMax = Math.max(...xValues);
+  const xRange = Math.max(40, xMax - xMin);
+
+  const mulberry32 = (seed: number) => {
+    let s = seed | 0;
+    return () => {
+      s = (s + 0x6D2B79F5) | 0;
+      let t = Math.imul(s ^ (s >>> 15), 1 | s);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  };
+  const rng = mulberry32(42);
+
+  const period = cbV4.lineCount * lineHeight;
+  const extraReps = 8;
+  const rowSpacing = lineHeight * 5;
+  const rowsPerRep = Math.floor(period / rowSpacing);
+
+  for (let rep = 1; rep <= extraReps; rep++) {
+    for (let row = 0; row < rowsPerRep; row++) {
+      const x = xMin + rng() * xRange;
+      const y = ofLocalPositions[0].lineY - rep * period + row * rowSpacing;
+      contentNode.add(new Txt({
+        text: 'outputFormat',
+        fontFamily: Fonts.code,
+        fontSize,
+        fill: PINK,
+        x,
+        y,
+        offset: [-1, 0],
+        opacity: 1,
+      }));
+    }
+  }
+
+  const firstLineY = cbV4.getLine(0)!.node.y();
+  const lastVisibleY = cbV4.getLine(cbV4.lineCount - 1)!.node.y();
+  const codeDistance = lastVisibleY - firstLineY;
+  const totalDistance = codeDistance + extraReps * period;
+  const totalDuration = 12.8;
+
+  const cy = contentNode.y();
+  yield* contentNode.y(cy + totalDistance, totalDuration, easeInQuad);
 
   yield* waitFor(0.6);
 });
