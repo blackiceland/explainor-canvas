@@ -488,13 +488,24 @@ private byte[] packageOutput(Container container, String outputFormat, String wa
     byte[] serializedContainer = container.toByteArray();
     byte[] signedPayload = signContent(serializedContainer, outputFormat);
 
-    return attachMetadata(signedPayload, outputFormat, watermarkMode, audioProfile);
+    byte[] budgetedPayload = enforceSizeBudget(signedPayload, outputFormat);
+
+    return attachMetadata(budgetedPayload, outputFormat, watermarkMode, audioProfile);
 }
 
 private byte[] signContent(byte[] exportPayload, String outputFormat) {
     String signingAlgorithm = resolveSigningAlgorithm(outputFormat);
 
     return ContentSigner.sign(exportPayload, signingAlgorithm);
+}
+
+private byte[] enforceSizeBudget(byte[] signedPayload, String outputFormat) {
+    int maxPayloadSize = resolveMaxPayloadSize(outputFormat);
+    if (signedPayload.length <= maxPayloadSize) {
+        return signedPayload;
+    }
+
+    throw new IllegalStateException("Payload exceeds size budget: " + outputFormat);
 }
 
 private byte[] attachMetadata(byte[] signedPayload, String outputFormat, String watermarkMode, String audioProfile) {
