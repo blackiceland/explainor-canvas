@@ -1,5 +1,5 @@
 import {Node, Rect} from '@motion-canvas/2d';
-import {all, createRef, easeInOutCubic, Reference, ThreadGenerator, waitFor} from '@motion-canvas/core';
+import {all, createRef, easeInOutCubic, Reference, ThreadGenerator, TimingFunction, waitFor} from '@motion-canvas/core';
 import {tokenizeLine, TokenType} from '../model/Tokenizer';
 import {SyntaxTheme, IntelliJDarkTheme} from '../model/SyntaxTheme';
 import {CodeCard, CodeCardStyle} from './CodeCard';
@@ -285,13 +285,13 @@ export class Manticore {
         if (anims.length > 0) yield* all(...anims);
     }
 
-    *scrollTo(target: string | number, duration = 0.5): ThreadGenerator {
+    *scrollTo(target: string | number, duration = 0.5, easing: TimingFunction = easeInOutCubic): ThreadGenerator {
         const idx = typeof target === 'number' ? target : this.code.findIndex(l => l.includes(target));
         if (idx < 0 || idx >= this.lines.length) return;
         const content = this.contentRef();
         const newOffset = -this.lineY(idx) + this.startY;
         if (Math.abs(newOffset - content.y()) > 1) {
-            yield* content.y(newOffset, duration, easeInOutCubic);
+            yield* content.y(newOffset, duration, easing);
         }
     }
 
