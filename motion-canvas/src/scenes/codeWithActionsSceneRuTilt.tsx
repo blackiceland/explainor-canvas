@@ -1,5 +1,5 @@
 import {makeScene2D} from '@motion-canvas/2d';
-import {all, chain, easeInCubic, easeInOutCubic, waitFor} from '@motion-canvas/core';
+import {all, chain, easeInOutCubic, waitFor} from '@motion-canvas/core';
 import {Manticore} from '../core/code/components/Manticore';
 import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
 import {getCodePaddingY} from '../core/code/shared/TextMeasure';
