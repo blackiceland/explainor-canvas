@@ -177,6 +177,7 @@ export default makeScene2D(function* (view) {
   const newMethodGroups = [
     buildMethodGroup('packageOutput'),
     buildMethodGroup('signContent'),
+    buildMethodGroup('enforceSizeBudget'),
     buildMethodGroup('attachMetadata'),
   ].filter(group => group.length > 0);
 
@@ -208,6 +209,35 @@ export default makeScene2D(function* (view) {
     cbV4.scrollTo('private byte[] attachMetadata(', 1.8, easeInOutCubic),
     reveal,
   );
+
+  yield* waitFor(0.3);
+
+  const PINK = '#FF8CA3';
+  const codeV4 = cbV4.currentCode;
+  const fadeAnims: Generator[] = [];
+
+  for (let i = 0; i < cbV4.lineCount; i++) {
+    const line = cbV4.getLine(i);
+    if (!line) continue;
+
+    if (codeV4[i].includes('outputFormat')) {
+      for (const td of line.tokens) {
+        if (td.text.includes('outputFormat')) {
+          fadeAnims.push(td.ref().fill(PINK, 0.5, easeInOutCubic));
+        } else {
+          fadeAnims.push(td.ref().opacity(0, 0.5, easeInOutCubic));
+        }
+      }
+    } else {
+      fadeAnims.push(line.setOpacity(0, 0.5));
+    }
+  }
+
+  yield* all(...fadeAnims);
+
+  yield* waitFor(0.4);
+
+  yield* cbV4.scrollTo(0, 2.8, easeInOutCubic);
 
   yield* waitFor(0.6);
 });
