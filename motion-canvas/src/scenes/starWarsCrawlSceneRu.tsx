@@ -1,11 +1,13 @@
 import {makeScene2D} from '@motion-canvas/2d';
-import {all, easeInOutCubic, waitFor} from '@motion-canvas/core';
+import {all, createSignal, easeInOutCubic, linear, tween, waitFor} from '@motion-canvas/core';
 import {Manticore} from '../core/code/components/Manticore';
 import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
 import {getCodePaddingY} from '../core/code/shared/TextMeasure';
 import {SafeZone} from '../core/ScreenGrid';
-import {Fonts} from '../core/theme';
+import {Colors, Fonts, Screen} from '../core/theme';
 import {applyBackground} from '../core/utils';
+import {createCodePlaneScene, renderCodeToCanvas, updateTexture} from '../core/three/CodePlaneScene';
+import {createThreeView} from '../core/three/ThreeCanvas';
 import {CODE_V3f} from './codeWithActionsSceneRu.states';
 import {
   CODE_CARD_STYLE,
@@ -139,4 +141,119 @@ export default makeScene2D(function* (view) {
   );
 
   yield* waitFor(0.4);
+
+  // --- 3D Star Wars crawl ---
+  const w = Screen.width;
+  const h = Screen.height;
+  const codeLines = cb.currentCode;
+  const crawlFontSize = 25;
+  const opaque = (c: string) => c.replace(
+    /rgba\(\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*[^)]+\)/gi,
+    'rgb($1,$2,$3)',
+  );
+  const crawlTheme = {
+    ...DryFiltersV3CodeTheme,
+    plain: '#F8F6F0',
+    punctuation: '#D7DBE4',
+    operator: '#D7DBE4',
+    keyword: '#A9D5FF',
+    annotation: '#A9D5FF',
+    type: '#D3B7FF',
+    constant: '#D3B7FF',
+    method: opaque(DryFiltersV3CodeTheme.method),
+    string: '#E8E4DA',
+    number: '#D3B7FF',
+    comment: '#B6BBC8',
+  };
+
+  // Build centered texture so code sits in the middle of camera frame.
+  const rawCodeCanvas = renderCodeToCanvas(
+    codeLines,
+    crawlTheme,
+    Fonts.code,
+    crawlFontSize,
+    customTypes,
+    CODE_W,
+    'rgba(0,0,0,0)',
+  );
+  const textureW = w;
+  const rawLogicalH = rawCodeCanvas.height / 2;
+  const extraTop = Math.round(crawlFontSize * 3.2);
+  const extraBottom = Math.round(crawlFontSize * 9.0);
+  const textureH = rawLogicalH + extraTop + extraBottom;
+  const codeCanvas = document.createElement('canvas');
+  codeCanvas.width = textureW * 2;
+  codeCanvas.height = textureH * 2;
+  const codeCtx = codeCanvas.getContext('2d')!;
+  codeCtx.scale(2, 2);
+  codeCtx.drawImage(
+    rawCodeCanvas,
+    (textureW - CODE_W) / 2,
+    extraTop,
+    CODE_W,
+    rawLogicalH,
+  );
+
+  // Plane sized to fill screen width. Height = proportional to texture.
+  const FOV = 50;
+  const CAMERA_Z = 4.0;
+  const fovRad = (FOV * Math.PI) / 180;
+  const visibleH = 2 * CAMERA_Z * Math.tan(fovRad / 2);
+  const visibleW = visibleH * (w / h);
+
+  // Keep a margin so the whole crawl sheet is fully visible in frame.
+  const planeW = visibleW * 0.82;
+  const codeCanvasLogicalH = codeCanvas.height / 2;
+  const planeH = planeW * (codeCanvasLogicalH / textureW);
+
+  const {scene: threeScene, camera, plane, texture} = createCodePlaneScene({
+    planeWidth: planeW,
+    planeHeight: planeH,
+    cameraFov: FOV,
+    cameraZ: CAMERA_Z,
+    aspect: w / h,
+  });
+  updateTexture(texture, codeCanvas);
+
+  const TILT = -0.92;
+  const projectedHalfH = (planeH * Math.cos(Math.abs(TILT))) / 2;
+  const planeBaseY = -visibleH / 2 + projectedHalfH + visibleH * 0.14;
+
+  // Keep plane fixed and scroll text via UV offset.
+  const progress = createSignal(0);
+  const startOffsetY = -0.02;
+  texture.offset.set(0, startOffsetY);
+
+  const threeView = createThreeView({
+    width: w,
+    height: h,
+    scene: threeScene,
+    camera,
+    quality: 3,
+    onRender: (renderer, s, cam) => {
+      plane.rotation.x = TILT;
+      plane.position.y = planeBaseY;
+      plane.position.z = 0;
+      texture.offset.y = startOffsetY + progress() * 1.24;
+      renderer.render(s, cam);
+    },
+  });
+
+  threeView.node.opacity(0);
+  view.add(threeView.node);
+
+  // Cross-fade: Manticore out, 3D crawl in.
+  yield* all(
+    cb.node.opacity(0, 0.6, easeInOutCubic),
+    threeView.node.opacity(1, 0.6, easeInOutCubic),
+  );
+
+  // Crawl: advance along plane local axis.
+  const crawlDuration = 22;
+  yield* tween(crawlDuration, v => {
+    progress(linear(v));
+  });
+
+  yield* waitFor(0.5);
+  threeView.dispose();
 });

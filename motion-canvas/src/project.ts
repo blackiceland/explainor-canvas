@@ -33,6 +33,7 @@ import videoExportEvolutionSceneRu from './scenes/videoExportEvolutionSceneRu?sc
 import videoExportActionsSceneRu from './scenes/videoExportActionsSceneRu?scene';
 import codeWithActionsSceneRu from './scenes/codeWithActionsSceneRu?scene';
 import codeWithActionsSceneRuTilt from './scenes/codeWithActionsSceneRuTilt?scene';
+import starWarsCrawlSceneRu from './scenes/starWarsCrawlSceneRu?scene';
 import splitDtoScene from './scenes/splitDtoScene?scene';
 import splitDtoSceneV3 from './scenes/splitDtoSceneV3?scene';
 import typewriterCodeScene from './scenes/typewriterCodeScene?scene';
@@ -81,8 +82,9 @@ export default makeProject({
         // sphereDigitsDemoSceneRu,
 
         // validateMonolithSceneRu,
-        codeWithActionsSceneRu,
+        // codeWithActionsSceneRu,
         codeWithActionsSceneRuTilt,
+         starWarsCrawlSceneRu,
         guitarHeroPassThroughSceneRu,
         // jackIntroSceneEn,
         // videoExportActionsSceneRu,
