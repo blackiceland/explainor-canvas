@@ -54,6 +54,11 @@ export function createCodePlaneScene(cfg: Partial<CodePlaneConfig> = {}) {
   return {scene, camera, plane, texture, material, geometry};
 }
 
+export interface RenderCodeOptions {
+  dimmedLines?: Set<number>;
+  dimmedAlpha?: number;
+}
+
 export function renderCodeToCanvas(
   lines: string[],
   theme: SyntaxTheme,
@@ -62,11 +67,14 @@ export function renderCodeToCanvas(
   customTypes: string[],
   canvasWidth: number,
   bgColor: string = '#1a1a2e',
+  opts: RenderCodeOptions = {},
 ): HTMLCanvasElement {
   const lineH = Math.round(fontSize * 1.62);
   const paddingX = 24;
   const paddingY = 16;
   const totalH = lines.length * lineH + paddingY * 2;
+  const dimmed = opts.dimmedLines;
+  const dimAlpha = opts.dimmedAlpha ?? 0.10;
 
   const dpr = 2;
   const canvas = document.createElement('canvas');
@@ -86,12 +94,14 @@ export function renderCodeToCanvas(
     let x = paddingX;
     const y = paddingY + i * lineH + lineH / 2;
 
+    ctx.globalAlpha = dimmed && dimmed.has(i) ? dimAlpha : 1;
     for (const token of tokens) {
       ctx.fillStyle = getTokenColor(token.type, theme);
       ctx.fillText(token.text, x, y);
       x += ctx.measureText(token.text).width;
     }
   }
+  ctx.globalAlpha = 1;
 
   return canvas;
 }

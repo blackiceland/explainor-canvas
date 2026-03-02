@@ -166,7 +166,11 @@ export default makeScene2D(function* (view) {
     comment: '#B6BBC8',
   };
 
-  // Build centered texture so code sits in the middle of camera frame.
+  const dimmedLines = new Set([
+    3, 5, 6, 12, 14, 15, 17, 18, 19, 20, 22, 23, 24, 25, 26, 27,
+    30, 32, 33, 35, 36, 37, 38, 42, 43, 44,
+  ]);
+
   const rawCodeCanvas = renderCodeToCanvas(
     codeLines,
     crawlTheme,
@@ -175,6 +179,7 @@ export default makeScene2D(function* (view) {
     customTypes,
     CODE_W,
     'rgba(0,0,0,0)',
+    {dimmedLines, dimmedAlpha: 0.12},
   );
   const textureW = w;
   const rawLogicalH = rawCodeCanvas.height / 2;
