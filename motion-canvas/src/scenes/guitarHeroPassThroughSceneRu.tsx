@@ -477,11 +477,10 @@ export default makeScene2D(function* (view) {
   ] as const;
   for (let i = 0; i < events.length; i++) {
     const n = events[i];
-    const pace = Math.max(0.44, 1 - i * 0.04); // gradual acceleration into timelapse
+    const pace = Math.max(0.32, 0.8 - i * 0.035);
     yield* playNote(n.lane, n.y, n.on, n.label, n.hit, n.glow, n.shock, n.method, pace);
   }
 
-  // Explicit timelapse ending: dense, much faster, still unique names.
   const timelapseEvents = [
     {lane: laneA, y: nAY, on: nAOn, label: laneLabelA, hit: hitA, glow: g0, shock: s0, method: 'queue'},
     {lane: laneC, y: nCY, on: nCOn, label: laneLabelC, hit: hitC, glow: g3, shock: s3, method: 'hydratePreviewFrame'},
@@ -494,38 +493,55 @@ export default makeScene2D(function* (view) {
     {lane: laneE, y: nEY, on: nEOn, label: laneLabelE, hit: hitE, glow: g4, shock: s4, method: 'flushOrange'},
     {lane: laneD, y: nDY, on: nDOn, label: laneLabelD, hit: hitD, glow: g2, shock: s2, method: 'flush'},
     {lane: laneA, y: nAY, on: nAOn, label: laneLabelA, hit: hitA, glow: g0, shock: s0, method: 'close'},
+    {lane: laneB, y: nBY, on: nBOn, label: laneLabelB, hit: hitB, glow: g1, shock: s1, method: 'reindexSegments'},
+    {lane: laneD, y: nDY, on: nDOn, label: laneLabelD, hit: hitD, glow: g2, shock: s2, method: 'pruneOrphanChunks'},
+    {lane: laneE, y: nEY, on: nEOn, label: laneLabelE, hit: hitE, glow: g4, shock: s4, method: 'reconcileTimecodes'},
+    {lane: laneA, y: nAY, on: nAOn, label: laneLabelA, hit: hitA, glow: g0, shock: s0, method: 'evictStaleFrames'},
+    {lane: laneB, y: nBY, on: nBOn, label: laneLabelB, hit: hitB, glow: g1, shock: s1, method: 'collapseGopBoundary'},
+    {lane: laneD, y: nDY, on: nDOn, label: laneLabelD, hit: hitD, glow: g2, shock: s2, method: 'rotateSessionKeys'},
+    {lane: laneE, y: nEY, on: nEOn, label: laneLabelE, hit: hitE, glow: g4, shock: s4, method: 'drainPendingWrites'},
+    {lane: laneA, y: nAY, on: nAOn, label: laneLabelA, hit: hitA, glow: g0, shock: s0, method: 'commitLedgerEntry'},
+    {lane: laneB, y: nBY, on: nBOn, label: laneLabelB, hit: hitB, glow: g1, shock: s1, method: 'flattenMuxGraph'},
+    {lane: laneD, y: nDY, on: nDOn, label: laneLabelD, hit: hitD, glow: g2, shock: s2, method: 'reclaimBufferPool'},
+    {lane: laneE, y: nEY, on: nEOn, label: laneLabelE, hit: hitE, glow: g4, shock: s4, method: 'syncWatermark'},
+    {lane: laneA, y: nAY, on: nAOn, label: laneLabelA, hit: hitA, glow: g0, shock: s0, method: 'detachOrphanStreams'},
+    {lane: laneB, y: nBY, on: nBOn, label: laneLabelB, hit: hitB, glow: g1, shock: s1, method: 'coalesceFragments'},
+    {lane: laneD, y: nDY, on: nDOn, label: laneLabelD, hit: hitD, glow: g2, shock: s2, method: 'stampChecksum'},
+    {lane: laneE, y: nEY, on: nEOn, label: laneLabelE, hit: hitE, glow: g4, shock: s4, method: 'retireWorkerSlot'},
+    {lane: laneA, y: nAY, on: nAOn, label: laneLabelA, hit: hitA, glow: g0, shock: s0, method: 'tombstoneExpired'},
+    {lane: laneB, y: nBY, on: nBOn, label: laneLabelB, hit: hitB, glow: g1, shock: s1, method: 'emitFinalDigest'},
     {lane: laneC, y: nCY, on: nCOn, label: laneLabelC, hit: hitC, glow: g3, shock: s3, method: 'compactExportLedger'},
   ] as const;
   for (let i = 0; i < timelapseEvents.length; i++) {
     const n = timelapseEvents[i];
-    const pace = Math.max(0.17, 0.32 - i * 0.02); // hard timelapse ramp
+    const pace = Math.max(0.13, 0.28 - i * 0.01);
     yield* playNote(n.lane, n.y, n.on, n.label, n.hit, n.glow, n.shock, n.method, pace);
   }
 
   yield* all(
-    g3(0.7, 0.6, easeInOutCubic),
-    s3(0.6, 0.5, easeInOutCubic),
-    blueBoost(0.8, 0.6, easeInOutCubic),
-    blueShadow(0.9, 0.5, easeInOutCubic),
+    g3(0.8, 0.3, easeInOutCubic),
+    s3(0.7, 0.25, easeInOutCubic),
+    blueBoost(0.9, 0.3, easeInOutCubic),
+    blueShadow(1, 0.25, easeInOutCubic),
   );
 
   yield* all(
-    g3(1, 1.0, easeInOutCubic),
-    s3(1, 0.8, easeInOutCubic),
-    blueBoost(1, 1.0, easeInOutCubic),
-    blueShadow(1, 0.8, easeInOutCubic),
+    g3(1, 0.5, easeInOutCubic),
+    s3(1, 0.4, easeInOutCubic),
+    blueBoost(1, 0.5, easeInOutCubic),
+    blueShadow(1, 0.4, easeInOutCubic),
   );
 
-  yield* waitFor(1.0);
+  yield* waitFor(2.0);
 
   yield* all(
-    blueBoost(0, 2.5, easeInOutCubic),
-    blueShadow(0, 2.2, easeInOutCubic),
-    g3(0, 2.5, easeInOutCubic),
-    s3(0, 2.0, easeInOutCubic),
-    notePulse(0, 1.5, easeInOutCubic),
-    noteSquash(0, 1.0, easeInOutCubic),
-    noteOn(0, 2.5, easeInOutCubic),
+    blueBoost(0, 3.5, easeInOutCubic),
+    blueShadow(0, 3.2, easeInOutCubic),
+    g3(0, 3.5, easeInOutCubic),
+    s3(0, 3.0, easeInOutCubic),
+    notePulse(0, 2.0, easeInOutCubic),
+    noteSquash(0, 1.5, easeInOutCubic),
+    noteOn(0, 3.5, easeInOutCubic),
   );
 
   yield* waitFor(0.5);
