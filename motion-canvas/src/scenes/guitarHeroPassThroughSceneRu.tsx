@@ -1,5 +1,5 @@
 import {Circle, Line, makeScene2D, Rect, Txt} from '@motion-canvas/2d';
-import {all, createSignal, easeInOutCubic, fadeTransition, linear, waitFor} from '@motion-canvas/core';
+import {all, createSignal, easeInOutCubic, linear, waitFor} from '@motion-canvas/core';
 import {Screen} from '../core/theme';
 
 const BG = '#121212';
@@ -76,7 +76,10 @@ export default makeScene2D(function* (view) {
   const s2 = createSignal(0);
   const s3 = createSignal(0);
   const s4 = createSignal(0);
-  const logLimit = 10;
+  const blueBoost = createSignal(0);
+  const blueShadow = createSignal(0);
+  const logLimit = 30;
+  const logLeftCount = 15;
   const methodLogText = Array.from({length: logLimit}, () => createSignal(''));
   const methodLogOn = Array.from({length: logLimit}, () => createSignal(0));
 
@@ -103,18 +106,30 @@ export default makeScene2D(function* (view) {
     <>
       <Rect width={Screen.width} height={Screen.height} fill={BG} opacity={on} />
       <Rect width={Screen.width} height={Screen.height} fill={'rgba(255,255,255,0.03)'} opacity={() => show() * 0.8} />
-      {/* Left method match log (max 10 entries), minimal style */}
-      {Array.from({length: logLimit}, (_, i) => (
+      {Array.from({length: logLeftCount}, (_, i) => (
         <Txt
           x={-Screen.width * 0.44}
-          y={-Screen.height * 0.40 + i * 40}
+          y={-Screen.height * 0.40 + i * 38}
           text={() => methodLogText[i]()}
           textAlign={'left'}
           offset={[-1, 0]}
-          fontSize={33}
+          fontSize={30}
           letterSpacing={0.3}
           fill={'rgba(214,238,208,0.92)'}
           opacity={() => show() * methodLogOn[i]()}
+        />
+      ))}
+      {Array.from({length: logLimit - logLeftCount}, (_, i) => (
+        <Txt
+          x={Screen.width * 0.44}
+          y={-Screen.height * 0.40 + i * 38}
+          text={() => methodLogText[logLeftCount + i]()}
+          textAlign={'right'}
+          offset={[1, 0]}
+          fontSize={30}
+          letterSpacing={0.3}
+          fill={'rgba(214,238,208,0.92)'}
+          opacity={() => show() * methodLogOn[logLeftCount + i]()}
         />
       ))}
 
@@ -135,9 +150,11 @@ export default makeScene2D(function* (view) {
                 [laneX(i, y1s), y1s],
               ]}
               stroke={STRINGS[i]}
-              lineWidth={width}
+              lineWidth={i === 3 ? () => width + blueBoost() * 6 : width}
               lineCap={'round'}
-              opacity={() => show() * alpha}
+              opacity={i === 3 ? () => show() * (alpha + blueBoost() * (1 - alpha)) : () => show() * alpha}
+              shadowColor={i === 3 ? STRINGS[3] : undefined}
+              shadowBlur={i === 3 ? () => blueShadow() * 40 : undefined}
             />
           );
         }),
@@ -150,9 +167,11 @@ export default makeScene2D(function* (view) {
             [laneX(i, highlightCutY), highlightCutY],
           ]}
           stroke={STRINGS[i]}
-          lineWidth={3.2}
+          lineWidth={i === 3 ? () => 3.2 + blueBoost() * 5 : 3.2}
           lineCap={'butt'}
           opacity={() => show() * (i === 0 ? g0() : i === 1 ? g1() : i === 2 ? g2() : i === 3 ? g3() : g4()) * 0.72}
+          shadowColor={i === 3 ? STRINGS[3] : undefined}
+          shadowBlur={i === 3 ? () => blueShadow() * 30 : undefined}
         />
       ))}
       {/* Shockwave along the hit string */}
@@ -432,7 +451,6 @@ export default makeScene2D(function* (view) {
   };
 
   let matchCount = 0;
-  yield* fadeTransition(2.0);
   yield* waitFor(0.12);
   yield* uiOn(1, 0.45, easeInOutCubic);
   yield* noteOn(1, 0.2, easeInOutCubic);
@@ -484,6 +502,32 @@ export default makeScene2D(function* (view) {
     yield* playNote(n.lane, n.y, n.on, n.label, n.hit, n.glow, n.shock, n.method, pace);
   }
 
-  yield* waitFor(0.35);
+  yield* all(
+    g3(0.7, 0.6, easeInOutCubic),
+    s3(0.6, 0.5, easeInOutCubic),
+    blueBoost(0.8, 0.6, easeInOutCubic),
+    blueShadow(0.9, 0.5, easeInOutCubic),
+  );
+
+  yield* all(
+    g3(1, 1.0, easeInOutCubic),
+    s3(1, 0.8, easeInOutCubic),
+    blueBoost(1, 1.0, easeInOutCubic),
+    blueShadow(1, 0.8, easeInOutCubic),
+  );
+
+  yield* waitFor(1.0);
+
+  yield* all(
+    blueBoost(0, 2.5, easeInOutCubic),
+    blueShadow(0, 2.2, easeInOutCubic),
+    g3(0, 2.5, easeInOutCubic),
+    s3(0, 2.0, easeInOutCubic),
+    notePulse(0, 1.5, easeInOutCubic),
+    noteSquash(0, 1.0, easeInOutCubic),
+    noteOn(0, 2.5, easeInOutCubic),
+  );
+
+  yield* waitFor(0.5);
 });
 
