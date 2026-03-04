@@ -478,6 +478,18 @@ export default makeScene2D(function* (view) {
     yield* playNote(n.lane, n.y, n.on, n.label, n.hit, n.glow, n.shock, n.method, pace);
   }
 
+  const bridgeEvents = [
+    {lane: laneA, y: nAY, on: nAOn, label: laneLabelA, hit: hitA, glow: g0, shock: s0, method: 'packageOutput'},
+    {lane: laneC, y: nCY, on: nCOn, label: laneLabelC, hit: hitC, glow: g3, shock: s3, method: 'signContent'},
+    {lane: laneB, y: nBY, on: nBOn, label: laneLabelB, hit: hitB, glow: g1, shock: s1, method: 'attachMetadata'},
+    {lane: laneD, y: nDY, on: nDOn, label: laneLabelD, hit: hitD, glow: g2, shock: s2, method: 'enforceSizeBudget'},
+  ] as const;
+  for (let i = 0; i < bridgeEvents.length; i++) {
+    const n = bridgeEvents[i];
+    const pace = 0.30 - i * 0.02;
+    yield* playNote(n.lane, n.y, n.on, n.label, n.hit, n.glow, n.shock, n.method, pace);
+  }
+
   const timelapseEvents = [
     {lane: laneA, y: nAY, on: nAOn, label: laneLabelA, hit: hitA, glow: g0, shock: s0, method: 'queue'},
     {lane: laneC, y: nCY, on: nCOn, label: laneLabelC, hit: hitC, glow: g3, shock: s3, method: 'hydratePreviewFrame'},
@@ -507,11 +519,17 @@ export default makeScene2D(function* (view) {
     {lane: laneE, y: nEY, on: nEOn, label: laneLabelE, hit: hitE, glow: g4, shock: s4, method: 'retireWorkerSlot'},
     {lane: laneA, y: nAY, on: nAOn, label: laneLabelA, hit: hitA, glow: g0, shock: s0, method: 'tombstoneExpired'},
     {lane: laneB, y: nBY, on: nBOn, label: laneLabelB, hit: hitB, glow: g1, shock: s1, method: 'emitFinalDigest'},
+    {lane: laneD, y: nDY, on: nDOn, label: laneLabelD, hit: hitD, glow: g2, shock: s2, method: 'defragmentFrameIndex'},
+    {lane: laneE, y: nEY, on: nEOn, label: laneLabelE, hit: hitE, glow: g4, shock: s4, method: 'rollSegmentWindow'},
+    {lane: laneA, y: nAY, on: nAOn, label: laneLabelA, hit: hitA, glow: g0, shock: s0, method: 'sealCheckpointBatch'},
+    {lane: laneB, y: nBY, on: nBOn, label: laneLabelB, hit: hitB, glow: g1, shock: s1, method: 'mergeCaptionTimeline'},
+    {lane: laneD, y: nDY, on: nDOn, label: laneLabelD, hit: hitD, glow: g2, shock: s2, method: 'finalizeReplayCache'},
+    {lane: laneE, y: nEY, on: nEOn, label: laneLabelE, hit: hitE, glow: g4, shock: s4, method: 'flushMetricsSnapshot'},
     {lane: laneC, y: nCY, on: nCOn, label: laneLabelC, hit: hitC, glow: g3, shock: s3, method: 'compactExportLedger'},
   ] as const;
   for (let i = 0; i < timelapseEvents.length; i++) {
     const n = timelapseEvents[i];
-    const pace = Math.max(0.13, 0.28 - i * 0.01);
+    const pace = Math.max(0.13, 0.24 - i * 0.003);
     yield* playNote(n.lane, n.y, n.on, n.label, n.hit, n.glow, n.shock, n.method, pace);
   }
 
