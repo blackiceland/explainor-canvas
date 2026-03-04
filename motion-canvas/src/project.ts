@@ -83,7 +83,7 @@ export default makeProject({
 
         // validateMonolithSceneRu,
         // codeWithActionsSceneRu,
-        codeWithActionsSceneRuTilt,
+        // codeWithActionsSceneRuTilt,
         // starWarsCrawlSceneRu,
         guitarHeroPassThroughSceneRu,
         // jackIntroSceneEn,
