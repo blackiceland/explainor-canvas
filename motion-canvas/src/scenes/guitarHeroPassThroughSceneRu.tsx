@@ -40,10 +40,8 @@ export default makeScene2D(function* (view) {
   const labelScaleYAt = (y: number) => 0.68 + depth(y) * 0.08;
   const labelScaleYForLane = (lane: number, y: number) => {
     const base = labelScaleYAt(y);
-    // Green/red lanes sit a bit more in-plane.
     return lane === 0 || lane === 1 ? base * 0.93 : base;
   };
-  // Match text slant with the local string direction.
   const labelSkewByLane = (lane: number, y: number) => {
     const sample = 42;
     const y0 = Math.max(yTop, y - sample);
@@ -51,7 +49,6 @@ export default makeScene2D(function* (view) {
     const dx = laneX(lane, y1) - laneX(lane, y0);
     const dy = y1 - y0 || 1;
     const base = ((Math.atan2(dx, dy) * 180) / Math.PI) * 0.55;
-    // Yellow lane: tweak top-lean (shear), not rigid rotation.
     if (lane === 2) return base - 1.8;
     if (lane === 3) return base * 0.62;
     return base;

@@ -1,5 +1,6 @@
-import {makeScene2D, Txt} from '@motion-canvas/2d';
-import {all, chain, easeInQuad, easeInOutCubic, ThreadGenerator, waitFor} from '@motion-canvas/core';
+import {makeScene2D, Txt, Video} from '@motion-canvas/2d';
+import {all, chain, createRef, easeInQuad, easeInOutCubic, ThreadGenerator, waitFor} from '@motion-canvas/core';
+import guitarHeroVideo from './guitarHero.mp4';
 import {Manticore} from '../core/code/components/Manticore';
 import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
 import {getCodePaddingY} from '../core/code/shared/TextMeasure';
@@ -285,6 +286,19 @@ export default makeScene2D(function* (view) {
     }
   }
 
+  const videoRef = createRef<Video>();
+  view.add(
+    <Video
+      ref={videoRef}
+      src={guitarHeroVideo}
+      width={1920}
+      height={1080}
+      opacity={0}
+      play={true}
+      time={0}
+    />,
+  );
+
   const firstLineY = cbV4.getLine(0)!.node.y();
   const lastVisibleY = cbV4.getLine(cbV4.lineCount - 1)!.node.y();
   const codeDistance = lastVisibleY - firstLineY;
@@ -292,7 +306,13 @@ export default makeScene2D(function* (view) {
   const totalDuration = 12.8;
 
   const cy = contentNode.y();
-  yield* contentNode.y(cy + totalDistance, totalDuration, easeInQuad);
+  yield* all(
+    contentNode.y(cy + totalDistance, totalDuration, easeInQuad),
+    chain(
+      waitFor(totalDuration * 0.5),
+      videoRef().opacity(1, 3.0, easeInOutCubic),
+    ),
+  );
 
   yield* waitFor(2.5);
 });

@@ -85,7 +85,7 @@ export default makeProject({
         // codeWithActionsSceneRu,
         // codeWithActionsSceneRuTilt,
         // starWarsCrawlSceneRu,
-        guitarHeroPassThroughSceneRu,
+        codeWithActionsSceneRuTilt,
         // jackIntroSceneEn,
         // videoExportActionsSceneRu,
     ]
