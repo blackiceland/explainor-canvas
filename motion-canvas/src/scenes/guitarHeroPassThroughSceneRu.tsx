@@ -1,5 +1,5 @@
 import {Circle, Line, makeScene2D, Rect, Txt} from '@motion-canvas/2d';
-import {all, createSignal, easeInOutCubic, linear, waitFor} from '@motion-canvas/core';
+import {all, createSignal, easeInOutCubic, fadeTransition, linear, waitFor} from '@motion-canvas/core';
 import {Screen} from '../core/theme';
 
 const BG = '#121212';
@@ -432,6 +432,7 @@ export default makeScene2D(function* (view) {
   };
 
   let matchCount = 0;
+  yield* fadeTransition(2.0);
   yield* waitFor(0.12);
   yield* uiOn(1, 0.45, easeInOutCubic);
   yield* noteOn(1, 0.2, easeInOutCubic);

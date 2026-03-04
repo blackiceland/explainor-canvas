@@ -294,5 +294,5 @@ export default makeScene2D(function* (view) {
   const cy = contentNode.y();
   yield* contentNode.y(cy + totalDistance, totalDuration, easeInQuad);
 
-  yield* waitFor(0.6);
+  yield* waitFor(2.5);
 });
