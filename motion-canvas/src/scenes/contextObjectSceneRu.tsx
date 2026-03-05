@@ -1,4 +1,4 @@
-import {blur, Code, lines, makeScene2D, Node, Rect, Txt} from '@motion-canvas/2d';
+import {blur, Code, lines, makeScene2D, Node, Rect} from '@motion-canvas/2d';
 import {all, createSignal, easeInOutCubic, easeOutCubic, waitFor} from '@motion-canvas/core';
 import {Fonts} from '../core/theme';
 import {tokenizeLine} from '../core/code/model/Tokenizer';
@@ -7,14 +7,10 @@ import {PosterTheme} from '../core/code/components/CodePoster';
 
 const BG = '#121212';
 const FONT = Fonts.code;
-const FS = 36;
-const LH = 58;
+const FS = 44;
+const LH = 72;
 const THEME = PosterTheme;
 
-const C_KW = THEME.keyword;
-const C_TYPE = THEME.type;
-const C_PLAIN = THEME.plain;
-const C_PUNCT = THEME.punctuation;
 
 const FIELDS = [
   {type: 'String',  name: 'outputFormat'},
@@ -42,9 +38,9 @@ const SCATTER: {x: number; y: number}[] = [
 ];
 
 // Left edge of code text
-const CODE_LEFT = -700;
+const CODE_LEFT = -800;
 const INDENT = '    ';
-const BLOCK_TOP = -170;
+const BLOCK_TOP = -210;
 const RIGHT_X = 380;
 
 function coloringHooks() {
@@ -70,28 +66,18 @@ function lineY(idx: number) {
   return BLOCK_TOP + idx * LH;
 }
 
-function makeLine(y: number, parts: {text: string; fill: string}[]): Txt {
-  const root = new Txt({
-    x: CODE_LEFT,
-    y,
+function codeLine(text: string, x: number, y: number): Code {
+  return new Code({
+    code: text,
     fontFamily: FONT,
     fontSize: FS,
-    fill: C_PLAIN,
+    lineHeight: LH,
+    x,
+    y,
+    offset: [-1, 0],
+    selection: lines(0, Infinity),
+    drawHooks: coloringHooks(),
   });
-  for (const p of parts) {
-    root.add(new Txt({fill: p.fill, text: p.text}));
-  }
-  return root;
-}
-
-function makeFieldLine(f: {type: string; name: string}): {text: string; fill: string}[] {
-  return [
-    {text: INDENT, fill: C_PLAIN},
-    {text: f.type, fill: C_KW},
-    {text: ' ', fill: C_PLAIN},
-    {text: f.name, fill: C_PLAIN},
-    {text: ';', fill: C_PUNCT},
-  ];
 }
 
 export default makeScene2D(function* (view) {
@@ -99,23 +85,15 @@ export default makeScene2D(function* (view) {
 
   // ── Shell: "class ExportContext {" and "}" ──────────────────────────────
   const shellGroup = new Node({opacity: 0});
-  shellGroup.add(makeLine(lineY(0), [
-    {text: 'class ', fill: C_KW},
-    {text: 'ExportContext ', fill: C_TYPE},
-    {text: '{', fill: C_PUNCT},
-  ]));
-  shellGroup.add(makeLine(lineY(6), [
-    {text: '}', fill: C_PUNCT},
-  ]));
+  shellGroup.add(codeLine('class ExportContext {', CODE_LEFT, lineY(0)));
+  shellGroup.add(codeLine('}', CODE_LEFT, lineY(6)));
   view.add(shellGroup);
 
   // ── Field lines: they ARE the flying objects ───────────────────────────
-  // Each field starts at a scattered position with blur.
-  // It flies to its slot and stays there. One object, no swap.
   const fieldBlurs = FIELDS.map(() => createSignal(14));
   const fieldLines = FIELDS.map((f, i) => {
-    const node = makeLine(SCATTER[i].y, makeFieldLine(f));
-    node.x(SCATTER[i].x);
+    const text = INDENT + f.type + ' ' + f.name + ';';
+    const node = codeLine(text, SCATTER[i].x, SCATTER[i].y);
     node.opacity(0);
     node.filters(() => [blur(fieldBlurs[i]())]);
     view.add(node);
@@ -129,6 +107,7 @@ export default makeScene2D(function* (view) {
     fontSize: FS,
     lineHeight: LH,
     x: RIGHT_X,
+    offset: [-1, 0],
     opacity: 0,
     selection: lines(0, Infinity),
     drawHooks: coloringHooks(),
@@ -137,17 +116,14 @@ export default makeScene2D(function* (view) {
 
   // ── Animation ─────────────────────────────────────────────────────────
 
-  // 1. Shell appears
-  yield* shellGroup.opacity(1, 0.6, easeInOutCubic);
-  yield* waitFor(0.4);
-
-  // 2. Blurred fields appear scattered
+  // 1. Shell and blurred fields appear simultaneously
   yield* all(
+    shellGroup.opacity(1, 0.6, easeInOutCubic),
     ...fieldLines.map((n, i) =>
-      n.opacity(1, 0.3 + i * 0.06, easeOutCubic),
+      n.opacity(1, 0.4 + i * 0.06, easeOutCubic),
     ),
   );
-  yield* waitFor(0.5);
+  yield* waitFor(0.6);
 
   // 3. One by one: field flies to its slot position and deblurs — it stays
   for (let i = 0; i < FIELDS.length; i++) {
