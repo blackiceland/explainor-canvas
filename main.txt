@@ -56,9 +56,11 @@ cd C:\Users\anton\IdeaProjects\canvas\motion-canvas\output\project
 C:\ffmpeg\bin\ffmpeg.exe -framerate 60 -start_number 0 -i %06d.png -c:v libx264 -pix_fmt yuv420p -crf 18 -preset slow ..\video.mp4
 
 cd C:\Users\black\IdeaProjects\explainor-canvas\motion-canvas\output\project
-C:\ffmpeg\bin\ffmpeg.exe -framerate 60 -start_number 0 -i %06d.png -c:v libx264 -pix_fmt yuv420p -crf 18 -preset slow ..\video.mp4
+C:\ffmpeg\bin\ffmpeg.exe -framerate 60 -start_number 0 -i %06d.png -c:v libx264 -pix_fmt yuv420p -crf 18 -preset slow ..\video3.mp4
 
-C:\ProgramData\chocolatey\bin\ffmpeg.exe -framerate 60 -start_number 0 -i %06d.png -c:v libx264 -pix_fmt yuv420p -crf 18 -preset slow ..\video1.mp4
+
+cd C:\Users\anton\IdeaProjects\canvas\motion-canvas\output\project
+C:\ProgramData\chocolatey\bin\ffmpeg.exe -framerate 60 -start_number 0 -i %06d.png -c:v libx264 -pix_fmt yuv420p -crf 18 -preset slow ..\video4.mp4
 
 
 

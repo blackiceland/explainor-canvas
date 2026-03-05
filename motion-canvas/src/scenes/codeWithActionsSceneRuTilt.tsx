@@ -314,5 +314,5 @@ export default makeScene2D(function* (view) {
     ),
   );
 
-  yield* waitFor(2.5);
+  yield* waitFor(13.7);
 });
