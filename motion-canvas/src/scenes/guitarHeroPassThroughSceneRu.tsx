@@ -43,15 +43,14 @@ export default makeScene2D(function* (view) {
     return lane === 0 || lane === 1 ? base * 0.93 : base;
   };
   const labelSkewByLane = (lane: number, y: number) => {
-    const sample = 42;
+    const sample = 120;
     const y0 = Math.max(yTop, y - sample);
     const y1 = Math.min(yBottom, y + sample);
     const dx = laneX(lane, y1) - laneX(lane, y0);
     const dy = y1 - y0 || 1;
-    const base = ((Math.atan2(dx, dy) * 180) / Math.PI) * 0.55;
-    if (lane === 2) return base - 1.8;
-    if (lane === 3) return base * 0.62;
-    return base;
+    const angle = (Math.atan2(dx, dy) * 180) / Math.PI;
+    const falloff = 1 - Math.abs(lane / 4 - 0.5) * 0.5;
+    return angle * 0.45 * falloff;
   };
   const nAY = createSignal(yTop);
   const nBY = createSignal(yTop);
@@ -501,30 +500,35 @@ export default makeScene2D(function* (view) {
     {lane: laneC, y: nCY, on: nCOn, label: laneLabelC, hit: hitC, glow: g3, shock: s3, method: 'snapshotTranscodeState'},
     {lane: laneE, y: nEY, on: nEOn, label: laneLabelE, hit: hitE, glow: g4, shock: s4, method: 'flushOrange'},
     {lane: laneD, y: nDY, on: nDOn, label: laneLabelD, hit: hitD, glow: g2, shock: s2, method: 'flush'},
-    {lane: laneA, y: nAY, on: nAOn, label: laneLabelA, hit: hitA, glow: g0, shock: s0, method: 'close'},
-    {lane: laneB, y: nBY, on: nBOn, label: laneLabelB, hit: hitB, glow: g1, shock: s1, method: 'reindexSegments'},
-    {lane: laneD, y: nDY, on: nDOn, label: laneLabelD, hit: hitD, glow: g2, shock: s2, method: 'pruneOrphanChunks'},
     {lane: laneE, y: nEY, on: nEOn, label: laneLabelE, hit: hitE, glow: g4, shock: s4, method: 'reconcileTimecodes'},
-    {lane: laneA, y: nAY, on: nAOn, label: laneLabelA, hit: hitA, glow: g0, shock: s0, method: 'evictStaleFrames'},
-    {lane: laneB, y: nBY, on: nBOn, label: laneLabelB, hit: hitB, glow: g1, shock: s1, method: 'collapseGopBoundary'},
-    {lane: laneD, y: nDY, on: nDOn, label: laneLabelD, hit: hitD, glow: g2, shock: s2, method: 'rotateSessionKeys'},
-    {lane: laneE, y: nEY, on: nEOn, label: laneLabelE, hit: hitE, glow: g4, shock: s4, method: 'drainPendingWrites'},
-    {lane: laneA, y: nAY, on: nAOn, label: laneLabelA, hit: hitA, glow: g0, shock: s0, method: 'commitLedgerEntry'},
+    {lane: laneA, y: nAY, on: nAOn, label: laneLabelA, hit: hitA, glow: g0, shock: s0, method: 'close'},
+    {lane: laneD, y: nDY, on: nDOn, label: laneLabelD, hit: hitD, glow: g2, shock: s2, method: 'pruneOrphanChunks'},
+    {lane: laneC, y: nCY, on: nCOn, label: laneLabelC, hit: hitC, glow: g3, shock: s3, method: 'reindexSegments'},
+    {lane: laneB, y: nBY, on: nBOn, label: laneLabelB, hit: hitB, glow: g1, shock: s1, method: 'evictStaleFrames'},
+    {lane: laneE, y: nEY, on: nEOn, label: laneLabelE, hit: hitE, glow: g4, shock: s4, method: 'rotateSessionKeys'},
+    {lane: laneA, y: nAY, on: nAOn, label: laneLabelA, hit: hitA, glow: g0, shock: s0, method: 'collapseGopBoundary'},
+    {lane: laneD, y: nDY, on: nDOn, label: laneLabelD, hit: hitD, glow: g2, shock: s2, method: 'drainPendingWrites'},
     {lane: laneB, y: nBY, on: nBOn, label: laneLabelB, hit: hitB, glow: g1, shock: s1, method: 'flattenMuxGraph'},
-    {lane: laneD, y: nDY, on: nDOn, label: laneLabelD, hit: hitD, glow: g2, shock: s2, method: 'reclaimBufferPool'},
-    {lane: laneE, y: nEY, on: nEOn, label: laneLabelE, hit: hitE, glow: g4, shock: s4, method: 'syncWatermark'},
-    {lane: laneA, y: nAY, on: nAOn, label: laneLabelA, hit: hitA, glow: g0, shock: s0, method: 'detachOrphanStreams'},
-    {lane: laneB, y: nBY, on: nBOn, label: laneLabelB, hit: hitB, glow: g1, shock: s1, method: 'coalesceFragments'},
-    {lane: laneD, y: nDY, on: nDOn, label: laneLabelD, hit: hitD, glow: g2, shock: s2, method: 'stampChecksum'},
+    {lane: laneC, y: nCY, on: nCOn, label: laneLabelC, hit: hitC, glow: g3, shock: s3, method: 'commitLedgerEntry'},
+    {lane: laneE, y: nEY, on: nEOn, label: laneLabelE, hit: hitE, glow: g4, shock: s4, method: 'reclaimBufferPool'},
+    {lane: laneA, y: nAY, on: nAOn, label: laneLabelA, hit: hitA, glow: g0, shock: s0, method: 'coalesceFragments'},
+    {lane: laneD, y: nDY, on: nDOn, label: laneLabelD, hit: hitD, glow: g2, shock: s2, method: 'syncWatermark'},
+    {lane: laneB, y: nBY, on: nBOn, label: laneLabelB, hit: hitB, glow: g1, shock: s1, method: 'detachOrphanStreams'},
+    {lane: laneC, y: nCY, on: nCOn, label: laneLabelC, hit: hitC, glow: g3, shock: s3, method: 'stampChecksum'},
     {lane: laneE, y: nEY, on: nEOn, label: laneLabelE, hit: hitE, glow: g4, shock: s4, method: 'retireWorkerSlot'},
-    {lane: laneA, y: nAY, on: nAOn, label: laneLabelA, hit: hitA, glow: g0, shock: s0, method: 'tombstoneExpired'},
-    {lane: laneB, y: nBY, on: nBOn, label: laneLabelB, hit: hitB, glow: g1, shock: s1, method: 'emitFinalDigest'},
-    {lane: laneD, y: nDY, on: nDOn, label: laneLabelD, hit: hitD, glow: g2, shock: s2, method: 'defragmentFrameIndex'},
-    {lane: laneE, y: nEY, on: nEOn, label: laneLabelE, hit: hitE, glow: g4, shock: s4, method: 'rollSegmentWindow'},
-    {lane: laneA, y: nAY, on: nAOn, label: laneLabelA, hit: hitA, glow: g0, shock: s0, method: 'sealCheckpointBatch'},
-    {lane: laneB, y: nBY, on: nBOn, label: laneLabelB, hit: hitB, glow: g1, shock: s1, method: 'mergeCaptionTimeline'},
+    {lane: laneA, y: nAY, on: nAOn, label: laneLabelA, hit: hitA, glow: g0, shock: s0, method: 'defragmentFrameIndex'},
+    {lane: laneD, y: nDY, on: nDOn, label: laneLabelD, hit: hitD, glow: g2, shock: s2, method: 'tombstoneExpired'},
+    {lane: laneB, y: nBY, on: nBOn, label: laneLabelB, hit: hitB, glow: g1, shock: s1, method: 'rollSegmentWindow'},
+    {lane: laneC, y: nCY, on: nCOn, label: laneLabelC, hit: hitC, glow: g3, shock: s3, method: 'emitFinalDigest'},
+    {lane: laneE, y: nEY, on: nEOn, label: laneLabelE, hit: hitE, glow: g4, shock: s4, method: 'sealCheckpointBatch'},
+    {lane: laneA, y: nAY, on: nAOn, label: laneLabelA, hit: hitA, glow: g0, shock: s0, method: 'mergeCaptionTimeline'},
     {lane: laneD, y: nDY, on: nDOn, label: laneLabelD, hit: hitD, glow: g2, shock: s2, method: 'finalizeReplayCache'},
-    {lane: laneE, y: nEY, on: nEOn, label: laneLabelE, hit: hitE, glow: g4, shock: s4, method: 'flushMetricsSnapshot'},
+    {lane: laneB, y: nBY, on: nBOn, label: laneLabelB, hit: hitB, glow: g1, shock: s1, method: 'flushMetricsSnapshot'},
+    {lane: laneC, y: nCY, on: nCOn, label: laneLabelC, hit: hitC, glow: g3, shock: s3, method: 'invalidateProxyCache'},
+    {lane: laneE, y: nEY, on: nEOn, label: laneLabelE, hit: hitE, glow: g4, shock: s4, method: 'rebuildGlyphAtlas'},
+    {lane: laneA, y: nAY, on: nAOn, label: laneLabelA, hit: hitA, glow: g0, shock: s0, method: 'sweepDeadChannels'},
+    {lane: laneD, y: nDY, on: nDOn, label: laneLabelD, hit: hitD, glow: g2, shock: s2, method: 'archiveBitrateLog'},
+    {lane: laneB, y: nBY, on: nBOn, label: laneLabelB, hit: hitB, glow: g1, shock: s1, method: 'resolveFrameConflicts'},
     {lane: laneC, y: nCY, on: nCOn, label: laneLabelC, hit: hitC, glow: g3, shock: s3, method: 'compactExportLedger'},
   ] as const;
   for (let i = 0; i < timelapseEvents.length; i++) {
