@@ -81,12 +81,40 @@
 - `JavaModel` расширяется новыми примитивами без изменений в сценах.
 - `CodeLine` содержит полный набор low-level анимаций (typewriter, replaceToken, insertBefore, removeToken) для прямого использования в сложных сценах.
 
-13) Текущие ограничения
+13) CodePoster — быстрый рендер «постерных» сцен с кодом
+- Файл: `core/code/components/CodePoster.ts`.
+- Назначение: отображение статического блока кода на весь экран (без анимации морфинга).
+  Типичный кейс — показать класс, интерфейс, сниппет как визуальную карточку.
+- API:
+  ```
+  const poster = CodePoster.create(javaSource, {
+    fontSize: 48,          // default 48
+    lineHeight: 90,        // default 90
+    fontFamily: Fonts.code, // default
+    theme: PosterTheme,    // default — мягкая тёмная палитра
+    bg: '#121212',         // default
+    customTypes: ['ExportContext', 'DSLContext'], // доп. типы для Tokenizer
+  });
+  poster.mount(view);      // добавляет Rect-фон + Code с drawHooks
+  yield* poster.fadeIn();   // плавное появление
+  yield* poster.fadeOut();  // плавное исчезновение
+  poster.code              // прямой доступ к Code-ноде
+  poster.background        // прямой доступ к Rect-фону
+  ```
+- Внутри использует `Code` из `@motion-canvas/2d` с `drawHooks`, которые вызывают
+  `tokenizeLine` из `Tokenizer` и `getTokenColor` из `SyntaxTheme`.
+  Это гарантирует единообразную раскраску без ручного парсинга в каждой сцене.
+- `PosterTheme` — экспортируемая тема по умолчанию (keyword: фиолетовый, type: голубой,
+  field/plain: кремово-серый, punctuation: приглушённый серый).
+- Расширяемость: можно передать любую `SyntaxTheme` или переопределить `customTypes`
+  для корректного распознавания доменных типов.
+
+14) Текущие ограничения
 - `JavaModel` поддерживает только Java; для других языков потребуется аналогичная модель.
 - `Tokenizer` использует regex-эвристику, не полноценный парсер. Для покрытия 100% синтаксиса Java потребуется tree-sitter/shiki.
 - `blockWithTail` требует аккуратной настройки порогов для больших блоков.
 
-14) Практический стандарт использования
+15) Практический стандарт использования
 - Логику кода описывать через `JavaModel`.
 - Переходы сценария выражать через `Medusa`.
 - В `Manticore` менять только алгоритмические части рендера/морфинга.
