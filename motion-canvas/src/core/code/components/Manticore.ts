@@ -45,6 +45,7 @@ export interface MorphOptions {
     flashRemovedEraseCharDelay?: number;
     scrollStrategy?: 'block' | 'blockWithTail' | 'auto';
     addStyle?: 'typewriter' | 'fade';
+    lineOrder?: 'sequential' | 'parallel';
 }
 
 interface LinePlan {
@@ -72,6 +73,7 @@ interface MorphResolvedOptions {
     flashRemovedEraseCharDelay: number;
     scrollStrategy: 'block' | 'blockWithTail' | 'auto';
     addStyle: 'typewriter' | 'fade';
+    lineOrder: 'sequential' | 'parallel';
 }
 
 interface MorphPreparedState {
@@ -497,6 +499,7 @@ export class Manticore {
             flashRemovedEraseCharDelay: opts.flashRemovedEraseCharDelay ?? 0.01,
             scrollStrategy: opts.scrollStrategy ?? 'blockWithTail',
             addStyle: opts.addStyle ?? 'typewriter',
+            lineOrder: opts.lineOrder ?? 'sequential',
         };
     }
 
@@ -593,6 +596,41 @@ export class Manticore {
             );
             const tailScrollMode = this.resolveTailScrollMode(opts.scrollStrategy, block, state);
             const blockEndIdx = state.activePlan[block.end].newIndex;
+
+            if (opts.lineOrder === 'parallel') {
+                const blockAnims: ThreadGenerator[] = [];
+                for (let bi = block.start; bi <= block.end; bi++) {
+                    const p = state.activePlan[bi];
+                    const lineAnims: ThreadGenerator[] = [];
+
+                    if (state.settleAnims.length > 0) {
+                        lineAnims.push(...state.settleAnims.splice(0));
+                    }
+
+                    if (p.kind === 'modify') {
+                        const cl = state.modifyMap.get(p.newIndex)!;
+                        const newTokens = tokenizeLine(p.newText, this.cfg.customTypes);
+                        const vis = this.resolveTokenVisibility(p.tokenDiff!);
+                        cl.mutateInPlace(p.tokenDiff!, newTokens, vis.kept);
+                        this.applyRules(cl);
+                        lineAnims.push(this.typewriterNewTokens(cl, vis, opts.charDelay));
+                    } else {
+                        const addCl = state.result[p.newIndex]!;
+                        if (addCl.node.opacity() < 1) {
+                            lineAnims.push(addCl.node.opacity(1, opts.moveDuration * 0.5, easeInOutCubic));
+                        }
+                        if (opts.addStyle === 'typewriter') {
+                            lineAnims.push(addCl.typewriter(opts.charDelay));
+                        }
+                    }
+
+                    if (lineAnims.length > 0) blockAnims.push(all(...lineAnims));
+                }
+
+                if (blockAnims.length > 0) yield* all(...blockAnims);
+                if (opts.lineDelay > 0) yield* waitFor(opts.lineDelay);
+                continue;
+            }
 
             for (let bi = block.start; bi <= block.end; bi++) {
                 const p = state.activePlan[bi];

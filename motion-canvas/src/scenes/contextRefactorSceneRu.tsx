@@ -82,6 +82,24 @@ const modelAfter = JavaClass.create([
 
 const CODE_AFTER = modelAfter.render();
 
+// ── Pre-disappear: reverse-type erase of params in signatures/returns ───
+const modelAfterErase = JavaClass.create([
+  method('public', 'byte[]', 'exportVideo',
+    [],
+    ['validateInput(ctx);',
+     'byte[] prepared = prepareFrames(ctx);',
+     '',
+     'return encodeWithRetry();']),
+  method('private', 'byte[]', 'prepareFrames',
+    [],
+    ['byte[] normalized = normalizeFrames(ctx);',
+     'byte[] colored = applyColorProfile(ctx);',
+     '',
+     'return overlaySubtitles();']),
+], MAX_CHARS);
+
+const CODE_AFTER_ERASE = modelAfterErase.render();
+
 // ── Left side: same components as contextObjectSceneRu ──────────────────
 const CODE_LEFT = -875;
 const BLOCK_TOP = -210;
@@ -149,7 +167,7 @@ export default makeScene2D(function* (view) {
   const topInset = Math.max(8, paddingY - 8);
 
   const manticore = Manticore.create(CODE_BEFORE, {
-    x: rightCenterX, y: -95,
+    x: rightCenterX, y: -45,
     width: RIGHT_REGION_WIDTH,
     height: SafeZone.bottom - SafeZone.top - 5,
     fontSize, lineHeight,
@@ -177,12 +195,30 @@ export default makeScene2D(function* (view) {
   yield* manticore.morphTo(CODE_AFTER, {
     scrollStrategy: 'block',
     addStyle: 'fade',
+    lineOrder: 'parallel',
+    lineDelay: 0,
     moveDuration: 0.8,
     removeDuration: 0.4,
   });
-  yield* waitFor(3.0);
+  yield* waitFor(2.2);
 
-  // 3. Fade out
+  // 3. Before disappear: reverse-type erase of method params and return args
+  yield* manticore.morphTo(CODE_AFTER_ERASE, {
+    scrollStrategy: 'block',
+    addStyle: 'fade',
+    lineOrder: 'parallel',
+    lineDelay: 0,
+    moveDuration: 0.45,
+    removeDuration: 0.25,
+    flashRemovedErase: 'reverseType',
+    flashRemovedEraseCharDelay: 0.009,
+    flashRemovedDuration: 0.2,
+    flashRemovedIncludeTypes: ['plain', 'type', 'punctuation'],
+    flashRemovedExcludeTypes: [],
+  });
+  yield* waitFor(0.4);
+
+  // 4. Fade out
   yield* all(
     contextGroup.opacity(0, 0.55, easeInOutCubic),
     manticore.disappear(0.55),
