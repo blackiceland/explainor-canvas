@@ -13,20 +13,20 @@ const THEME = PosterTheme;
 
 
 const FIELDS = [
+  {type: 'byte[]',  name: 'sourceFrames'},
   {type: 'String',  name: 'outputFormat'},
-  {type: 'String',  name: 'watermarkMode'},
-  {type: 'byte[]',  name: 'intermediateResult'},
-  {type: 'boolean', name: 'retryFailed'},
-  {type: 'int',     name: 'attemptCount'},
+  {type: 'String',  name: 'colorProfile'},
+  {type: 'String',  name: 'subtitleTrack'},
+  {type: 'byte[]',  name: 'preparedFrames'},
 ];
 
 const PARAM_CODE =
   'class ExportParameters {\n' +
+  '    byte[] sourceFrames;\n' +
   '    String outputFormat;\n' +
-  '    String watermarkMode;\n' +
-  '    byte[] intermediateResult;\n' +
-  '    boolean retryFailed;\n' +
-  '    int attemptCount;\n' +
+  '    String colorProfile;\n' +
+  '    String subtitleTrack;\n' +
+  '    byte[] preparedFrames;\n' +
   '}';
 
 const SCATTER: {x: number; y: number}[] = [
