@@ -20,15 +20,6 @@ const FIELDS = [
   {type: 'byte[]',  name: 'preparedFrames'},
 ];
 
-const PARAM_CODE =
-  'class ExportParameters {\n' +
-  '    byte[] sourceFrames;\n' +
-  '    String outputFormat;\n' +
-  '    String colorProfile;\n' +
-  '    String subtitleTrack;\n' +
-  '    byte[] preparedFrames;\n' +
-  '}';
-
 const SCATTER: {x: number; y: number}[] = [
   {x:  320, y: -200},
   {x: -50,  y: -310},
@@ -38,10 +29,9 @@ const SCATTER: {x: number; y: number}[] = [
 ];
 
 // Left edge of code text
-const CODE_LEFT = -800;
+const CODE_LEFT = -875;
 const INDENT = '   ';
 const BLOCK_TOP = -210;
-const RIGHT_X = 380;
 
 function coloringHooks() {
   return {
@@ -100,20 +90,6 @@ export default makeScene2D(function* (view) {
     return node;
   });
 
-  // ── ExportParameters (right side, Code component) ─────────────────────
-  const paramCode = new Code({
-    code: PARAM_CODE,
-    fontFamily: FONT,
-    fontSize: FS,
-    lineHeight: LH,
-    x: RIGHT_X,
-    offset: [-1, 0],
-    opacity: 0,
-    selection: lines(0, Infinity),
-    drawHooks: coloringHooks(),
-  });
-  view.add(paramCode);
-
   // ── Animation ─────────────────────────────────────────────────────────
 
   // 1. Shell and blurred fields appear simultaneously
@@ -144,17 +120,6 @@ export default makeScene2D(function* (view) {
   }
 
   yield* waitFor(0.8);
-
-  // 4. ExportParameters appears
-  yield* paramCode.opacity(1, 0.75, easeInOutCubic);
-
-  yield* waitFor(3.0);
-
-  // 5. Fade out
-  yield* all(
-    shellGroup.opacity(0, 0.55, easeInOutCubic),
-    ...fieldLines.map(n => n.opacity(0, 0.55, easeInOutCubic)),
-    paramCode.opacity(0, 0.55, easeInOutCubic),
-  );
+  // End scene with context visible after parameters animation
   yield* waitFor(0.3);
 });

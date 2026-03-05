@@ -34,6 +34,7 @@ import videoExportActionsSceneRu from './scenes/videoExportActionsSceneRu?scene'
 import codeWithActionsSceneRu from './scenes/codeWithActionsSceneRu?scene';
 import codeWithActionsSceneRuTilt from './scenes/codeWithActionsSceneRuTilt?scene';
 import contextObjectSceneRu from './scenes/contextObjectSceneRu?scene';
+import contextRefactorSceneRu from './scenes/contextRefactorSceneRu?scene';
 import starWarsCrawlSceneRu from './scenes/starWarsCrawlSceneRu?scene';
 import splitDtoScene from './scenes/splitDtoScene?scene';
 import splitDtoSceneV3 from './scenes/splitDtoSceneV3?scene';
@@ -87,7 +88,8 @@ export default makeProject({
         // codeWithActionsSceneRuTilt,
         // starWarsCrawlSceneRu,
         //  jackIntroSceneEn,
-        contextObjectSceneRu,
+         contextObjectSceneRu,
+        contextRefactorSceneRu,
         // codeWithActionsSceneRuTilt,
         // guitarHeroPassThroughSceneRu,
 
