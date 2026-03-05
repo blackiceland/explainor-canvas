@@ -147,12 +147,28 @@ export default makeScene2D(function* (view) {
   // ── Left: same final look as contextObjectSceneRu ─────────────────────
   const contextGroup = new Rect({opacity: 1});
   contextGroup.add(codeLine('class ExportContext {', lineY(0)));
-  contextGroup.add(codeLine('}', lineY(6)));
+  const closingBrace = codeLine('}', lineY(6));
+  contextGroup.add(closingBrace);
   contextGroup.add(codeLine(`${INDENT}byte[] sourceFrames;`, lineY(1)));
   contextGroup.add(codeLine(`${INDENT}String outputFormat;`, lineY(2)));
   contextGroup.add(codeLine(`${INDENT}String colorProfile;`, lineY(3)));
   contextGroup.add(codeLine(`${INDENT}String subtitleTrack;`, lineY(4)));
   contextGroup.add(codeLine(`${INDENT}byte[] preparedFrames;`, lineY(5)));
+
+  const EXTRA_FIELDS = [
+    `${INDENT}boolean retryFailed;`,
+    `${INDENT}int attemptCount;`,
+    `${INDENT}String watermarkMode;`,
+    `${INDENT}long timestampMs;`,
+    `${INDENT}Map<String, String> metadata;`,
+  ];
+  const extraLines = EXTRA_FIELDS.map((text, i) => {
+    const node = codeLine(text, lineY(6 + i));
+    node.opacity(0);
+    return node;
+  });
+  extraLines.forEach(n => contextGroup.add(n));
+
   view.add(contextGroup);
 
   // ── Right: Manticore ──────────────────────────────────────────────────
@@ -201,26 +217,28 @@ export default makeScene2D(function* (view) {
     moveDuration: 0.8,
     removeDuration: 0.4,
   });
-  yield* waitFor(2.2);
+  yield* waitFor(1.8);
 
-  // 3. Before disappear: reverse-type erase of method params and return args
-  yield* manticore.morphTo(CODE_AFTER_ERASE, {
-    scrollStrategy: 'block',
-    addStyle: 'fade',
-    lineOrder: 'parallel',
-    blockOrder: 'parallel',
-    lineDelay: 0,
-    moveDuration: 0.45,
-    removeDuration: 0.25,
-    flashRemovedErase: 'reverseType',
-    flashRemovedEraseCharDelay: 0.009,
-    flashRemovedDuration: 0.2,
-    flashRemovedIncludeTypes: ['plain', 'type', 'punctuation'],
-    flashRemovedExcludeTypes: [],
-  });
-  yield* waitFor(0.4);
+  // 3. Context bloats: 5 new fields appear one by one, brace slides down
+  const BLOAT_DUR = 0.35;
+  for (let i = 0; i < extraLines.length; i++) {
+    yield* all(
+      closingBrace.y(lineY(6 + i + 1), BLOAT_DUR, easeInOutCubic),
+      extraLines[i].opacity(1, BLOAT_DUR, easeInOutCubic),
+    );
+    yield* waitFor(0.08);
+  }
+  yield* waitFor(0.6);
 
-  // 4. Fade out
+  // 4. Dim everything except signatures (lines 0 and 7)
+  const totalLines = manticore.lineCount;
+  yield* all(
+    manticore.dimLines(1, 6, 0.15, 0.5),
+    manticore.dimLines(8, totalLines - 1, 0.15, 0.5),
+  );
+  yield* waitFor(2.5);
+
+  // 5. Fade out
   yield* all(
     contextGroup.opacity(0, 0.55, easeInOutCubic),
     manticore.disappear(0.55),
