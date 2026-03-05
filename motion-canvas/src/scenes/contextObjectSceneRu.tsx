@@ -39,7 +39,7 @@ const SCATTER: {x: number; y: number}[] = [
 
 // Left edge of code text
 const CODE_LEFT = -800;
-const INDENT = '    ';
+const INDENT = '   ';
 const BLOCK_TOP = -210;
 const RIGHT_X = 380;
 
@@ -90,7 +90,7 @@ export default makeScene2D(function* (view) {
   view.add(shellGroup);
 
   // ── Field lines: they ARE the flying objects ───────────────────────────
-  const fieldBlurs = FIELDS.map(() => createSignal(14));
+  const fieldBlurs = FIELDS.map(() => createSignal(24));
   const fieldLines = FIELDS.map((f, i) => {
     const text = INDENT + f.type + ' ' + f.name + ';';
     const node = codeLine(text, SCATTER[i].x, SCATTER[i].y);
@@ -121,6 +121,9 @@ export default makeScene2D(function* (view) {
     shellGroup.opacity(1, 0.6, easeInOutCubic),
     ...fieldLines.map((n, i) =>
       n.opacity(1, 0.4 + i * 0.06, easeOutCubic),
+    ),
+    ...fieldBlurs.map((b, i) =>
+      b(14, 0.45 + i * 0.06, easeOutCubic),
     ),
   );
   yield* waitFor(0.6);
