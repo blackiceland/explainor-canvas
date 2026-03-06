@@ -2,14 +2,13 @@ import {blur, Code, lines, makeScene2D, Node, Rect} from '@motion-canvas/2d';
 import {all, createSignal, easeInOutCubic, easeOutCubic, waitFor} from '@motion-canvas/core';
 import {Fonts} from '../core/theme';
 import {tokenizeLine} from '../core/code/model/Tokenizer';
-import {getTokenColor} from '../core/code/model/SyntaxTheme';
-import {PosterTheme} from '../core/code/components/CodePoster';
+import {DryFiltersV3CodeTheme, getTokenColor} from '../core/code/model/SyntaxTheme';
 
 const BG = '#121212';
 const FONT = Fonts.code;
 const FS = 44;
 const LH = 72;
-const THEME = PosterTheme;
+const THEME = DryFiltersV3CodeTheme;
 
 
 const FIELDS = [

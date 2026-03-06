@@ -8,12 +8,11 @@ import {Fonts, Screen} from '../core/theme';
 import {JavaClass, method, param} from '../core/code/model/JavaModel';
 import {tokenizeLine} from '../core/code/model/Tokenizer';
 import {getTokenColor} from '../core/code/model/SyntaxTheme';
-import {PosterTheme} from '../core/code/components/CodePoster';
 import {ColorRule} from '../core/code/components/Manticore';
 
 const BG = '#121212';
 const FONT = Fonts.code;
-const THEME = PosterTheme;
+const THEME = DryFiltersV3CodeTheme;
 
 const VAR_LIGHT = 'rgba(244, 241, 235, 0.96)';
 const TYPE_CLEAN = 'rgba(220, 215, 255, 0.80)';
@@ -146,7 +145,8 @@ export default makeScene2D(function* (view) {
 
   // ── Left: same final look as contextObjectSceneRu ─────────────────────
   const contextGroup = new Rect({opacity: 1});
-  contextGroup.add(codeLine('class ExportContext {', lineY(0)));
+  const openingBrace = codeLine('class ExportContext {', lineY(0));
+  contextGroup.add(openingBrace);
   const closingBrace = codeLine('}', lineY(6));
   contextGroup.add(closingBrace);
   contextGroup.add(codeLine(`${INDENT}byte[] sourceFrames;`, lineY(1)));
@@ -155,19 +155,29 @@ export default makeScene2D(function* (view) {
   contextGroup.add(codeLine(`${INDENT}String subtitleTrack;`, lineY(4)));
   contextGroup.add(codeLine(`${INDENT}byte[] preparedFrames;`, lineY(5)));
 
-  const EXTRA_FIELDS = [
+  const TOP_EXTRA_FIELDS = [
+    `${INDENT}String tenantId;`,
+    `${INDENT}long requestId;`,
+    `${INDENT}String traceId;`,
+  ];
+  const BOTTOM_EXTRA_FIELDS = [
     `${INDENT}boolean retryFailed;`,
     `${INDENT}int attemptCount;`,
-    `${INDENT}String watermarkMode;`,
-    `${INDENT}long timestampMs;`,
     `${INDENT}Map<String, String> metadata;`,
   ];
-  const extraLines = EXTRA_FIELDS.map((text, i) => {
-    const node = codeLine(text, lineY(6 + i));
+
+  const topExtraLines = TOP_EXTRA_FIELDS.map((text, i) => {
+    const node = codeLine(text, lineY(0) - i * CONTEXT_LH);
     node.opacity(0);
     return node;
   });
-  extraLines.forEach(n => contextGroup.add(n));
+  const bottomExtraLines = BOTTOM_EXTRA_FIELDS.map((text, i) => {
+    const node = codeLine(text, lineY(6) + i * CONTEXT_LH);
+    node.opacity(0);
+    return node;
+  });
+  topExtraLines.forEach(n => contextGroup.add(n));
+  bottomExtraLines.forEach(n => contextGroup.add(n));
 
   view.add(contextGroup);
 
@@ -220,12 +230,14 @@ export default makeScene2D(function* (view) {
   });
   yield* waitFor(1.8);
 
-  // 3. Context bloats: 5 new fields appear one by one, brace slides down
+  // 3. Context bloats in both directions: one top + one bottom per step
   const BLOAT_DUR = 0.35;
-  for (let i = 0; i < extraLines.length; i++) {
+  for (let i = 0; i < Math.min(topExtraLines.length, bottomExtraLines.length); i++) {
     yield* all(
+      openingBrace.y(lineY(0) - (i + 1) * CONTEXT_LH, BLOAT_DUR, easeInOutCubic),
       closingBrace.y(lineY(6 + i + 1), BLOAT_DUR, easeInOutCubic),
-      extraLines[i].opacity(1, BLOAT_DUR, easeInOutCubic),
+      topExtraLines[i].opacity(1, BLOAT_DUR, easeInOutCubic),
+      bottomExtraLines[i].opacity(1, BLOAT_DUR, easeInOutCubic),
     );
     yield* waitFor(0.08);
   }
