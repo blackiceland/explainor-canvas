@@ -1,0 +1,92 @@
+import {Circle, Code, makeScene2D, Node, Rect, lines} from '@motion-canvas/2d';
+import {all, createSignal, easeInOutCubic, waitFor} from '@motion-canvas/core';
+import {LightBgCodeTheme, getTokenColor} from '../core/code/model/SyntaxTheme';
+import {tokenizeLine} from '../core/code/model/Tokenizer';
+import {Fonts, Screen} from '../core/theme';
+
+const BG = '#121212';
+const LIGHT_SPLIT_BG = '#E7DCC9';
+
+const CODE_LINES = [
+  'class ExportConfig {',
+  '  static String outputFormat = "mp4";',
+  '  static String colorProfile = "sRGB";',
+  '}',
+];
+
+const FONT_SIZE = 28;
+const LINE_HEIGHT = 42;
+const CHAR_WIDTH = FONT_SIZE * 0.58;
+const CODE_WIDTH = Math.max(...CODE_LINES.map(line => line.length)) * CHAR_WIDTH;
+const CODE_HEIGHT = (CODE_LINES.length - 1) * LINE_HEIGHT + FONT_SIZE;
+const CIRCLE_PAD_X = 70;
+const CIRCLE_PAD_Y = 120;
+const CIRCLE_DIAMETER = Math.max(
+  CODE_WIDTH + CIRCLE_PAD_X * 2,
+  CODE_HEIGHT + CIRCLE_PAD_Y * 2,
+);
+const CODE_LEFT = -CODE_WIDTH / 2;
+const CODE_TOP = -CODE_HEIGHT / 2 + FONT_SIZE * 0.45;
+
+function codeHooks() {
+  return {
+    token: (
+      ctx: CanvasRenderingContext2D,
+      text: string,
+      position: {x: number; y: number},
+    ) => {
+      const raw = String(text ?? '');
+      let x = position.x;
+      const tokens = tokenizeLine(raw);
+      for (const tok of tokens) {
+        ctx.fillStyle = getTokenColor(tok.type, LightBgCodeTheme);
+        ctx.fillText(tok.text, x, position.y);
+        x += ctx.measureText(tok.text).width;
+      }
+    },
+  };
+}
+
+export default makeScene2D(function* (view) {
+  const circleOn = createSignal(0);
+  const codeOn = createSignal(0);
+
+  view.add(
+    <>
+      <Rect width={Screen.width} height={Screen.height} fill={BG} />
+      <Circle
+        width={CIRCLE_DIAMETER}
+        height={CIRCLE_DIAMETER}
+        fill={LIGHT_SPLIT_BG}
+        shadowColor={'rgba(0, 0, 0, 0.30)'}
+        shadowBlur={36}
+        shadowOffsetY={14}
+        scale={() => 0.94 + 0.06 * circleOn()}
+        opacity={circleOn}
+      />
+    </>,
+  );
+
+  const codeGroup = new Node({opacity: 0});
+  CODE_LINES.forEach((text, index) => {
+    codeGroup.add(
+      new Code({
+        code: text,
+        fontFamily: Fonts.code,
+        fontSize: FONT_SIZE,
+        lineHeight: LINE_HEIGHT,
+        x: CODE_LEFT,
+        y: CODE_TOP + index * LINE_HEIGHT,
+        offset: [-1, 0],
+        selection: lines(0, Infinity),
+        drawHooks: codeHooks(),
+      }),
+    );
+  });
+  codeGroup.opacity(() => codeOn());
+  view.add(codeGroup);
+
+  yield* circleOn(1, 0.7, easeInOutCubic);
+  yield* codeOn(1, 0.6, easeInOutCubic);
+  yield* waitFor(1.5);
+});

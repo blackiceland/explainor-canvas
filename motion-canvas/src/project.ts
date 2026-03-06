@@ -4,6 +4,7 @@ import codeWithActionsSceneRuTilt from './scenes/codeWithActionsSceneRuTilt?scen
 import contextObjectSceneRu from './scenes/contextObjectSceneRu?scene';
 import contextRefactorSceneRu from './scenes/contextRefactorSceneRu?scene';
 import codeWithActionsSceneRu from './scenes/codeWithActionsSceneRu?scene';
+import globalStateSingletonSceneRu from './scenes/globalStateSingletonSceneRu?scene';
 
 export default makeProject({
     experimentalFeatures: true,
@@ -59,6 +60,7 @@ export default makeProject({
         // guitarHeroPassThroughSceneRu,
         contextObjectSceneRu,
         contextRefactorSceneRu,
+        globalStateSingletonSceneRu,
 
     ]
 });
