@@ -154,7 +154,8 @@ function contextHooks() {
       let x = position.x;
       const tokens = tokenizeLine(raw);
       for (const tok of tokens) {
-        ctx.fillStyle = getTokenColor(tok.type, THEME);
+        const isQuoted = /^"[^"]*"$/.test(tok.text);
+        ctx.fillStyle = isQuoted ? SOFT_GREEN : getTokenColor(tok.type, THEME);
         ctx.fillText(tok.text, x, position.y);
         x += ctx.measureText(tok.text).width;
       }
@@ -350,65 +351,128 @@ export default makeScene2D(function* (view) {
   }
   yield* waitFor(1.5);
 
-  // 7. Fade out everything → clean dark canvas for popups
-  yield* all(
-    contextGroup.opacity(0, 0.5, easeInOutCubic),
-    manticore.disappear(0.5),
-  );
-  yield* waitFor(0.4);
+  // 7. Freeze highlighted frame and show popups on top
+  const POPUP_FS = 28;
+  const POPUP_LH = 42;
+  const PAD_X = 28;
+  const PAD_Y = 22;
+  const FRAME_W = Screen.width;
+  const FRAME_H = Screen.height;
+  const FRAME_MARGIN_X = 64;
+  const FRAME_MARGIN_Y = 56;
+  const CHAR_W = POPUP_FS * 0.62;
+  const MIN_W = 560;
+  const MAX_W = FRAME_W - FRAME_MARGIN_X * 2;
+  const MIN_H = 180;
+  const MAX_H = FRAME_H - FRAME_MARGIN_Y * 2;
 
-  // 8. Popup methods on clean background
-  const POPUP_FS = 32;
-  const POPUP_LH = 50;
+  function fitTopLeft(x: number, y: number, width: number, height: number) {
+    const minX = -FRAME_W / 2 + FRAME_MARGIN_X;
+    const maxX = FRAME_W / 2 - FRAME_MARGIN_X - width;
+    const minY = -FRAME_H / 2 + FRAME_MARGIN_Y;
+    const maxY = FRAME_H / 2 - FRAME_MARGIN_Y - height;
+    return {
+      x: Math.min(maxX, Math.max(minX, x)),
+      y: Math.min(maxY, Math.max(minY, y)),
+    };
+  }
 
-  const popupTexts = [
+  function makePopup(codeLines: string[], preferredX: number, preferredY: number) {
+    const codeText = codeLines.join('\n');
+    const longest = codeLines.reduce((m, l) => Math.max(m, l.length), 0);
+    const width = Math.min(MAX_W, Math.max(MIN_W, Math.ceil(longest * CHAR_W + PAD_X * 2)));
+    const height = Math.min(MAX_H, Math.max(MIN_H, Math.ceil(codeLines.length * POPUP_LH + PAD_Y * 2)));
+    const pos = fitTopLeft(preferredX, preferredY, width, height);
+
+    const plate = new Rect({
+      x: pos.x,
+      y: pos.y,
+      width,
+      height,
+      radius: 26,
+      fill: 'rgba(22, 22, 22, 0.88)',
+      stroke: 'rgba(255, 255, 255, 0)',
+      lineWidth: 0,
+      shadowColor: 'rgba(0, 0, 0, 0.38)',
+      shadowBlur: 34,
+      shadowOffsetY: 10,
+      opacity: 0,
+      offset: [-1, -1],
+    });
+
+    const code = new Code({
+      code: codeText,
+      fontFamily: Fonts.code,
+      fontSize: POPUP_FS,
+      lineHeight: POPUP_LH,
+      x: pos.x + PAD_X,
+      y: pos.y + PAD_Y,
+      offset: [-1, -1],
+      selection: lines(0, Infinity),
+      drawHooks: contextHooks(),
+      opacity: 0,
+    });
+
+    view.add(plate);
+    view.add(code);
+    return {plate, code};
+  }
+
+  const popupA = makePopup(
     [
       'void resolveProfile(ExportContext ctx) {',
       '    String profile = ctx.metadata.get("profile");',
       '',
-      '    if (profile != null) {',
-      '        ctx.outputFormat = profileToFormat(profile);',
+      '    if (Objects.isNull(profile)) {',
+      '        return;',
       '    }',
+      '',
+      '    ctx.outputFormat = profileToFormat(profile);',
       '}',
     ],
+    -FRAME_W / 2 + FRAME_MARGIN_X - 25,
+    -FRAME_H / 2 + FRAME_MARGIN_Y + 100,
+  );
+
+  const popupB = makePopup(
     [
       'void applyFallback(ExportContext ctx) {',
-      '    if (ctx.outputFormat == null) {',
-      '        ctx.outputFormat = cfg.getDefaultFormat();',
+      '    if (Objects.isNull(ctx.outputFormat)) {',
+      '        ctx.outputFormat = "mp4";',
       '    }',
       '}',
     ],
+    FRAME_W / 2 - FRAME_MARGIN_X - 910,
+    -20,
+  );
+
+  const popupC = makePopup(
     [
-      'void negotiateFormat(ExportContext ctx,',
-      '                     ClientCapabilities caps) {',
+      'void negotiateFormat(ExportContext ctx, ClientCapabilities caps) {',
       '    if (caps.supportsFormat(ctx.outputFormat)) {',
       '        return;',
       '    }',
+      '',
       '    ctx.outputFormat = caps.getPreferredFormat();',
       '}',
     ],
-  ];
-
-  const popupY = [-310, -20, 240];
-
-  const popups = popupTexts.map((textLines, i) =>
-    new Code({
-      fontFamily: Fonts.code,
-      fontSize: POPUP_FS,
-      lineHeight: POPUP_LH,
-      code: textLines.join('\n'),
-      fill: VAR_LIGHT,
-      x: 0,
-      y: popupY[i],
-      opacity: 0,
-    }),
+    -FRAME_W / 2 + FRAME_MARGIN_X - 25,
+    FRAME_H / 2 - FRAME_MARGIN_Y - 400,
   );
-  popups.forEach(p => view.add(p));
 
-  yield* popups[0].opacity(1, 0.4, easeInOutCubic);
+  yield* all(
+    popupA.plate.opacity(1, 0.35, easeInOutCubic),
+    popupA.code.opacity(1, 0.35, easeInOutCubic),
+  );
   yield* waitFor(0.9);
-  yield* popups[1].opacity(1, 0.4, easeInOutCubic);
+  yield* all(
+    popupB.plate.opacity(1, 0.35, easeInOutCubic),
+    popupB.code.opacity(1, 0.35, easeInOutCubic),
+  );
   yield* waitFor(0.9);
-  yield* popups[2].opacity(1, 0.4, easeInOutCubic);
+  yield* all(
+    popupC.plate.opacity(1, 0.35, easeInOutCubic),
+    popupC.code.opacity(1, 0.35, easeInOutCubic),
+  );
   yield* waitFor(2.0);
 });
