@@ -80,6 +80,7 @@ const modelAfter = JavaClass.create([
 ], MAX_CHARS);
 
 const CODE_AFTER = modelAfter.render();
+const AFTER_LINES = CODE_AFTER.split('\n');
 
 const modelAfterMutation = JavaClass.create([
   method('public', 'byte[]', 'exportVideo',
@@ -133,6 +134,7 @@ const modelChain = JavaClass.create([
 ], MAX_CHARS);
 
 const CODE_CHAIN = modelChain.render();
+const CHAIN_LINES = CODE_CHAIN.split('\n');
 
 // ── Left side: same components as contextObjectSceneRu ──────────────────
 const CODE_LEFT = -875;
@@ -279,6 +281,24 @@ export default makeScene2D(function* (view) {
     yield* waitFor(0.08);
   }
   yield* waitFor(0.6);
+
+  // 3b. Highlight unchanged signatures: dim all, restore only signature lines
+  const exportSig = AFTER_LINES.findIndex(l => l.includes('public byte[] exportVideo('));
+  const prepareSig = AFTER_LINES.findIndex(l => l.includes('private byte[] prepareFrames('));
+  const totalAfterLines = AFTER_LINES.length;
+  yield* manticore.dimLines(0, totalAfterLines - 1, 0.15, 0.45);
+  const sigAnims: Generator[] = [];
+  if (exportSig >= 0) {
+    sigAnims.push(manticore.dimLines(exportSig, exportSig, 1, 0.35));
+  }
+  if (prepareSig >= 0) {
+    sigAnims.push(manticore.dimLines(prepareSig, prepareSig, 1, 0.35));
+  }
+  if (sigAnims.length > 0) yield* all(...sigAnims);
+  yield* waitFor(1.8);
+
+  // 3c. Restore all lines, then blur context
+  yield* manticore.showAllLines(0.35);
   yield* contextBlur(5, 0.45, easeInOutCubic);
 
   // 4. Runtime mutation of context field in exportVideo
@@ -305,11 +325,90 @@ export default makeScene2D(function* (view) {
     moveDuration: 0.75,
     removeDuration: 0.35,
   });
+  yield* manticore.scrollTo('private byte[] encode(', 2.5);
+  yield* waitFor(1.0);
+
+  // 6. Highlight if-block: dim entire encode, then restore if-block
+  const encodeStart = CHAIN_LINES.findIndex(l => l.includes('private byte[] encode(ExportContext ctx)'));
+  const ifLine = CHAIN_LINES.findIndex(l => l.includes('if (ctx.outputFormat.equals("mp4"))'));
+  const fastLine = CHAIN_LINES.findIndex(l => l.includes('return fastEncode(ctx);'));
+  const ifCloseLine = CHAIN_LINES.findIndex((l, idx) => idx > fastLine && l.trim() === '}');
+  const slowLine = CHAIN_LINES.findIndex(l => l.includes('return slowEncode(ctx);'));
+
+  if (
+    encodeStart >= 0 && slowLine >= encodeStart &&
+    ifLine >= 0 && ifCloseLine >= ifLine
+  ) {
+    yield* all(
+      manticore.dimLines(encodeStart, slowLine, 0.22, 0.45),
+      manticore.dimLines(ifLine, ifCloseLine, 1, 0.45),
+    );
+  } else if (encodeStart >= 0 && slowLine >= encodeStart) {
+    yield* manticore.dimLines(encodeStart, slowLine, 0.22, 0.45);
+  } else if (ifLine >= 0 && ifCloseLine >= ifLine) {
+    yield* manticore.dimLines(ifLine, ifCloseLine, 1, 0.45);
+  }
+  yield* waitFor(1.5);
+
+  // 7. Fade out everything → clean dark canvas for popups
   yield* all(
-    manticore.scrollTo('private byte[] encodeWithRetry', 1.0),
-    waitFor(0.35),
+    contextGroup.opacity(0, 0.5, easeInOutCubic),
+    manticore.disappear(0.5),
   );
-  yield* waitFor(0.5);
-  yield* manticore.scrollTo('private byte[] encode(', 0.9);
-  yield* waitFor(1.6);
+  yield* waitFor(0.4);
+
+  // 8. Popup methods on clean background
+  const POPUP_FS = 32;
+  const POPUP_LH = 50;
+
+  const popupTexts = [
+    [
+      'void resolveProfile(ExportContext ctx) {',
+      '    String profile = ctx.metadata.get("profile");',
+      '',
+      '    if (profile != null) {',
+      '        ctx.outputFormat = profileToFormat(profile);',
+      '    }',
+      '}',
+    ],
+    [
+      'void applyFallback(ExportContext ctx) {',
+      '    if (ctx.outputFormat == null) {',
+      '        ctx.outputFormat = cfg.getDefaultFormat();',
+      '    }',
+      '}',
+    ],
+    [
+      'void negotiateFormat(ExportContext ctx,',
+      '                     ClientCapabilities caps) {',
+      '    if (caps.supportsFormat(ctx.outputFormat)) {',
+      '        return;',
+      '    }',
+      '    ctx.outputFormat = caps.getPreferredFormat();',
+      '}',
+    ],
+  ];
+
+  const popupY = [-310, -20, 240];
+
+  const popups = popupTexts.map((textLines, i) =>
+    new Code({
+      fontFamily: Fonts.code,
+      fontSize: POPUP_FS,
+      lineHeight: POPUP_LH,
+      code: textLines.join('\n'),
+      fill: VAR_LIGHT,
+      x: 0,
+      y: popupY[i],
+      opacity: 0,
+    }),
+  );
+  popups.forEach(p => view.add(p));
+
+  yield* popups[0].opacity(1, 0.4, easeInOutCubic);
+  yield* waitFor(0.9);
+  yield* popups[1].opacity(1, 0.4, easeInOutCubic);
+  yield* waitFor(0.9);
+  yield* popups[2].opacity(1, 0.4, easeInOutCubic);
+  yield* waitFor(2.0);
 });
