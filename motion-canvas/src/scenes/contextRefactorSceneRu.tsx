@@ -1,5 +1,5 @@
-import {Code, lines, makeScene2D, Rect} from '@motion-canvas/2d';
-import {all, easeInOutCubic, waitFor} from '@motion-canvas/core';
+import {blur, Code, lines, makeScene2D, Rect} from '@motion-canvas/2d';
+import {all, createSignal, easeInOutCubic, waitFor} from '@motion-canvas/core';
 import {Manticore} from '../core/code/components/Manticore';
 import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
 import {getCodePaddingY} from '../core/code/shared/TextMeasure';
@@ -81,23 +81,58 @@ const modelAfter = JavaClass.create([
 
 const CODE_AFTER = modelAfter.render();
 
-// ── Pre-disappear: reverse-type erase of params in signatures/returns ───
-const modelAfterErase = JavaClass.create([
+const modelAfterMutation = JavaClass.create([
   method('public', 'byte[]', 'exportVideo',
-    [],
+    [param('ExportContext', 'ctx')],
     ['validateInput(ctx);',
+     'ctx.outputFormat = "webm";',
      'byte[] prepared = prepareFrames(ctx);',
      '',
-     'return encodeWithRetry();']),
+     'return encodeWithRetry(prepared, ctx);']),
   method('private', 'byte[]', 'prepareFrames',
-    [],
+    [param('ExportContext', 'ctx')],
     ['byte[] normalized = normalizeFrames(ctx);',
      'byte[] colored = applyColorProfile(ctx);',
      '',
-     'return overlaySubtitles();']),
+     'return overlaySubtitles(ctx);']),
 ], MAX_CHARS);
 
-const CODE_AFTER_ERASE = modelAfterErase.render();
+const CODE_AFTER_MUTATION = modelAfterMutation.render();
+
+const modelChain = JavaClass.create([
+  method('public', 'byte[]', 'exportVideo',
+    [param('ExportContext', 'ctx')],
+    ['validateInput(ctx);',
+     'ctx.outputFormat = "webm";',
+     'byte[] prepared = prepareFrames(ctx);',
+     '',
+     'return encodeWithRetry(prepared, ctx);']),
+  method('private', 'byte[]', 'prepareFrames',
+    [param('ExportContext', 'ctx')],
+    ['byte[] normalized = normalizeFrames(ctx);',
+     'byte[] colored = applyColorProfile(ctx);',
+     '',
+     'return overlaySubtitles(ctx);']),
+  method('private', 'byte[]', 'encodeWithRetry',
+    [param('byte[]', 'preparedFrames'), param('ExportContext', 'ctx')],
+    ['int attemptsLeft = 3;',
+     'while (attemptsLeft-- > 0) {',
+     '    try {',
+     '        return encode(preparedFrames, ctx);',
+     '    } catch (RuntimeException ex) {',
+     '        // retry',
+     '    }',
+     '}',
+     'throw new IllegalStateException("Encoding failed");']),
+  method('private', 'byte[]', 'encode',
+    [param('ExportContext', 'ctx')],
+    ['if (ctx.outputFormat.equals("mp4")) {',
+     '    return fastEncode(ctx);',
+     '}',
+     'return slowEncode(ctx);']),
+], MAX_CHARS);
+
+const CODE_CHAIN = modelChain.render();
 
 // ── Left side: same components as contextObjectSceneRu ──────────────────
 const CODE_LEFT = -875;
@@ -145,6 +180,8 @@ export default makeScene2D(function* (view) {
 
   // ── Left: same final look as contextObjectSceneRu ─────────────────────
   const contextGroup = new Rect({opacity: 1});
+  const contextBlur = createSignal(0);
+  contextGroup.filters(() => [blur(contextBlur())]);
   const openingBrace = codeLine('class ExportContext {', lineY(0));
   contextGroup.add(openingBrace);
   const closingBrace = codeLine('}', lineY(6));
@@ -242,16 +279,37 @@ export default makeScene2D(function* (view) {
     yield* waitFor(0.08);
   }
   yield* waitFor(0.6);
+  yield* contextBlur(5, 0.45, easeInOutCubic);
 
-  // 4. Dim everything except signatures (lines 0 and 7)
-  const totalLines = manticore.lineCount;
+  // 4. Runtime mutation of context field in exportVideo
+  yield* manticore.morphTo(CODE_AFTER_MUTATION, {
+    scrollStrategy: 'block',
+    addStyle: 'fade',
+    lineOrder: 'parallel',
+    blockOrder: 'parallel',
+    charDelay: 0.05,
+    lineDelay: 0,
+    moveDuration: 0.75,
+    removeDuration: 0.35,
+  });
+  yield* waitFor(0.6);
+
+  // 5. Build deeper chain while scrolling down to the new methods
+  yield* manticore.morphTo(CODE_CHAIN, {
+    scrollStrategy: 'block',
+    addStyle: 'fade',
+    lineOrder: 'parallel',
+    blockOrder: 'parallel',
+    charDelay: 0.04,
+    lineDelay: 0,
+    moveDuration: 0.75,
+    removeDuration: 0.35,
+  });
   yield* all(
-    manticore.dimLines(1, 6, 0.15, 0.5),
-    manticore.dimLines(8, totalLines - 1, 0.15, 0.5),
+    manticore.scrollTo('private byte[] encodeWithRetry', 1.0),
+    waitFor(0.35),
   );
-  yield* waitFor(2.0);
-
-  // 5. Restore all lines
-  yield* manticore.showAllLines(0.5);
-  yield* waitFor(1.5);
+  yield* waitFor(0.5);
+  yield* manticore.scrollTo('private byte[] encode(', 0.9);
+  yield* waitFor(1.6);
 });
