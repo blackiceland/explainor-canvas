@@ -439,6 +439,11 @@ export default makeScene2D(function* (view) {
       'void applyFallback(ExportContext ctx) {',
       '    if (Objects.isNull(ctx.outputFormat)) {',
       '        ctx.outputFormat = "mp4";',
+      '        return;',
+      '    }',
+      '',
+      '    if (ctx.outputFormat.equals("avi")) {',
+      '        ctx.outputFormat = "mp4";',
       '    }',
       '}',
     ],
@@ -475,4 +480,17 @@ export default makeScene2D(function* (view) {
     popupC.code.opacity(1, 0.35, easeInOutCubic),
   );
   yield* waitFor(2.0);
+
+  // 9. Fade out everything
+  yield* all(
+    popupA.plate.opacity(0, 0.6, easeInOutCubic),
+    popupA.code.opacity(0, 0.6, easeInOutCubic),
+    popupB.plate.opacity(0, 0.6, easeInOutCubic),
+    popupB.code.opacity(0, 0.6, easeInOutCubic),
+    popupC.plate.opacity(0, 0.6, easeInOutCubic),
+    popupC.code.opacity(0, 0.6, easeInOutCubic),
+    contextGroup.opacity(0, 0.6, easeInOutCubic),
+    manticore.disappear(0.6),
+  );
+  yield* waitFor(0.5);
 });
