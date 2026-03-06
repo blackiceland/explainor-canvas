@@ -213,6 +213,7 @@ export default makeScene2D(function* (view) {
     addStyle: 'fade',
     lineOrder: 'parallel',
     blockOrder: 'parallel',
+    charDelay: 0.045,
     lineDelay: 0,
     moveDuration: 0.8,
     removeDuration: 0.4,

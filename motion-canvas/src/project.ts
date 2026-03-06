@@ -1,46 +1,9 @@
 import {makeProject} from '@motion-canvas/core';
-import introMergeScene from './scenes/introMergeScene?scene';
-import introMergeSceneV2 from './scenes/introMergeSceneV2?scene';
-import chapter1IntroScene from './scenes/chapter1IntroScene?scene';
-import chapter1IntroSceneV2 from './scenes/chapter1IntroSceneV2?scene';
-import chapter2IntroScene from './scenes/chapter2IntroScene?scene';
-import paymentInputsScene from './scenes/paymentInputsScene?scene';
-import paymentInputsSceneV3 from './scenes/paymentInputsSceneV3?scene';
-import chapter3IntroScene from './scenes/chapter3IntroScene?scene';
-import dryFiltersScene from './scenes/dryFiltersScene?scene';
-import dryFiltersSceneV2 from './scenes/dryFiltersSceneV2?scene';
-import dryFiltersSceneV2Poster from './scenes/dryFiltersSceneV2Poster?scene';
-import dryFiltersSceneV3 from './scenes/dryFiltersSceneV3?scene';
-import dryConditionsScene from './scenes/dryConditionsScene?scene';
-import dryConditionsSceneV3 from './scenes/dryConditionsSceneV3?scene';
-import dryKnowledgeScene from './scenes/dryKnowledgeScene?scene';
-import dryKnowledgeSceneV3 from './scenes/dryKnowledgeSceneV3?scene';
-import duplicationHateIntroScene from './scenes/duplicationHateIntroScene?scene';
-import duplicationHateIntroSceneRu from './scenes/duplicationHateIntroSceneRu?scene';
-import duplicationBestChoiceTitleSceneRu from './scenes/duplicationBestChoiceTitleSceneRu?scene';
-import duplicationBestChoiceTitleSceneEn from './scenes/duplicationBestChoiceTitleSceneEn?scene';
-import doItAllComponentTitleSceneEn from './scenes/doItAllComponentTitleSceneEn?scene';
-import doItAllComponentTitleSceneRu from './scenes/doItAllComponentTitleSceneRu?scene';
-import trainCodeOverlaySceneRu from './scenes/trainCodeOverlaySceneRu?scene';
-import oneCargoSceneRu from './scenes/oneCargoSceneRu?scene';
-import passThroughMonolithScrollSceneRu from './scenes/passThroughMonolithScrollSceneRu?scene';
-import oldMapPassThroughSceneRu from './scenes/oldMapPassThroughSceneRu?scene';
-import sphereDigitsDemoSceneRu from './scenes/sphereDigitsDemoSceneRu?scene';
-import guitarHeroPassThroughSceneRu from './scenes/guitarHeroPassThroughSceneRu?scene';
-import jackIntroSceneEn from './scenes/jackIntroSceneEn?scene';
-import validateMonolithSceneRu from './scenes/validateMonolithSceneRu?scene';
-import videoExportEvolutionSceneRu from './scenes/videoExportEvolutionSceneRu?scene';
 import videoExportActionsSceneRu from './scenes/videoExportActionsSceneRu?scene';
-import codeWithActionsSceneRu from './scenes/codeWithActionsSceneRu?scene';
 import codeWithActionsSceneRuTilt from './scenes/codeWithActionsSceneRuTilt?scene';
 import contextObjectSceneRu from './scenes/contextObjectSceneRu?scene';
 import contextRefactorSceneRu from './scenes/contextRefactorSceneRu?scene';
-import starWarsCrawlSceneRu from './scenes/starWarsCrawlSceneRu?scene';
-import splitDtoScene from './scenes/splitDtoScene?scene';
-import splitDtoSceneV3 from './scenes/splitDtoSceneV3?scene';
-import typewriterCodeScene from './scenes/typewriterCodeScene?scene';
-import typewriterCodeSceneRu from './scenes/typewriterCodeSceneRu?scene';
-import pilotScene from './scenes/pilotScene?scene';
+import codeWithActionsSceneRu from './scenes/codeWithActionsSceneRu?scene';
 
 export default makeProject({
     experimentalFeatures: true,
@@ -84,15 +47,18 @@ export default makeProject({
         // sphereDigitsDemoSceneRu,
 
         // validateMonolithSceneRu,
-        // codeWithActionsSceneRu,
-        // codeWithActionsSceneRuTilt,
+
         // starWarsCrawlSceneRu,
         //  jackIntroSceneEn,
-         contextObjectSceneRu,
-        contextRefactorSceneRu,
+
+        // просто анимации
+        // videoExportActionsSceneRu,
+
+        // codeWithActionsSceneRu,
         // codeWithActionsSceneRuTilt,
         // guitarHeroPassThroughSceneRu,
+        contextObjectSceneRu,
+        contextRefactorSceneRu,
 
-        // videoExportActionsSceneRu,
     ]
 });
