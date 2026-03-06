@@ -249,12 +249,9 @@ export default makeScene2D(function* (view) {
     manticore.dimLines(1, 6, 0.15, 0.5),
     manticore.dimLines(8, totalLines - 1, 0.15, 0.5),
   );
-  yield* waitFor(2.5);
+  yield* waitFor(2.0);
 
-  // 5. Fade out
-  yield* all(
-    contextGroup.opacity(0, 0.55, easeInOutCubic),
-    manticore.disappear(0.55),
-  );
-  yield* waitFor(0.3);
+  // 5. Restore all lines
+  yield* manticore.showAllLines(0.5);
+  yield* waitFor(1.5);
 });
