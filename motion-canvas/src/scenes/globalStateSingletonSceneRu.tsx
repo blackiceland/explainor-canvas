@@ -1,6 +1,6 @@
 import {Circle, Code, makeScene2D, Node, Rect, lines} from '@motion-canvas/2d';
 import {all, createSignal, easeInOutCubic, waitFor} from '@motion-canvas/core';
-import {LightBgCodeTheme, getTokenColor} from '../core/code/model/SyntaxTheme';
+import {DryFiltersV3CodeTheme, LightBgCodeTheme, getTokenColor} from '../core/code/model/SyntaxTheme';
 import {tokenizeLine} from '../core/code/model/Tokenizer';
 import {Fonts, Screen} from '../core/theme';
 
@@ -13,6 +13,24 @@ const CODE_LINES = [
   '  static String colorProfile = "sRGB";',
   '}',
 ];
+const RIGHT_CODE_LINES = [
+  'public byte[] exportVideo(byte[] source) {',
+  '    validate(source);',
+  '',
+  '    byte[] prepared = prepareFrames(source);',
+  '    return encode(prepared);',
+  '}',
+  '',
+  'private byte[] encode(byte[] frames) {',
+  '    String fmt = ExportConfig.outputFormat;',
+  '',
+  '    if (fmt.equals("mp4")) {',
+  '        return fastEncode(frames);',
+  '    }',
+  '    return slowEncode(frames);',
+  '}',
+];
+const SOFT_GREEN = 'rgba(168, 214, 178, 0.88)';
 
 const FONT_SIZE = 28;
 const LINE_HEIGHT = 42;
@@ -47,14 +65,37 @@ function codeHooks() {
   };
 }
 
+function darkCodeHooks() {
+  return {
+    token: (
+      ctx: CanvasRenderingContext2D,
+      text: string,
+      position: {x: number; y: number},
+    ) => {
+      const raw = String(text ?? '');
+      let x = position.x;
+      const tokens = tokenizeLine(raw);
+      for (const tok of tokens) {
+        const isQuoted = /^"[^"]*"$/.test(tok.text);
+        ctx.fillStyle = isQuoted ? SOFT_GREEN : getTokenColor(tok.type, DryFiltersV3CodeTheme);
+        ctx.fillText(tok.text, x, position.y);
+        x += ctx.measureText(tok.text).width;
+      }
+    },
+  };
+}
+
 export default makeScene2D(function* (view) {
   const circleOn = createSignal(0);
   const codeOn = createSignal(0);
+  const focusX = createSignal(0);
+  const rightCodeOn = createSignal(0);
 
   view.add(
     <>
       <Rect width={Screen.width} height={Screen.height} fill={BG} />
       <Circle
+        x={() => focusX()}
         width={CIRCLE_DIAMETER}
         height={CIRCLE_DIAMETER}
         fill={LIGHT_SPLIT_BG}
@@ -68,6 +109,7 @@ export default makeScene2D(function* (view) {
   );
 
   const codeGroup = new Node({opacity: 0});
+  codeGroup.x(() => focusX());
   CODE_LINES.forEach((text, index) => {
     codeGroup.add(
       new Code({
@@ -86,7 +128,32 @@ export default makeScene2D(function* (view) {
   codeGroup.opacity(() => codeOn());
   view.add(codeGroup);
 
+  const rightCodeGroup = new Node({opacity: 0});
+  const rightStartX = 110;
+  const rightStartY = -210;
+  RIGHT_CODE_LINES.forEach((text, index) => {
+    rightCodeGroup.add(
+      new Code({
+        code: text,
+        fontFamily: Fonts.code,
+        fontSize: 24,
+        lineHeight: 36,
+        x: rightStartX,
+        y: rightStartY + index * 36,
+        offset: [-1, 0],
+        selection: lines(0, Infinity),
+        drawHooks: darkCodeHooks(),
+      }),
+    );
+  });
+  rightCodeGroup.opacity(() => rightCodeOn());
+  view.add(rightCodeGroup);
+
   yield* circleOn(1, 0.7, easeInOutCubic);
   yield* codeOn(1, 0.6, easeInOutCubic);
+  yield* all(
+    focusX(-Screen.width * 0.26, 0.9, easeInOutCubic),
+    rightCodeOn(1, 0.7, easeInOutCubic),
+  );
   yield* waitFor(1.5);
 });
