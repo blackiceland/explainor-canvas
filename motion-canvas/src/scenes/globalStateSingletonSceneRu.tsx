@@ -131,6 +131,19 @@ export default makeScene2D(function* (view) {
     />,
   );
 
+  const stripeY = CODE_TOP + 1 * LINE_HEIGHT;
+  const stripeOn = createSignal(0);
+  const stripe = new Rect({
+    x: 0,
+    y: stripeY,
+    width: Screen.width,
+    height: LINE_HEIGHT * 1.15,
+    fill: 'rgba(255, 80, 120, 0.18)',
+    radius: 4,
+    opacity: () => stripeOn(),
+  });
+  view.add(stripe);
+
   const codeGroup = new Node({opacity: 0});
   codeGroup.x(() => focusX());
   CODE_LINES.forEach((text, index) => {
@@ -157,5 +170,7 @@ export default makeScene2D(function* (view) {
     focusX(-Screen.width * 0.26, 0.9, easeInOutCubic),
     rightCodeOn(1, 0.7, easeInOutCubic),
   );
+  yield* waitFor(0.4);
+  yield* stripeOn(1, 0.4, easeInOutCubic);
   yield* waitFor(1.5);
 });
