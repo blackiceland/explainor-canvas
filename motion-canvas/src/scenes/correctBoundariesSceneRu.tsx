@@ -146,12 +146,12 @@ export default makeScene2D(function* (view) {
   manticore.colorize(COLOR_RULES);
 
   // ── Структура справа ──────────────────────────────────────────────────
-  const BOX_W = 320;
-  const BOX_H = 58;
+  const BOX_W = 220;
+  const BOX_H = 52;
   const BOX_R = 16;
   const BOX_STROKE = 'rgba(244, 241, 235, 0.22)';
   const LINE_COLOR = 'rgba(244, 241, 235, 0.18)';
-  const LABEL_SIZE = 25;
+  const LABEL_SIZE = 20;
   const BOX_FILLS = [
     'rgba(160, 190, 255, 0.16)',
     'rgba(160, 225, 200, 0.16)',
@@ -295,4 +295,139 @@ export default makeScene2D(function* (view) {
     })(),
   );
   yield* waitFor(1.5);
+
+  // ── Такт 2: Рефакторинг — правильные границы ─────────────────────────
+
+  // Целевые позиции: три ребёнка равномерно
+  const THREE_Y = treeLayout[1].y;
+  const LEFT_X = 370;
+  const MID_X = 610;
+  const RIGHT_X = 850;
+
+  // Шаг 1: линия encode→finalizeExport исчезает, finalizeExport отрывается и поднимается
+  yield* all(
+    connectors[3].opacity(0, 0.5, easeInOutCubic),
+    connectors[2].opacity(0, 0.5, easeInOutCubic),
+  );
+  yield* waitFor(0.3);
+
+  // encode исчезает
+  yield* boxes[3].opacity(0, 0.5, easeInOutCubic);
+  yield* waitFor(0.2);
+
+  yield* all(
+    boxes[1].position([LEFT_X, THREE_Y], 0.8, easeInOutCubic),
+    boxes[2].position([MID_X, THREE_Y], 0.8, easeInOutCubic),
+    boxes[4].position([RIGHT_X, THREE_Y], 0.8, easeInOutCubic),
+  );
+  yield* waitFor(0.3);
+
+  // Старые связи от exportVideo исчезают
+  yield* all(
+    connectors[0].opacity(0, 0.4, easeInOutCubic),
+    connectors[1].opacity(0, 0.4, easeInOutCubic),
+  );
+  yield* waitFor(0.2);
+
+  const newSplitY = treeLayout[0].y + BOX_H / 2 + 15;
+  const rootX = treeLayout[0].x;
+  const newConn0 = new Line({
+    points: [
+      [rootX, treeLayout[0].y + BOX_H / 2],
+      [rootX, newSplitY],
+      [LEFT_X, newSplitY],
+      [LEFT_X, THREE_Y - BOX_H / 2],
+    ],
+    stroke: LINE_COLOR, lineWidth: 2, radius: 8, opacity: 0,
+  });
+  const newConn1 = new Line({
+    points: [
+      [rootX, treeLayout[0].y + BOX_H / 2],
+      [rootX, newSplitY],
+      [MID_X, newSplitY],
+      [MID_X, THREE_Y - BOX_H / 2],
+    ],
+    stroke: LINE_COLOR, lineWidth: 2, radius: 8, opacity: 0,
+  });
+  const newConn2 = new Line({
+    points: [
+      [rootX, treeLayout[0].y + BOX_H / 2],
+      [rootX, newSplitY],
+      [RIGHT_X, newSplitY],
+      [RIGHT_X, THREE_Y - BOX_H / 2],
+    ],
+    stroke: LINE_COLOR, lineWidth: 2, radius: 8, opacity: 0,
+  });
+  treeGroup.add(newConn0);
+  treeGroup.add(newConn1);
+  treeGroup.add(newConn2);
+
+  yield* all(
+    newConn0.opacity(1, 0.5, easeInOutCubic),
+    newConn1.opacity(1, 0.5, easeInOutCubic),
+    newConn2.opacity(1, 0.5, easeInOutCubic),
+  );
+  yield* waitFor(0.8);
+
+  // Шаг 2: Морф кода — скролл наверх и морф exportVideo
+  const refactoredModel = JavaClass.create([
+    method('public', 'byte[]', 'exportVideo',
+      [param('byte[]', 'sourceFrames'), param('String', 'outputFormat'),
+       param('String', 'colorProfile'), param('String', 'subtitleTrack'),
+       param('String', 'watermarkMode'), param('String', 'audioProfile')],
+      ['validateInput(sourceFrames, outputFormat);',
+       'byte[] preparedFrames = prepareFrames(sourceFrames, colorProfile, subtitleTrack);',
+       'byte[] encodedVideo = encodeWithRetry(preparedFrames, outputFormat);',
+       '',
+       'return finalizeExport(encodedVideo, outputFormat, watermarkMode, audioProfile);']),
+
+    method('private', 'byte[]', 'prepareFrames',
+      [param('byte[]', 'sourceFrames'), param('String', 'colorProfile'),
+       param('String', 'subtitleTrack')],
+      ['byte[] normalizedFrames = normalizeFrames(sourceFrames);',
+       'byte[] coloredFrames = applyColorProfile(normalizedFrames, colorProfile);',
+       '',
+       'return overlaySubtitles(coloredFrames, subtitleTrack);']),
+
+    method('private', 'byte[]', 'encodeWithRetry',
+      [param('byte[]', 'preparedFrames'), param('String', 'outputFormat')],
+      ['int attemptsLeft = this.maxAttempts;',
+       '',
+       'while (attemptsLeft-- > 0) {',
+       '    try {',
+       '        return runEncoder(preparedFrames, outputFormat);',
+       '    } catch (RuntimeException ex) { /* retry */ }',
+       '}',
+       '',
+       'throw new IllegalStateException("Encoding failed");']),
+
+    method('private', 'byte[]', 'finalizeExport',
+      [param('byte[]', 'encodedVideo'), param('String', 'outputFormat'),
+       param('String', 'watermarkMode'), param('String', 'audioProfile')],
+      ['if (!isSupportedFormat(outputFormat)) {',
+       '    throw new IllegalArgumentException("Unsupported: " + outputFormat);',
+       '}',
+       '',
+       'Container container = Muxer.mux(encodedVideo, outputFormat);',
+       'container.applyWatermark(watermarkMode);',
+       'container.normalizeAudio(audioProfile);',
+       '',
+       'return container;']),
+  ], MAX_LINE_CHARS);
+
+  yield* manticore.scrollTo(0, 1.0);
+  yield* waitFor(0.3);
+  yield* manticore.morphTo(refactoredModel.render(), {
+    addStyle: 'fade',
+    blockOrder: 'parallel',
+    scrollStrategy: 'block',
+  });
+  yield* waitFor(2.0);
+
+  // Затухание
+  yield* all(
+    manticore.disappear(0.8),
+    treeGroup.opacity(0, 0.8, easeInOutCubic),
+  );
+  yield* waitFor(0.5);
 });
