@@ -31,6 +31,33 @@ const RIGHT_CODE_LINES = [
   '    return slowEncode(frames);',
   '}',
 ];
+const LEFT_CODE_LINES = [
+  'private String resolveCodec() {',
+  '    String fmt = ExportConfig.outputFormat;',
+  '',
+  '    if (fmt.equals("mp4")) {',
+  '        return "h264";',
+  '    }',
+  '',
+  '    return "vp9";',
+  '}',
+  '',
+  'private int estimateBitrate(byte[] frames) {',
+  '    String profile = ExportConfig.colorProfile;',
+  '',
+  '    if (profile.equals("HDR10")) {',
+  '        return frames.length * 12;',
+  '    }',
+  '',
+  '    return frames.length * 8;',
+  '}',
+  '',
+  'private Path buildOutputPath(String name) {',
+  '    String ext = ExportConfig.outputFormat;',
+  '',
+  '    return Path.of("/exports", name + "." + ext);',
+  '}',
+];
 const SOFT_GREEN = 'rgba(168, 214, 178, 0.88)';
 const TYPE_COLOR = 'rgba(201, 180, 255, 0.78)';
 
@@ -97,6 +124,28 @@ export default makeScene2D(function* (view) {
   const formatValue = createSignal('mp4');
 
   view.add(<Rect width={Screen.width} height={Screen.height} fill={BG} />);
+
+  const leftCodeOn = createSignal(0);
+  const leftCodeGroup = new Node({opacity: 0});
+  const leftStartX = -Screen.width * 0.48 + 70;
+  const leftStartY = -((LEFT_CODE_LINES.length - 1) * 38) / 2;
+  LEFT_CODE_LINES.forEach((text, index) => {
+    leftCodeGroup.add(
+      new Code({
+        code: text,
+        fontFamily: Fonts.code,
+        fontSize: 26,
+        lineHeight: 38,
+        x: leftStartX,
+        y: leftStartY + index * 38,
+        offset: [-1, 0],
+        selection: lines(0, Infinity),
+        drawHooks: darkCodeHooks(),
+      }),
+    );
+  });
+  leftCodeGroup.opacity(() => leftCodeOn());
+  view.add(leftCodeGroup);
 
   const rightCodeGroup = new Node({opacity: 0});
   const rightStartX = 60;
@@ -196,5 +245,15 @@ export default makeScene2D(function* (view) {
     yield* waitFor(0.6);
   }
 
-  yield* waitFor(1.0);
+  yield* waitFor(0.4);
+  yield* stripeOn(0, 0.4, easeInOutCubic);
+  yield* waitFor(0.3);
+
+  yield* all(
+    focusX(Screen.width * 0.26, 1.0, easeInOutCubic),
+    rightCodeOn(0, 0.5, easeInOutCubic),
+    leftCodeOn(1, 0.8, easeInOutCubic),
+  );
+
+  yield* waitFor(2.0);
 });
