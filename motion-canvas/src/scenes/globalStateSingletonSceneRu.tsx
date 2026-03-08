@@ -9,7 +9,7 @@ const LIGHT_SPLIT_BG = '#E7DCC9';
 
 const CODE_LINES = [
   'class ExportConfig {',
-  '  static String outputFormat = "mp4";',
+  '  static String outputFormat = ',
   '  static String colorProfile = "sRGB";',
   '}',
 ];
@@ -37,6 +37,7 @@ const TYPE_COLOR = 'rgba(201, 180, 255, 0.78)';
 const FONT_SIZE = 28;
 const LINE_HEIGHT = 42;
 const CHAR_WIDTH = FONT_SIZE * 0.58;
+const OUTPUT_FORMAT_PREFIX = '  static String outputFormat = ';
 const CODE_WIDTH = Math.max(...CODE_LINES.map(line => line.length)) * CHAR_WIDTH;
 const CODE_HEIGHT = (CODE_LINES.length - 1) * LINE_HEIGHT + FONT_SIZE;
 const CIRCLE_PAD_X = 70;
@@ -93,6 +94,7 @@ export default makeScene2D(function* (view) {
   const codeOn = createSignal(0);
   const focusX = createSignal(0);
   const rightCodeOn = createSignal(0);
+  const formatValue = createSignal('mp4');
 
   view.add(<Rect width={Screen.width} height={Screen.height} fill={BG} />);
 
@@ -161,6 +163,18 @@ export default makeScene2D(function* (view) {
       }),
     );
   });
+  const formatValueCode = new Code({
+    code: () => ` "${formatValue()}";`,
+    fontFamily: Fonts.code,
+    fontSize: FONT_SIZE,
+    lineHeight: LINE_HEIGHT,
+    x: CODE_LEFT + OUTPUT_FORMAT_PREFIX.length * CHAR_WIDTH,
+    y: CODE_TOP + 1 * LINE_HEIGHT,
+    offset: [-1, 0],
+    selection: lines(0, Infinity),
+    drawHooks: codeHooks(),
+  });
+  codeGroup.add(formatValueCode);
   codeGroup.opacity(() => codeOn());
   view.add(codeGroup);
 
@@ -172,5 +186,15 @@ export default makeScene2D(function* (view) {
   );
   yield* waitFor(0.4);
   yield* stripeOn(1, 0.4, easeInOutCubic);
-  yield* waitFor(1.5);
+  yield* waitFor(0.6);
+
+  const VALUES = ['webm', 'avi', 'mkv', 'mov'];
+  for (const val of VALUES) {
+    yield* formatValueCode.opacity(0, 0.3, easeInOutCubic);
+    formatValue(val);
+    yield* formatValueCode.opacity(1, 0.3, easeInOutCubic);
+    yield* waitFor(0.6);
+  }
+
+  yield* waitFor(1.0);
 });
