@@ -5,6 +5,8 @@ import contextObjectSceneRu from './scenes/contextObjectSceneRu?scene';
 import contextRefactorSceneRu from './scenes/contextRefactorSceneRu?scene';
 import codeWithActionsSceneRu from './scenes/codeWithActionsSceneRu?scene';
 import globalStateSingletonSceneRu from './scenes/globalStateSingletonSceneRu?scene';
+import dryKnowledgeScene from './scenes/dryKnowledgeScene?scene';
+import correctBoundariesSceneRu from './scenes/correctBoundariesSceneRu?scene';
 
 export default makeProject({
     experimentalFeatures: true,
@@ -58,9 +60,10 @@ export default makeProject({
         // codeWithActionsSceneRu,
         // codeWithActionsSceneRuTilt,
         // guitarHeroPassThroughSceneRu,
-        contextObjectSceneRu,
-        contextRefactorSceneRu,
-        globalStateSingletonSceneRu,
+        // contextObjectSceneRu,
+        // contextRefactorSceneRu,
+        // globalStateSingletonSceneRu,
+        correctBoundariesSceneRu,
 
     ]
 });

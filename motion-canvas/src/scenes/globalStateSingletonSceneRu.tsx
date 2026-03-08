@@ -268,5 +268,12 @@ export default makeScene2D(function* (view) {
 
   yield* waitFor(1.2);
   yield* all(...leftLines.map(line => line.opacity(1, 0.8, easeInOutCubic)));
-  yield* waitFor(0.8);
+  yield* waitFor(1.0);
+
+  yield* all(
+    leftCodeOn(0, 0.8, easeInOutCubic),
+    circleOn(0, 0.8, easeInOutCubic),
+    codeOn(0, 0.8, easeInOutCubic),
+  );
+  yield* waitFor(0.5);
 });
