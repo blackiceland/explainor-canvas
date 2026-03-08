@@ -1,4 +1,4 @@
-import {makeScene2D, Node, Txt} from '@motion-canvas/2d';
+import {Line, makeScene2D, Node, Rect, Txt} from '@motion-canvas/2d';
 import {all, easeInOutCubic, waitFor} from '@motion-canvas/core';
 import {Manticore} from '../core/code/components/Manticore';
 import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
@@ -9,7 +9,9 @@ import {applyBackground} from '../core/utils';
 import {JavaClass, method, param} from '../core/code/model/JavaModel';
 import {
   CODE_CARD_STYLE,
+  CODE_W,
   COLOR_RULES,
+  LEFT_CENTER_X,
   MAX_LINE_CHARS,
 } from './codeWithActionsSceneRu.config';
 
@@ -72,9 +74,6 @@ export default makeScene2D(function* (view) {
   const lineHeight = Math.round(fontSize * 1.62 * 10) / 10;
   const topInset = Math.max(8, getCodePaddingY(fontSize) - 8);
 
-  const codeW = Screen.width - 80;
-  const codeCenterX = 0;
-
   const model = JavaClass.create([
     method('public', 'byte[]', 'exportVideo',
       [param('byte[]', 'sourceFrames'), param('String', 'outputFormat'),
@@ -131,8 +130,8 @@ export default makeScene2D(function* (view) {
   ], MAX_LINE_CHARS);
 
   const manticore = Manticore.create(model.render(), {
-    x: codeCenterX, y: -50,
-    width: codeW,
+    x: LEFT_CENTER_X - 50, y: -50,
+    width: CODE_W,
     height: SafeZone.bottom - SafeZone.top - 36,
     fontSize, lineHeight,
     contentOffsetY: topInset,
@@ -146,6 +145,154 @@ export default makeScene2D(function* (view) {
   manticore.mount(view);
   manticore.colorize(COLOR_RULES);
 
+  // ── Структура справа ──────────────────────────────────────────────────
+  const BOX_W = 320;
+  const BOX_H = 58;
+  const BOX_R = 16;
+  const BOX_STROKE = 'rgba(244, 241, 235, 0.22)';
+  const LINE_COLOR = 'rgba(244, 241, 235, 0.18)';
+  const LABEL_SIZE = 25;
+  const BOX_FILLS = [
+    'rgba(160, 190, 255, 0.16)',
+    'rgba(160, 225, 200, 0.16)',
+    'rgba(255, 200, 160, 0.16)',
+    'rgba(200, 185, 255, 0.16)',
+    'rgba(255, 180, 200, 0.16)',
+  ];
+
+  const treeGroup = new Node({});
+  view.add(treeGroup);
+
+  const treeLayout = [
+    {name: 'exportVideo', x: 560, y: -230, fill: BOX_FILLS[0]},
+    {name: 'prepareFrames', x: 370, y: -100, fill: BOX_FILLS[1]},
+    {name: 'encodeWithRetry', x: 750, y: -100, fill: BOX_FILLS[2]},
+    {name: 'encode', x: 750, y: 20, fill: BOX_FILLS[3]},
+    {name: 'finalizeExport', x: 750, y: 140, fill: BOX_FILLS[4]},
+  ] as const;
+
+  const boxes: Rect[] = [];
+  const connectors: Line[] = [];
+
+  for (const item of treeLayout) {
+    const box = new Rect({
+      x: item.x,
+      y: item.y,
+      width: BOX_W,
+      height: BOX_H,
+      radius: BOX_R,
+      fill: item.fill,
+      stroke: BOX_STROKE,
+      lineWidth: 1,
+      opacity: 0,
+      children: [
+        new Txt({
+          text: item.name,
+          fontFamily: Fonts.code,
+          fontSize: LABEL_SIZE,
+          fill: Colors.text.primary,
+          fontWeight: 500,
+        }),
+      ],
+    });
+    boxes.push(box);
+  }
+
+  const exportBottom = treeLayout[0].y + BOX_H / 2;
+  const splitY = -165;
+  connectors.push(
+    new Line({
+      points: [
+        [treeLayout[0].x, exportBottom],
+        [treeLayout[0].x, splitY],
+        [treeLayout[1].x, splitY],
+        [treeLayout[1].x, treeLayout[1].y - BOX_H / 2],
+      ],
+      stroke: LINE_COLOR,
+      lineWidth: 2,
+      radius: 8,
+      opacity: 0,
+    }),
+  );
+  connectors.push(
+    new Line({
+      points: [
+        [treeLayout[0].x, exportBottom],
+        [treeLayout[0].x, splitY],
+        [treeLayout[2].x, splitY],
+        [treeLayout[2].x, treeLayout[2].y - BOX_H / 2],
+      ],
+      stroke: LINE_COLOR,
+      lineWidth: 2,
+      radius: 8,
+      opacity: 0,
+    }),
+  );
+  connectors.push(
+    new Line({
+      points: [
+        [treeLayout[2].x, treeLayout[2].y + BOX_H / 2],
+        [treeLayout[2].x, treeLayout[3].y - BOX_H / 2],
+      ],
+      stroke: LINE_COLOR,
+      lineWidth: 2,
+      radius: 8,
+      opacity: 0,
+    }),
+  );
+  connectors.push(
+    new Line({
+      points: [
+        [treeLayout[3].x, treeLayout[3].y + BOX_H / 2],
+        [treeLayout[3].x, treeLayout[4].y - BOX_H / 2],
+      ],
+      stroke: LINE_COLOR,
+      lineWidth: 2,
+      radius: 8,
+      opacity: 0,
+    }),
+  );
+
+  for (const line of connectors) treeGroup.add(line);
+  for (const box of boxes) treeGroup.add(box);
+
+  // ── Анимация ──────────────────────────────────────────────────────────
   yield* manticore.appear(Timing.slow);
+  yield* waitFor(0.4);
+
+  const METHOD_SIGNATURES = [
+    'public byte[] exportVideo',
+    'private byte[] prepareFrames',
+    'private byte[] encodeWithRetry',
+    'private byte[] encode(',
+    'private byte[] finalizeExport',
+  ];
+
+  yield* all(
+    manticore.scrollTo(METHOD_SIGNATURES[4], 5.2),
+    (function* () {
+      yield* boxes[0]?.opacity(1, 0.35, easeInOutCubic);
+      yield* waitFor(0.62);
+      yield* all(
+        boxes[1]?.opacity(1, 0.35, easeInOutCubic) ?? waitFor(0),
+        connectors[0]?.opacity(1, 0.35, easeInOutCubic) ?? waitFor(0),
+      );
+      yield* waitFor(0.62);
+      yield* all(
+        boxes[2]?.opacity(1, 0.35, easeInOutCubic) ?? waitFor(0),
+        connectors[1]?.opacity(1, 0.35, easeInOutCubic) ?? waitFor(0),
+      );
+      yield* waitFor(0.62);
+      yield* all(
+        boxes[3]?.opacity(1, 0.35, easeInOutCubic) ?? waitFor(0),
+        connectors[2]?.opacity(1, 0.35, easeInOutCubic) ?? waitFor(0),
+      );
+      yield* waitFor(0.62);
+      yield* all(
+        boxes[4]?.opacity(1, 0.35, easeInOutCubic) ?? waitFor(0),
+        connectors[3]?.opacity(1, 0.35, easeInOutCubic) ?? waitFor(0),
+      );
+    })(),
+  );
   yield* waitFor(1.5);
 });
