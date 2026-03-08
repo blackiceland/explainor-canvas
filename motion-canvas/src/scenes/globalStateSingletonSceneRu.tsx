@@ -266,5 +266,7 @@ export default makeScene2D(function* (view) {
     .map(index => leftLines[index].opacity(1, 0.8, easeInOutCubic));
   yield* all(...allDim, ...highlightImpact);
 
-  yield* waitFor(2.0);
+  yield* waitFor(1.2);
+  yield* all(...leftLines.map(line => line.opacity(1, 0.8, easeInOutCubic)));
+  yield* waitFor(0.8);
 });
