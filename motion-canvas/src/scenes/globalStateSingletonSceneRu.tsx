@@ -251,9 +251,20 @@ export default makeScene2D(function* (view) {
 
   yield* all(
     focusX(Screen.width * 0.26, 1.0, easeInOutCubic),
-    rightCodeOn(0, 0.5, easeInOutCubic),
     leftCodeOn(1, 0.8, easeInOutCubic),
+    (function* () {
+      yield* waitFor(0.2);
+      yield* rightCodeOn(0, 0.5, easeInOutCubic);
+    })(),
   );
+
+  const leftLines = leftCodeGroup.children() as Code[];
+  const singletonImpactLines = [1, 11, 21];
+  const allDim = leftLines.map(line => line.opacity(0.28, 0.8, easeInOutCubic));
+  const highlightImpact = singletonImpactLines
+    .filter(index => index >= 0 && index < leftLines.length)
+    .map(index => leftLines[index].opacity(1, 0.8, easeInOutCubic));
+  yield* all(...allDim, ...highlightImpact);
 
   yield* waitFor(2.0);
 });
