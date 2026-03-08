@@ -98,7 +98,7 @@ export default makeScene2D(function* (view) {
 
   const rightCodeGroup = new Node({opacity: 0});
   const rightStartX = 60;
-  const rightStartY = -330;
+  const rightStartY = -358;
   RIGHT_CODE_LINES.forEach((text, index) => {
     rightCodeGroup.add(
       new Code({
