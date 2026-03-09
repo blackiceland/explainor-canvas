@@ -363,9 +363,6 @@ export default makeScene2D(function* (view) {
       );
     })(),
   );
-  yield* waitFor(0.8);
-
-  // Шаг 2: Морф кода — скролл наверх и морф
   const refactoredModel = JavaClass.create([
     method('public', 'byte[]', 'exportVideo',
       [param('byte[]', 'sourceFrames'), param('String', 'outputFormat'),
@@ -373,7 +370,7 @@ export default makeScene2D(function* (view) {
        param('String', 'watermarkMode'), param('String', 'audioProfile')],
       ['validateInput(sourceFrames, outputFormat);',
        'byte[] preparedFrames = prepareFrames(sourceFrames, colorProfile, subtitleTrack);',
-       'byte[] encodedVideo = encodeWithRetry(preparedFrames, outputFormat);',
+       'byte[] encodedVideo = encodeWithRetry(preparedFrames);',
        '',
        'return finalizeExport(encodedVideo, outputFormat, watermarkMode, audioProfile);']),
 
@@ -386,12 +383,12 @@ export default makeScene2D(function* (view) {
        'return overlaySubtitles(coloredFrames, subtitleTrack);']),
 
     method('private', 'byte[]', 'encodeWithRetry',
-      [param('byte[]', 'preparedFrames'), param('String', 'outputFormat')],
+      [param('byte[]', 'preparedFrames')],
       ['int attemptsLeft = this.maxAttempts;',
        '',
        'while (attemptsLeft-- > 0) {',
        '    try {',
-       '        return runEncoder(preparedFrames, outputFormat);',
+       '        return runEncoder(preparedFrames);',
        '    } catch (RuntimeException ex) { /* retry */ }',
        '}',
        '',
@@ -411,19 +408,30 @@ export default makeScene2D(function* (view) {
        'return container;']),
   ], MAX_LINE_CHARS);
 
-  yield* manticore.scrollTo(0, 1.0);
-  yield* waitFor(0.3);
+  yield* waitFor(2.0);
+
+  // Схема и код исчезают вместе
+  yield* all(
+    treeGroup.opacity(0, 0.8, easeInOutCubic),
+    manticore.disappear(0.8),
+  );
+  yield* waitFor(0.5);
+
+  // Подменяем код на рефакторированный и сбрасываем позицию (невидимо)
   yield* manticore.morphTo(refactoredModel.render(), {
     addStyle: 'fade',
     blockOrder: 'parallel',
-    scrollStrategy: 'block',
+    removeDuration: 0,
+    moveDuration: 0,
+    charDelay: 0,
+    lineDelay: 0,
   });
-  yield* waitFor(2.0);
+  yield* manticore.scrollTo(0, 0);
 
-  // Затухание
-  yield* all(
-    manticore.disappear(0.8),
-    treeGroup.opacity(0, 0.8, easeInOutCubic),
-  );
+  // Код плавно появляется с начала
+  yield* manticore.appear(1.0);
+  yield* waitFor(2.5);
+
+  yield* manticore.disappear(1.0);
   yield* waitFor(0.5);
 });
