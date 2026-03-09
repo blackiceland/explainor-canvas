@@ -57,7 +57,7 @@ export default makeProject({
         // просто анимации
         // videoExportActionsSceneRu,
 
-        // codeWithActionsSceneRu,
+         codeWithActionsSceneRu,
         // codeWithActionsSceneRuTilt,
         // guitarHeroPassThroughSceneRu,
         // contextObjectSceneRu,

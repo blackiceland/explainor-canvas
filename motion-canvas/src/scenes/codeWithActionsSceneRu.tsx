@@ -405,28 +405,11 @@ export default makeScene2D(function* (view) {
   );
   yield* waitFor(1.0);
 
-  // ── v3c: обновляем вызовы в exportVideo ───────────────────────────────
+  // ── v3c: обновляем вызов encodeWithRetry в exportVideo ────────────────
   yield* dir.scrollTo(0, 0.8);
   yield* dir.apply(m => {
-    m.updateCallArgs('exportVideo', 'prepareFrames', ['sourceFrames', 'colorProfile', 'subtitleTrack', 'watermarkMode', 'audioProfile']);
     m.updateCallArgs('exportVideo', 'encodeWithRetry', ['preparedFrames', 'outputFormat', 'watermarkMode', 'audioProfile']);
   });
-
-  // ── v3d: prepareFrames — сигнатура + тело ─────────────────────────────
-  yield* dir.addParamsAndUpdateBody('prepareFrames',
-    [param('String', 'watermarkMode'), param('String', 'audioProfile')],
-    ['byte[] normalizedFrames = normalizeFrames(sourceFrames);',
-     'byte[] coloredFrames = applyColorProfile(normalizedFrames, colorProfile);',
-     'byte[] subtitledFrames = overlaySubtitles(coloredFrames, subtitleTrack);',
-     'byte[] watermarkedFrames = applyWatermark(subtitledFrames, watermarkMode);',
-     '',
-     'return normalizeAudio(watermarkedFrames, audioProfile);'],
-    ['byte[] normalizedFrames = normalizeFrames(sourceFrames);',
-     'byte[] coloredFrames = applyColorProfile(normalizedFrames, colorProfile);',
-     'byte[] subtitledFrames = overlaySubtitles(coloredFrames, subtitleTrack);',
-     '',
-     'return subtitledFrames;'],
-  );
 
   // ── v3e: encodeWithRetry — сигнатура + вызов encode ───────────────────
   yield* dir.scrollTo('private byte[] encodeWithRetry', 0.8);
