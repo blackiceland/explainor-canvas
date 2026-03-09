@@ -2,9 +2,9 @@ import {Line, makeScene2D, Node, Rect, Txt} from '@motion-canvas/2d';
 import {all, easeInOutCubic, waitFor} from '@motion-canvas/core';
 import {Manticore} from '../core/code/components/Manticore';
 import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
-import {getCodePaddingY} from '../core/code/shared/TextMeasure';
+import {measureChar, getCodePaddingX, getCodePaddingY} from '../core/code/shared/TextMeasure';
 import {SafeZone} from '../core/ScreenGrid';
-import {Colors, Fonts, Screen, Timing} from '../core/theme';
+import {Colors, Fonts, Timing} from '../core/theme';
 import {applyBackground} from '../core/utils';
 import {JavaClass, method, param} from '../core/code/model/JavaModel';
 import {
@@ -141,6 +141,14 @@ export default makeScene2D(function* (view) {
   });
   manticore.mount(view);
   manticore.colorize(COLOR_RULES);
+
+  // Крупный manticore для финального показа рефакторированного кода
+  const bigFontSize = 36;
+  const bigLineHeight = Math.round(bigFontSize * 1.62 * 10) / 10;
+  const bigTopInset = Math.max(8, getCodePaddingY(bigFontSize) - 8);
+  const bigMaxChars = Math.floor(
+    (CODE_W - getCodePaddingX(bigFontSize)) / measureChar(bigFontSize),
+  );
 
   // ── Структура справа ──────────────────────────────────────────────────
   const BOX_W = 320;
@@ -363,6 +371,10 @@ export default makeScene2D(function* (view) {
       );
     })(),
   );
+  const bigW = SafeZone.right - SafeZone.left - 80;
+  const bigMaxCharsWide = Math.floor(
+    (bigW - getCodePaddingX(bigFontSize)) / measureChar(bigFontSize),
+  );
   const refactoredModel = JavaClass.create([
     method('public', 'byte[]', 'exportVideo',
       [param('byte[]', 'sourceFrames'), param('String', 'outputFormat'),
@@ -406,7 +418,25 @@ export default makeScene2D(function* (view) {
        'container.normalizeAudio(audioProfile);',
        '',
        'return container;']),
-  ], MAX_LINE_CHARS);
+  ], bigMaxCharsWide);
+
+  const bigX = LEFT_CENTER_X - 50 - CODE_W / 2 + bigW / 2;
+  const bigManticore = Manticore.create(refactoredModel.render(), {
+    x: bigX, y: -50,
+    width: bigW,
+    height: SafeZone.bottom - SafeZone.top + 60,
+    fontSize: bigFontSize,
+    lineHeight: bigLineHeight,
+    contentOffsetY: bigTopInset,
+    fontFamily: Fonts.code,
+    theme: DryFiltersV3CodeTheme,
+    cardStyle: CODE_CARD_STYLE,
+    glowAccent: false,
+    customTypes: ['String', 'RuntimeException', 'IllegalStateException',
+      'IllegalArgumentException', 'Muxer', 'Container'],
+  });
+  bigManticore.mount(view);
+  bigManticore.colorize(COLOR_RULES);
 
   yield* waitFor(2.0);
 
@@ -417,21 +447,10 @@ export default makeScene2D(function* (view) {
   );
   yield* waitFor(0.5);
 
-  // Подменяем код на рефакторированный и сбрасываем позицию (невидимо)
-  yield* manticore.morphTo(refactoredModel.render(), {
-    addStyle: 'fade',
-    blockOrder: 'parallel',
-    removeDuration: 0,
-    moveDuration: 0,
-    charDelay: 0,
-    lineDelay: 0,
-  });
-  yield* manticore.scrollTo(0, 0);
-
-  // Код плавно появляется с начала
-  yield* manticore.appear(1.0);
+  // Крупный рефакторированный код плавно появляется
+  yield* bigManticore.appear(1.0);
   yield* waitFor(2.5);
 
-  yield* manticore.disappear(1.0);
+  yield* bigManticore.disappear(1.0);
   yield* waitFor(0.5);
 });
