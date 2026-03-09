@@ -371,7 +371,7 @@ export default makeScene2D(function* (view) {
       );
     })(),
   );
-  const bigW = SafeZone.right - SafeZone.left - 80;
+  const bigW = 1920;
   const bigMaxCharsWide = Math.floor(
     (bigW - getCodePaddingX(bigFontSize)) / measureChar(bigFontSize),
   );
@@ -420,11 +420,12 @@ export default makeScene2D(function* (view) {
        'return container;']),
   ], bigMaxCharsWide);
 
-  const bigX = LEFT_CENTER_X - 50 - CODE_W / 2 + bigW / 2;
   const bigManticore = Manticore.create(refactoredModel.render(), {
-    x: bigX, y: -50,
+    x: -32, y: -50,
+    contentOffsetX: 40,
     width: bigW,
-    height: SafeZone.bottom - SafeZone.top + 60,
+    height: SafeZone.bottom - SafeZone.top - 36,
+    noClip: true,
     fontSize: bigFontSize,
     lineHeight: bigLineHeight,
     contentOffsetY: bigTopInset,
@@ -447,10 +448,61 @@ export default makeScene2D(function* (view) {
   );
   yield* waitFor(0.5);
 
-  // Крупный рефакторированный код плавно появляется
-  yield* bigManticore.appear(1.0);
+  // Цветные полоски слева от каждого метода (внутри content — скроллятся)
+  const STRIPE_W = 5;
+  const bigCode = bigManticore.currentCode;
+  const methodSigs = [
+    {sig: 'public byte[] exportVideo',     fill: BOX_FILLS[0]},
+    {sig: 'private byte[] prepareFrames',  fill: BOX_FILLS[1]},
+    {sig: 'private byte[] encodeWithRetry', fill: BOX_FILLS[2]},
+    {sig: 'private byte[] finalizeExport', fill: BOX_FILLS[4]},
+  ];
+
+  const methodRanges: {first: number; last: number; fill: string}[] = [];
+  for (let i = 0; i < methodSigs.length; i++) {
+    const first = bigCode.findIndex(l => l.includes(methodSigs[i].sig));
+    if (first < 0) continue;
+    let last = first;
+    for (let j = first + 1; j < bigCode.length; j++) {
+      if (bigCode[j] === '}') { last = j; break; }
+    }
+    methodRanges.push({first, last, fill: methodSigs[i].fill});
+  }
+
+  const stripeGroup = new Node({opacity: 0});
+  bigManticore.addToContent(stripeGroup);
+
+  // stripeX фиксирован независимо от contentOffsetX
+  const stripeX = -bigW / 2 + getCodePaddingX(bigFontSize) - 14;
+  for (const mr of methodRanges) {
+    const firstY = bigManticore.getLineY(mr.first);
+    const lastY = bigManticore.getLineY(mr.last);
+    const centerY = (firstY + lastY) / 2;
+    const h = lastY - firstY + bigLineHeight;
+    stripeGroup.add(new Rect({
+      x: stripeX,
+      y: centerY,
+      width: STRIPE_W,
+      height: h - 6,
+      radius: 3,
+      fill: mr.fill.replace('0.16', '0.6'),
+    }));
+  }
+
+  // Крупный рефакторированный код появляется с цветными полосками
+  yield* all(
+    bigManticore.appear(1.0),
+    stripeGroup.opacity(1, 1.0, easeInOutCubic),
+  );
   yield* waitFor(2.5);
 
-  yield* bigManticore.disappear(1.0);
+  // Плавный скролл вниз до конца (полоски скроллятся вместе с кодом)
+  yield* bigManticore.scrollTo('private byte[] finalizeExport', 4.0);
+  yield* waitFor(2.0);
+
+  yield* all(
+    bigManticore.disappear(1.0),
+    stripeGroup.opacity(0, 0.8, easeInOutCubic),
+  );
   yield* waitFor(0.5);
 });

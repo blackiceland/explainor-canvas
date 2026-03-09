@@ -30,6 +30,7 @@ export interface ManticoreConfig {
     contentOffsetX?: number;
     contentOffsetY?: number;
     glowAccent?: boolean;
+    noClip?: boolean;
 }
 
 export interface MorphOptions {
@@ -132,6 +133,7 @@ export class Manticore {
             contentOffsetX: config.contentOffsetX ?? 0,
             contentOffsetY: config.contentOffsetY ?? 0,
             glowAccent: config.glowAccent ?? true,
+            noClip: config.noClip ?? false,
         };
     }
 
@@ -161,7 +163,7 @@ export class Manticore {
             height: this.clipHeight,
             radius: 0,
             fill: '#00000000',
-            clip: true,
+            clip: !this.cfg.noClip,
         });
         container.add(clip);
 
@@ -254,6 +256,10 @@ export class Manticore {
     get lineCount(): number { return this.lines.length; }
     get currentCode(): string[] { return [...this.code]; }
     getLastMorphReport(): MorphRuntimeReport | null { return this.lastMorphReport; }
+
+    addToContent(child: Node): void { this.contentRef().add(child); }
+    getLineY(index: number): number { return this.lineY(index); }
+    getLeftEdge(): number { return this.leftEdge; }
 
     *appear(duration = 0.6): ThreadGenerator {
         yield* this.containerRef().opacity(1, duration, easeInOutCubic);
@@ -701,8 +707,8 @@ export class Manticore {
     ): ThreadGenerator {
         const anims: ThreadGenerator[] = [];
         const eraseAnims: ThreadGenerator[] = [];
-        const include = includeTypes ? new Set(includeTypes) : null;
-        const exclude = new Set(excludeTypes);
+        const include = includeTypes ? new Set<string>(includeTypes) : null;
+        const exclude = new Set<string>(excludeTypes);
         for (const p of plan) {
             if (p.kind !== 'modify' || !p.tokenDiff) continue;
             const oldLine = this.lines[p.oldIndex];
