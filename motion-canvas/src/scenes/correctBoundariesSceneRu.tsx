@@ -143,12 +143,12 @@ export default makeScene2D(function* (view) {
   manticore.colorize(COLOR_RULES);
 
   // ── Структура справа ──────────────────────────────────────────────────
-  const BOX_W = 220;
-  const BOX_H = 52;
-  const BOX_R = 16;
-  const BOX_STROKE = 'rgba(244, 241, 235, 0.22)';
-  const LINE_COLOR = 'rgba(244, 241, 235, 0.18)';
-  const LABEL_SIZE = 20;
+  const BOX_W = 320;
+  const BOX_H = 80;
+  const BOX_R = 18;
+  const BOX_STROKE = 'rgba(244, 241, 235, 0.25)';
+  const LINE_COLOR = 'rgba(244, 241, 235, 0.22)';
+  const LABEL_SIZE = 30;
   const BOX_FILLS = [
     'rgba(160, 190, 255, 0.16)',
     'rgba(160, 225, 200, 0.16)',
@@ -157,15 +157,22 @@ export default makeScene2D(function* (view) {
     'rgba(255, 180, 200, 0.16)',
   ];
 
+  const TREE_CX = 530;
+  const ROW0_Y = -280;
+  const ROW1_Y = -110;
+  const ROW2_Y = 60;
+  const ROW3_Y = 230;
+  const BRANCH_DX = 200;
+
   const treeGroup = new Node({});
   view.add(treeGroup);
 
   const treeLayout = [
-    {name: 'exportVideo', x: 560, y: -230, fill: BOX_FILLS[0]},
-    {name: 'prepareFrames', x: 370, y: -100, fill: BOX_FILLS[1]},
-    {name: 'encodeWithRetry', x: 750, y: -100, fill: BOX_FILLS[2]},
-    {name: 'encode', x: 750, y: 20, fill: BOX_FILLS[3]},
-    {name: 'finalizeExport', x: 750, y: 140, fill: BOX_FILLS[4]},
+    {name: 'exportVideo',     x: TREE_CX,              y: ROW0_Y, fill: BOX_FILLS[0]},
+    {name: 'prepareFrames',   x: TREE_CX - BRANCH_DX,  y: ROW1_Y, fill: BOX_FILLS[1]},
+    {name: 'encodeWithRetry', x: TREE_CX + BRANCH_DX,  y: ROW1_Y, fill: BOX_FILLS[2]},
+    {name: 'encode',          x: TREE_CX + BRANCH_DX,  y: ROW2_Y, fill: BOX_FILLS[3]},
+    {name: 'finalizeExport',  x: TREE_CX + BRANCH_DX,  y: ROW3_Y, fill: BOX_FILLS[4]},
   ] as const;
 
   const boxes: Rect[] = [];
@@ -196,7 +203,7 @@ export default makeScene2D(function* (view) {
   }
 
   const exportBottom = treeLayout[0].y + BOX_H / 2;
-  const splitY = -165;
+  const splitY = (ROW0_Y + ROW1_Y) / 2;
   connectors.push(
     new Line({
       points: [
@@ -207,7 +214,7 @@ export default makeScene2D(function* (view) {
       ],
       stroke: LINE_COLOR,
       lineWidth: 2,
-      radius: 8,
+      radius: 10,
       opacity: 0,
     }),
   );
@@ -221,7 +228,7 @@ export default makeScene2D(function* (view) {
       ],
       stroke: LINE_COLOR,
       lineWidth: 2,
-      radius: 8,
+      radius: 10,
       opacity: 0,
     }),
   );
@@ -233,7 +240,7 @@ export default makeScene2D(function* (view) {
       ],
       stroke: LINE_COLOR,
       lineWidth: 2,
-      radius: 8,
+      radius: 10,
       opacity: 0,
     }),
   );
@@ -245,7 +252,7 @@ export default makeScene2D(function* (view) {
       ],
       stroke: LINE_COLOR,
       lineWidth: 2,
-      radius: 8,
+      radius: 10,
       opacity: 0,
     }),
   );
@@ -295,78 +302,70 @@ export default makeScene2D(function* (view) {
 
   // ── Такт 2: Рефакторинг — правильные границы ─────────────────────────
 
-  // Целевые позиции: три ребёнка равномерно
-  const THREE_Y = treeLayout[1].y;
-  const LEFT_X = 370;
-  const MID_X = 610;
-  const RIGHT_X = 850;
+  // Целевые позиции: три ребёнка в ряд (treeGroup сдвинется левее)
+  const SHIFT_X = -210;
+  const THREE_Y = ROW1_Y;
+  const LEFT_X = TREE_CX - 370;
+  const MID_X = TREE_CX;
+  const RIGHT_X = TREE_CX + 370;
 
-  // Шаг 1: линия encode→finalizeExport исчезает, finalizeExport отрывается и поднимается
-  yield* all(
-    connectors[3].opacity(0, 0.5, easeInOutCubic),
-    connectors[2].opacity(0, 0.5, easeInOutCubic),
-  );
-  yield* waitFor(0.3);
-
-  // encode исчезает
-  yield* boxes[3].opacity(0, 0.5, easeInOutCubic);
-  yield* waitFor(0.2);
-
-  yield* all(
-    boxes[1].position([LEFT_X, THREE_Y], 0.8, easeInOutCubic),
-    boxes[2].position([MID_X, THREE_Y], 0.8, easeInOutCubic),
-    boxes[4].position([RIGHT_X, THREE_Y], 0.8, easeInOutCubic),
-  );
-  yield* waitFor(0.3);
-
-  // Старые связи от exportVideo исчезают
-  yield* all(
-    connectors[0].opacity(0, 0.4, easeInOutCubic),
-    connectors[1].opacity(0, 0.4, easeInOutCubic),
-  );
-  yield* waitFor(0.2);
-
-  const newSplitY = treeLayout[0].y + BOX_H / 2 + 15;
+  const newSplitY = splitY;
   const rootX = treeLayout[0].x;
   const newConn0 = new Line({
     points: [
-      [rootX, treeLayout[0].y + BOX_H / 2],
+      [rootX, exportBottom],
       [rootX, newSplitY],
       [LEFT_X, newSplitY],
       [LEFT_X, THREE_Y - BOX_H / 2],
     ],
-    stroke: LINE_COLOR, lineWidth: 2, radius: 8, opacity: 0,
+    stroke: LINE_COLOR, lineWidth: 2, radius: 12, opacity: 0,
   });
   const newConn1 = new Line({
     points: [
-      [rootX, treeLayout[0].y + BOX_H / 2],
+      [rootX, exportBottom],
       [rootX, newSplitY],
       [MID_X, newSplitY],
       [MID_X, THREE_Y - BOX_H / 2],
     ],
-    stroke: LINE_COLOR, lineWidth: 2, radius: 8, opacity: 0,
+    stroke: LINE_COLOR, lineWidth: 2, radius: 12, opacity: 0,
   });
   const newConn2 = new Line({
     points: [
-      [rootX, treeLayout[0].y + BOX_H / 2],
+      [rootX, exportBottom],
       [rootX, newSplitY],
       [RIGHT_X, newSplitY],
       [RIGHT_X, THREE_Y - BOX_H / 2],
     ],
-    stroke: LINE_COLOR, lineWidth: 2, radius: 8, opacity: 0,
+    stroke: LINE_COLOR, lineWidth: 2, radius: 12, opacity: 0,
   });
   treeGroup.add(newConn0);
   treeGroup.add(newConn1);
   treeGroup.add(newConn2);
 
+  // Всё одним движением: дерево сдвигается в центр, перестраивается
+  const DUR = 1.0;
   yield* all(
-    newConn0.opacity(1, 0.5, easeInOutCubic),
-    newConn1.opacity(1, 0.5, easeInOutCubic),
-    newConn2.opacity(1, 0.5, easeInOutCubic),
+    treeGroup.position.x(SHIFT_X, DUR, easeInOutCubic),
+    connectors[0].opacity(0, 0.4, easeInOutCubic),
+    connectors[1].opacity(0, 0.4, easeInOutCubic),
+    connectors[2].opacity(0, 0.4, easeInOutCubic),
+    connectors[3].opacity(0, 0.4, easeInOutCubic),
+    boxes[3].opacity(0, 0.4, easeInOutCubic),
+    boxes[1].position([LEFT_X, THREE_Y], DUR, easeInOutCubic),
+    boxes[2].position([MID_X, THREE_Y], DUR, easeInOutCubic),
+    boxes[4].position([RIGHT_X, THREE_Y], DUR, easeInOutCubic),
+    (function* () {
+      yield* waitFor(0.4);
+      yield* all(
+        newConn0.opacity(1, 0.6, easeInOutCubic),
+        newConn1.opacity(1, 0.6, easeInOutCubic),
+        newConn2.opacity(1, 0.6, easeInOutCubic),
+      );
+    })(),
   );
   yield* waitFor(0.8);
 
-  // Шаг 2: Морф кода — скролл наверх и морф exportVideo
+  // Шаг 2: Морф кода — скролл наверх и морф
   const refactoredModel = JavaClass.create([
     method('public', 'byte[]', 'exportVideo',
       [param('byte[]', 'sourceFrames'), param('String', 'outputFormat'),
