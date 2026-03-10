@@ -7,6 +7,15 @@ import codeWithActionsSceneRu from './scenes/codeWithActionsSceneRu?scene';
 import globalStateSingletonSceneRu from './scenes/globalStateSingletonSceneRu?scene';
 import dryKnowledgeScene from './scenes/dryKnowledgeScene?scene';
 import correctBoundariesSceneRu from './scenes/correctBoundariesSceneRu?scene';
+import trainCodeOverlaySceneRu from "./scenes/trainCodeOverlaySceneRu?scene";
+import oneCargoSceneRu from "./scenes/oneCargoSceneRu?scene";
+import passThroughMonolithScrollSceneRu from "./scenes/passThroughMonolithScrollSceneRu?scene";
+import sphereDigitsDemoSceneRu from "./scenes/sphereDigitsDemoSceneRu?scene";
+import validateMonolithSceneRu from "./scenes/validateMonolithSceneRu?scene";
+import starWarsCrawlSceneRu from "./scenes/starWarsCrawlSceneRu?scene";
+import jackIntroSceneEn from "./scenes/jackIntroSceneEn?scene";
+import guitarHeroPassThroughSceneRu from "./scenes/guitarHeroPassThroughSceneRu?scene";
+import passThroughPianoSceneRu from "./scenes/passThroughPianoSceneRu?scene";
 
 export default makeProject({
     experimentalFeatures: true,
@@ -49,20 +58,21 @@ export default makeProject({
         // passThroughMonolithScrollSceneRu,
         // sphereDigitsDemoSceneRu,
 
-        // validateMonolithSceneRu,
-
-        // starWarsCrawlSceneRu,
-        //  jackIntroSceneEn,
 
         // просто анимации
         // videoExportActionsSceneRu,
 
-        // codeWithActionsSceneRu,
-        // codeWithActionsSceneRuTilt,
-        // guitarHeroPassThroughSceneRu,
-        // contextObjectSceneRu,
-        // contextRefactorSceneRu,
-        // globalStateSingletonSceneRu,
+        //02
+        validateMonolithSceneRu,
+        starWarsCrawlSceneRu,
+        jackIntroSceneEn,
+        codeWithActionsSceneRu,
+        codeWithActionsSceneRuTilt,
+        passThroughPianoSceneRu,
+        guitarHeroPassThroughSceneRu,
+        contextObjectSceneRu,
+        contextRefactorSceneRu,
+        globalStateSingletonSceneRu,
         correctBoundariesSceneRu,
 
     ]

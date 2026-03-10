@@ -71,7 +71,6 @@ private static void validateDisplayName(WhatsappChannelCreateRequest request) {
         throw new ValidationException(Violations.sizeMaxViolation("displayName", displayName, 255));
     }
 }
-
 private static void validateConnectionType(WhatsappChannelCreateRequest request) {
     String connectionTypeRaw = StringUtils.trimToNull(request.getConnectionType());
 
@@ -91,9 +90,10 @@ private static void validateConnectionType(WhatsappChannelCreateRequest request)
         throw new ValidationException(Violations.enumViolation("connectionType", connectionTypeRaw));
     }
 }
-
-private static void validatePhoneNumber(WhatsappChannelCreateRequest request, ConnectionType connectionType) {
+private static void validatePhoneNumber(WhatsappChannelCreateRequest request) {
     String phoneNumber = StringUtils.trimToNull(request.getPhoneNumber());
+    String connectionTypeRaw = StringUtils.trimToNull(request.getConnectionType());
+    ConnectionType connectionType = ConnectionType.valueOf(connectionTypeRaw);
 
     if (phoneNumber != null && !phoneNumber.matches("\\\\+?\\\\d{11}")) {
         throw new ValidationException(Violations.patternViolation("phoneNumber", phoneNumber));
@@ -107,17 +107,17 @@ private static void validatePhoneNumber(WhatsappChannelCreateRequest request, Co
 export default makeScene2D(function* (view) {
   applyBackground(view);
 
-  const fontSize = 22;
+  const fontSize = 24;
   const lineHeight = Math.round(fontSize * 1.62 * 10) / 10;
   const paddingY = getCodePaddingY(fontSize);
   const topInset = Math.max(8, paddingY - 8);
 
   const blockHeight = SafeZone.bottom - SafeZone.top - 36;
-  const blockWidth = SafeZone.right - SafeZone.left + 100;
+  const blockWidth = SafeZone.right - SafeZone.left;
 
   const code = CodeBlock.fromCode(VALIDATE_CODE, {
-    x: 0,
-    y: 0,
+    x: -50,
+    y: -50,
     width: blockWidth,
     height: blockHeight,
     fontSize,
@@ -218,9 +218,9 @@ export default makeScene2D(function* (view) {
   const dimOpacity = 0.15;
 
   const blocks = [
-    {from: 1, to: 9, name: 'validateDisplayName', args: '(request)'},
-    {from: 11, to: 27, name: 'validateConnectionType', args: '(request)'},
-    {from: 29, to: 37, name: 'validatePhoneNumber', args: '(request, connectionType)'},
+    {from: 1, to: 10, name: 'validateDisplayName', args: '(request)'},
+    {from: 11, to: 28, name: 'validateConnectionType', args: '(request)'},
+    {from: 29, to: 37, name: 'validatePhoneNumber', args: '(request)'},
   ];
 
   let totalCollapsed = 0;
@@ -255,7 +255,9 @@ export default makeScene2D(function* (view) {
 
     // create method call node
     const anchorLine = code.getLine(from)!;
-    const callY = anchorLine.node.y();
+    const callY = createdCalls.length === 0
+      ? anchorLine.node.y()
+      : createdCalls[createdCalls.length - 1]!.y() + lineHeight;
 
     const callParts = [
       {text: block.name, color: METHOD_COLOR},
@@ -371,9 +373,6 @@ export default makeScene2D(function* (view) {
   yield* code.animateScrollY(scrollTarget, 2.0);
 
   yield* waitFor(2);
-
-  // fade out entire scene
-  yield* code.node.opacity(0, 1.2, easeInOutCubic);
-
+  yield* code.node.opacity(0, 0.8, easeInOutCubic);
   yield* waitFor(0.5);
 });
