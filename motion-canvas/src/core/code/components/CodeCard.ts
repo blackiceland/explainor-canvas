@@ -103,6 +103,3 @@ export class CodeCard {
         return this.config.height;
     }
 }
-
-
-

@@ -5,6 +5,9 @@ const motionCanvasFactory = (motionCanvas as unknown as {default?: typeof motion
 
 export default defineConfig({
   plugins: [motionCanvasFactory()],
+  optimizeDeps: {
+    include: ['three'],
+  },
   server: {
     host: '0.0.0.0',
     port: 5173,

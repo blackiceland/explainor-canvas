@@ -1,0 +1,100 @@
+import java.math.BigDecimal;
+import java.util.UUID;
+
+record PaymentRequest(
+    long sourceAccountId,
+    long destinationAccountId,
+    BigDecimal amount,
+    String currency
+) {}
+
+record PreparedPayment(
+    UUID preparedPaymentId,
+    long sourceAccountId,
+    long destinationAccountId,
+    BigDecimal amount,
+    String currency
+) {}
+
+class PaymentOrchestrator {
+
+  String processPayment(
+      PaymentRequest request,
+      String idempotencyKey,
+      String traceId
+  ) {
+    validateRequest(request); // легитимный orchestration слой
+    return prepareAndExecute(request, idempotencyKey, traceId);
+  }
+
+  // Begins to smell: mostly forwards execute-only params
+  private String prepareAndExecute(
+      PaymentRequest request,
+      String idempotencyKey,
+      String traceId
+  ) {
+    UUID preparedPaymentId = preparePayment(request); // uses only request
+    return executePayment(preparedPaymentId, idempotencyKey, traceId);
+  }
+
+  private UUID preparePayment(PaymentRequest request) {
+    validateLimits(request.sourceAccountId(), request.amount(), request.currency());
+    checkFraud(request.sourceAccountId(), request.destinationAccountId(), request.amount());
+
+    PreparedPayment prepared = new PreparedPayment(
+        UUID.randomUUID(),
+        request.sourceAccountId(),
+        request.destinationAccountId(),
+        request.amount(),
+        request.currency()
+    );
+
+    savePrepared(prepared);
+    return prepared.preparedPaymentId();
+  }
+
+  private String executePayment(
+      UUID preparedPaymentId,
+      String idempotencyKey,
+      String traceId
+  ) {
+    PreparedPayment prepared = loadPrepared(preparedPaymentId);
+
+    if (alreadyProcessed(idempotencyKey)) {
+      return previousResult(idempotencyKey);
+    }
+
+    String paymentId = charge(
+        prepared.sourceAccountId(),
+        prepared.destinationAccountId(),
+        prepared.amount(),
+        prepared.currency(),
+        traceId
+    );
+
+    saveIdempotencyResult(idempotencyKey, paymentId);
+    auditSuccess(paymentId, traceId);
+    return paymentId;
+  }
+
+  private void validateRequest(PaymentRequest request) {
+    if (request == null) throw new IllegalArgumentException("request is null");
+    if (request.amount() == null || request.amount().signum() <= 0) {
+      throw new IllegalArgumentException("amount must be positive");
+    }
+    if (request.sourceAccountId() == request.destinationAccountId()) {
+      throw new IllegalArgumentException("source and destination must differ");
+    }
+  }
+
+  // infra stubs
+  private void validateLimits(long accountId, BigDecimal amount, String currency) {}
+  private void checkFraud(long fromId, long toId, BigDecimal amount) {}
+  private void savePrepared(PreparedPayment prepared) {}
+  private PreparedPayment loadPrepared(UUID preparedPaymentId) { throw new UnsupportedOperationException("stub"); }
+  private boolean alreadyProcessed(String idempotencyKey) { return false; }
+  private String previousResult(String idempotencyKey) { return "PREVIOUS_PAYMENT_ID"; }
+  private String charge(long fromId, long toId, BigDecimal amount, String currency, String traceId) { return "PAYMENT_OK"; }
+  private void saveIdempotencyResult(String idempotencyKey, String paymentId) {}
+  private void auditSuccess(String paymentId, String traceId) {}
+}

@@ -1,0 +1,317 @@
+Окей. Вот конкретный код для каждой версии.
+
+### v0 — чистый старт
+
+```java
+byte[] exportVideo(byte[] sourceFrames, String outputFormat) {
+    validateInput(sourceFrames, outputFormat);
+    byte[] encoded = runEncoder(sourceFrames);
+    return wrapContainer(encoded, outputFormat);
+}
+```
+
+Всё на месте. `outputFormat` используется там, где передаётся. Ноль шума.
+
+---
+
+### v1 — добавили подготовку кадров и colorProfile
+
+Спринт 12. Задача: "поддержать цветовые профили при экспорте".
+
+```java
+byte[] exportVideo(byte[] sourceFrames, String outputFormat, String colorProfile) {
+    validateInput(sourceFrames, outputFormat);
+    byte[] prepared = prepareFrames(sourceFrames, colorProfile);
+    byte[] encoded = runEncoder(prepared);
+    return wrapContainer(encoded, outputFormat);
+}
+
+byte[] prepareFrames(byte[] frames, String colorProfile) {
+    byte[] normalized = normalizeFrames(frames);
+    return applyColorProfile(normalized, colorProfile);
+}
+```
+
+Всё ещё чисто. Каждый параметр используется там, где передаётся. Ревьюер одобрил.
+
+---
+
+### v2 — добавили retry и subtitleTrack
+
+Спринт 15. Две задачи в одном спринте: "retry при ошибках энкодера" и "поддержка субтитров".
+
+```java
+byte[] exportVideo(
+    byte[] sourceFrames,
+    String outputFormat,
+    String colorProfile,
+    String subtitleTrack
+) {
+    validateInput(sourceFrames, outputFormat);
+    byte[] prepared = prepareFrames(sourceFrames, colorProfile, subtitleTrack);
+    return encodeWithRetry(prepared, outputFormat);
+}
+
+byte[] prepareFrames(byte[] frames, String colorProfile, String subtitleTrack) {
+    byte[] normalized = normalizeFrames(frames);
+    byte[] recolored = applyColorProfile(normalized, colorProfile);
+    return overlaySubtitles(recolored, subtitleTrack);
+}
+
+// outputFormat здесь не используется
+byte[] encodeWithRetry(byte[] preparedFrames, String outputFormat) {
+    int attemptsLeft = 3;
+    while (attemptsLeft-- > 0) {
+        try {
+            return encode(preparedFrames, outputFormat);
+        } catch (RuntimeException ex) { /* retry */ }
+    }
+    throw new IllegalStateException("Encoding failed");
+}
+
+byte[] encode(byte[] preparedFrames, String outputFormat) {
+    byte[] encoded = runEncoder(preparedFrames);
+    return finalizeExport(encoded, outputFormat);
+}
+
+byte[] finalizeExport(byte[] encodedVideo, String outputFormat) {
+    if (!isSupportedFormat(outputFormat)) {
+        throw new IllegalArgumentException("Unsupported: " + outputFormat);
+    }
+    return wrapContainer(encodedVideo, outputFormat);
+}
+```
+
+Первый pass-through появился: `encodeWithRetry` не знает про `outputFormat`, просто передаёт. Но это один параметр — ревьюер не заметил.
+
+---
+
+### v3 — добавили watermark и audioProfile
+
+Спринт 19. Два разных разработчика, два PR, оба одобрены.
+
+```java
+byte[] exportVideo(
+    byte[] sourceFrames,
+    String outputFormat,
+    String colorProfile,
+    String subtitleTrack,
+    String watermarkMode,
+    String audioProfile
+) {
+    validateInput(sourceFrames, outputFormat);
+    byte[] prepared = prepareFrames(
+        sourceFrames, colorProfile, subtitleTrack, watermarkMode, audioProfile
+    );
+    return encodeWithRetry(
+        prepared, outputFormat, watermarkMode, audioProfile
+    );
+}
+
+byte[] prepareFrames(
+    byte[] frames,
+    String colorProfile,
+    String subtitleTrack,
+    String watermarkMode,
+    String audioProfile
+) {
+    byte[] normalized = normalizeFrames(frames);
+    byte[] recolored = applyColorProfile(normalized, colorProfile);
+    byte[] subtitled = overlaySubtitles(recolored, subtitleTrack);
+    byte[] watermarked = applyWatermark(subtitled, watermarkMode);
+    return normalizeAudio(watermarked, audioProfile);
+}
+
+// ни один из трёх параметров здесь не используется
+byte[] encodeWithRetry(
+    byte[] preparedFrames,
+    String outputFormat,
+    String watermarkMode,
+    String audioProfile
+) {
+    int attemptsLeft = 3;
+    while (attemptsLeft-- > 0) {
+        try {
+            return encode(preparedFrames, outputFormat, watermarkMode, audioProfile);
+        } catch (RuntimeException ex) { /* retry */ }
+    }
+    throw new IllegalStateException("Encoding failed");
+}
+
+// ни один из трёх параметров здесь не используется
+byte[] encode(
+    byte[] preparedFrames,
+    String outputFormat,
+    String watermarkMode,
+    String audioProfile
+) {
+    byte[] encoded = runEncoder(preparedFrames);
+    return finalizeExport(encoded, outputFormat, watermarkMode, audioProfile);
+}
+
+byte[] finalizeExport(
+    byte[] encodedVideo,
+    String outputFormat,
+    String watermarkMode,
+    String audioProfile
+) {
+    if (!isSupportedFormat(outputFormat)) {
+        throw new IllegalArgumentException("Unsupported: " + outputFormat);
+    }
+    byte[] container = wrapContainer(encodedVideo, outputFormat);
+    return embedMetadata(container, watermarkMode, audioProfile);
+}
+```
+
+Вот теперь больно. `encodeWithRetry` принимает 4 параметра, использует 1. `encode` — то же самое. Три параметра едут транзитом через два метода, и ни один из них там не нужен.
+
+---
+
+### v3.1 — тест на retry
+
+```java
+@Test
+void shouldRetryOnEncoderFailure() {
+    encoder.failNextCalls(2);
+
+    byte[] result = flow.encodeWithRetry(
+        testFrames,
+        "mp4",          // retry не знает про формат
+        "brand-safe",   // retry не знает про watermark
+        "EBU_R128"      // retry не знает про аудио
+    );
+
+    assertEquals(3, encoder.callCount());
+    assertNotNull(result);
+}
+```
+
+Тест проверяет: "при двух падениях третья попытка успешна". Ему не нужны ни формат, ни watermark, ни аудиопрофиль. Но он обязан их передать. Если завтра добавят `hdrEnabled` — этот тест сломается, хотя retry-логика не менялась.
+
+---
+
+### v3.2 — каскадное изменение
+
+Спринт 22. Задача: "поддержать HDR в финализации экспорта". Один boolean. Четыре метода.
+
+```diff
+- byte[] exportVideo(byte[] sourceFrames, String outputFormat,
+-     String colorProfile, String subtitleTrack,
+-     String watermarkMode, String audioProfile)
++ byte[] exportVideo(byte[] sourceFrames, String outputFormat,
++     String colorProfile, String subtitleTrack,
++     String watermarkMode, String audioProfile,
++     boolean hdrEnabled)
+
+- byte[] encodeWithRetry(byte[] preparedFrames, String outputFormat,
+-     String watermarkMode, String audioProfile)
++ byte[] encodeWithRetry(byte[] preparedFrames, String outputFormat,
++     String watermarkMode, String audioProfile,
++     boolean hdrEnabled)
+
+- byte[] encode(byte[] preparedFrames, String outputFormat,
+-     String watermarkMode, String audioProfile)
++ byte[] encode(byte[] preparedFrames, String outputFormat,
++     String watermarkMode, String audioProfile,
++     boolean hdrEnabled)
+
+- byte[] finalizeExport(byte[] encodedVideo, String outputFormat,
+-     String watermarkMode, String audioProfile)
++ byte[] finalizeExport(byte[] encodedVideo, String outputFormat,
++     String watermarkMode, String audioProfile,
++     boolean hdrEnabled)
+```
+
+PR: 4 файла изменены, 12 строк добавлено, 12 удалено. Новая логика — только в `finalizeExport`. Остальные три метода — чистый шум. Ревьюер смотрит дифф и думает: "почему добавление одного флага трогает весь пайплайн?"
+
+---
+
+### Что это даёт видео
+
+- **v0→v1**: "всё нормально, код растёт"
+- **v2**: "первый pass-through, но один параметр — ок"
+- **v3**: "три параметра транзитом — сигнатуры гниют"
+- **v3.1**: "тест знает то, что не должен знать"
+- **v3.2**: "один boolean — четыре метода в PR"
+
+Каждый шаг — это реальная ситуация из реального спринта. Сеньор не скажет "надуманно", потому что он это делал на прошлой неделе.
+
+
+Да. И у тебя это уже почти есть — нужно только правильно расставить акценты.
+
+Вот как это выглядит в видео:
+
+---
+
+**Акт 1 — "Как мы сюда попали"** (эволюция v0→v3)
+
+Показываешь рост кода. Каждый шаг разумный. Зритель кивает: "ну да, нормально". Но к v3 уже 5 параметров едут транзитом.
+
+---
+
+**Акт 2 — "Почему это больно"** (v3.1 тест + v3.2 каскадный diff)
+
+Конкретная боль. Не абстрактная.
+
+---
+
+**Акт 3 — "Где ошибка"** (вот тут филигранность)
+
+Не "код плохой". А: **граница проведена не там**.
+
+Показываешь v3 и рисуешь границы модулей. Буквально — визуальные рамки вокруг групп методов:
+
+```
+┌─────────────────────────────────┐
+│ exportVideo                     │
+│   └─ prepareAndEncode           │  ← "оркестрация"
+│        ├─ prepareFrames         │
+│        └─ encodeWithRetry       │
+│             └─ encode           │  ← retry + encode + finalize
+│                  └─ finalize    │     слиплись в одну границу
+└─────────────────────────────────┘
+```
+
+`encodeWithRetry` → `encode` → `finalizeExport` — это три метода, которые кто-то засунул в одну вертикальную цепочку. Retry оборачивает не только энкодинг, но и финализацию. Граница retry-модуля **захватила чужую ответственность**.
+
+---
+
+**Акт 4 — "Правильные границы"**
+
+Перерисовываешь:
+
+```
+┌──────────────────────────────────┐
+│ export (оркестратор)             │
+│   ├─ prepareFrames(clip, config) │  ← знает про config
+│   ├─ encodeWithRetry(frames)     │  ← знает только про кадры
+│   └─ finalizeExport(payload, config) │  ← знает про config
+└──────────────────────────────────┘
+```
+
+Три модуля. У каждого своя граница. Оркестратор раздаёт параметры. Никакого транзита.
+
+---
+
+**Визуально для анимации:**
+
+Это можно показать буквально как перетаскивание блоков. v3 — вертикальная цепочка (глубокая вложенность). Потом блоки "вытаскиваются" наверх и становятся в ряд — плоская оркестрация. `finalizeExport` отрывается от `encode`, `encodeWithRetry` сжимается до одной обязанности.
+
+Это будет сильный визуальный момент: из дерева — в плоскую структуру. Из транзита — в прямую доставку.
+
+
+Да, остаёмся на утверждённом плане. Просто замена имени:
+
+| Версия | План (было `wrapContainer`) | Реализация (будет `finalizeExport`) |
+|---|---|---|
+| v0 | `return wrapContainer(encoded, outputFormat)` | `return finalizeExport(encoded, outputFormat)` |
+| v2 (внутри `encode`) | `return finalizeExport(encoded, outputFormat)` с валидацией + `wrapContainer` | `return packageOutput(encoded, outputFormat)` с валидацией + `finalizeExport` |
+
+Всё остальное по плану без изменений:
+- v1: `colorProfile` добавляется в сигнатуру `exportVideo`, `prepareFrames(sourceFrames, colorProfile)` — чисто
+- v2: `subtitleTrack` + `encodeWithRetry` — первый pass-through `outputFormat`
+- v3: 6 параметров, 3 транзитом
+- v3.1: тест
+- v3.2: каскадный diff от одного boolean
+
+Значит сейчас нужно поправить v0 и v1 в сцене. Главное изменение — в v1 добавить `colorProfile` как параметр `exportVideo`.

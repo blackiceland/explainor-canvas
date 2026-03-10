@@ -1,4 +1,4 @@
-﻿import {blur, Circle, Line, makeScene2D, Node, Rect, Txt} from '@motion-canvas/2d';
+import {blur, Circle, Line, makeScene2D, Node, Rect, Txt} from '@motion-canvas/2d';
 import {all, createRef, createSignal, easeInOutCubic, waitFor} from '@motion-canvas/core';
 import {CodeBlock} from '../core/code/components/CodeBlock';
 import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
@@ -602,12 +602,17 @@ export default makeScene2D(function* (view) {
   const nodeW = 520;
   const nodeH = 120;
 
-  // FIXED lens geometry (no animation — lens is static).
-  // Symmetric layout: top two circles shifted up, bottom one shifted down from center.
-  const lensSepX = 180;
-  const lensSepYTop = -70;   // Y offset for left/right circles (above center)
-  const lensSepYBot = 140;   // Y offset for bottom circle (below center)
-  const circleSize = 520;
+  // Lens geometry (animated during morph for higher quality).
+  // Start as a small circle (all three circles coincide), then expand/separate into the lens.
+  const lensSepXFinal = 180;
+  const lensSepYTopFinal = -70; // Y offset for left/right circles (above center)
+  const lensSepYBotFinal = 140; // Y offset for bottom circle (below center)
+  const circleSizeFinal = 520;
+
+  const lensSepX = createSignal(0);
+  const lensSepYTop = createSignal(0);
+  const lensSepYBot = createSignal(0);
+  const circleSize = createSignal(160);
 
 
   // Hide previous big code blocks and prepare the hub stage.
@@ -635,9 +640,9 @@ export default makeScene2D(function* (view) {
         opacity={1}
       />
 
-      {/* Lens + domain circles: STATIC geometry, NO animation on the shape itself.
+      {/* Lens + domain circles:
           The lens is implemented via nested clip (intersection of 3 disks).
-          It's always on screen (behind the hub). Hub just fades out, revealing it seamlessly. */}
+          During the morph we animate circle size + separation so it transforms from a circle into the lens. */}
       <Node
         ref={venn}
         x={() => hub().position.x()}
@@ -648,9 +653,9 @@ export default makeScene2D(function* (view) {
         {/* Domain circles (behind the lens) — symmetric layout */}
         <Circle
           ref={domL}
-          size={circleSize}
-          x={-lensSepX}
-          y={lensSepYTop}
+          size={() => circleSize()}
+          x={() => -lensSepX()}
+          y={() => lensSepYTop()}
           fill={DOMAIN_CIRCLE_FILL}
           stroke={DOMAIN_CIRCLE_STROKE}
           lineWidth={2}
@@ -658,9 +663,9 @@ export default makeScene2D(function* (view) {
         />
         <Circle
           ref={domR}
-          size={circleSize}
-          x={lensSepX}
-          y={lensSepYTop}
+          size={() => circleSize()}
+          x={() => lensSepX()}
+          y={() => lensSepYTop()}
           fill={DOMAIN_CIRCLE_FILL}
           stroke={DOMAIN_CIRCLE_STROKE}
           lineWidth={2}
@@ -668,9 +673,9 @@ export default makeScene2D(function* (view) {
         />
         <Circle
           ref={domB}
-          size={circleSize}
+          size={() => circleSize()}
           x={0}
-          y={lensSepYBot}
+          y={() => lensSepYBot()}
           fill={DOMAIN_CIRCLE_FILL}
           stroke={DOMAIN_CIRCLE_STROKE}
           lineWidth={2}
@@ -678,12 +683,20 @@ export default makeScene2D(function* (view) {
         />
 
         {/* Lens fill via nested clip (stable intersection of 3 circles) — symmetric */}
-        <Circle clip size={circleSize} x={-lensSepX} y={lensSepYTop} fill={'#00000000'}>
-          <Circle clip size={circleSize} x={lensSepX * 2} y={0} fill={'#00000000'}>
-            <Circle clip size={circleSize} x={-lensSepX} y={lensSepYBot - lensSepYTop} fill={'#00000000'}>
+        <Circle clip size={() => circleSize()} x={() => -lensSepX()} y={() => lensSepYTop()} fill={'#00000000'}>
+          {/* 2nd circle is positioned relative to the 1st */}
+          <Circle clip size={() => circleSize()} x={() => lensSepX() * 2} y={0} fill={'#00000000'}>
+            {/* 3rd circle positioned relative to the 2nd */}
+            <Circle
+              clip
+              size={() => circleSize()}
+              x={() => -lensSepX()}
+              y={() => lensSepYBot() - lensSepYTop()}
+              fill={'#00000000'}
+            >
               <Rect
-                width={circleSize * 3}
-                height={circleSize * 3}
+                width={() => circleSize() * 3}
+                height={() => circleSize() * 3}
                 fill={DEP_BLUE}
               />
             </Circle>
@@ -704,8 +717,8 @@ export default makeScene2D(function* (view) {
         shadowBlur={10}
         shadowOffset={[0, 2]}
         opacity={0}
-        x={-lensSepX - 120}
-        y={lensSepYTop}
+        x={() => -lensSepX() - 120}
+        y={() => lensSepYTop()}
       />
       <Txt
         ref={domRLabel}
@@ -718,8 +731,8 @@ export default makeScene2D(function* (view) {
         shadowBlur={10}
         shadowOffset={[0, 2]}
         opacity={0}
-        x={lensSepX + 120}
-        y={lensSepYTop}
+        x={() => lensSepX() + 120}
+        y={() => lensSepYTop()}
       />
       <Txt
         ref={domBLabel}
@@ -733,14 +746,14 @@ export default makeScene2D(function* (view) {
         shadowOffset={[0, 2]}
         opacity={0}
         x={0}
-        y={lensSepYBot + 140}
+        y={() => lensSepYBot() + 140}
       />
 
       {/* Domain card frames — same fill and stroke as domain circles */}
       <Rect
         ref={left}
-        x={-lensSepX - 120}
-        y={lensSepYTop}
+        x={() => -lensSepX() - 120}
+        y={() => lensSepYTop()}
         width={nodeW}
         height={nodeH}
         radius={PanelStyle.radiusSmall}
@@ -754,8 +767,8 @@ export default makeScene2D(function* (view) {
       />
       <Rect
         ref={right}
-        x={lensSepX + 120}
-        y={lensSepYTop}
+        x={() => lensSepX() + 120}
+        y={() => lensSepYTop()}
         width={nodeW}
         height={nodeH}
         radius={PanelStyle.radiusSmall}
@@ -770,7 +783,7 @@ export default makeScene2D(function* (view) {
       <Rect
         ref={bottom}
         x={0}
-        y={lensSepYBot + 140}
+        y={() => lensSepYBot() + 140}
         width={nodeW}
         height={nodeH}
         radius={PanelStyle.radiusSmall}
@@ -788,7 +801,8 @@ export default makeScene2D(function* (view) {
   commonBlock.node.opacity(0);
 
   // Morph hub (square) into the lens:
-  // Hub shrinks and becomes rounder while fading out; lens simply fades in.
+  // Hub shrinks and becomes rounder while fading out;
+  // lens starts as the same small circle and morphs into the final lens (higher quality).
   const morphDur = Timing.slow;
   venn().opacity(0);
 
@@ -797,7 +811,11 @@ export default makeScene2D(function* (view) {
     hub().size([160, 160], morphDur, easeInOutCubic),
     hub().radius(80, morphDur, easeInOutCubic),
     hub().opacity(0, morphDur, easeInOutCubic),
-    // Lens simply fades in (no scale)
+    // Lens fades in while its geometry morphs from circle -> lens
+    circleSize(circleSizeFinal, morphDur, easeInOutCubic),
+    lensSepX(lensSepXFinal, morphDur, easeInOutCubic),
+    lensSepYTop(lensSepYTopFinal, morphDur, easeInOutCubic),
+    lensSepYBot(lensSepYBotFinal, morphDur, easeInOutCubic),
     venn().opacity(1, morphDur, easeInOutCubic),
   );
 

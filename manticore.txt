@@ -1,0 +1,121 @@
+Мантикора: архитектура системы анимации кода (тезисно)
+
+1) Цель системы
+- Декларативно анимировать эволюцию кода без "мигания" и исчезновения блоков.
+- Поддерживать переиспользуемый pipeline для разных сцен.
+- Гарантировать читаемость: видимость активного блока, предсказуемый скролл, стабильные цвета.
+
+2) Основные компоненты
+- `JavaModel` — предметная модель Java-кода (методы, параметры, body, рендер в строку).
+- `Medusa` — режиссер: применяет высокоуровневые команды к модели и вызывает движок.
+- `Manticore` — низкоуровневый движок морфинга строк и токенов.
+- `MorphDirector` — вычисление блоков анимации (`start/end/safeEnd`) для скролла.
+- `MorphProfiles` — именованные пресеты MorphOptions для стандартизации стиля анимаций.
+- `ManticoreRuntimeValidator` — runtime-проверки после каждого morph.
+- `LineDiff` — LCS-diff по строкам.
+- `TokenDiff` — LCS-diff по токенам внутри строки.
+- `CodeLine` — визуальный слой одной строки (токены, цвета, opacity, typewriter).
+- `Tokenizer`/`SyntaxTheme` — синтаксическая разметка и цветовые правила.
+
+3) Роли и границы ответственности
+- `JavaModel` не знает про Motion Canvas и анимацию.
+- `Medusa` не занимается diff-алгоритмами; только orchestration.
+- `Manticore` не знает бизнес-смысл сцены; только визуальная трансформация текста.
+- Сцена оперирует в основном через `Medusa`, а не прямыми state-строками.
+
+4) Поток данных
+- Сцена вызывает команды `Medusa` (`addParam`, `setBody`, `addMethod`, `apply`).
+- `Medusa` мутирует `JavaModel`, рендерит новый текст и передает его в `Manticore.morphTo`.
+- `Manticore` строит план diff и исполняет анимационный pipeline.
+
+5) Pipeline `Manticore.morphTo`
+- Phase A: remove (fade-out удаляемых строк + optional flash removed tokens).
+- Phase B: prepare state (переназначение keep/modify, создание add-строк).
+- Phase C: settle (подготовка перемещений reused-строк к целевым Y).
+- Phase D: animate blocks (modify/add по блокам, typewriter/fade, block-scroll).
+- Commit: обновление `this.lines` и `this.code`.
+
+6) Скролл-стратегии
+- `block` — скролл блоками, без построчного сопровождения хвоста.
+- `blockWithTail` — блочно + мягкое сопровождение хвоста больших вставок.
+- `auto` — интеллектуальный выбор: если блок целиком видим — без скролла; если нет — jump к концу блока. Линейный скролл не используется.
+- `safeEnd` вычисляется в `MorphDirector` (для малых блоков ≤6 строк хвост отключен).
+- `Medusa` дополнительно не скроллит к методу, если строка уже видима (`isLineVisible`).
+
+7) Качество анимации
+- Modify выполняется in-place через token diff, без полного исчезновения строки.
+- Add поддерживает `typewriter` и `fade`.
+- Flash removed tokens поддерживает `reverseType` — посимвольное стирание с подсветкой.
+- Цвета пере-применяются после mutate/add через `applyRules`.
+- Character delay логика унифицирована через `charDelay()` в TextMeasure (единая точка).
+
+8) Архитектурная чистота (ревизия)
+- `morphTo` декомпозирован на приватные фазы (опции, remove, prepare, animate).
+- Дублирование viewport-вычислений устранено (`viewMetrics()`).
+- Мёртвое поле `TokenVisibility.total` удалено.
+- Дубликат `findMethodSignaturePrefix` в `Medusa` удалён — используется `methodPrefix`.
+- Двойной вызов `model.render()` в `Medusa.morph()` устранён (кэширование).
+- `states.ts` использует `JavaModel.render()` вместо дублированной `wrapLine`.
+- Бесполезный regex-флаг `'s'` убран из `JavaModel.updateCallArgs`.
+- Trailing blank lines и мёртвый formatting вычищены по всей кодовой базе.
+- `charDelay` timing для typewriter извлечён в единый хелпер (3 точки → 1).
+
+9) Morph-профили
+- Профили: `stableExpand`, `methodAdd`, `methodAddFade`, `argSwap`.
+- `Medusa` принимает `profile` в morph-опциях и выбирает fallback-профиль по типу операции.
+- Профили снимают ручную настройку `MorphOptions` в сценах.
+
+10) Runtime-валидация
+- `ManticoreRuntimeValidator` проверяет после каждого morph:
+  `LINE_OVERFLOW`, `ANCHOR_NOT_VISIBLE`, `BLOCK_SCROLL_VIOLATION`.
+- `Manticore` предоставляет `getLastMorphReport()` с телеметрией.
+- `Medusa` автоматически вызывает валидатор (configurable: enabled/strict/logger).
+
+11) Golden checks
+- Скрипт: `scripts/manticore-golden.mjs`, команда: `npm run test:manticore:golden`.
+- Проверяет ключевые переходы: subtitleTrack, encodeWithRetry, prepareFrames expansion, finalizeExport.
+
+12) Расширяемость
+- Новые сцены пишутся командами `Medusa` + редкими low-level вызовами `dir.cb`.
+- Morph-профили расширяются добавлением строки в `MorphProfiles.ts`.
+- `JavaModel` расширяется новыми примитивами без изменений в сценах.
+- `CodeLine` содержит полный набор low-level анимаций (typewriter, replaceToken, insertBefore, removeToken) для прямого использования в сложных сценах.
+
+13) CodePoster — быстрый рендер «постерных» сцен с кодом
+- Файл: `core/code/components/CodePoster.ts`.
+- Назначение: отображение статического блока кода на весь экран (без анимации морфинга).
+  Типичный кейс — показать класс, интерфейс, сниппет как визуальную карточку.
+- API:
+  ```
+  const poster = CodePoster.create(javaSource, {
+    fontSize: 48,          // default 48
+    lineHeight: 90,        // default 90
+    fontFamily: Fonts.code, // default
+    theme: PosterTheme,    // default — мягкая тёмная палитра
+    bg: '#121212',         // default
+    customTypes: ['ExportContext', 'DSLContext'], // доп. типы для Tokenizer
+  });
+  poster.mount(view);      // добавляет Rect-фон + Code с drawHooks
+  yield* poster.fadeIn();   // плавное появление
+  yield* poster.fadeOut();  // плавное исчезновение
+  poster.code              // прямой доступ к Code-ноде
+  poster.background        // прямой доступ к Rect-фону
+  ```
+- Внутри использует `Code` из `@motion-canvas/2d` с `drawHooks`, которые вызывают
+  `tokenizeLine` из `Tokenizer` и `getTokenColor` из `SyntaxTheme`.
+  Это гарантирует единообразную раскраску без ручного парсинга в каждой сцене.
+- `PosterTheme` — экспортируемая тема по умолчанию (keyword: фиолетовый, type: голубой,
+  field/plain: кремово-серый, punctuation: приглушённый серый).
+- Расширяемость: можно передать любую `SyntaxTheme` или переопределить `customTypes`
+  для корректного распознавания доменных типов.
+
+14) Текущие ограничения
+- `JavaModel` поддерживает только Java; для других языков потребуется аналогичная модель.
+- `Tokenizer` использует regex-эвристику, не полноценный парсер. Для покрытия 100% синтаксиса Java потребуется tree-sitter/shiki.
+- `blockWithTail` требует аккуратной настройки порогов для больших блоков.
+
+15) Практический стандарт использования
+- Логику кода описывать через `JavaModel`.
+- Переходы сценария выражать через `Medusa`.
+- В `Manticore` менять только алгоритмические части рендера/морфинга.
+- Избегать ручных state-строк и ad-hoc скроллов в сценах.

@@ -2,6 +2,35 @@
 когда пример надуманы и легко подаются критике. мои примеры должны быть реальными, а не надуманными, и иметь реальную боль.
 не хочу, чтобы сениоры меня уничтожили фактами в комментариях.
 
+мне нужен пример не надуманный, а который реально может возникнуть в энтерпрайсе. все мои примеры на java, но я не хочу
+привязываться сильно к особенностям фрейворков java, например spring или что-то типа этого в своих примерах.
+и больше всего меня беспокоит эффект "дядюшки Боба" -
+когда пример надуманы и легко подаются критике. мои примеры должны быть реальными, а не надуманными, и иметь реальную боль.
+не хочу, чтобы сениоры меня уничтожили критикой в комментариях.
+
+
+ПРАВИЛА ДЛЯ КОДА В АНИМАЦИИ:
+- Имена переменных — существительные: normalizedFrames, coloredFrames, encodedVideo (не normalized, recolored, encoded)
+- Пустые строки между логическими блоками внутри метода
+- Без комментариев, кроме осмысленных намерений (/* retry */)
+- Все переменные, методы, типы — в COLOR_RULES
+- byte[] — TYPE_CLEAN, String — TYPE_CLEAN
+- Имена методов в объявлении — VAR_LIGHT, в вызовах — METHOD_COLOR
+- regex ^name$ для точного матча чтобы не захватить подстроки
+- findLine() вызывать ДО мутаций строки
+- После replaceInLine — colorizeRange если цвет токена изменился
+- removeInLine с nextToo:true если нужно убрать пробел после токена
+
+используй CodeBlock2
+
+Manticore
+
+Медуза — слой режиссуры поверх Мантикоры. Мантикора анимирует текст, Медуза понимает код. Химера валидирует результат.
+
+Вызовы методов — розовый (#FF8CA3)
+Определения методов — белый (через extraColorRules с VAR_LIGHT)
+Акцент — розовый (rgba(255, 100, 130, 0.95))
+
 
 прочти:
 C:\Users\anton\IdeaProjects\canvas\motion-canvas\DAEDALUS.txt
@@ -10,7 +39,8 @@ C:\Users\anton\IdeaProjects\canvas\motion-canvas\COOKBOOK.txt
 и напиши ок.
 
 
-
+taskkill /F /T /IM "Docker Desktop.exe"
+taskkill /F /T /IM "com.docker.backend.exe"
 
 cd scripts
 npm run daedalus:up
@@ -26,7 +56,11 @@ cd C:\Users\anton\IdeaProjects\canvas\motion-canvas\output\project
 C:\ffmpeg\bin\ffmpeg.exe -framerate 60 -start_number 0 -i %06d.png -c:v libx264 -pix_fmt yuv420p -crf 18 -preset slow ..\video.mp4
 
 cd C:\Users\black\IdeaProjects\explainor-canvas\motion-canvas\output\project
-C:\ffmpeg\bin\ffmpeg.exe -framerate 60 -start_number 0 -i %06d.png -c:v libx264 -pix_fmt yuv420p -crf 18 -preset slow ..\video.mp4
+C:\ffmpeg\bin\ffmpeg.exe -framerate 60 -start_number 0 -i %06d.png -c:v libx264 -pix_fmt yuv420p -crf 18 -preset slow ..\video3.mp4
+
+
+cd C:\Users\anton\IdeaProjects\canvas\motion-canvas\output\project
+C:\ProgramData\chocolatey\bin\ffmpeg.exe -framerate 60 -start_number 0 -i %06d.png -c:v libx264 -pix_fmt yuv420p -crf 18 -preset slow ..\video4.mp4
 
 
 
