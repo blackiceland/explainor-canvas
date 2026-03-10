@@ -8,78 +8,31 @@ import {Fonts, Screen, Timing} from '../core/theme';
 import {CODE_V3f} from './codeWithActionsSceneRu.states';
 import {CODE_CARD_STYLE, CODE_W, LEFT_CENTER_X} from './codeWithActionsSceneRu.config';
 
-interface BeatFlash {
-  at: number;
-  tokens: string[];
-  lineHints: string[];
-}
+const DARK = 0.05;
+const GLOW = 0.95;
+const RISE = 0.3;
+const HOLD = 0.5;
+const DECAY = 1.4;
 
-const BASE_ALPHA = 0.06;
-const METHOD_PEAK = 1.0;
-const ARGS_PEAK = 0.88;
-const SCROLL_DURATION = 28;
+const PASS_THROUGH_ARGS = ['outputFormat', 'watermarkMode', 'audioProfile'];
 
-// Акт 1: вспышки сигнатур методов — по одному, сверху вниз
-const METHOD_FLASHES: BeatFlash[] = [
-  {at: 1.2, tokens: ['exportVideo'], lineHints: ['exportVideo(']},
-  {at: 2.9, tokens: ['prepareFrames'], lineHints: ['prepareFrames(']},
-  {at: 4.6, tokens: ['encodeWithRetry'], lineHints: ['encodeWithRetry(']},
-  {at: 6.3, tokens: ['encode'], lineHints: ['private byte[] encode(', 'return encode(']},
-  {at: 8.0, tokens: ['finalizeExport'], lineHints: ['finalizeExport(']},
+const METHODS = [
+  {name: 'exportVideo',     sig: 'exportVideo('},
+  {name: 'prepareFrames',   sig: 'prepareFrames('},
+  {name: 'encodeWithRetry', sig: 'encodeWithRetry('},
+  {name: 'encode',          sig: 'private byte[] encode('},
+  {name: 'finalizeExport',  sig: 'finalizeExport('},
 ];
-
-// Акт 2: вспышки pass-through аргументов — повторяющиеся имена
-const ARG_FLASHES: BeatFlash[] = [
-  {at: 10.2, tokens: ['outputFormat'], lineHints: ['outputFormat']},
-  {at: 11.4, tokens: ['watermarkMode'], lineHints: ['watermarkMode']},
-  {at: 12.6, tokens: ['audioProfile'], lineHints: ['audioProfile']},
-  {at: 14.0, tokens: ['outputFormat', 'watermarkMode', 'audioProfile'], lineHints: ['outputFormat', 'watermarkMode', 'audioProfile']},
-];
-
-// Акт 3: цепочка — метод, потом его аргументы, потом следующий метод...
-const CHAIN_FLASHES: BeatFlash[] = [
-  {at: 16.5, tokens: ['exportVideo'], lineHints: ['exportVideo(']},
-  {at: 17.2, tokens: ['outputFormat', 'watermarkMode', 'audioProfile'], lineHints: ['exportVideo(']},
-  {at: 18.4, tokens: ['prepareFrames'], lineHints: ['prepareFrames(']},
-  {at: 19.1, tokens: ['watermarkMode', 'audioProfile'], lineHints: ['prepareFrames(']},
-  {at: 20.3, tokens: ['encodeWithRetry'], lineHints: ['encodeWithRetry(']},
-  {at: 21.0, tokens: ['outputFormat', 'watermarkMode', 'audioProfile'], lineHints: ['encodeWithRetry(']},
-  {at: 22.2, tokens: ['encode'], lineHints: ['private byte[] encode(']},
-  {at: 22.9, tokens: ['outputFormat', 'watermarkMode', 'audioProfile'], lineHints: ['encode(']},
-  {at: 24.1, tokens: ['finalizeExport'], lineHints: ['finalizeExport(']},
-  {at: 24.8, tokens: ['outputFormat', 'watermarkMode', 'audioProfile'], lineHints: ['finalizeExport(']},
-];
-
-// Финал: все pass-through аргументы горят, остальное тонет
-const FINALE_AT = 26.0;
-const FINALE_TOKENS = ['outputFormat', 'watermarkMode', 'audioProfile'];
 
 export default makeScene2D(function* (view) {
   view.add(
-    <Rect
-      width={Screen.width}
-      height={Screen.height}
-      fill={'#050608'}
-    />,
+    <Rect width={Screen.width} height={Screen.height} fill={'#04060a'} />,
   );
 
   const fontSize = 24;
   const lineHeight = Math.round(fontSize * 1.62 * 10) / 10;
   const topInset = Math.max(8, getCodePaddingY(fontSize) - 8);
   const blockHeight = SafeZone.bottom - SafeZone.top - 44;
-
-  const coldTheme = {
-    ...DryFiltersV3CodeTheme,
-    plain: 'rgba(210,216,228,0.92)',
-    punctuation: 'rgba(180,188,206,0.80)',
-    operator: 'rgba(175,185,205,0.78)',
-    keyword: 'rgba(140,170,220,0.88)',
-    type: 'rgba(175,162,215,0.85)',
-    method: 'rgba(220,228,245,0.95)',
-    string: 'rgba(180,190,210,0.82)',
-    number: 'rgba(170,158,215,0.85)',
-    comment: 'rgba(120,128,148,0.65)',
-  };
 
   const code = CodeBlock.fromCode(CODE_V3f, {
     x: LEFT_CENTER_X - 50,
@@ -90,93 +43,122 @@ export default makeScene2D(function* (view) {
     lineHeight,
     contentOffsetY: topInset,
     fontFamily: Fonts.code,
-    theme: coldTheme,
-    cardStyle: {
-      ...CODE_CARD_STYLE,
-      fill: 'rgba(0,0,0,0)',
-      stroke: 'rgba(255,255,255,0.03)',
-      strokeWidth: 1,
+    theme: {
+      ...DryFiltersV3CodeTheme,
+      plain: 'rgba(200,208,224,0.90)',
+      punctuation: 'rgba(170,180,200,0.75)',
+      operator: 'rgba(165,178,200,0.72)',
+      keyword: 'rgba(130,165,215,0.85)',
+      type: 'rgba(168,155,210,0.82)',
+      method: 'rgba(215,225,245,0.94)',
+      string: 'rgba(172,184,206,0.80)',
+      number: 'rgba(162,150,210,0.82)',
+      comment: 'rgba(110,118,140,0.60)',
     },
+    cardStyle: {...CODE_CARD_STYLE, fill: 'rgba(0,0,0,0)', stroke: 'rgba(0,0,0,0)'},
     glowAccent: false,
     customTypes: ['String', 'RuntimeException', 'IllegalStateException', 'IllegalArgumentException', 'Muxer', 'Container'],
   });
   code.mount(view);
 
-  yield* code.appear(Timing.normal);
-  yield* waitFor(0.15);
-
-  const dimAnims: ThreadGenerator[] = [];
-  for (let i = 0; i < code.lineCount; i++) {
-    dimAnims.push(code.setLineTokensOpacity(i, BASE_ALPHA, 0.5));
-  }
-  yield* all(...dimAnims);
-
   const lines = CODE_V3f.split('\n');
 
-  const findLines = (hints: string[]) =>
+  const findLines = (hint: string): number[] =>
     lines
-      .map((line: string, idx: number) => ({line, idx}))
-      .filter(({line}: {line: string}) => hints.some(h => line.includes(h)))
-      .map(({idx}: {idx: number}) => idx);
+      .map((l: string, i: number) => ({l, i}))
+      .filter(({l}: {l: string}) => l.includes(hint))
+      .map(({i}: {i: number}) => i);
 
-  function* flash(event: BeatFlash, peak: number): ThreadGenerator {
-    const targets = findLines(event.lineHints);
-    if (targets.length === 0) return;
+  const findLinesAny = (hints: string[]): number[] => {
+    const set = new Set<number>();
+    for (const h of hints) for (const i of findLines(h)) set.add(i);
+    return [...set];
+  };
 
+  yield* code.appear(0.6);
+
+  // Весь код уходит в темноту
+  const dimAll: ThreadGenerator[] = [];
+  for (let i = 0; i < code.lineCount; i++) {
+    dimAll.push(code.setLineTokensOpacity(i, DARK, 0.8));
+  }
+  yield* all(...dimAll);
+
+  yield* waitFor(1.2);
+
+  // Медленное свечение: быстрый подъём, пауза, долгое угасание
+  function* glowLine(lineIdx: number, duration?: number): ThreadGenerator {
+    yield* code.setLineTokensOpacity(lineIdx, GLOW, RISE);
+    yield* waitFor(duration ?? HOLD);
+    yield* code.setLineTokensOpacity(lineIdx, DARK, DECAY);
+  }
+
+  function* glowTokens(lineIndexes: number[], tokens: string[], duration?: number): ThreadGenerator {
     const up: ThreadGenerator[] = [];
-    for (const i of targets) {
-      up.push(code.setLineTokensOpacityMatching(i, event.tokens, peak, 0.08));
+    for (const i of lineIndexes) {
+      up.push(code.setLineTokensOpacityMatching(i, tokens, GLOW, RISE));
     }
     yield* all(...up);
-
-    yield* waitFor(0.12);
-
+    yield* waitFor(duration ?? HOLD);
     const down: ThreadGenerator[] = [];
-    for (const i of targets) {
-      down.push(code.setLineTokensOpacityMatching(i, event.tokens, BASE_ALPHA, 0.5));
+    for (const i of lineIndexes) {
+      down.push(code.setLineTokensOpacityMatching(i, tokens, DARK, DECAY));
     }
     yield* all(...down);
   }
 
-  const allEvents = [
-    ...METHOD_FLASHES.map(e => ({...e, peak: METHOD_PEAK})),
-    ...ARG_FLASHES.map(e => ({...e, peak: ARGS_PEAK})),
-    ...CHAIN_FLASHES.map(e => ({...e, peak: METHOD_PEAK})),
-  ].sort((a, b) => a.at - b.at);
-
-  function* runBeats(): ThreadGenerator {
-    let cursor = 0;
-    for (const event of allEvents) {
-      const delta = Math.max(0, event.at - cursor);
-      if (delta > 0) yield* waitFor(delta);
-      cursor = event.at;
-      yield* flash(event, event.peak);
-      cursor += 0.7;
-    }
-
-    // Финал: все pass-through аргументы загораются и остаются
-    const finaleWait = Math.max(0, FINALE_AT - cursor);
-    if (finaleWait > 0) yield* waitFor(finaleWait);
-
-    const finaleLines = findLines(FINALE_TOKENS);
-    const finaleUp: ThreadGenerator[] = [];
-    for (const i of finaleLines) {
-      finaleUp.push(code.setLineTokensOpacityMatching(i, FINALE_TOKENS, ARGS_PEAK, 0.6));
-    }
-    yield* all(...finaleUp);
-  }
-
+  // Скролл-параметры
   const clipHeight = blockHeight - topInset * 2;
-  const targetLastY = clipHeight / 2 - lineHeight / 2 - 16;
   const startY = -clipHeight / 2 + topInset + lineHeight / 2;
   const currentLastY = startY + (lines.length - 1) * lineHeight;
+  const targetLastY = clipHeight / 2 - lineHeight / 2 - 16;
   const scrollAmount = Math.max(0, currentLastY - targetLastY + 40);
 
+  // Пять пар: имя метода → pass-through аргументы.
+  // Между парами — тишина и скролл.
+  // ~3.5с на фразу пианино ≈ один такт Atlantean Twilight (~80 BPM, 3/4)
+  function* directedBeats(): ThreadGenerator {
+    for (let m = 0; m < METHODS.length; m++) {
+      const method = METHODS[m];
+      const sigLines = findLines(method.sig);
+      const argLines = findLinesAny(PASS_THROUGH_ARGS)
+        .filter(i => sigLines.length > 0 && Math.abs(i - sigLines[0]) < 12);
+
+      // Имя метода светится
+      for (const i of sigLines) {
+        yield* glowLine(i);
+      }
+
+      yield* waitFor(1.0);
+
+      // Pass-through аргументы на соседних строках
+      if (argLines.length > 0) {
+        yield* glowTokens(argLines, PASS_THROUGH_ARGS);
+      }
+
+      // Дыхание перед следующим методом
+      if (m < METHODS.length - 1) {
+        yield* waitFor(1.8);
+      }
+    }
+
+    // Финал: все pass-through аргументы во всём коде загораются и остаются
+    yield* waitFor(1.5);
+    const allArgLines = findLinesAny(PASS_THROUGH_ARGS);
+    const finaleUp: ThreadGenerator[] = [];
+    for (const i of allArgLines) {
+      finaleUp.push(code.setLineTokensOpacityMatching(i, PASS_THROUGH_ARGS, GLOW, 0.8));
+    }
+    yield* all(...finaleUp);
+
+    yield* waitFor(3.0);
+  }
+
   yield* all(
-    code.animateScrollY(scrollAmount, SCROLL_DURATION),
-    runBeats(),
+    code.animateScrollY(scrollAmount, 38),
+    directedBeats(),
   );
 
-  yield* waitFor(2.0);
-  yield* code.disappear(0.8);
+  yield* waitFor(0.8);
+  yield* code.disappear(1.2);
 });
