@@ -73,7 +73,7 @@ export default makeProject({
         jackIntroSceneEn,
         codeWithActionsSceneRu,
         codeWithActionsSceneRuTilt,
-        guitarHeroPassThroughSceneRu,
+        // guitarHeroPassThroughSceneRu,
         contextObjectSceneRu,
         contextRefactorSceneRu,
         globalStateSingletonSceneRu,
