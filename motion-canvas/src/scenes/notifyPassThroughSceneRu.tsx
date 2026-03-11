@@ -1,5 +1,5 @@
 import {makeScene2D} from '@motion-canvas/2d';
-import {waitFor} from '@motion-canvas/core';
+import {all, waitFor} from '@motion-canvas/core';
 import {CodeBlock} from '../core/code/components/CodeBlock';
 import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
 import {getCodePaddingX, measureChar} from '../core/code/shared/TextMeasure';
@@ -70,7 +70,32 @@ export default makeScene2D(function* (view) {
   }
 
   yield* code.appear(Timing.normal);
-  yield* waitFor(4);
-  yield* code.disappear(Timing.normal);
+  yield* waitFor(2);
+
+  const dimOpacity = 0.2;
+  const dimDuration = 1.1;
+  const glowBlur = 14;
+  const glowColor = 'rgba(255, 255, 255, 0.65)';
+  const dimAnims: ReturnType<typeof code.setLineTokensOpacity>[] = [];
+  const channelAnims: ReturnType<typeof code.setLineTokensOpacityMatching>[] = [];
+  const channelGlowAnims: ReturnType<typeof code.setLineTokensGlowMatching>[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    dimAnims.push(code.setLineTokensOpacity(i, dimOpacity, dimDuration));
+    channelAnims.push(code.setLineTokensOpacityMatching(i, ['channel'], 1, dimDuration));
+    channelGlowAnims.push(code.setLineTokensGlowMatching(i, ['channel'], glowBlur, glowColor, dimDuration));
+  }
+  yield* all(...dimAnims, ...channelAnims, ...channelGlowAnims);
+
+  yield* waitFor(2);
+  const restoreAnims: ReturnType<typeof code.setLineTokensOpacity>[] = [];
+  const resetGlowAnims: ReturnType<typeof code.resetLineTokensGlowMatching>[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    restoreAnims.push(code.setLineTokensOpacity(i, 1, dimDuration));
+    resetGlowAnims.push(code.resetLineTokensGlowMatching(i, ['channel'], dimDuration));
+  }
+  yield* all(...restoreAnims, ...resetGlowAnims);
+  yield* waitFor(0.5);
+
+  yield* code.disappear(1.2);
   yield* waitFor(0.5);
 });

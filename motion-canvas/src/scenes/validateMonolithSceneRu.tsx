@@ -71,6 +71,7 @@ private static void validateDisplayName(WhatsappChannelCreateRequest request) {
         throw new ValidationException(Violations.sizeMaxViolation("displayName", displayName, 255));
     }
 }
+
 private static void validateConnectionType(WhatsappChannelCreateRequest request) {
     String connectionTypeRaw = StringUtils.trimToNull(request.getConnectionType());
 

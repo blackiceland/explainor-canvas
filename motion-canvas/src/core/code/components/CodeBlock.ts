@@ -135,9 +135,10 @@ export class CodeBlock {
         container.add(cardNode);
 
         const clipHeight = Math.max(0, cardHeight - paddingY * 2);
+        const clipExtendBottom = 2000;
         const clipContainer = new Rect({
-            width: contentWidth,
-            height: clipHeight,
+            width: cardWidth,
+            height: clipHeight + clipExtendBottom,
             radius: 0,
             fill: '#00000000',
             clip: true,
@@ -392,6 +393,28 @@ export class CodeBlock {
         const line = this.lines[lineIndex];
         if (line) {
             yield* line.setTokensOpacity(patterns, opacity, duration);
+        }
+    }
+
+    /** Лёгкое свечение на токенах строки по паттернам. */
+    public *setLineTokensGlowMatching(
+        lineIndex: number,
+        patterns: string[],
+        blur: number,
+        color: string,
+        duration: number = 0.4,
+    ): ThreadGenerator {
+        const line = this.lines[lineIndex];
+        if (line) {
+            yield* line.setTokensGlow(patterns, blur, color, duration);
+        }
+    }
+
+    /** Сброс свечения на токенах строки по паттернам. */
+    public *resetLineTokensGlowMatching(lineIndex: number, patterns: string[], duration: number = 0.4): ThreadGenerator {
+        const line = this.lines[lineIndex];
+        if (line) {
+            yield* line.resetTokensGlow(patterns, duration);
         }
     }
 

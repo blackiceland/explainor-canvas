@@ -357,6 +357,36 @@ export class CodeLine {
         }
     }
 
+    /** Лёгкое свечение на токенах по паттернам (shadowBlur + shadowColor). */
+    public *setTokensGlow(patterns: string[], blur: number, color: string, duration: number = 0.4): ThreadGenerator {
+        const animations: ThreadGenerator[] = [];
+        for (const tokenData of this.tokensData) {
+            if (patterns.some(p => tokenData.text.includes(p))) {
+                animations.push(tokenData.ref().shadowBlur(blur, duration, easeInOutCubic));
+                animations.push(tokenData.ref().shadowColor(color, duration, easeInOutCubic));
+                animations.push(tokenData.ref().shadowOffset([0, 1], duration, easeInOutCubic));
+            }
+        }
+        if (animations.length > 0) {
+            yield* all(...animations);
+        }
+    }
+
+    /** Сброс свечения — возврат к originalShadow*. */
+    public *resetTokensGlow(patterns: string[], duration: number = 0.4): ThreadGenerator {
+        const animations: ThreadGenerator[] = [];
+        for (const tokenData of this.tokensData) {
+            if (patterns.some(p => tokenData.text.includes(p))) {
+                animations.push(tokenData.ref().shadowBlur(tokenData.originalShadowBlur, duration, easeInOutCubic));
+                animations.push(tokenData.ref().shadowColor(tokenData.originalShadowColor, duration, easeInOutCubic));
+                animations.push(tokenData.ref().shadowOffset(tokenData.originalShadowOffset, duration, easeInOutCubic));
+            }
+        }
+        if (animations.length > 0) {
+            yield* all(...animations);
+        }
+    }
+
     public get tokenCount(): number {
         return this.tokensData.length;
     }
