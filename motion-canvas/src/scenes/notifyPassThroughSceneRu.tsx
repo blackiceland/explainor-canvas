@@ -2,8 +2,7 @@ import {makeScene2D} from '@motion-canvas/2d';
 import {waitFor} from '@motion-canvas/core';
 import {CodeBlock} from '../core/code/components/CodeBlock';
 import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
-import {getCodePaddingY} from '../core/code/shared/TextMeasure';
-import {SafeZone} from '../core/ScreenGrid';
+import {getCodePaddingX, measureChar} from '../core/code/shared/TextMeasure';
 import {Fonts, Timing} from '../core/theme';
 import {applyBackground} from '../core/utils';
 
@@ -20,8 +19,8 @@ const CODE_CARD_STYLE = {
 } as const;
 
 const NOTIFY_CODE = `void notify(User user, String channel) {
-    String message = buildGreeting(user);
-    sender.send(message, channel);
+    String address = contacts.getAddress(user);
+    sender.send(address, channel);
 }`;
 
 export default makeScene2D(function* (view) {
@@ -29,24 +28,17 @@ export default makeScene2D(function* (view) {
 
   const fontSize = 52;
   const lineHeight = Math.round(fontSize * 1.62 * 10) / 10;
-  const topInset = Math.max(8, getCodePaddingY(fontSize) - 8);
-  const blockHeight = SafeZone.bottom - SafeZone.top - 30;
-  const blockWidth = SafeZone.right - SafeZone.left + 200;
+  const maxLineLen = Math.max(...NOTIFY_CODE.split('\n').map(l => l.length));
+  const blockWidth = maxLineLen * measureChar(fontSize) + getCodePaddingX(fontSize) * 2 + 40;
 
-  // 4 строки кода — центрируем блок вертикально вручную
-  const codeLines = 4;
-  const totalCodeH = codeLines * lineHeight;
-  const centeredY = -(blockHeight / 2 - totalCodeH / 2 - topInset);
-
+  // height: 0 → shouldTopAlign = false → код центрируется автоматически
   const code = CodeBlock.fromCode(NOTIFY_CODE, {
     x: 0,
-    y: centeredY,
+    y: 0,
     width: blockWidth,
-    height: blockHeight,
+    height: 0,
     fontSize,
     lineHeight,
-    contentOffsetX: 20,
-    contentOffsetY: topInset,
     fontFamily: Fonts.code,
     theme: DryFiltersV3CodeTheme,
     cardStyle: CODE_CARD_STYLE,
@@ -61,16 +53,20 @@ export default makeScene2D(function* (view) {
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    // переменные
-    const vars = ['user', 'channel', 'message', 'sender'].filter(t => new RegExp(`\\b${t}\\b`).test(line));
-    if (vars.length > 0) yield* code.recolorTokens(i, vars, VAR_LIGHT, 0);
     // типы
     if (line.includes('User') || line.includes('String')) {
       yield* code.recolorTokens(i, ['User', 'String'], TYPE_CLEAN, 0);
     }
-    // вызовы методов (не сигнатура notify)
-    const methods = ['buildGreeting', 'send'].filter(t => line.includes(t));
-    if (methods.length > 0) yield* code.recolorTokens(i, methods, DryFiltersV3CodeTheme.method, 0);
+    // вызовы методов — сначала, чтобы переменные потом перезаписали ложные совпадения
+    if (line.includes('getAddress(')) {
+      yield* code.recolorTokens(i, ['getAddress'], DryFiltersV3CodeTheme.method, 0);
+    }
+    if (line.includes('sender.send(')) {
+      yield* code.recolorTokens(i, ['send'], DryFiltersV3CodeTheme.method, 0);
+    }
+    // переменные — после методов, чтобы sender/contacts перекрыли ложные совпадения
+    const vars = ['user', 'channel', 'address', 'contacts', 'sender'].filter(t => new RegExp(`\\b${t}\\b`).test(line));
+    if (vars.length > 0) yield* code.recolorTokens(i, vars, VAR_LIGHT, 0);
   }
 
   yield* code.appear(Timing.normal);
