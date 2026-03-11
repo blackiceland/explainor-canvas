@@ -125,6 +125,7 @@ export default makeScene2D(function* (view) {
     fontSize,
     lineHeight,
     contentOffsetY: topInset,
+    contentPaddingBottom: 10,
     fontFamily: Fonts.code,
     theme: DryFiltersV3CodeTheme,
     cardStyle: CODE_CARD_STYLE,

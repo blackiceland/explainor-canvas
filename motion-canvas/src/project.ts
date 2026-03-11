@@ -69,7 +69,7 @@ export default makeProject({
 
         notifyPassThroughSceneRu,
         validateMonolithSceneRu,
-        starWarsCrawlSceneRu,
+        // starWarsCrawlSceneRu,
         jackIntroSceneEn,
         codeWithActionsSceneRu,
         codeWithActionsSceneRuTilt,

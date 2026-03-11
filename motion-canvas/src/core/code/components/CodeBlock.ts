@@ -23,6 +23,8 @@ export interface CodeBlockConfig {
     customTypes?: string[];
     contentOffsetX?: number;
     contentOffsetY?: number;
+    /** Нижний отступ области клипа (по умолчанию = paddingY). Меньше значение — меньше граница снизу. */
+    contentPaddingBottom?: number;
     glowAccent?: boolean;
 }
 
@@ -86,6 +88,7 @@ export class CodeBlock {
             customTypes: config.customTypes ?? [],
             contentOffsetX: config.contentOffsetX ?? 0,
             contentOffsetY: config.contentOffsetY ?? 0,
+            contentPaddingBottom: config.contentPaddingBottom ?? getCodePaddingY(fontSize),
             glowAccent: config.glowAccent ?? true,
         };
     }
@@ -134,11 +137,11 @@ export class CodeBlock {
         const cardNode = this.card.build();
         container.add(cardNode);
 
-        const clipHeight = Math.max(0, cardHeight - paddingY * 2);
-        const clipExtendBottom = 2000;
+        const bottomPadding = this.config.contentPaddingBottom ?? paddingY;
+        const clipHeight = Math.max(0, cardHeight - paddingY - bottomPadding);
         const clipContainer = new Rect({
             width: cardWidth,
-            height: clipHeight + clipExtendBottom,
+            height: clipHeight,
             radius: 0,
             fill: '#00000000',
             clip: true,
