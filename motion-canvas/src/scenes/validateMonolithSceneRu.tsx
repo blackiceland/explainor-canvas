@@ -90,6 +90,7 @@ private static void validateConnectionType(WhatsappChannelCreateRequest request)
         throw new ValidationException(Violations.enumViolation("connectionType", connectionTypeRaw));
     }
 }
+
 private static void validatePhoneNumber(WhatsappChannelCreateRequest request) {
     String phoneNumber = StringUtils.trimToNull(request.getPhoneNumber());
     String connectionTypeRaw = StringUtils.trimToNull(request.getConnectionType());
@@ -107,7 +108,7 @@ private static void validatePhoneNumber(WhatsappChannelCreateRequest request) {
 export default makeScene2D(function* (view) {
   applyBackground(view);
 
-  const fontSize = 24;
+  const fontSize = 28;
   const lineHeight = Math.round(fontSize * 1.62 * 10) / 10;
   const paddingY = getCodePaddingY(fontSize);
   const topInset = Math.max(8, paddingY - 8);

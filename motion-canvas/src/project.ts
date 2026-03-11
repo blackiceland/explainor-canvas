@@ -15,6 +15,8 @@ import validateMonolithSceneRu from "./scenes/validateMonolithSceneRu?scene";
 import starWarsCrawlSceneRu from "./scenes/starWarsCrawlSceneRu?scene";
 import jackIntroSceneEn from "./scenes/jackIntroSceneEn?scene";
 import guitarHeroPassThroughSceneRu from "./scenes/guitarHeroPassThroughSceneRu?scene";
+import passThroughIntroSceneRu from "./scenes/passThroughIntroSceneRu?scene";
+import notifyPassThroughSceneRu from "./scenes/notifyPassThroughSceneRu?scene";
 import passThroughPianoSceneRu from "./scenes/passThroughPianoSceneRu?scene";
 
 export default makeProject({
@@ -61,14 +63,16 @@ export default makeProject({
 
         // просто анимации
         // videoExportActionsSceneRu,
+        // passThroughPianoSceneRu,
 
         //02
+
+        notifyPassThroughSceneRu,
         validateMonolithSceneRu,
         starWarsCrawlSceneRu,
         jackIntroSceneEn,
         codeWithActionsSceneRu,
         codeWithActionsSceneRuTilt,
-        passThroughPianoSceneRu,
         guitarHeroPassThroughSceneRu,
         contextObjectSceneRu,
         contextRefactorSceneRu,

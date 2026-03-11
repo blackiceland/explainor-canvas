@@ -1,46 +1,57 @@
 import {makeScene2D, Rect} from '@motion-canvas/2d';
-import {all, easeInOutCubic, easeOutCubic, ThreadGenerator, waitFor} from '@motion-canvas/core';
+import {all, ThreadGenerator, waitFor} from '@motion-canvas/core';
 import {CodeBlock} from '../core/code/components/CodeBlock';
 import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
 import {getCodePaddingY} from '../core/code/shared/TextMeasure';
 import {SafeZone} from '../core/ScreenGrid';
-import {Fonts, Screen, Timing} from '../core/theme';
+import {Fonts, Screen} from '../core/theme';
 import {CODE_V3f} from './codeWithActionsSceneRu.states';
-import {CODE_CARD_STYLE, CODE_W, LEFT_CENTER_X} from './codeWithActionsSceneRu.config';
+import {CODE_CARD_STYLE} from './codeWithActionsSceneRu.config';
 
-const DARK = 0.05;
-const GLOW = 0.95;
-const RISE = 0.3;
-const HOLD = 0.5;
-const DECAY = 1.4;
+const DARK = 0.06;
+const GLOW = 0.98;
+const RISE = 0.16;
+const HOLD = 0.18;
+const DECAY = 0.60;
 
-const PASS_THROUGH_ARGS = ['outputFormat', 'watermarkMode', 'audioProfile'];
+interface FlashEvent {
+  lineHint: string;
+  method: string;
+  arg: string;
+  waitAfter: number;
+}
 
-const METHODS = [
-  {name: 'exportVideo',     sig: 'exportVideo('},
-  {name: 'prepareFrames',   sig: 'prepareFrames('},
-  {name: 'encodeWithRetry', sig: 'encodeWithRetry('},
-  {name: 'encode',          sig: 'private byte[] encode('},
-  {name: 'finalizeExport',  sig: 'finalizeExport('},
+// Один удар = одна пара (вызов + 1 pass-through аргумент).
+const FLASH_EVENTS: FlashEvent[] = [
+  {lineHint: 'validateInput(sourceFrames, outputFormat);', method: 'validateInput', arg: 'outputFormat', waitAfter: 1.0},
+  {lineHint: 'prepareFrames(sourceFrames, colorProfile, subtitleTrack);', method: 'prepareFrames', arg: 'colorProfile', waitAfter: 1.1},
+  {lineHint: 'encodeWithRetry(preparedFrames, outputFormat, watermarkMode, audioProfile);', method: 'encodeWithRetry', arg: 'watermarkMode', waitAfter: 1.2},
+  {lineHint: 'return encode(preparedFrames, outputFormat, watermarkMode, audioProfile);', method: 'encode', arg: 'audioProfile', waitAfter: 1.1},
+  {lineHint: 'runEncoder(preparedFrames);', method: 'runEncoder', arg: 'preparedFrames', waitAfter: 1.0},
+  {lineHint: 'return finalizeExport(encodedVideo, outputFormat, watermarkMode, audioProfile);', method: 'finalizeExport', arg: 'outputFormat', waitAfter: 1.2},
+  {lineHint: 'Muxer.mux(encodedVideo, outputFormat);', method: 'mux', arg: 'outputFormat', waitAfter: 1.0},
+  {lineHint: 'container.applyWatermark(watermarkMode);', method: 'applyWatermark', arg: 'watermarkMode', waitAfter: 0.95},
+  {lineHint: 'container.normalizeAudio(audioProfile);', method: 'normalizeAudio', arg: 'audioProfile', waitAfter: 1.2},
 ];
 
 export default makeScene2D(function* (view) {
-  view.add(
-    <Rect width={Screen.width} height={Screen.height} fill={'#04060a'} />,
-  );
+  view.add(<Rect width={Screen.width} height={Screen.height} fill={'#03050a'} />);
 
-  const fontSize = 24;
+  // Крупный код в центре.
+  const fontSize = 31;
   const lineHeight = Math.round(fontSize * 1.62 * 10) / 10;
   const topInset = Math.max(8, getCodePaddingY(fontSize) - 8);
-  const blockHeight = SafeZone.bottom - SafeZone.top - 44;
+  const blockHeight = SafeZone.bottom - SafeZone.top - 22;
+  const blockWidth = SafeZone.right - SafeZone.left + 240;
 
   const code = CodeBlock.fromCode(CODE_V3f, {
-    x: LEFT_CENTER_X - 50,
-    y: -20,
-    width: CODE_W,
+    x: 0,
+    y: 0,
+    width: blockWidth,
     height: blockHeight,
     fontSize,
     lineHeight,
+    contentOffsetX: 20,
     contentOffsetY: topInset,
     fontFamily: Fonts.code,
     theme: {
@@ -62,101 +73,58 @@ export default makeScene2D(function* (view) {
   code.mount(view);
 
   const lines = CODE_V3f.split('\n');
-
-  const findLines = (hint: string): number[] =>
-    lines
-      .map((l: string, i: number) => ({l, i}))
-      .filter(({l}: {l: string}) => l.includes(hint))
-      .map(({i}: {i: number}) => i);
-
-  const findLinesAny = (hints: string[]): number[] => {
-    const set = new Set<number>();
-    for (const h of hints) for (const i of findLines(h)) set.add(i);
-    return [...set];
-  };
+  const findFirstLine = (hint: string): number => lines.findIndex((line: string) => line.includes(hint));
 
   yield* code.appear(0.6);
 
-  // Весь код уходит в темноту
+  // Базовая тень на весь код.
   const dimAll: ThreadGenerator[] = [];
   for (let i = 0; i < code.lineCount; i++) {
     dimAll.push(code.setLineTokensOpacity(i, DARK, 0.8));
   }
   yield* all(...dimAll);
 
-  yield* waitFor(1.2);
-
-  // Медленное свечение: быстрый подъём, пауза, долгое угасание
-  function* glowLine(lineIdx: number, duration?: number): ThreadGenerator {
-    yield* code.setLineTokensOpacity(lineIdx, GLOW, RISE);
-    yield* waitFor(duration ?? HOLD);
-    yield* code.setLineTokensOpacity(lineIdx, DARK, DECAY);
+  // Сначала крупняком светится сигнатура метода.
+  const startSigLine = findFirstLine('public byte[] exportVideo');
+  if (startSigLine >= 0) {
+    yield* code.setLineTokensOpacity(startSigLine, GLOW, 0.45);
+    yield* waitFor(1.2);
+    yield* code.setLineTokensOpacity(startSigLine, DARK, 0.9);
+  } else {
+    yield* waitFor(1.2);
   }
 
-  function* glowTokens(lineIndexes: number[], tokens: string[], duration?: number): ThreadGenerator {
-    const up: ThreadGenerator[] = [];
-    for (const i of lineIndexes) {
-      up.push(code.setLineTokensOpacityMatching(i, tokens, GLOW, RISE));
-    }
-    yield* all(...up);
-    yield* waitFor(duration ?? HOLD);
-    const down: ThreadGenerator[] = [];
-    for (const i of lineIndexes) {
-      down.push(code.setLineTokensOpacityMatching(i, tokens, DARK, DECAY));
-    }
-    yield* all(...down);
-  }
-
-  // Скролл-параметры
+  // Плавный скролл.
   const clipHeight = blockHeight - topInset * 2;
   const startY = -clipHeight / 2 + topInset + lineHeight / 2;
   const currentLastY = startY + (lines.length - 1) * lineHeight;
   const targetLastY = clipHeight / 2 - lineHeight / 2 - 16;
   const scrollAmount = Math.max(0, currentLastY - targetLastY + 40);
 
-  // Пять пар: имя метода → pass-through аргументы.
-  // Между парами — тишина и скролл.
-  // ~3.5с на фразу пианино ≈ один такт Atlantean Twilight (~80 BPM, 3/4)
-  function* directedBeats(): ThreadGenerator {
-    for (let m = 0; m < METHODS.length; m++) {
-      const method = METHODS[m];
-      const sigLines = findLines(method.sig);
-      const argLines = findLinesAny(PASS_THROUGH_ARGS)
-        .filter(i => sigLines.length > 0 && Math.abs(i - sigLines[0]) < 12);
+  function* flashPair(lineIdx: number, method: string, arg: string): ThreadGenerator {
+    yield* all(
+      code.setLineTokensOpacityMatching(lineIdx, [method], GLOW, RISE),
+      code.setLineTokensOpacityMatching(lineIdx, [arg], GLOW, RISE),
+    );
+    yield* waitFor(HOLD);
+    yield* all(
+      code.setLineTokensOpacityMatching(lineIdx, [method], DARK, DECAY),
+      code.setLineTokensOpacityMatching(lineIdx, [arg], DARK, DECAY),
+    );
+  }
 
-      // Имя метода светится
-      for (const i of sigLines) {
-        yield* glowLine(i);
-      }
-
-      yield* waitFor(1.0);
-
-      // Pass-through аргументы на соседних строках
-      if (argLines.length > 0) {
-        yield* glowTokens(argLines, PASS_THROUGH_ARGS);
-      }
-
-      // Дыхание перед следующим методом
-      if (m < METHODS.length - 1) {
-        yield* waitFor(1.8);
-      }
+  function* runFlashes(): ThreadGenerator {
+    for (const event of FLASH_EVENTS) {
+      const lineIdx = findFirstLine(event.lineHint);
+      if (lineIdx < 0) continue;
+      yield* flashPair(lineIdx, event.method, event.arg);
+      yield* waitFor(event.waitAfter);
     }
-
-    // Финал: все pass-through аргументы во всём коде загораются и остаются
-    yield* waitFor(1.5);
-    const allArgLines = findLinesAny(PASS_THROUGH_ARGS);
-    const finaleUp: ThreadGenerator[] = [];
-    for (const i of allArgLines) {
-      finaleUp.push(code.setLineTokensOpacityMatching(i, PASS_THROUGH_ARGS, GLOW, 0.8));
-    }
-    yield* all(...finaleUp);
-
-    yield* waitFor(3.0);
   }
 
   yield* all(
     code.animateScrollY(scrollAmount, 38),
-    directedBeats(),
+    runFlashes(),
   );
 
   yield* waitFor(0.8);
