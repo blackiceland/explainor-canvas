@@ -48,8 +48,13 @@ npm run daedalus:up
 
 делай still на кадре X
 
+помоги мне писать сценарий. я буду писать фразу на русском, ты будешь адаптировать на английский. профессионально. когда я в начале пишу "1", ты должен переводить смысл. если "2" -
+то давать оценку корректности фразы с точки зрения инженера. и потом предлагать правильную формулировку.
+и "3" - я даю короткую фразу, а ты сам разворачиваешь мысль.
+пиши всегда фразу сначала на русском, потом на английском
+
 cd C:\Users\black\IdeaProjects\explainor-canvas\motion-canvas\output\project
-C:\ffmpeg\bin\ffmpeg.exe -framerate 60 -start_number 0 -i %06d.png -c:v libx264 -pix_fmt yuv420p -crf 18 -preset slow ..\video.mp4
+C:\ffmpeg\bin\ffmpeg.exe -framerate 60 -start_number 0 -i %06d.png -c:v libx264 -pix_fmt yuv420p -crf 18 -preset slow ..\video3.mp4
 
 
 C:\Users\anton\IdeaProjects\canvas\motion-canvas\output\still\project

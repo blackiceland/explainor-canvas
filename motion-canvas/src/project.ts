@@ -18,6 +18,7 @@ import guitarHeroPassThroughSceneRu from "./scenes/guitarHeroPassThroughSceneRu?
 import passThroughIntroSceneRu from "./scenes/passThroughIntroSceneRu?scene";
 import notifyPassThroughSceneRu from "./scenes/notifyPassThroughSceneRu?scene";
 import passThroughPianoSceneRu from "./scenes/passThroughPianoSceneRu?scene";
+import smallMethodsProblemsSubtitlesSceneRu from "./scenes/smallMethodsProblemsSubtitlesSceneRu?scene";
 
 export default makeProject({
     experimentalFeatures: true,
@@ -66,18 +67,20 @@ export default makeProject({
         // passThroughPianoSceneRu,
 
         //02
+        smallMethodsProblemsSubtitlesSceneRu,
 
-        notifyPassThroughSceneRu,
-        validateMonolithSceneRu,
-        // starWarsCrawlSceneRu,
-        jackIntroSceneEn,
-        codeWithActionsSceneRu,
-        codeWithActionsSceneRuTilt,
-        // guitarHeroPassThroughSceneRu,
-        contextObjectSceneRu,
-        contextRefactorSceneRu,
-        globalStateSingletonSceneRu,
-        correctBoundariesSceneRu,
+
+        // notifyPassThroughSceneRu,
+        // validateMonolithSceneRu,
+        // // starWarsCrawlSceneRu,
+        // jackIntroSceneEn,
+        // codeWithActionsSceneRu,
+        // codeWithActionsSceneRuTilt,
+        // // guitarHeroPassThroughSceneRu,
+        // contextObjectSceneRu,
+        // contextRefactorSceneRu,
+        // globalStateSingletonSceneRu,
+        // correctBoundariesSceneRu,
 
     ]
 });
