@@ -67,15 +67,14 @@ export default makeProject({
         // passThroughPianoSceneRu,
 
         //02
-        smallMethodsProblemsSubtitlesSceneRu,
-
+        // smallMethodsProblemsSubtitlesSceneRu,
 
         // notifyPassThroughSceneRu,
         // validateMonolithSceneRu,
         // // starWarsCrawlSceneRu,
-        // jackIntroSceneEn,
-        // codeWithActionsSceneRu,
-        // codeWithActionsSceneRuTilt,
+        //  jackIntroSceneEn,
+         codeWithActionsSceneRu,
+        codeWithActionsSceneRuTilt,
         // // guitarHeroPassThroughSceneRu,
         // contextObjectSceneRu,
         // contextRefactorSceneRu,
