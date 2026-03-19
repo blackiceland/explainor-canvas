@@ -19,6 +19,7 @@ import passThroughIntroSceneRu from "./scenes/passThroughIntroSceneRu?scene";
 import notifyPassThroughSceneRu from "./scenes/notifyPassThroughSceneRu?scene";
 import passThroughPianoSceneRu from "./scenes/passThroughPianoSceneRu?scene";
 import smallMethodsProblemsSubtitlesSceneRu from "./scenes/smallMethodsProblemsSubtitlesSceneRu?scene";
+import exportCallTreeSceneRu from "./scenes/exportCallTreeSceneRu?scene";
 
 export default makeProject({
     experimentalFeatures: true,
@@ -73,8 +74,9 @@ export default makeProject({
         // validateMonolithSceneRu,
         // // starWarsCrawlSceneRu,
         //  jackIntroSceneEn,
-         codeWithActionsSceneRu,
-        codeWithActionsSceneRuTilt,
+        //  codeWithActionsSceneRu,
+        // codeWithActionsSceneRuTilt,
+        exportCallTreeSceneRu,
         // // guitarHeroPassThroughSceneRu,
         // contextObjectSceneRu,
         // contextRefactorSceneRu,
