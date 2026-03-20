@@ -13,9 +13,9 @@ const CONN_CLR      = '#B7C4D4';
 const HDR_CLR       = Colors.accent;
 const REMOVE_CLR    = 'rgba(255, 70, 70, 0.95)';
 
-// Цвета модулей (приглушённые, в палитре проекта)
+// Цвета модулей
 const MODULE_A_CLR  = '#E8C874'; // тёплый жёлтый — подготовка
-const MODULE_B_CLR  = '#E88CB0'; // приглушённый розовый — кодирование/финализация
+const MODULE_B_CLR  = '#4DABB5'; // тёмный бирюзовый — кодирование/финализация
 
 const METHODS = new Set([
   'exportVideo', 'validateInput', 'prepareFrames', 'applyFilters',
@@ -64,7 +64,11 @@ const WIDEST_LINE = ALL_WIDTHS.reduce((a, b) => a.length > b.length ? a : b);
 interface HookState {
   highlight: string | null;
   moduleColor: string | null;
+  leakedArgs: Set<string> | null;
+  dimAmount: number;
 }
+
+const LEAKED_ARGS = new Set(['watermarkMode', 'audioProfile', 'outputFormat']);
 
 function makeDrawHooks(state: () => HookState) {
   return {
@@ -81,20 +85,25 @@ function makeDrawHooks(state: () => HookState) {
 
       let x = position.x;
       const y = position.y;
-      const {highlight: hl, moduleColor: mc} = state();
+      const {highlight: hl, moduleColor: mc, leakedArgs, dimAmount} = state();
 
-      const flush = (seg: string, segColor: string) => {
+      const flush = (seg: string, segColor: string, isLeaked: boolean) => {
         if (!seg) return;
+        const savedAlpha = canvasCtx.globalAlpha;
+        if (dimAmount > 0 && !isLeaked) {
+          canvasCtx.globalAlpha *= 1 - dimAmount * 0.85;
+        }
         canvasCtx.fillStyle = segColor;
         canvasCtx.fillText(seg, x, y);
         x += canvasCtx.measureText(seg).width;
+        canvasCtx.globalAlpha = savedAlpha;
       };
 
       let i = 0;
       while (i < raw.length) {
         const ch = raw[i];
         if (ch === '└' || ch === '─') {
-          flush(ch, CONN_CLR);
+          flush(ch, CONN_CLR, false);
           i += 1;
           continue;
         }
@@ -102,9 +111,12 @@ function makeDrawHooks(state: () => HookState) {
           let j = i + 1;
           while (j < raw.length && /[A-Za-z0-9_]/.test(raw[j])) j += 1;
           const word = raw.slice(i, j);
+          const leaked = leakedArgs !== null && leakedArgs.has(word);
           let color: string;
           if (hl && word === hl) {
             color = REMOVE_CLR;
+          } else if (leaked) {
+            color = MODULE_B_CLR;
           } else if (METHODS.has(word)) {
             color = mc ?? METHOD_CLR;
           } else if (word === 'hdrMode') {
@@ -112,7 +124,7 @@ function makeDrawHooks(state: () => HookState) {
           } else {
             color = VARIABLE_CLR;
           }
-          flush(word, color);
+          flush(word, color, leaked);
           i = j;
           continue;
         }
@@ -122,7 +134,7 @@ function makeDrawHooks(state: () => HookState) {
           if (c === '└' || c === '─' || /[A-Za-z_]/.test(c)) break;
           j += 1;
         }
-        flush(raw.slice(i, j), PUNCT_CLR);
+        flush(raw.slice(i, j), PUNCT_CLR, false);
         i = j;
       }
 
@@ -157,15 +169,21 @@ export default makeScene2D(function* (view) {
   const textSignals: ReturnType<typeof createSignal<string>>[] = [];
   const hlSignals: ReturnType<typeof createSignal<string | null>>[] = [];
   const mcSignals: ReturnType<typeof createSignal<string | null>>[] = [];
+  const leakSignals: ReturnType<typeof createSignal<Set<string> | null>>[] = [];
+  const dimSignals: ReturnType<typeof createSignal<number>>[] = [];
   const rows: Code[] = [];
 
   TREE.forEach((t, i) => {
     const sig = createSignal(buildLine(t));
     const hl = createSignal<string | null>(null);
     const mc = createSignal<string | null>(null);
+    const leak = createSignal<Set<string> | null>(null);
+    const dim = createSignal(0);
     textSignals.push(sig);
     hlSignals.push(hl);
     mcSignals.push(mc);
+    leakSignals.push(leak);
+    dimSignals.push(dim);
     const row = new Code({
       code: () => sig(),
       fontFamily: Fonts.code,
@@ -175,7 +193,12 @@ export default makeScene2D(function* (view) {
       y: startY + i * lineHeight,
       offset: [-1, 0],
       opacity: 0,
-      drawHooks: makeDrawHooks(() => ({highlight: hl(), moduleColor: mc()})),
+      drawHooks: makeDrawHooks(() => ({
+        highlight: hl(),
+        moduleColor: mc(),
+        leakedArgs: leak(),
+        dimAmount: dim(),
+      })),
     });
     rows.push(row);
     stage.add(row);
@@ -310,7 +333,39 @@ export default makeScene2D(function* (view) {
     connector.opacity(1, 0.4, easeInOutCubic),
   );
 
-  yield* waitFor(2.5);
+  yield* waitFor(2.0);
+
+  // ── Акт 5: протекание — бирюзовые аргументы в жёлтом модуле ─────────────
+  // Покраска leaked args + затемнение остального — одновременно
+  for (let i = 0; i < MODULE_SPLIT; i++) {
+    leakSignals[i](LEAKED_ARGS);
+  }
+  const dimDuration = 0.8;
+  yield* all(
+    ...Array.from({length: MODULE_SPLIT}, (_, i) =>
+      dimSignals[i](1, dimDuration, easeInOutCubic),
+    ),
+    ...Array.from({length: TREE.length - MODULE_SPLIT}, (_, k) =>
+      rows[MODULE_SPLIT + k].opacity(0.15, dimDuration, easeInOutCubic),
+    ),
+    labelA.opacity(0.15, dimDuration, easeInOutCubic),
+    connector.opacity(0.15, dimDuration, easeInOutCubic),
+  );
+
+  yield* waitFor(3.0);
+
+  // Восстановить
+  yield* all(
+    ...Array.from({length: MODULE_SPLIT}, (_, i) =>
+      dimSignals[i](0, 0.5, easeInOutCubic),
+    ),
+    ...Array.from({length: TREE.length - MODULE_SPLIT}, (_, k) =>
+      rows[MODULE_SPLIT + k].opacity(1, 0.5, easeInOutCubic),
+    ),
+    labelA.opacity(1, 0.5, easeInOutCubic),
+    connector.opacity(1, 0.5, easeInOutCubic),
+  );
+  yield* waitFor(1.5);
 
   yield* stage.opacity(0, Timing.normal, easeInOutCubic);
   yield* waitFor(0.3);
