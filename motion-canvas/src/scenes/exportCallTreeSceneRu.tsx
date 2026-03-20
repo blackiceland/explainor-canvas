@@ -1,4 +1,4 @@
-import {Code, makeScene2D, Node} from '@motion-canvas/2d';
+import {Code, Line, makeScene2D, Node, Txt} from '@motion-canvas/2d';
 import {all, createSignal, easeInOutCubic, map, waitFor} from '@motion-canvas/core';
 import {SafeZone} from '../core/ScreenGrid';
 import {Colors, Fonts, Timing} from '../core/theme';
@@ -13,10 +13,19 @@ const CONN_CLR      = '#B7C4D4';
 const HDR_CLR       = Colors.accent;
 const REMOVE_CLR    = 'rgba(255, 70, 70, 0.95)';
 
+// Цвета модулей (приглушённые, в палитре проекта)
+const MODULE_A_CLR  = '#E8C874'; // тёплый жёлтый — подготовка
+const MODULE_B_CLR  = '#E88CB0'; // приглушённый розовый — кодирование/финализация
+
 const METHODS = new Set([
   'exportVideo', 'validateInput', 'prepareFrames', 'applyFilters',
   'encodeWithRetry', 'encode', 'muxStreams', 'finalizeExport', 'writeOutput',
 ]);
+
+// ── Модули ───────────────────────────────────────────────────────────────────
+const MODULE_SPLIT = 4; // 0..3 = модуль A, 4..8 = модуль B
+const MODULE_A = new Set(['exportVideo', 'validateInput', 'prepareFrames', 'applyFilters']);
+const MODULE_B = new Set(['encodeWithRetry', 'encode', 'muxStreams', 'finalizeExport', 'writeOutput']);
 
 // ── Данные дерева ────────────────────────────────────────────────────────────
 
@@ -30,15 +39,15 @@ const INDENT = '    ';
 const CONN   = '└─ ';
 
 const TREE: TreeLine[] = [
-  {prefix: '',                                             method: 'exportVideo',      args: ['sourceFrames', 'outputFormat', 'colorProfile', 'subtitleTrack', 'watermarkMode', 'audioProfile']},
-  {prefix: INDENT.repeat(1) + CONN,                       method: 'validateInput',    args: ['sourceFrames', 'outputFormat', 'colorProfile', 'watermarkMode', 'audioProfile']},
-  {prefix: INDENT.repeat(2) + CONN,                       method: 'prepareFrames',    args: ['sourceFrames', 'colorProfile', 'subtitleTrack', 'watermarkMode', 'audioProfile']},
-  {prefix: INDENT.repeat(3) + CONN,                       method: 'applyFilters',     args: ['preparedFrames', 'colorProfile', 'watermarkMode', 'audioProfile']},
-  {prefix: INDENT.repeat(4) + CONN,                       method: 'encodeWithRetry',  args: ['filteredFrames', 'outputFormat', 'watermarkMode', 'audioProfile']},
-  {prefix: INDENT.repeat(5) + CONN,                       method: 'encode',           args: ['filteredFrames', 'outputFormat', 'watermarkMode', 'audioProfile']},
-  {prefix: INDENT.repeat(6) + CONN,                       method: 'muxStreams',       args: ['encodedVideo', 'audioProfile', 'watermarkMode']},
-  {prefix: INDENT.repeat(7) + CONN,                       method: 'finalizeExport',   args: ['muxedVideo', 'outputFormat', 'watermarkMode', 'audioProfile']},
-  {prefix: INDENT.repeat(8) + CONN,                       method: 'writeOutput',      args: ['finalizedVideo', 'outputFormat', 'watermarkMode']},
+  {prefix: '',                         method: 'exportVideo',      args: ['sourceFrames', 'outputFormat', 'colorProfile', 'subtitleTrack', 'watermarkMode', 'audioProfile']},
+  {prefix: INDENT.repeat(1) + CONN,   method: 'validateInput',    args: ['sourceFrames', 'outputFormat', 'colorProfile', 'watermarkMode', 'audioProfile']},
+  {prefix: INDENT.repeat(2) + CONN,   method: 'prepareFrames',    args: ['sourceFrames', 'colorProfile', 'subtitleTrack', 'watermarkMode', 'audioProfile']},
+  {prefix: INDENT.repeat(3) + CONN,   method: 'applyFilters',     args: ['preparedFrames', 'colorProfile', 'watermarkMode', 'audioProfile']},
+  {prefix: INDENT.repeat(4) + CONN,   method: 'encodeWithRetry',  args: ['filteredFrames', 'outputFormat', 'watermarkMode', 'audioProfile']},
+  {prefix: INDENT.repeat(5) + CONN,   method: 'encode',           args: ['filteredFrames', 'outputFormat', 'watermarkMode', 'audioProfile']},
+  {prefix: INDENT.repeat(6) + CONN,   method: 'muxStreams',       args: ['encodedVideo', 'audioProfile', 'watermarkMode']},
+  {prefix: INDENT.repeat(7) + CONN,   method: 'finalizeExport',   args: ['muxedVideo', 'outputFormat', 'watermarkMode', 'audioProfile']},
+  {prefix: INDENT.repeat(8) + CONN,   method: 'writeOutput',      args: ['finalizedVideo', 'outputFormat', 'watermarkMode']},
 ];
 
 function buildLine(t: TreeLine, extraArgs: string[] = []): string {
@@ -46,11 +55,18 @@ function buildLine(t: TreeLine, extraArgs: string[] = []): string {
   return `${t.prefix}${t.method}(${allArgs.join(', ')})`;
 }
 
-const HDR_TARGET = 5; // encode — реальный потребитель hdrMode
+const HDR_TARGET = 5;
 const ALL_WIDTHS = TREE.map((t, i) => buildLine(t, i <= HDR_TARGET ? ['hdrMode'] : []));
 const WIDEST_LINE = ALL_WIDTHS.reduce((a, b) => a.length > b.length ? a : b);
 
-function makeDrawHooks(highlightArg: () => string | null) {
+// ── drawHooks ────────────────────────────────────────────────────────────────
+
+interface HookState {
+  highlight: string | null;
+  moduleColor: string | null;
+}
+
+function makeDrawHooks(state: () => HookState) {
   return {
     token: (
       canvasCtx: CanvasRenderingContext2D,
@@ -65,7 +81,7 @@ function makeDrawHooks(highlightArg: () => string | null) {
 
       let x = position.x;
       const y = position.y;
-      const hl = highlightArg();
+      const {highlight: hl, moduleColor: mc} = state();
 
       const flush = (seg: string, segColor: string) => {
         if (!seg) return;
@@ -90,7 +106,7 @@ function makeDrawHooks(highlightArg: () => string | null) {
           if (hl && word === hl) {
             color = REMOVE_CLR;
           } else if (METHODS.has(word)) {
-            color = METHOD_CLR;
+            color = mc ?? METHOD_CLR;
           } else if (word === 'hdrMode') {
             color = HDR_CLR;
           } else {
@@ -140,13 +156,16 @@ export default makeScene2D(function* (view) {
   // ── Создание Code-строк ────────────────────────────────────────────────
   const textSignals: ReturnType<typeof createSignal<string>>[] = [];
   const hlSignals: ReturnType<typeof createSignal<string | null>>[] = [];
+  const mcSignals: ReturnType<typeof createSignal<string | null>>[] = [];
   const rows: Code[] = [];
 
   TREE.forEach((t, i) => {
     const sig = createSignal(buildLine(t));
     const hl = createSignal<string | null>(null);
+    const mc = createSignal<string | null>(null);
     textSignals.push(sig);
     hlSignals.push(hl);
+    mcSignals.push(mc);
     const row = new Code({
       code: () => sig(),
       fontFamily: Fonts.code,
@@ -156,7 +175,7 @@ export default makeScene2D(function* (view) {
       y: startY + i * lineHeight,
       offset: [-1, 0],
       opacity: 0,
-      drawHooks: makeDrawHooks(() => hl()),
+      drawHooks: makeDrawHooks(() => ({highlight: hl(), moduleColor: mc()})),
     });
     rows.push(row);
     stage.add(row);
@@ -213,6 +232,85 @@ export default makeScene2D(function* (view) {
   for (const i of wmIndices) hlSignals[i](null);
 
   yield* waitFor(2.0);
+
+  // ── Акт 3: покраска модулей ─────────────────────────────────────────────
+  for (let i = 0; i < TREE.length; i++) {
+    mcSignals[i](i < MODULE_SPLIT ? MODULE_A_CLR : MODULE_B_CLR);
+  }
+  yield* waitFor(1.5);
+
+  // ── Подготовка лейблов и коннектора (невидимые) ─────────────────────────
+  const labelFs = Math.round(fontSize * 1.3);
+  const labelX = SafeZone.right + 30;
+
+  const modAcenterY = (rows[0].y() + rows[MODULE_SPLIT - 1].y()) / 2;
+  const modBcenterY = (rows[MODULE_SPLIT].y() + rows[TREE.length - 1].y()) / 2;
+
+  const labelA = new Txt({
+    text: 'VideoPreparation',
+    fontFamily: Fonts.code,
+    fontSize: labelFs,
+    fontWeight: 600,
+    fill: MODULE_A_CLR,
+    x: labelX,
+    y: modAcenterY,
+    offset: [1, 0],
+    opacity: 0,
+  });
+
+  const labelB = new Txt({
+    text: 'EncodingPipeline',
+    fontFamily: Fonts.code,
+    fontSize: labelFs,
+    fontWeight: 600,
+    fill: MODULE_B_CLR,
+    x: labelX,
+    y: modBcenterY,
+    offset: [1, 0],
+    opacity: 0,
+  });
+
+  // Вертикальная линия между модулями — по X совпадает с символом └ строки encodeWithRetry
+  const connLineX = rows[MODULE_SPLIT].x() + textWidth(INDENT.repeat(MODULE_SPLIT), Fonts.code, fontSize, 650) + fontSize * 0.25;
+  const lastAy = rows[MODULE_SPLIT - 1].y();
+  const firstBy = rows[MODULE_SPLIT].y();
+
+  const connector = new Line({
+    points: [[connLineX, lastAy + lineHeight * 0.4], [connLineX, firstBy - lineHeight * 0.4]],
+    stroke: CONN_CLR,
+    lineWidth: fontSize * 0.08,
+    opacity: 0,
+  });
+
+  stage.add(labelA);
+  stage.add(labelB);
+  stage.add(connector);
+
+  // ── Акт 4: раздвижение + появление лейблов и коннектора ─────────────────
+  const gap = lineHeight * 1.8;
+
+  const moveAnims = rows.map((row, i) => {
+    const offset = i < MODULE_SPLIT ? -gap / 2 : gap / 2;
+    return row.y(row.y() + offset, 0.7, easeInOutCubic);
+  });
+
+  yield* all(
+    ...moveAnims,
+    labelA.y(modAcenterY - gap / 2, 0.7, easeInOutCubic),
+    labelB.y(modBcenterY + gap / 2, 0.7, easeInOutCubic),
+    connector.points(
+      [[connLineX, lastAy + lineHeight * 0.4 - gap / 2], [connLineX, firstBy - lineHeight * 0.4 + gap / 2]],
+      0.7, easeInOutCubic,
+    ),
+  );
+
+  yield* all(
+    labelA.opacity(1, 0.4, easeInOutCubic),
+    labelB.opacity(1, 0.4, easeInOutCubic),
+    connector.opacity(1, 0.4, easeInOutCubic),
+  );
+
+  yield* waitFor(2.5);
 
   yield* stage.opacity(0, Timing.normal, easeInOutCubic);
   yield* waitFor(0.3);
