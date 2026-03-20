@@ -19,9 +19,13 @@ export default makeScene2D(function* (view) {
   const stage = new Node({});
   view.add(stage);
 
-  const baseInk = '#F6E7D4';
-  const bracketBlue = '#BFEAFF';
-  const keywordPink = Colors.accent;
+  // Style from image: Material Dark / One Dark theme
+  const methodColor = '#9FC7E8'; // muted cool blue (closer to reference)
+  const variableColor = '#E8ECF2'; // soft off-white
+  const punctuationColor = '#B7C4D4'; // muted blue-gray punctuation
+  const connectorColor = '#B7C4D4'; // muted blue-gray for tree connectors
+
+  const METHODS = new Set(['exportVideo', 'prepareFrames', 'encodeWithRetry', 'encode', 'finalizeExport']);
 
   // Same sizing approach as introMergeScene: fit to safe-zone by width.
   const maxWidth = SafeZone.right - SafeZone.left - 40;
@@ -65,7 +69,7 @@ export default makeScene2D(function* (view) {
       while (i < raw.length) {
         const ch = raw[i];
         if (ch === '└' || ch === '─') {
-          flush(ch, bracketBlue);
+          flush(ch, connectorColor);
           i += 1;
           continue;
         }
@@ -73,7 +77,7 @@ export default makeScene2D(function* (view) {
           let j = i + 1;
           while (j < raw.length && /[A-Za-z0-9_]/.test(raw[j])) j += 1;
           const word = raw.slice(i, j);
-          const color = word === 'hdrMode' ? keywordPink : baseInk;
+          const color = METHODS.has(word) ? methodColor : variableColor;
           flush(word, color);
           i = j;
           continue;
@@ -84,7 +88,7 @@ export default makeScene2D(function* (view) {
           if (c === '└' || c === '─' || /[A-Za-z_]/.test(c)) break;
           j += 1;
         }
-        flush(raw.slice(i, j), baseInk);
+        flush(raw.slice(i, j), punctuationColor);
         i = j;
       }
 
