@@ -46,8 +46,9 @@ function buildLine(t: TreeLine, extraArgs: string[] = []): string {
   return `${t.prefix}${t.method}(${allArgs.join(', ')})`;
 }
 
-const ALL_LINES_WITH_HDR = TREE.map(t => buildLine(t, ['hdrMode']));
-const WIDEST_LINE = ALL_LINES_WITH_HDR.reduce((a, b) => a.length > b.length ? a : b);
+const HDR_TARGET = 5; // encode — реальный потребитель hdrMode
+const ALL_WIDTHS = TREE.map((t, i) => buildLine(t, i <= HDR_TARGET ? ['hdrMode'] : []));
+const WIDEST_LINE = ALL_WIDTHS.reduce((a, b) => a.length > b.length ? a : b);
 
 function makeDrawHooks(highlightArg: () => string | null) {
   return {
@@ -172,11 +173,10 @@ export default makeScene2D(function* (view) {
 
   yield* waitFor(1.8);
 
-  // ── Акт 1: hdrMode — снизу вверх (каскад проброса) ─────────────────────
-  const last = TREE.length - 1;
-  const delays = [0.25, 0.28, 0.32, 0.36, 0.40, 0.44, 0.50, 0.55, 0.6];
+  // ── Акт 1: hdrMode нужен в encode — каскад проброса снизу вверх ────────
+  const delays = [0.3, 0.35, 0.40, 0.45, 0.50, 0.55];
 
-  for (let i = last; i >= 0; i--) {
+  for (let i = HDR_TARGET; i >= 0; i--) {
     const currentText = textSignals[i]();
     const closeParen = currentText.lastIndexOf(')');
     const before = currentText.slice(0, closeParen);
@@ -185,7 +185,7 @@ export default makeScene2D(function* (view) {
       textSignals[i](before + suffix.slice(0, c) + ')');
       yield* waitFor(0.025);
     }
-    yield* waitFor(delays[last - i] ?? 0.3);
+    yield* waitFor(delays[HDR_TARGET - i] ?? 0.3);
   }
 
   yield* waitFor(2.0);
