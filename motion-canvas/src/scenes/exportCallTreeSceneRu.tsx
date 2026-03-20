@@ -14,23 +14,31 @@ const HDR_CLR       = Colors.accent;
 const REMOVE_CLR    = 'rgba(255, 70, 70, 0.95)';
 
 const METHODS = new Set([
-  'exportVideo', 'prepareFrames', 'encodeWithRetry', 'encode', 'finalizeExport',
+  'exportVideo', 'validateInput', 'prepareFrames', 'applyFilters',
+  'encodeWithRetry', 'encode', 'muxStreams', 'finalizeExport', 'writeOutput',
 ]);
 
 // ── Данные дерева ────────────────────────────────────────────────────────────
 
 interface TreeLine {
-  prefix: string;   // '    └─ ' or ''
-  method: string;   // 'exportVideo'
-  args: string[];   // each arg name
+  prefix: string;
+  method: string;
+  args: string[];
 }
 
+const INDENT = '    ';
+const CONN   = '└─ ';
+
 const TREE: TreeLine[] = [
-  {prefix: '',                method: 'exportVideo',      args: ['sourceFrames', 'outputFormat', 'colorProfile', 'subtitleTrack', 'watermarkMode', 'audioProfile']},
-  {prefix: '    └─ ',        method: 'prepareFrames',    args: ['sourceFrames', 'colorProfile', 'subtitleTrack', 'watermarkMode', 'audioProfile']},
-  {prefix: '        └─ ',    method: 'encodeWithRetry',  args: ['preparedFrames', 'outputFormat', 'watermarkMode', 'audioProfile']},
-  {prefix: '            └─ ',method: 'encode',           args: ['preparedFrames', 'outputFormat', 'watermarkMode', 'audioProfile']},
-  {prefix: '                └─ ', method: 'finalizeExport', args: ['encodedVideo', 'outputFormat', 'watermarkMode', 'audioProfile']},
+  {prefix: '',                                             method: 'exportVideo',      args: ['sourceFrames', 'outputFormat', 'colorProfile', 'subtitleTrack', 'watermarkMode', 'audioProfile']},
+  {prefix: INDENT.repeat(1) + CONN,                       method: 'validateInput',    args: ['sourceFrames', 'outputFormat', 'colorProfile', 'watermarkMode', 'audioProfile']},
+  {prefix: INDENT.repeat(2) + CONN,                       method: 'prepareFrames',    args: ['sourceFrames', 'colorProfile', 'subtitleTrack', 'watermarkMode', 'audioProfile']},
+  {prefix: INDENT.repeat(3) + CONN,                       method: 'applyFilters',     args: ['preparedFrames', 'colorProfile', 'watermarkMode', 'audioProfile']},
+  {prefix: INDENT.repeat(4) + CONN,                       method: 'encodeWithRetry',  args: ['filteredFrames', 'outputFormat', 'watermarkMode', 'audioProfile']},
+  {prefix: INDENT.repeat(5) + CONN,                       method: 'encode',           args: ['filteredFrames', 'outputFormat', 'watermarkMode', 'audioProfile']},
+  {prefix: INDENT.repeat(6) + CONN,                       method: 'muxStreams',       args: ['encodedVideo', 'audioProfile', 'watermarkMode']},
+  {prefix: INDENT.repeat(7) + CONN,                       method: 'finalizeExport',   args: ['muxedVideo', 'outputFormat', 'watermarkMode', 'audioProfile']},
+  {prefix: INDENT.repeat(8) + CONN,                       method: 'writeOutput',      args: ['finalizedVideo', 'outputFormat', 'watermarkMode']},
 ];
 
 function buildLine(t: TreeLine, extraArgs: string[] = []): string {
@@ -38,7 +46,8 @@ function buildLine(t: TreeLine, extraArgs: string[] = []): string {
   return `${t.prefix}${t.method}(${allArgs.join(', ')})`;
 }
 
-const WIDEST_LINE = buildLine(TREE[0], ['hdrMode']);
+const ALL_LINES_WITH_HDR = TREE.map(t => buildLine(t, ['hdrMode']));
+const WIDEST_LINE = ALL_LINES_WITH_HDR.reduce((a, b) => a.length > b.length ? a : b);
 
 function makeDrawHooks(highlightArg: () => string | null) {
   return {
@@ -122,11 +131,9 @@ export default makeScene2D(function* (view) {
   }
   const lineHeight = fontSize * 1.85;
 
-  // ── Центрирование ──────────────────────────────────────────────────────
-  const initLines = TREE.map(t => buildLine(t));
-  const blockW = Math.max(...initLines.map(l => textWidth(l, Fonts.code, fontSize, 650)));
+  // ── Позиционирование: прижимаем влево, центрируем по вертикали ──────
   const blockH = lineHeight * TREE.length;
-  const startX = -blockW / 2;
+  const startX = SafeZone.left;
   const startY = -blockH / 2 + lineHeight * 0.5;
 
   // ── Создание Code-строк ────────────────────────────────────────────────
@@ -167,7 +174,7 @@ export default makeScene2D(function* (view) {
 
   // ── Акт 1: hdrMode — снизу вверх (каскад проброса) ─────────────────────
   const last = TREE.length - 1;
-  const delays = [0.6, 0.5, 0.4, 0.35, 0.3];
+  const delays = [0.25, 0.28, 0.32, 0.36, 0.40, 0.44, 0.50, 0.55, 0.6];
 
   for (let i = last; i >= 0; i--) {
     const currentText = textSignals[i]();
