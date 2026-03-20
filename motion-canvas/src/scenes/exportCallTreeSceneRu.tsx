@@ -33,7 +33,7 @@ export default makeScene2D(function* (view) {
     if (widest <= maxWidth) break;
     fontSize -= 1;
   }
-  const lineHeight = fontSize * 1.35;
+  const lineHeight = fontSize * 1.85;
 
   const blockW = Math.max(...TREE.map(line => textWidth(line, Fonts.code, fontSize, 650)));
   const blockH = lineHeight * TREE.length;
