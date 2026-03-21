@@ -12,19 +12,20 @@ const PUNCT_CLR     = '#B7C4D4';
 const CONN_CLR      = '#B7C4D4';
 const HDR_CLR       = Colors.accent;
 const REMOVE_CLR    = 'rgba(255, 70, 70, 0.95)';
+const RENAME_CLR    = 'rgba(80, 200, 120, 0.95)';
 
 // Цвета модулей
 const MODULE_A_CLR  = '#E8C874'; // тёплый жёлтый — подготовка
 const MODULE_B_CLR  = '#4DABB5'; // тёмный бирюзовый — кодирование/финализация
 
 const METHODS = new Set([
-  'exportVideo', 'validateInput', 'prepareFrames', 'applyFilters',
+  'exportVideo', 'normalizeFrames', 'prepareFrames', 'applyFilters',
   'encodeWithRetry', 'encode', 'muxStreams', 'finalizeExport', 'writeOutput',
 ]);
 
 // ── Модули ───────────────────────────────────────────────────────────────────
 const MODULE_SPLIT = 4; // 0..3 = модуль A, 4..8 = модуль B
-const MODULE_A = new Set(['exportVideo', 'validateInput', 'prepareFrames', 'applyFilters']);
+const MODULE_A = new Set(['exportVideo', 'normalizeFrames', 'prepareFrames', 'applyFilters']);
 const MODULE_B = new Set(['encodeWithRetry', 'encode', 'muxStreams', 'finalizeExport', 'writeOutput']);
 
 // ── Данные дерева ────────────────────────────────────────────────────────────
@@ -40,7 +41,7 @@ const CONN   = '└─ ';
 
 const TREE: TreeLine[] = [
   {prefix: '',                         method: 'exportVideo',      args: ['sourceFrames', 'outputFormat', 'colorProfile', 'subtitleTrack', 'watermarkMode', 'audioProfile']},
-  {prefix: INDENT.repeat(1) + CONN,   method: 'validateInput',    args: ['sourceFrames', 'outputFormat', 'colorProfile', 'watermarkMode', 'audioProfile']},
+  {prefix: INDENT.repeat(1) + CONN,   method: 'normalizeFrames',  args: ['sourceFrames', 'outputFormat', 'colorProfile', 'subtitleTrack', 'watermarkMode', 'audioProfile']},
   {prefix: INDENT.repeat(2) + CONN,   method: 'prepareFrames',    args: ['sourceFrames', 'colorProfile', 'subtitleTrack', 'watermarkMode', 'audioProfile']},
   {prefix: INDENT.repeat(3) + CONN,   method: 'applyFilters',     args: ['preparedFrames', 'colorProfile', 'watermarkMode', 'audioProfile']},
   {prefix: INDENT.repeat(4) + CONN,   method: 'encodeWithRetry',  args: ['filteredFrames', 'outputFormat', 'watermarkMode', 'audioProfile']},
@@ -55,19 +56,73 @@ function buildLine(t: TreeLine, extraArgs: string[] = []): string {
   return `${t.prefix}${t.method}(${allArgs.join(', ')})`;
 }
 
+/** Индекс последней строки, куда добавляют hdrMode и булев флаг (нужны в encode и выше). */
 const HDR_TARGET = 5;
-const ALL_WIDTHS = TREE.map((t, i) => buildLine(t, i <= HDR_TARGET ? ['hdrMode'] : []));
-const WIDEST_LINE = ALL_WIDTHS.reduce((a, b) => a.length > b.length ? a : b);
+const BOOL_TARGET = HDR_TARGET;
+
+const RENAME_FROM = 'colorProfile';
+const RENAME_TO = 'colorSpace';
+/** Флаг «пробный прогон без реальной записи» — актуален на всех уровнях пайплайна. */
+const BOOL_FLAG = 'isDryRun';
+
+function argsWithoutSubtitles(args: string[]): string[] {
+  return args.filter(a => a !== 'subtitleTrack');
+}
+
+function argsRenamed(args: string[]): string[] {
+  return args.map(a => (a === RENAME_FROM ? RENAME_TO : a));
+}
+
+interface LinePhase {
+  hdr: boolean;
+  boolFlag: boolean;
+  subtitles: boolean;
+  renamed: boolean;
+}
+
+const LINE_PHASES: LinePhase[] = [
+  {hdr: false, boolFlag: false, subtitles: true, renamed: false},
+  {hdr: true, boolFlag: false, subtitles: true, renamed: false},
+  {hdr: true, boolFlag: false, subtitles: false, renamed: false},
+  {hdr: true, boolFlag: false, subtitles: false, renamed: true},
+  {hdr: true, boolFlag: true, subtitles: false, renamed: true},
+];
+
+function buildLineForPhase(t: TreeLine, index: number, phase: LinePhase): string {
+  let args = [...t.args];
+  if (!phase.subtitles) args = argsWithoutSubtitles(args);
+  if (phase.renamed) args = argsRenamed(args);
+  const extra: string[] = [];
+  if (phase.hdr && index <= HDR_TARGET) extra.push('hdrMode');
+  if (phase.boolFlag && index <= BOOL_TARGET) extra.push(BOOL_FLAG);
+  return buildLine({...t, args}, extra);
+}
+
+/** Максимальная длина строки по всем фазам анимации — чтобы шрифт не переполнял экран. */
+function computeWidestLine(): string {
+  let widest = '';
+  for (const phase of LINE_PHASES) {
+    for (let i = 0; i < TREE.length; i++) {
+      const line = buildLineForPhase(TREE[i], i, phase);
+      if (line.length > widest.length) widest = line;
+    }
+  }
+  return widest;
+}
+
+const WIDEST_LINE = computeWidestLine();
 
 // ── drawHooks ────────────────────────────────────────────────────────────────
 
 interface HookState {
   highlight: string | null;
+  renameHighlight: string | null;
   moduleColor: string | null;
   leakedArgs: Set<string> | null;
   dimAmount: number;
 }
 
+/** watermarkMode, audioProfile и outputFormat — транзитные аргументы в верхнем модуле. */
 const LEAKED_ARGS = new Set(['watermarkMode', 'audioProfile', 'outputFormat']);
 
 function makeDrawHooks(state: () => HookState) {
@@ -85,7 +140,7 @@ function makeDrawHooks(state: () => HookState) {
 
       let x = position.x;
       const y = position.y;
-      const {highlight: hl, moduleColor: mc, leakedArgs, dimAmount} = state();
+      const {highlight: hl, renameHighlight: rhl, moduleColor: mc, leakedArgs, dimAmount} = state();
 
       const flush = (seg: string, segColor: string, isLeaked: boolean) => {
         if (!seg) return;
@@ -115,11 +170,13 @@ function makeDrawHooks(state: () => HookState) {
           let color: string;
           if (hl && word === hl) {
             color = REMOVE_CLR;
+          } else if (rhl && word === rhl) {
+            color = RENAME_CLR;
           } else if (leaked) {
             color = MODULE_B_CLR;
           } else if (METHODS.has(word)) {
             color = mc ?? METHOD_CLR;
-          } else if (word === 'hdrMode') {
+          } else if (word === 'hdrMode' || word === BOOL_FLAG) {
             color = HDR_CLR;
           } else {
             color = VARIABLE_CLR;
@@ -168,6 +225,7 @@ export default makeScene2D(function* (view) {
   // ── Создание Code-строк ────────────────────────────────────────────────
   const textSignals: ReturnType<typeof createSignal<string>>[] = [];
   const hlSignals: ReturnType<typeof createSignal<string | null>>[] = [];
+  const rhlSignals: ReturnType<typeof createSignal<string | null>>[] = [];
   const mcSignals: ReturnType<typeof createSignal<string | null>>[] = [];
   const leakSignals: ReturnType<typeof createSignal<Set<string> | null>>[] = [];
   const dimSignals: ReturnType<typeof createSignal<number>>[] = [];
@@ -176,11 +234,13 @@ export default makeScene2D(function* (view) {
   TREE.forEach((t, i) => {
     const sig = createSignal(buildLine(t));
     const hl = createSignal<string | null>(null);
+    const rhl = createSignal<string | null>(null);
     const mc = createSignal<string | null>(null);
     const leak = createSignal<Set<string> | null>(null);
     const dim = createSignal(0);
     textSignals.push(sig);
     hlSignals.push(hl);
+    rhlSignals.push(rhl);
     mcSignals.push(mc);
     leakSignals.push(leak);
     dimSignals.push(dim);
@@ -195,6 +255,7 @@ export default makeScene2D(function* (view) {
       opacity: 0,
       drawHooks: makeDrawHooks(() => ({
         highlight: hl(),
+        renameHighlight: rhl(),
         moduleColor: mc(),
         leakedArgs: leak(),
         dimAmount: dim(),
@@ -204,59 +265,95 @@ export default makeScene2D(function* (view) {
     stage.add(row);
   });
 
-  // ── Утверждённая лесенка появления ──────────────────────────────────────
-  for (const row of rows) {
-    yield* all(
-      row.opacity(1, 0.28, easeInOutCubic),
-      row.x(row.x() + 14, 0.28, easeInOutCubic),
-    );
-    yield* waitFor(0.12);
-  }
+  // ── Одновременное появление всех строк ──────────────────────────────────
+  yield* all(
+    ...rows.flatMap(row => [
+      row.opacity(1, 0.4, easeInOutCubic),
+      row.x(row.x() + 14, 0.4, easeInOutCubic),
+    ]),
+  );
 
   yield* waitFor(1.8);
 
-  // ── Акт 1: hdrMode нужен в encode — каскад проброса снизу вверх ────────
-  const delays = [0.3, 0.35, 0.40, 0.45, 0.50, 0.55];
-
-  for (let i = HDR_TARGET; i >= 0; i--) {
-    const currentText = textSignals[i]();
-    const closeParen = currentText.lastIndexOf(')');
-    const before = currentText.slice(0, closeParen);
-    const suffix = ', hdrMode';
-    for (let c = 1; c <= suffix.length; c++) {
-      textSignals[i](before + suffix.slice(0, c) + ')');
-      yield* waitFor(0.025);
+  // ── Акт 1: hdrMode — одновременное появление во всех строках ────────────
+  const hdrSuffix = ', hdrMode';
+  const hdrBases = Array.from({length: HDR_TARGET + 1}, (_, i) => {
+    const cur = textSignals[i]();
+    const cp = cur.lastIndexOf(')');
+    return {before: cur.slice(0, cp), after: ')'};
+  });
+  for (let c = 1; c <= hdrSuffix.length; c++) {
+    for (let i = 0; i <= HDR_TARGET; i++) {
+      textSignals[i](hdrBases[i].before + hdrSuffix.slice(0, c) + hdrBases[i].after);
     }
-    yield* waitFor(delays[HDR_TARGET - i] ?? 0.3);
+    yield* waitFor(0.025);
   }
 
   yield* waitFor(2.0);
 
-  // ── Акт 2: watermarkMode удаляется одновременно во всех методах ─────────
-  const wmIndices = TREE.map((t, i) => t.args.includes('watermarkMode') ? i : -1).filter(i => i >= 0);
-  const fragment = ', watermarkMode';
+  // ── Акт 2: subtitleTrack удаляется одновременно во всех методах ───────────
+  const SUBTITLE_PARAM = 'subtitleTrack';
+  const subIndices = TREE.map((t, i) => (t.args.includes(SUBTITLE_PARAM) ? i : -1)).filter(i => i >= 0);
+  const subFragment = `, ${SUBTITLE_PARAM}`;
 
-  for (const i of wmIndices) hlSignals[i]('watermarkMode');
+  for (const i of subIndices) hlSignals[i](SUBTITLE_PARAM);
   yield* waitFor(0.4);
 
-  const snapshots = wmIndices.map(i => {
+  const subSnapshots = subIndices.map(i => {
     const cur = textSignals[i]();
-    const idx = cur.indexOf(fragment);
-    return {i, before: cur.slice(0, idx), after: cur.slice(idx + fragment.length)};
+    const idx = cur.indexOf(subFragment);
+    if (idx < 0) {
+      throw new Error(`exportCallTreeSceneRu: expected "${subFragment}" in line ${i}: ${cur}`);
+    }
+    return {i, before: cur.slice(0, idx), after: cur.slice(idx + subFragment.length)};
   });
 
-  for (let c = fragment.length - 1; c >= 0; c--) {
-    for (const s of snapshots) {
-      textSignals[s.i](s.before + fragment.slice(0, c) + s.after);
+  for (let c = subFragment.length - 1; c >= 0; c--) {
+    for (const s of subSnapshots) {
+      textSignals[s.i](s.before + subFragment.slice(0, c) + s.after);
     }
     yield* waitFor(0.02);
   }
 
-  for (const i of wmIndices) hlSignals[i](null);
+  for (const i of subIndices) hlSignals[i](null);
 
   yield* waitFor(2.0);
 
-  // ── Акт 3: покраска модулей ─────────────────────────────────────────────
+  // ── Акт 3: переименование параметра (тот же смысл, новый идентификатор) ──
+  const renameIndices = TREE.map((t, i) => (t.args.includes(RENAME_FROM) ? i : -1)).filter(i => i >= 0);
+
+  for (const i of renameIndices) rhlSignals[i](RENAME_FROM);
+  yield* waitFor(0.45);
+
+  const renameDelays = [0.06, 0.055, 0.05, 0.045, 0.04, 0.035, 0.03, 0.025];
+  for (let k = 0; k < renameIndices.length; k++) {
+    const i = renameIndices[k];
+    const cur = textSignals[i]();
+    if (!cur.includes(RENAME_FROM)) continue;
+    textSignals[i](cur.split(RENAME_FROM).join(RENAME_TO));
+    rhlSignals[i](null);
+    yield* waitFor(renameDelays[k] ?? 0.03);
+  }
+
+  yield* waitFor(2.0);
+
+  // ── Акт 4: булев флаг isDryRun — одновременное появление ─────────────────
+  const boolSuffix = `, ${BOOL_FLAG}`;
+  const boolBases = Array.from({length: BOOL_TARGET + 1}, (_, i) => {
+    const cur = textSignals[i]();
+    const cp = cur.lastIndexOf(')');
+    return {before: cur.slice(0, cp), after: ')'};
+  });
+  for (let c = 1; c <= boolSuffix.length; c++) {
+    for (let i = 0; i <= BOOL_TARGET; i++) {
+      textSignals[i](boolBases[i].before + boolSuffix.slice(0, c) + boolBases[i].after);
+    }
+    yield* waitFor(0.025);
+  }
+
+  yield* waitFor(2.0);
+
+  // ── Акт 5: покраска модулей ─────────────────────────────────────────────
   for (let i = 0; i < TREE.length; i++) {
     mcSignals[i](i < MODULE_SPLIT ? MODULE_A_CLR : MODULE_B_CLR);
   }
@@ -309,7 +406,7 @@ export default makeScene2D(function* (view) {
   stage.add(labelB);
   stage.add(connector);
 
-  // ── Акт 4: раздвижение + появление лейблов и коннектора ─────────────────
+  // ── Акт 6: раздвижение + появление лейблов и коннектора ─────────────────
   const gap = lineHeight * 1.8;
 
   const moveAnims = rows.map((row, i) => {
@@ -335,7 +432,7 @@ export default makeScene2D(function* (view) {
 
   yield* waitFor(2.0);
 
-  // ── Акт 5: протекание — бирюзовые аргументы в жёлтом модуле ─────────────
+  // ── Акт 7: протекание — бирюзовые аргументы в жёлтом модуле ─────────────
   // Покраска leaked args + затемнение остального — одновременно
   for (let i = 0; i < MODULE_SPLIT; i++) {
     leakSignals[i](LEAKED_ARGS);
