@@ -10,9 +10,9 @@ const METHOD_CLR    = '#9FC7E8';
 const VARIABLE_CLR  = '#E8ECF2';
 const PUNCT_CLR     = '#B7C4D4';
 const CONN_CLR      = '#B7C4D4';
-const HDR_CLR       = Colors.accent;
+const HDR_CLR       = 'rgba(80, 200, 120, 0.95)';
 const REMOVE_CLR    = 'rgba(255, 70, 70, 0.95)';
-const RENAME_CLR    = 'rgba(80, 200, 120, 0.95)';
+const RENAME_CLR    = 'rgba(232, 200, 116, 0.95)';
 
 // Цвета модулей
 const MODULE_A_CLR  = '#E8C874'; // тёплый жёлтый — подготовка
@@ -265,13 +265,14 @@ export default makeScene2D(function* (view) {
     stage.add(row);
   });
 
-  // ── Одновременное появление всех строк ──────────────────────────────────
-  yield* all(
-    ...rows.flatMap(row => [
-      row.opacity(1, 0.4, easeInOutCubic),
-      row.x(row.x() + 14, 0.4, easeInOutCubic),
-    ]),
-  );
+  // ── Лесенка появления строк ─────────────────────────────────────────────
+  for (const row of rows) {
+    yield* all(
+      row.opacity(1, 0.28, easeInOutCubic),
+      row.x(row.x() + 14, 0.28, easeInOutCubic),
+    );
+    yield* waitFor(0.12);
+  }
 
   yield* waitFor(1.8);
 
@@ -365,6 +366,7 @@ export default makeScene2D(function* (view) {
 
   const modAcenterY = (rows[0].y() + rows[MODULE_SPLIT - 1].y()) / 2;
   const modBcenterY = (rows[MODULE_SPLIT].y() + rows[TREE.length - 1].y()) / 2;
+  const LABEL_Y_OFFSET = 20;
 
   const labelA = new Txt({
     text: 'VideoPreparation',
@@ -373,7 +375,7 @@ export default makeScene2D(function* (view) {
     fontWeight: 600,
     fill: MODULE_A_CLR,
     x: labelX,
-    y: modAcenterY,
+    y: modAcenterY + LABEL_Y_OFFSET,
     offset: [1, 0],
     opacity: 0,
   });
@@ -385,20 +387,27 @@ export default makeScene2D(function* (view) {
     fontWeight: 600,
     fill: MODULE_B_CLR,
     x: labelX,
-    y: modBcenterY,
+    y: modBcenterY + LABEL_Y_OFFSET,
     offset: [1, 0],
     opacity: 0,
   });
 
   // Вертикальная линия между модулями — по X совпадает с символом └ строки encodeWithRetry
-  const connLineX = rows[MODULE_SPLIT].x() + textWidth(INDENT.repeat(MODULE_SPLIT), Fonts.code, fontSize, 650) + fontSize * 0.25;
+  const connLineWidth = fontSize * 0.08 + 1;
+  /** +1 — выравнивание вправо; −0.5 — при +1 к толщине обводка «растёт» влево (центр смещён вправо). */
+  const connLineX =
+    rows[MODULE_SPLIT].x() +
+    textWidth(INDENT.repeat(MODULE_SPLIT), Fonts.code, fontSize, 650) +
+    fontSize * 0.25 +
+    1 -
+    0.5;
   const lastAy = rows[MODULE_SPLIT - 1].y();
   const firstBy = rows[MODULE_SPLIT].y();
 
   const connector = new Line({
     points: [[connLineX, lastAy + lineHeight * 0.4], [connLineX, firstBy - lineHeight * 0.4]],
     stroke: CONN_CLR,
-    lineWidth: fontSize * 0.08,
+    lineWidth: connLineWidth,
     opacity: 0,
   });
 
@@ -416,8 +425,8 @@ export default makeScene2D(function* (view) {
 
   yield* all(
     ...moveAnims,
-    labelA.y(modAcenterY - gap / 2, 0.7, easeInOutCubic),
-    labelB.y(modBcenterY + gap / 2, 0.7, easeInOutCubic),
+    labelA.y(modAcenterY - gap / 2 + LABEL_Y_OFFSET, 0.7, easeInOutCubic),
+    labelB.y(modBcenterY + gap / 2 + LABEL_Y_OFFSET, 0.7, easeInOutCubic),
     connector.points(
       [[connLineX, lastAy + lineHeight * 0.4 - gap / 2], [connLineX, firstBy - lineHeight * 0.4 + gap / 2]],
       0.7, easeInOutCubic,
