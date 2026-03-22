@@ -14,12 +14,15 @@ import sphereDigitsDemoSceneRu from "./scenes/sphereDigitsDemoSceneRu?scene";
 import validateMonolithSceneRu from "./scenes/validateMonolithSceneRu?scene";
 import starWarsCrawlSceneRu from "./scenes/starWarsCrawlSceneRu?scene";
 import jackIntroSceneEn from "./scenes/jackIntroSceneEn?scene";
+import callChainExorcistIntroSceneEn from "./scenes/callChainExorcistIntroSceneEn?scene";
 import guitarHeroPassThroughSceneRu from "./scenes/guitarHeroPassThroughSceneRu?scene";
 import passThroughIntroSceneRu from "./scenes/passThroughIntroSceneRu?scene";
 import notifyPassThroughSceneRu from "./scenes/notifyPassThroughSceneRu?scene";
 import passThroughPianoSceneRu from "./scenes/passThroughPianoSceneRu?scene";
 import smallMethodsProblemsSubtitlesSceneRu from "./scenes/smallMethodsProblemsSubtitlesSceneRu?scene";
 import exportCallTreeSceneRu from "./scenes/exportCallTreeSceneRu?scene";
+import threeSymptomsSceneRu from "./scenes/threeSymptomsSceneRu?scene";
+import triangleAmplifierSceneRu from "./scenes/triangleAmplifierSceneRu?scene";
 
 export default makeProject({
     experimentalFeatures: true,
@@ -71,12 +74,14 @@ export default makeProject({
         // smallMethodsProblemsSubtitlesSceneRu,
 
         // notifyPassThroughSceneRu,
-        // validateMonolithSceneRu,
-        // // starWarsCrawlSceneRu,
-        //  jackIntroSceneEn,
-        //  codeWithActionsSceneRu,
+        //  validateMonolithSceneRu,
+        //  starWarsCrawlSceneRu,
+        //   jackIntroSceneEn,
+        //   codeWithActionsSceneRu,
         // codeWithActionsSceneRuTilt,
-        exportCallTreeSceneRu,
+         exportCallTreeSceneRu,
+        triangleAmplifierSceneRu,
+        // callChainExorcistIntroSceneEn,
         // // guitarHeroPassThroughSceneRu,
         // contextObjectSceneRu,
         // contextRefactorSceneRu,

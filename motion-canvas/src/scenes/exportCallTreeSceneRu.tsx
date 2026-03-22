@@ -4,8 +4,11 @@ import {SafeZone} from '../core/ScreenGrid';
 import {Colors, Fonts, Timing} from '../core/theme';
 import {applyBackground} from '../core/utils';
 import {textWidth} from '../core/utils/textMeasure';
+import {tokenizeLine} from '../core/code/model/Tokenizer';
+import {DryFiltersV3CodeTheme, getTokenColor} from '../core/code/model/SyntaxTheme';
 
 // ── Утверждённая палитра ─────────────────────────────────────────────────────
+const PASS_THROUGH_CLR = 'rgba(255, 100, 130, 0.95)';
 const METHOD_CLR    = '#9FC7E8';
 const VARIABLE_CLR  = '#E8ECF2';
 const PUNCT_CLR     = '#B7C4D4';
@@ -354,6 +357,99 @@ export default makeScene2D(function* (view) {
 
   yield* waitFor(2.0);
 
+  // ── Скрытая связность: тело exportVideo ──────────────────────────────────
+  {
+    const SNIPPET_PASS   = new Set(['outputFormat', 'watermarkMode', 'audioProfile']);
+    const snippetLeakSig = createSignal<Set<string> | null>(null);
+    const snippetDimSig  = createSignal(0);
+
+    const snippetHooks = () => ({
+      token: (
+        ctx: CanvasRenderingContext2D,
+        text: string,
+        position: {x: number; y: number},
+        _color: string,
+        selection: number,
+      ) => {
+        const raw       = String(text ?? '');
+        const prevAlpha = ctx.globalAlpha;
+        ctx.globalAlpha *= map(0.2, 1, selection);
+        let x = position.x;
+        const y      = position.y;
+        const leaked = snippetLeakSig();
+        const dim    = snippetDimSig();
+        const tokens = tokenizeLine(raw);
+        for (const tok of tokens) {
+          const seg    = tok.text;
+          const isPass = leaked !== null && leaked.has(seg);
+          const sa     = ctx.globalAlpha;
+          if (dim > 0 && !isPass) ctx.globalAlpha *= 1 - dim * 0.75;
+          ctx.fillStyle = isPass ? PASS_THROUGH_CLR : getTokenColor(tok.type, DryFiltersV3CodeTheme);
+          ctx.fillText(seg, x, y);
+          x += ctx.measureText(seg).width;
+          ctx.globalAlpha = sa;
+        }
+        ctx.globalAlpha = prevAlpha;
+      },
+    });
+
+    const snippetLines = [
+      '    validateInput(sourceFrames, outputFormat);',
+      '    byte[] preparedFrames = prepareFrames(sourceFrames, colorProfile, subtitleTrack);',
+      '    return encodeWithRetry(preparedFrames, outputFormat, watermarkMode, audioProfile);',
+    ];
+    const EXPAND_GAP     = lineHeight * (snippetLines.length + 1.0);
+    const rowYsPreExpand = rows.slice(1).map(r => r.y());
+
+    // Раздвигаем
+    yield* all(
+      ...rows.slice(1).map(row => row.y(row.y() + EXPAND_GAP, 0.7, easeInOutCubic)),
+    );
+    yield* waitFor(0.3);
+
+    // Появление сниппета — весь блок сразу
+    const snippetStartY = rows[0].y() + lineHeight;
+    const snippetNodes: Code[] = [];
+    for (let si = 0; si < snippetLines.length; si++) {
+      const node = new Code({
+        code: snippetLines[si],
+        fontFamily: Fonts.code,
+        fontSize,
+        lineHeight,
+        x: startX,
+        y: snippetStartY + si * lineHeight,
+        offset: [-1, 0],
+        opacity: 0,
+        drawHooks: snippetHooks(),
+      });
+      snippetNodes.push(node);
+      stage.add(node);
+    }
+
+    // Сниппет + затемнение — одновременно
+    yield* all(
+      ...snippetNodes.map(n => n.opacity(1, 0.5, easeInOutCubic)),
+      ...rows.slice(1, TREE.length - 1).map(row => row.opacity(0.12, 0.5, easeInOutCubic)),
+    );
+    yield* waitFor(0.8);
+
+    // Потом параметры краснеют
+    snippetLeakSig(SNIPPET_PASS);
+    yield* snippetDimSig(1, 0.6, easeInOutCubic);
+    yield* waitFor(2.5);
+
+    // Сворачиваем всё сразу: сниппет гаснет, строки возвращаются и восстанавливают opacity
+    snippetLeakSig(null);
+    snippetDimSig(0);
+    yield* all(
+      ...snippetNodes.map(n => n.opacity(0, 0.5, easeInOutCubic)),
+      ...rows.slice(1, TREE.length - 1).map(row => row.opacity(1, 0.5, easeInOutCubic)),
+      ...rows.slice(1).map((row, k) => row.y(rowYsPreExpand[k], 0.5, easeInOutCubic)),
+    );
+    for (const n of snippetNodes) n.remove();
+    yield* waitFor(0.5);
+  }
+
   // ── Акт 5: покраска модулей ─────────────────────────────────────────────
   for (let i = 0; i < TREE.length; i++) {
     mcSignals[i](i < MODULE_SPLIT ? MODULE_A_CLR : MODULE_B_CLR);
@@ -454,7 +550,6 @@ export default makeScene2D(function* (view) {
     ...Array.from({length: TREE.length - MODULE_SPLIT}, (_, k) =>
       rows[MODULE_SPLIT + k].opacity(0.15, dimDuration, easeInOutCubic),
     ),
-    labelA.opacity(0.15, dimDuration, easeInOutCubic),
     connector.opacity(0.15, dimDuration, easeInOutCubic),
   );
 
@@ -468,7 +563,6 @@ export default makeScene2D(function* (view) {
     ...Array.from({length: TREE.length - MODULE_SPLIT}, (_, k) =>
       rows[MODULE_SPLIT + k].opacity(1, 0.5, easeInOutCubic),
     ),
-    labelA.opacity(1, 0.5, easeInOutCubic),
     connector.opacity(1, 0.5, easeInOutCubic),
   );
   yield* waitFor(1.5);
