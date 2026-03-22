@@ -18,7 +18,7 @@ const LABEL_PAD_TOP = 56;
 /** Под основанием — от линии основания до верхнего края нижних подписей. */
 const LABEL_PAD_BOTTOM = 48;
 /** Горизонтальное разнесение нижних подписей от вершин (центр текста, textAlign center). */
-const BOTTOM_LABEL_SPREAD_X = 50;
+const BOTTOM_LABEL_SPREAD_X = 130;
 
 export default makeScene2D(function* (view) {
   applyBackground(view);
@@ -26,7 +26,7 @@ export default makeScene2D(function* (view) {
   const root = new Node({});
   view.add(root);
 
-  const fontSize = 44;
+  const fontSize = 32;
   const fontWeight = 500;
   const lineHeight = fontSize * 1.35;
   const hh = lineHeight / 2;
@@ -61,6 +61,19 @@ export default makeScene2D(function* (view) {
     opacity: 0,
   });
 
+  const centerLabel = new Txt({
+    text: 'hidden coupling',
+    fontFamily: Fonts.code,
+    fontWeight,
+    fontSize,
+    lineHeight,
+    fill: TEXT_FILL,
+    textAlign: 'center',
+    x: 0,
+    y: labelCenterY,
+    opacity: 0,
+  });
+
   const rightLabel = new Txt({
     text: 'polluted interfaces',
     fontFamily: Fonts.code,
@@ -75,6 +88,7 @@ export default makeScene2D(function* (view) {
   });
 
   root.add(leftLabel);
+  root.add(centerLabel);
   root.add(rightLabel);
   root.add(apexLabel);
 
@@ -102,11 +116,12 @@ export default makeScene2D(function* (view) {
   const leftSide = makeEdge(V_TOP, V_BL);
   const rightSide = makeEdge(V_TOP, V_BR);
 
-  // ── Фаза 1: нижние подписи (основание) ───────────────────────────────────
-  yield* all(
-    leftLabel.opacity(1, 1.0, easeOutCubic),
-    rightLabel.opacity(1, 1.0, easeOutCubic),
-  );
+  // ── Фаза 1: нижние подписи — по очереди ──────────────────────────────────
+  yield* leftLabel.opacity(1, 0.7, easeOutCubic);
+  yield* waitFor(0.4);
+  yield* centerLabel.opacity(1, 0.7, easeOutCubic);
+  yield* waitFor(0.4);
+  yield* rightLabel.opacity(1, 0.7, easeOutCubic);
   yield* waitFor(0.8);
 
   // ── Фаза 2: верхняя подпись ─────────────────────────────────────────────
@@ -136,6 +151,7 @@ export default makeScene2D(function* (view) {
     leftSide.core.opacity(0, Timing.normal, easeInOutCubic),
     rightSide.core.opacity(0, Timing.normal, easeInOutCubic),
     leftLabel.opacity(0, Timing.normal, easeInOutCubic),
+    centerLabel.opacity(0, Timing.normal, easeInOutCubic),
     rightLabel.opacity(0, Timing.normal, easeInOutCubic),
     apexLabel.opacity(0, Timing.normal, easeInOutCubic),
   );
