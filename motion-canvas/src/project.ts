@@ -78,7 +78,7 @@ export default makeProject({
         //  starWarsCrawlSceneRu,
         //   jackIntroSceneEn,
         //   codeWithActionsSceneRu,
-         codeWithActionsSceneRuTilt,
+        // codeWithActionsSceneRuTilt,
         //  exportCallTreeSceneRu,
         // triangleAmplifierSceneRu,
         // callChainExorcistIntroSceneEn,

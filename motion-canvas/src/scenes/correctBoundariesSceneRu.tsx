@@ -44,7 +44,6 @@ const B = {
   pkg: {x: TREE_CX + 120, y: 190},
   am:  {x: TREE_CX + 120, y: 310},
 };
-const B_SPLIT = (B.ev.y + B.pf.y) / 2;
 
 // Mid-state (upper fan-out, lower chain)
 const M = {
@@ -55,14 +54,12 @@ const M = {
   pkg: {x: TREE_CX + 230, y: 40},
   am:  {x: TREE_CX + 230, y: 190},
 };
-const M_SPLIT = (M.ev.y + M.pf.y) / 2;
 
 // Good-state (two fan-outs)
 const G = {
   pkg: {x: TREE_CX + 230 - 130, y: 50},
   am:  {x: TREE_CX + 230 + 130, y: 50},
 };
-const G_FE_SPLIT = (M.fe.y + G.pkg.y) / 2;
 
 // 4-point connector helper (degenerate split-Y for straight lines)
 const conn4 = (
@@ -226,7 +223,7 @@ export default makeScene2D(function* (view) {
 
   // ── Manticore ─────────────────────────────────────────────────────────────────
   const cb = Manticore.create(model.render(), {
-    x: LEFT_CENTER_X - 50, y: -50,
+    x: LEFT_CENTER_X - 50, y: 0,
     width: CODE_W,
     height: SafeZone.bottom - SafeZone.top - 36,
     fontSize, lineHeight, contentOffsetY: topInset,
@@ -298,31 +295,27 @@ export default makeScene2D(function* (view) {
   addBox(bPkg, B.pkg.x, B.pkg.y, 'packageOutput',   FILLS.pkg);
   addBox(bAm,  B.am.x,  B.am.y,  'attachMetadata',  FILLS.am);
 
-  // ── Появление: код + скролл + раскрытие схемы ────────────────────────────────
+  // ── Появление: код + раскрытие схемы ─────────────────────────────────────────
   yield* cb.appear(Timing.slow);
-  yield* all(
-    cb.scrollTo('private byte[] attachMetadata', 5.0),
-    (function* () {
-      yield* bEv().opacity(1, 0.3, easeInOutCubic);
-      yield* waitFor(0.4);
-      yield* all(bPf().opacity(1, 0.3, easeInOutCubic), connEvPf().opacity(1, 0.3, easeInOutCubic));
-      yield* waitFor(0.4);
-      yield* all(bEwr().opacity(1, 0.3, easeInOutCubic), connEvEwr().opacity(1, 0.3, easeInOutCubic));
-      yield* waitFor(0.4);
-      yield* all(bEnc().opacity(1, 0.3, easeInOutCubic), connEwrEnc().opacity(1, 0.3, easeInOutCubic));
-      yield* waitFor(0.4);
-      yield* all(bFe().opacity(1, 0.3, easeInOutCubic), connEncFe().opacity(1, 0.3, easeInOutCubic));
-      yield* waitFor(0.4);
-      yield* all(bPkg().opacity(1, 0.3, easeInOutCubic), connFePkg().opacity(1, 0.3, easeInOutCubic));
-      yield* waitFor(0.4);
-      yield* all(bAm().opacity(1, 0.3, easeInOutCubic), connPkgAm().opacity(1, 0.3, easeInOutCubic));
-    })(),
-  );
+  yield* waitFor(0.3);
+
+  yield* bEv().opacity(1, 0.3, easeInOutCubic);
+  yield* waitFor(0.25);
+  yield* all(bPf().opacity(1, 0.3, easeInOutCubic), connEvPf().opacity(1, 0.3, easeInOutCubic));
+  yield* waitFor(0.25);
+  yield* all(bEwr().opacity(1, 0.3, easeInOutCubic), connEvEwr().opacity(1, 0.3, easeInOutCubic));
+  yield* waitFor(0.25);
+  yield* all(bEnc().opacity(1, 0.3, easeInOutCubic), connEwrEnc().opacity(1, 0.3, easeInOutCubic));
+  yield* waitFor(0.25);
+  yield* all(bFe().opacity(1, 0.3, easeInOutCubic), connEncFe().opacity(1, 0.3, easeInOutCubic));
+  yield* waitFor(0.25);
+  yield* all(bPkg().opacity(1, 0.3, easeInOutCubic), connFePkg().opacity(1, 0.3, easeInOutCubic));
+  yield* waitFor(0.25);
+  yield* all(bAm().opacity(1, 0.3, easeInOutCubic), connPkgAm().opacity(1, 0.3, easeInOutCubic));
   yield* waitFor(1.5);
 
   // ── Шаг 1: неправильная ответственность — prepareFrames ──────────────────────
-  yield* cb.scrollTo('private byte[] prepareFrames', 1.0);
-  yield* waitFor(1.5);
+  yield* waitFor(1.0);
 
   model.getMethod('prepareFrames').params = [
     param('byte[]', 'sourceFrames'), param('String', 'colorProfile'),
@@ -343,8 +336,7 @@ export default makeScene2D(function* (view) {
   yield* waitFor(1.0);
 
   // ── Шаг 2: пустая прослойка — encode + encodeWithRetry ───────────────────────
-  yield* cb.scrollTo('private byte[] encodeWithRetry', 1.0);
-  yield* waitFor(1.5);
+  yield* waitFor(1.0);
 
   // Удаляем encode, упрощаем encodeWithRetry
   (model as any).methods = (model as any).methods.filter((m: any) => m.name !== 'encode');
