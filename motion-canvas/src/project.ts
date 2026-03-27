@@ -78,15 +78,14 @@ export default makeProject({
         //  starWarsCrawlSceneRu,
         //   jackIntroSceneEn,
         //   codeWithActionsSceneRu,
-        // codeWithActionsSceneRuTilt,
-         exportCallTreeSceneRu,
-        triangleAmplifierSceneRu,
+         codeWithActionsSceneRuTilt,
+        //  exportCallTreeSceneRu,
+        // triangleAmplifierSceneRu,
         // callChainExorcistIntroSceneEn,
-        // // guitarHeroPassThroughSceneRu,
+        // guitarHeroPassThroughSceneRu,
         // contextObjectSceneRu,
         // contextRefactorSceneRu,
         // globalStateSingletonSceneRu,
-        // correctBoundariesSceneRu,
-
+        correctBoundariesSceneRu,
     ]
 });
