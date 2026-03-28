@@ -29,6 +29,7 @@ export interface ManticoreConfig {
     customTypes?: string[];
     contentOffsetX?: number;
     contentOffsetY?: number;
+    clipPaddingY?: number;
     glowAccent?: boolean;
     noClip?: boolean;
 }
@@ -132,6 +133,7 @@ export class Manticore {
             customTypes: config.customTypes ?? [],
             contentOffsetX: config.contentOffsetX ?? 0,
             contentOffsetY: config.contentOffsetY ?? 0,
+            clipPaddingY: config.clipPaddingY ?? getCodePaddingY(fontSize),
             glowAccent: config.glowAccent ?? true,
             noClip: config.noClip ?? false,
         };
@@ -157,7 +159,8 @@ export class Manticore {
         this.card = new CodeCard({width: cardWidth, height: cardHeight, style: this.cfg.cardStyle});
         container.add(this.card.build());
 
-        this.clipHeight = Math.max(0, cardHeight - paddingY * 2);
+        const clipPadY = this.cfg.clipPaddingY ?? paddingY;
+        this.clipHeight = Math.max(0, cardHeight - clipPadY * 2);
         const clip = new Rect({
             width: cardWidth,
             height: this.clipHeight,

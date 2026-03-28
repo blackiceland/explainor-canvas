@@ -77,21 +77,16 @@ export default makeScene2D(function* (view) {
   const quoteContainer = new Node({opacity: 0, y: -20});
   view.add(quoteContainer);
   quoteContainer.add(
-    <Txt fontFamily={Fonts.primary} fontSize={44} fontWeight={300}
-      fill={Colors.text.primary} textAlign="center" y={-40}>
-      Each module is then designed to
-    </Txt>,
-  );
-  quoteContainer.add(
-    <Txt fontFamily={Fonts.primary} fontSize={44} fontWeight={300}
-      fill={Colors.text.primary} textAlign="center" y={20}>
+    <Txt fontFamily={Fonts.primary} fontSize={40} fontWeight={300}
+      fill={Colors.text.primary} textAlign="center" y={-10}>
+      Each module is then designed to{' '}
       <Txt fill={Colors.accent} fontWeight={600}>hide such a decision</Txt>
       {' '}from the others.
     </Txt>,
   );
   quoteContainer.add(
     <Txt fontFamily={Fonts.primary} fontSize={24} fill={Colors.text.muted}
-      opacity={0.7} fontStyle="italic" textAlign="center" y={100}>
+      opacity={0.7} fontStyle="italic" textAlign="center" y={70}>
       — David Parnas, On the Criteria To Be Used in Decomposing Systems into Modules
     </Txt>,
   );
@@ -102,7 +97,7 @@ export default makeScene2D(function* (view) {
   yield* waitFor(0.5);
 
   // ── Модель кода (CODE_V4 — плохое состояние) ─────────────────────────────────
-  const fontSize   = 16;
+  const fontSize   = 14;
   const lineHeight = Math.round(fontSize * 1.62 * 10) / 10;
   const topInset   = Math.max(8, getCodePaddingY(fontSize) - 8);
   const maxChars   = Math.floor((CODE_W - getCodePaddingX(fontSize)) / measureChar(fontSize));
@@ -223,9 +218,10 @@ export default makeScene2D(function* (view) {
 
   // ── Manticore ─────────────────────────────────────────────────────────────────
   const cb = Manticore.create(model.render(), {
-    x: LEFT_CENTER_X - 50, y: 0,
+    x: LEFT_CENTER_X - 20, y: 0,
     width: CODE_W,
     height: SafeZone.bottom - SafeZone.top - 36,
+    clipPaddingY: 6,
     fontSize, lineHeight, contentOffsetY: topInset,
     fontFamily: Fonts.code,
     theme: DryFiltersV3CodeTheme,
@@ -299,19 +295,21 @@ export default makeScene2D(function* (view) {
   yield* cb.appear(Timing.slow);
   yield* waitFor(0.3);
 
-  yield* bEv().opacity(1, 0.3, easeInOutCubic);
-  yield* waitFor(0.25);
-  yield* all(bPf().opacity(1, 0.3, easeInOutCubic), connEvPf().opacity(1, 0.3, easeInOutCubic));
-  yield* waitFor(0.25);
-  yield* all(bEwr().opacity(1, 0.3, easeInOutCubic), connEvEwr().opacity(1, 0.3, easeInOutCubic));
-  yield* waitFor(0.25);
-  yield* all(bEnc().opacity(1, 0.3, easeInOutCubic), connEwrEnc().opacity(1, 0.3, easeInOutCubic));
-  yield* waitFor(0.25);
-  yield* all(bFe().opacity(1, 0.3, easeInOutCubic), connEncFe().opacity(1, 0.3, easeInOutCubic));
-  yield* waitFor(0.25);
-  yield* all(bPkg().opacity(1, 0.3, easeInOutCubic), connFePkg().opacity(1, 0.3, easeInOutCubic));
-  yield* waitFor(0.25);
-  yield* all(bAm().opacity(1, 0.3, easeInOutCubic), connPkgAm().opacity(1, 0.3, easeInOutCubic));
+  yield* all(
+    bEv().opacity(1, 0.5, easeInOutCubic),
+    bPf().opacity(1, 0.5, easeInOutCubic),
+    bEwr().opacity(1, 0.5, easeInOutCubic),
+    bEnc().opacity(1, 0.5, easeInOutCubic),
+    bFe().opacity(1, 0.5, easeInOutCubic),
+    bPkg().opacity(1, 0.5, easeInOutCubic),
+    bAm().opacity(1, 0.5, easeInOutCubic),
+    connEvPf().opacity(1, 0.5, easeInOutCubic),
+    connEvEwr().opacity(1, 0.5, easeInOutCubic),
+    connEwrEnc().opacity(1, 0.5, easeInOutCubic),
+    connEncFe().opacity(1, 0.5, easeInOutCubic),
+    connFePkg().opacity(1, 0.5, easeInOutCubic),
+    connPkgAm().opacity(1, 0.5, easeInOutCubic),
+  );
   yield* waitFor(1.5);
 
   // ── Шаг 1: неправильная ответственность — prepareFrames ──────────────────────
@@ -389,8 +387,10 @@ export default makeScene2D(function* (view) {
   yield* waitFor(1.0);
 
   // ── Шаг 3: скрытый pass-through — packageOutput ──────────────────────────────
-  yield* cb.scrollTo('private byte[] packageOutput', 1.0);
-  yield* waitFor(1.5);
+
+  // Предварительный скролл — показать finalizeExport до морфа
+  yield* cb.scrollTo('private byte[] finalizeExport', 1.0);
+  yield* waitFor(0.5);
 
   // finalizeExport становится оркестратором низа
   model.setBody('finalizeExport', [
@@ -431,7 +431,15 @@ export default makeScene2D(function* (view) {
       yield* connFeAm().opacity(1, 0.5, easeInOutCubic);
     })(),
   );
-  yield* waitFor(2.0);
+  yield* waitFor(1.0);
+
+  // Показать весь код — доскроллить чтобы attachMetadata стал виден внизу
+  yield* cb.scrollTo('private byte[] packageOutput', 1.2);
+  yield* waitFor(1.0);
+
+  // Плавно наверх — показать весь код с начала
+  yield* cb.scrollTo(0, 3.5);
+  yield* waitFor(1.0);
 
   // ── Уход ──────────────────────────────────────────────────────────────────────
   yield* all(
