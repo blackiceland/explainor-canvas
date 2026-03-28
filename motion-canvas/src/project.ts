@@ -7,6 +7,7 @@ import codeWithActionsSceneRu from './scenes/codeWithActionsSceneRu?scene';
 import globalStateSingletonSceneRu from './scenes/globalStateSingletonSceneRu?scene';
 import dryKnowledgeScene from './scenes/dryKnowledgeScene?scene';
 import correctBoundariesSceneRu from './scenes/correctBoundariesSceneRu?scene';
+import notesSceneRu from './scenes/notesSceneRu?scene';
 import trainCodeOverlaySceneRu from "./scenes/trainCodeOverlaySceneRu?scene";
 import oneCargoSceneRu from "./scenes/oneCargoSceneRu?scene";
 import passThroughMonolithScrollSceneRu from "./scenes/passThroughMonolithScrollSceneRu?scene";
@@ -86,6 +87,7 @@ export default makeProject({
         // contextObjectSceneRu,
         // contextRefactorSceneRu,
         // globalStateSingletonSceneRu,
-        correctBoundariesSceneRu,
+        // correctBoundariesSceneRu,
+        notesSceneRu,
     ]
 });
