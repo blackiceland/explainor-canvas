@@ -1,5 +1,5 @@
 import {makeScene2D, Line, Node, Rect, Txt} from '@motion-canvas/2d';
-import {all, createRef, easeInOutCubic, waitFor} from '@motion-canvas/core';
+import {all, createRef, easeInOutCubic, ThreadGenerator, waitFor} from '@motion-canvas/core';
 import {Manticore} from '../core/code/components/Manticore';
 import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
 import {getCodePaddingY, getCodePaddingX, measureChar} from '../core/code/shared/TextMeasure';
@@ -9,7 +9,7 @@ import {applyBackground} from '../core/utils';
 import {JavaClass, method, param} from '../core/code/model/JavaModel';
 import {
   CODE_CARD_STYLE, CODE_W, LEFT_CENTER_X,
-  COLOR_RULES,
+  COLOR_RULES, PASS_THROUGH,
 } from './codeWithActionsSceneRu.config';
 
 // ── Tree ────────────────────────────────────────────────────────────────────────
@@ -312,8 +312,43 @@ export default makeScene2D(function* (view) {
   );
   yield* waitFor(1.5);
 
+  // ── helpers ─────────────────────────────────────────────────────────────────
+  const WARN_GLOW  = 'rgba(255, 100, 130, 0.85)';
+  const WARN_BLUR  = 14;
+  const WARN_PATTERNS = ['watermarkMode', 'audioProfile'];
+  const warnRules = [
+    {match: 'watermarkMode', color: PASS_THROUGH},
+    {match: 'audioProfile',  color: PASS_THROUGH},
+  ];
+
+  function* glowOn(from: number, to: number, patterns = WARN_PATTERNS) {
+    const anims: ThreadGenerator[] = [];
+    for (let i = from; i <= to && i < cb.lineCount; i++) {
+      const line = cb.getLine(i);
+      if (line) anims.push(line.setTokensGlow(patterns, WARN_BLUR, WARN_GLOW, 0.5));
+    }
+    if (anims.length > 0) yield* all(...anims);
+  }
+
+  function* resetRange(from: number, to: number) {
+    const anims: ThreadGenerator[] = [];
+    for (let i = from; i <= to && i < cb.lineCount; i++) {
+      const line = cb.getLine(i);
+      if (line) anims.push(line.resetColors(0.3));
+    }
+    if (anims.length > 0) yield* all(...anims);
+  }
+
   // ── Шаг 1: неправильная ответственность — prepareFrames ──────────────────────
-  yield* waitFor(1.0);
+
+  // Подсветить лишние параметры в prepareFrames (виден с начала)
+  const pfSigLine = cb.findLine('private byte[] prepareFrames');
+  const pfBodyEnd = cb.findLine('normalizeAudio');
+  yield* all(
+    cb.colorizeAnimated(pfSigLine, pfBodyEnd, 0.5, warnRules),
+    glowOn(pfSigLine, pfBodyEnd),
+  );
+  yield* waitFor(1.2);
 
   model.getMethod('prepareFrames').params = [
     param('byte[]', 'sourceFrames'), param('String', 'colorProfile'),
@@ -328,15 +363,27 @@ export default makeScene2D(function* (view) {
   model.updateCallArgs('exportVideo', 'prepareFrames',
     ['sourceFrames', 'colorProfile', 'subtitleTrack']);
 
+  yield* resetRange(pfSigLine, pfBodyEnd);
   yield* cb.morphTo(model.render(), {
     removeDuration: 0.3, moveDuration: 0.5, addStyle: 'fade', scrollStrategy: 'auto',
   });
   yield* waitFor(1.0);
 
   // ── Шаг 2: пустая прослойка — encode + encodeWithRetry ───────────────────────
-  yield* waitFor(1.0);
+
+  // Подсветить метод-обёртку encode (виден после шага 1)
+  const encSigLine = cb.findLine('private byte[] encode(');
+  const encBodyEnd = cb.findLine('finalizeExport', encSigLine);
+  const encAllTokens = ['private', 'byte', 'encode', 'preparedFrames', 'outputFormat',
+    'watermarkMode', 'audioProfile', 'encodedVideo', 'runEncoder', 'finalizeExport', 'return'];
+  yield* all(
+    cb.colorizeAnimated(encSigLine, encBodyEnd, 0.5, [{match: /\S+/, color: PASS_THROUGH}]),
+    glowOn(encSigLine, encBodyEnd, encAllTokens),
+  );
+  yield* waitFor(1.2);
 
   // Удаляем encode, упрощаем encodeWithRetry
+  yield* resetRange(encSigLine, encBodyEnd);
   (model as any).methods = (model as any).methods.filter((m: any) => m.name !== 'encode');
   model.getMethod('encodeWithRetry').params = [param('byte[]', 'preparedFrames')];
   model.setBody('encodeWithRetry', [
@@ -388,9 +435,20 @@ export default makeScene2D(function* (view) {
 
   // ── Шаг 3: скрытый pass-through — packageOutput ──────────────────────────────
 
-  // Предварительный скролл — показать finalizeExport до морфа
+  // Скролл к finalizeExport — покажет и его, и packageOutput ниже
   yield* cb.scrollTo('private byte[] finalizeExport', 1.0);
-  yield* waitFor(0.5);
+  yield* waitFor(0.3);
+
+  // Подсветить pass-through параметры в packageOutput
+  const pkgSigLine = cb.findLine('private byte[] packageOutput');
+  const pkgBodyEnd = cb.findLine('attachMetadata', pkgSigLine);
+  yield* all(
+    cb.colorizeAnimated(pkgSigLine, pkgBodyEnd, 0.5, warnRules),
+    glowOn(pkgSigLine, pkgBodyEnd),
+  );
+  yield* waitFor(1.2);
+
+  yield* resetRange(pkgSigLine, pkgBodyEnd);
 
   // finalizeExport становится оркестратором низа
   model.setBody('finalizeExport', [
