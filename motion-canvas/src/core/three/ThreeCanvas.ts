@@ -78,18 +78,19 @@ export function createThreeView(cfg: ThreeViewConfig): ThreeView {
   };
 }
 
-const pool: WebGLRenderer[] = [];
+// Singleton renderer — avoids WebGL context leak on scene reset/seek
+let _singleton: WebGLRenderer | null = null;
 function borrowRenderer(): WebGLRenderer {
-  if (pool.length) return pool.pop()!;
-  const r = new WebGLRenderer({
+  if (_singleton) return _singleton;
+  _singleton = new WebGLRenderer({
     canvas: document.createElement('canvas'),
     alpha: true,
     antialias: true,
   });
-  r.outputColorSpace = SRGBColorSpace;
-  r.toneMapping = NoToneMapping;
-  return r;
+  _singleton.outputColorSpace = SRGBColorSpace;
+  _singleton.toneMapping = NoToneMapping;
+  return _singleton;
 }
-function disposeRenderer(renderer: WebGLRenderer) {
-  pool.push(renderer);
+function disposeRenderer(_renderer: WebGLRenderer) {
+  // keep singleton alive — it will be reused on next scene reset
 }
