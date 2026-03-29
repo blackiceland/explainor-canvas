@@ -25,6 +25,7 @@ import exportCallTreeSceneRu from "./scenes/exportCallTreeSceneRu?scene";
 import threeSymptomsSceneRu from "./scenes/threeSymptomsSceneRu?scene";
 import triangleAmplifierSceneRu from "./scenes/triangleAmplifierSceneRu?scene";
 import finalOutroSceneRu from "./scenes/finalOutroSceneRu?scene";
+import robotArmTestScene from "./scenes/robotArmTestScene?scene";
 
 export default makeProject({
     experimentalFeatures: true,
@@ -84,12 +85,16 @@ export default makeProject({
         // exportCallTreeSceneRu,
         // triangleAmplifierSceneRu,
         // callChainExorcistIntroSceneEn,
-         guitarHeroPassThroughSceneRu,
+        // guitarHeroPassThroughSceneRu,
         // contextObjectSceneRu,
         // contextRefactorSceneRu,
         // globalStateSingletonSceneRu,
         // correctBoundariesSceneRu,
         // notesSceneRu,
         // finalOutroSceneRu,
+
+        //03
+        robotArmTestScene,
+
     ]
-});
+})
