@@ -24,6 +24,7 @@ import smallMethodsProblemsSubtitlesSceneRu from "./scenes/smallMethodsProblemsS
 import exportCallTreeSceneRu from "./scenes/exportCallTreeSceneRu?scene";
 import threeSymptomsSceneRu from "./scenes/threeSymptomsSceneRu?scene";
 import triangleAmplifierSceneRu from "./scenes/triangleAmplifierSceneRu?scene";
+import finalOutroSceneRu from "./scenes/finalOutroSceneRu?scene";
 
 export default makeProject({
     experimentalFeatures: true,
@@ -72,22 +73,23 @@ export default makeProject({
         // passThroughPianoSceneRu,
 
         //02
-        // smallMethodsProblemsSubtitlesSceneRu,
 
+        // smallMethodsProblemsSubtitlesSceneRu,
         // notifyPassThroughSceneRu,
         //  validateMonolithSceneRu,
         //  starWarsCrawlSceneRu,
         //   jackIntroSceneEn,
         //   codeWithActionsSceneRu,
         // codeWithActionsSceneRuTilt,
-        //  exportCallTreeSceneRu,
+        // exportCallTreeSceneRu,
         // triangleAmplifierSceneRu,
         // callChainExorcistIntroSceneEn,
-        // guitarHeroPassThroughSceneRu,
+         guitarHeroPassThroughSceneRu,
         // contextObjectSceneRu,
         // contextRefactorSceneRu,
         // globalStateSingletonSceneRu,
         // correctBoundariesSceneRu,
-        notesSceneRu,
+        // notesSceneRu,
+        // finalOutroSceneRu,
     ]
 });

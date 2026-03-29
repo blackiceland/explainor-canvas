@@ -357,98 +357,189 @@ export default makeScene2D(function* (view) {
 
   yield* waitFor(2.0);
 
-  // ── Скрытая связность: тело exportVideo ──────────────────────────────────
-  {
-    const SNIPPET_PASS   = new Set(['outputFormat', 'watermarkMode', 'audioProfile']);
-    const snippetLeakSig = createSignal<Set<string> | null>(null);
-    const snippetDimSig  = createSignal(0);
+  // ── Helper: snippet drawHooks — tree-consistent coloring ──────────────────
+  const makeSnippetHooks = (
+    leakSig: ReturnType<typeof createSignal<Set<string> | null>>,
+    dimSig: ReturnType<typeof createSignal<number>>,
+  ) => ({
+    token: (
+      ctx: CanvasRenderingContext2D,
+      text: string,
+      position: {x: number; y: number},
+      _color: string,
+      selection: number,
+    ) => {
+      const raw       = String(text ?? '');
+      const prevAlpha = ctx.globalAlpha;
+      ctx.globalAlpha *= map(0.2, 1, selection);
+      let x = position.x;
+      const y      = position.y;
+      const leaked = leakSig();
+      const dim    = dimSig();
 
-    const snippetHooks = () => ({
-      token: (
-        ctx: CanvasRenderingContext2D,
-        text: string,
-        position: {x: number; y: number},
-        _color: string,
-        selection: number,
-      ) => {
-        const raw       = String(text ?? '');
-        const prevAlpha = ctx.globalAlpha;
-        ctx.globalAlpha *= map(0.2, 1, selection);
-        let x = position.x;
-        const y      = position.y;
-        const leaked = snippetLeakSig();
-        const dim    = snippetDimSig();
-        const tokens = tokenizeLine(raw);
-        for (const tok of tokens) {
-          const seg    = tok.text;
-          const isPass = leaked !== null && leaked.has(seg);
-          const sa     = ctx.globalAlpha;
+      let i = 0;
+      while (i < raw.length) {
+        const ch = raw[i];
+        if (/[A-Za-z_]/.test(ch)) {
+          let j = i + 1;
+          while (j < raw.length && /[A-Za-z0-9_]/.test(raw[j])) j++;
+          const word = raw.slice(i, j);
+          const isPass = leaked !== null && leaked.has(word);
+          const sa = ctx.globalAlpha;
           if (dim > 0 && !isPass) ctx.globalAlpha *= 1 - dim * 0.75;
-          ctx.fillStyle = isPass ? PASS_THROUGH_CLR : getTokenColor(tok.type, DryFiltersV3CodeTheme);
-          ctx.fillText(seg, x, y);
-          x += ctx.measureText(seg).width;
+          ctx.fillStyle = isPass ? PASS_THROUGH_CLR : (METHODS.has(word) ? METHOD_CLR : VARIABLE_CLR);
+          ctx.fillText(word, x, y);
+          x += ctx.measureText(word).width;
           ctx.globalAlpha = sa;
+          i = j;
+          continue;
         }
-        ctx.globalAlpha = prevAlpha;
-      },
-    });
+        let j = i + 1;
+        while (j < raw.length && !/[A-Za-z_]/.test(raw[j])) j++;
+        const seg = raw.slice(i, j);
+        const sa = ctx.globalAlpha;
+        if (dim > 0) ctx.globalAlpha *= 1 - dim * 0.75;
+        ctx.fillStyle = PUNCT_CLR;
+        ctx.fillText(seg, x, y);
+        x += ctx.measureText(seg).width;
+        ctx.globalAlpha = sa;
+        i = j;
+      }
 
-    const snippetLines = [
-      '    validateInput(sourceFrames, outputFormat);',
-      '    byte[] preparedFrames = prepareFrames(sourceFrames, colorProfile, subtitleTrack);',
-      '    return encodeWithRetry(preparedFrames, outputFormat, watermarkMode, audioProfile);',
-    ];
-    const EXPAND_GAP     = lineHeight * (snippetLines.length + 1.0);
-    const rowYsPreExpand = rows.slice(1).map(r => r.y());
+      ctx.globalAlpha = prevAlpha;
+    },
+  });
 
-    // Раздвигаем
+  // ── Helper: expand body, highlight pass-through, draw arrows ────────────────
+  const snippetFs = Math.round(fontSize * 0.82);
+  const snippetLH = Math.round(snippetFs * 1.85);
+
+  function* showBodyWithArrows(
+    parentIdx: number,
+    snippetLines: string[],
+    highlightLineIdx: number,
+    passParams: string[],
+  ) {
+    const SNIPPET_PASS = new Set(passParams);
+    const dimSig = createSignal(0);
+    const EXPAND_GAP = snippetLH * snippetLines.length + snippetLH;
+    const rowYsPreExpand = rows.slice(parentIdx + 1).map(r => r.y());
+
+    // Раздвигаем строки ниже родителя
     yield* all(
-      ...rows.slice(1).map(row => row.y(row.y() + EXPAND_GAP, 0.7, easeInOutCubic)),
+      ...rows.slice(parentIdx + 1).map(row => row.y(row.y() + EXPAND_GAP, 0.7, easeInOutCubic)),
     );
     yield* waitFor(0.3);
 
-    // Появление сниппета — весь блок сразу
-    const snippetStartY = rows[0].y() + lineHeight;
+    // Создаём сниппет — каждая строка получает свой leak signal
+    const snippetStartY = rows[parentIdx].y() + lineHeight * 0.6;
     const snippetNodes: Code[] = [];
+    const leakSigs: ReturnType<typeof createSignal<Set<string> | null>>[] = [];
+
     for (let si = 0; si < snippetLines.length; si++) {
+      const leakSig = createSignal<Set<string> | null>(null);
+      leakSigs.push(leakSig);
       const node = new Code({
         code: snippetLines[si],
         fontFamily: Fonts.code,
-        fontSize,
-        lineHeight,
+        fontSize: snippetFs,
+        lineHeight: snippetLH,
         x: startX,
-        y: snippetStartY + si * lineHeight,
+        y: snippetStartY + si * snippetLH,
         offset: [-1, 0],
         opacity: 0,
-        drawHooks: snippetHooks(),
+        drawHooks: makeSnippetHooks(leakSig, dimSig),
       });
       snippetNodes.push(node);
       stage.add(node);
     }
 
-    // Сниппет + затемнение — одновременно
+    // Появление сниппета + затемнение (родитель и writeOutput остаются яркими)
     yield* all(
       ...snippetNodes.map(n => n.opacity(1, 0.5, easeInOutCubic)),
-      ...rows.slice(1, TREE.length - 1).map(row => row.opacity(0.12, 0.5, easeInOutCubic)),
+      ...rows.filter((_, i) => i !== parentIdx && i !== TREE.length - 1)
+        .map(row => row.opacity(0.12, 0.5, easeInOutCubic)),
     );
     yield* waitFor(0.8);
 
-    // Потом параметры краснеют
-    snippetLeakSig(SNIPPET_PASS);
-    yield* snippetDimSig(1, 0.6, easeInOutCubic);
+    // Подсвечиваем pass-through + стрелки — одновременно
+    leakSigs[highlightLineIdx](SNIPPET_PASS);
+
+    const hlLine     = snippetLines[highlightLineIdx];
+    const writeOutY  = rows[TREE.length - 1].y();
+    const arrowFromY = snippetStartY + highlightLineIdx * snippetLH + snippetLH * 0.55;
+    const arrowToY   = writeOutY - lineHeight * 0.6;
+    const arrows: Line[] = [];
+
+    for (const param of passParams) {
+      const idx  = hlLine.indexOf(param);
+      if (idx < 0) continue;
+      const prefW = textWidth(hlLine.slice(0, idx), Fonts.code, snippetFs, 650);
+      const pW    = textWidth(param, Fonts.code, snippetFs, 650);
+      const cx    = startX + prefW + pW / 2;
+
+      const arrow = new Line({
+        points: [[cx, arrowFromY], [cx, arrowToY]],
+        stroke: PASS_THROUGH_CLR,
+        lineWidth: 1.2,
+        endArrow: true,
+        arrowSize: 7,
+        opacity: 0,
+      });
+      arrows.push(arrow);
+      stage.add(arrow);
+    }
+
+    yield* all(
+      dimSig(1, 0.6, easeInOutCubic),
+      ...arrows.map(a => a.opacity(0.6, 0.6, easeInOutCubic)),
+    );
     yield* waitFor(2.5);
 
-    // Сворачиваем всё сразу: сниппет гаснет, строки возвращаются и восстанавливают opacity
-    snippetLeakSig(null);
-    snippetDimSig(0);
+    // Сворачиваем
+    leakSigs[highlightLineIdx](null);
+    dimSig(0);
     yield* all(
       ...snippetNodes.map(n => n.opacity(0, 0.5, easeInOutCubic)),
-      ...rows.slice(1, TREE.length - 1).map(row => row.opacity(1, 0.5, easeInOutCubic)),
-      ...rows.slice(1).map((row, k) => row.y(rowYsPreExpand[k], 0.5, easeInOutCubic)),
+      ...arrows.map(a => a.opacity(0, 0.5, easeInOutCubic)),
+      ...rows.filter((_, i) => i !== parentIdx && i !== TREE.length - 1)
+        .map(row => row.opacity(1, 0.5, easeInOutCubic)),
+      ...rows.slice(parentIdx + 1).map((row, k) => row.y(rowYsPreExpand[k], 0.5, easeInOutCubic)),
     );
     for (const n of snippetNodes) n.remove();
+    for (const a of arrows) a.remove();
     yield* waitFor(0.5);
   }
+
+  // ── Скрытая связность: тело exportVideo ──────────────────────────────────
+  yield* showBodyWithArrows(
+    0,
+    [
+      '{',
+      '    validateInput(sourceFrames, outputFormat);',
+      '    byte[] preparedFrames = prepareFrames(sourceFrames, colorProfile, subtitleTrack);',
+      '    return encodeWithRetry(preparedFrames, outputFormat, watermarkMode, audioProfile);',
+      '}',
+    ],
+    3,
+    ['outputFormat', 'watermarkMode', 'audioProfile'],
+  );
+
+  // ── Скрытая связность: тело encode ────────────────────────────────────────
+  // 23 spaces = INDENT×5 + 3 (connector width) → aligns with "encode" in tree
+  const encBrace = INDENT.repeat(5) + '        ';  // +5 spaces (28 total)
+  const encBody  = encBrace + INDENT;
+  yield* showBodyWithArrows(
+    5,
+    [
+      encBrace + '{',
+      encBody + 'byte[] encodedVideo = runEncoder(filteredFrames);',
+      encBody + 'return finalizeExport(encodedVideo, outputFormat, watermarkMode, audioProfile);',
+      encBrace + '}',
+    ],
+    2,
+    ['outputFormat', 'watermarkMode', 'audioProfile'],
+  );
 
   // ── Акт 5: покраска модулей ─────────────────────────────────────────────
   for (let i = 0; i < TREE.length; i++) {
