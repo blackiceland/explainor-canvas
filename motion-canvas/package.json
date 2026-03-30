@@ -22,6 +22,7 @@
     "@motion-canvas/ui": "^3.17.2",
     "@motion-canvas/vite-plugin": "^3.17.2",
     "@types/pg": "^8.10.9",
+    "puppeteer": "^24.40.0",
     "typescript": "^5.5.4",
     "vite": "^5.2.0"
   }
