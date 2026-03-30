@@ -1,24 +1,22 @@
 import {makeScene2D} from '@motion-canvas/2d';
 import {all, createSignal, easeInOutCubic, waitFor} from '@motion-canvas/core';
 import {
+  AmbientLight,
   Bone,
   BoxGeometry,
   Color,
   CylinderGeometry,
-  EdgesGeometry,
+  DirectionalLight,
   Group,
   KeyframeTrack,
-  LineBasicMaterial,
-  LineSegments,
   Mesh,
-  MeshBasicMaterial,
+  MeshStandardMaterial,
   Object3D,
   PerspectiveCamera,
   Scene,
   SkinnedMesh,
   Vector3,
 } from 'three';
-import {OutlineEffect} from 'three/examples/jsm/effects/OutlineEffect.js';
 import {GLTFLoader} from 'three/examples/jsm/loaders/GLTFLoader.js';
 import {createThreeView} from '../core/three/ThreeCanvas';
 import {Screen} from '../core/theme';
@@ -124,18 +122,16 @@ export default makeScene2D(function* (view) {
   camera.position.set(1000, 500, 1700);
   camera.lookAt(0, 250, 400);
 
-  // ── Hologram materials ──────────────────────────────────────────────
-  const holoLineMat = new LineBasicMaterial({
-    color: 0x00e5ff, transparent: true, opacity: 0.8,
-  });
-  const holoLineAccent = new LineBasicMaterial({
-    color: 0x00ffcc, transparent: true, opacity: 0.55,
-  });
+  // ── Lighting ────────────────────────────────────────────────────────
+  scene3.add(new AmbientLight(0xffffff, 0.6));
+  const dirLight = new DirectionalLight(0xffffff, 1.0);
+  dirLight.position.set(500, 800, 600);
+  scene3.add(dirLight);
 
-  /** Create an edges-only holographic object from geometry. */
-  function holoEdges(geom: BoxGeometry | CylinderGeometry, mat?: LineBasicMaterial): LineSegments {
-    return new LineSegments(new EdgesGeometry(geom), mat ?? holoLineMat);
-  }
+  // ── Materials ────────────────────────────────────────────────────────
+  const conveyorMat = new MeshStandardMaterial({color: 0x555555, metalness: 0.6, roughness: 0.4});
+  const accentMat = new MeshStandardMaterial({color: 0x888888, metalness: 0.7, roughness: 0.3});
+  const cubeMat = new MeshStandardMaterial({color: 0xff9500, metalness: 0.3, roughness: 0.5});
 
   // ── Conveyor Belt ─────────────────────────────────────────────────────
   const conveyor = new Group();
@@ -147,7 +143,7 @@ export default makeScene2D(function* (view) {
   const legHeight = 120;
 
   // Belt surface
-  const belt = holoEdges(new BoxGeometry(beltLength, beltHeight, beltWidth));
+  const belt = new Mesh(new BoxGeometry(beltLength, beltHeight, beltWidth), conveyorMat);
   belt.position.set(0, beltY, beltZ);
   conveyor.add(belt);
 
@@ -155,10 +151,7 @@ export default makeScene2D(function* (view) {
   const railHeight = 30;
   const railThickness = 8;
   for (const side of [-1, 1]) {
-    const rail = holoEdges(
-      new BoxGeometry(beltLength, railHeight, railThickness),
-      holoLineAccent,
-    );
+    const rail = new Mesh(new BoxGeometry(beltLength, railHeight, railThickness), accentMat);
     rail.position.set(0, beltY + beltHeight / 2 + railHeight / 2, beltZ + side * (beltWidth / 2 + railThickness / 2));
     conveyor.add(rail);
   }
@@ -166,7 +159,7 @@ export default makeScene2D(function* (view) {
   // Legs (4 corners)
   for (const xSide of [-1, 1]) {
     for (const zSide of [-1, 1]) {
-      const leg = holoEdges(new CylinderGeometry(10, 10, legHeight, 8), holoLineAccent);
+      const leg = new Mesh(new CylinderGeometry(10, 10, legHeight, 8), accentMat);
       leg.position.set(
         xSide * (beltLength / 2 - 40),
         beltY - beltHeight / 2 - legHeight / 2,
@@ -178,7 +171,7 @@ export default makeScene2D(function* (view) {
 
   // Rollers at the ends
   for (const xSide of [-1, 1]) {
-    const roller = holoEdges(new CylinderGeometry(18, 18, beltWidth - 10, 16));
+    const roller = new Mesh(new CylinderGeometry(18, 18, beltWidth - 10, 16), conveyorMat);
     roller.rotation.x = Math.PI / 2;
     roller.position.set(xSide * (beltLength / 2 - 5), beltY, beltZ);
     conveyor.add(roller);
@@ -188,10 +181,7 @@ export default makeScene2D(function* (view) {
 
   // ── Cube ──────────────────────────────────────────────────────────────
   const cubeSize = 60;
-  const cube = holoEdges(
-    new BoxGeometry(cubeSize, cubeSize, cubeSize),
-    new LineBasicMaterial({color: 0xff9500, transparent: true, opacity: 0.9}),
-  );
+  const cube = new Mesh(new BoxGeometry(cubeSize, cubeSize, cubeSize), cubeMat);
   const cubeOnBeltY = beltY + beltHeight / 2 + cubeSize / 2;
   const cubeStartX = beltLength / 2 - 50;   // starts near right end of belt
   const cubeStopX = 0;                        // stops at center (arm's reach)
@@ -207,30 +197,11 @@ export default makeScene2D(function* (view) {
   scene3.add(gltf.scene);
   const sceneRoot = gltf.scene as Object3D;
 
-  // Outline-only hologram for robot arm (thin silhouette contours)
+  // Find skeleton root for IK
   let skeletonRoot: Bone | null = null;
   sceneRoot.traverse((obj: any) => {
     if (obj instanceof SkinnedMesh) {
       if (obj.skeleton) skeletonRoot = obj.skeleton.bones[0];
-      const mat = new MeshBasicMaterial({colorWrite: false});
-      (mat as any).userData.outlineParameters = {
-        thickness: 0.003,
-        color: [0, 0.9, 1],
-        alpha: 1.0,
-        visible: true,
-        keepAlive: true,
-      };
-      obj.material = mat;
-    } else if (obj instanceof Mesh) {
-      const mat = new MeshBasicMaterial({colorWrite: false});
-      (mat as any).userData.outlineParameters = {
-        thickness: 0.002,
-        color: [0, 0.9, 1],
-        alpha: 0.7,
-        visible: true,
-        keepAlive: true,
-      };
-      obj.material = mat;
     }
   });
 
@@ -318,22 +289,12 @@ export default makeScene2D(function* (view) {
   const grabBlend = createSignal(0);
   const grabOrigin = new Vector3();
 
-  let outline: OutlineEffect | null = null;
-
   const threeView = createThreeView({
     width: Screen.width,
     height: Screen.height,
     scene: scene3,
     camera,
     onRender: (renderer, s, c) => {
-      if (!outline) {
-        outline = new OutlineEffect(renderer, {
-          defaultThickness: 0.003,
-          defaultColor: [0, 0.9, 1],
-          defaultAlpha: 1.0,
-        });
-      }
-
       if (bones.shoulder) bones.shoulder.rotation.x = initRot.shoulder + shoulderDelta();
       if (bones.elbow)    bones.elbow.rotation.x    = initRot.elbow    + elbowDelta();
       if (bones.wrist)    bones.wrist.rotation.x    = initRot.wrist    + wristDelta();
@@ -358,7 +319,7 @@ export default makeScene2D(function* (view) {
         cube.position.x = cubeX();
       }
 
-      outline.render(s, c);
+      renderer.render(s, c);
     },
   });
 
