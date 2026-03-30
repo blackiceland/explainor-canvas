@@ -125,10 +125,12 @@ export default makeScene2D(function* (view) {
   camera.lookAt(0, 250, 400);
 
   // ── Blueprint: translucent fill + edge lines + outline contours ─────
-  const fillMat = new MeshBasicMaterial({color: 0x00e5ff, transparent: true, opacity: 0.10});
-  const edgeMat = new LineBasicMaterial({color: 0x00e5ff, transparent: true, opacity: 0.6});
-  const cubeFillMat = new MeshBasicMaterial({color: 0xff9500, transparent: true, opacity: 0.12});
-  const cubeEdgeMat = new LineBasicMaterial({color: 0xff9500, transparent: true, opacity: 0.8});
+  // Conveyor — slightly subdued
+  const fillMat = new MeshBasicMaterial({color: 0x00a0b8, transparent: true, opacity: 0.07});
+  const edgeMat = new LineBasicMaterial({color: 0x00a0b8, transparent: true, opacity: 0.45});
+  // Cube — warm accent
+  const cubeFillMat = new MeshBasicMaterial({color: 0xff9500, transparent: true, opacity: 0.15});
+  const cubeEdgeMat = new LineBasicMaterial({color: 0xff9500, transparent: true, opacity: 0.85});
 
   function blueprint(geom: BoxGeometry | CylinderGeometry, fill?: MeshBasicMaterial, edge?: LineBasicMaterial): Group {
     const g = new Group();
@@ -202,15 +204,15 @@ export default makeScene2D(function* (view) {
   sceneRoot.traverse((obj: any) => {
     if (obj instanceof SkinnedMesh) {
       if (obj.skeleton) skeletonRoot = obj.skeleton.bones[0];
-      const mat = new MeshBasicMaterial({color: 0x00e5ff, transparent: true, opacity: 0.10});
+      const mat = new MeshBasicMaterial({color: 0x00e5ff, transparent: true, opacity: 0.14});
       (mat as any).userData.outlineParameters = {
-        thickness: 0.002, color: [0, 0.9, 1], alpha: 0.85, visible: true, keepAlive: true,
+        thickness: 0.0025, color: [0, 0.9, 1], alpha: 0.9, visible: true, keepAlive: true,
       };
       obj.material = mat;
     } else if (obj instanceof Mesh) {
-      const mat = new MeshBasicMaterial({color: 0x00e5ff, transparent: true, opacity: 0.08});
+      const mat = new MeshBasicMaterial({color: 0x00e5ff, transparent: true, opacity: 0.11});
       (mat as any).userData.outlineParameters = {
-        thickness: 0.0015, color: [0, 0.9, 1], alpha: 0.65, visible: true, keepAlive: true,
+        thickness: 0.002, color: [0, 0.9, 1], alpha: 0.75, visible: true, keepAlive: true,
       };
       obj.material = mat;
     }
