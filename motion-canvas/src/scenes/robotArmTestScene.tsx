@@ -1,22 +1,24 @@
 import {makeScene2D} from '@motion-canvas/2d';
 import {all, createSignal, easeInOutCubic, waitFor} from '@motion-canvas/core';
 import {
-  AmbientLight,
   Bone,
   BoxGeometry,
   Color,
   CylinderGeometry,
-  DirectionalLight,
+  EdgesGeometry,
   Group,
   KeyframeTrack,
+  LineBasicMaterial,
+  LineSegments,
   Mesh,
-  MeshStandardMaterial,
+  MeshBasicMaterial,
   Object3D,
   PerspectiveCamera,
   Scene,
   SkinnedMesh,
   Vector3,
 } from 'three';
+import {OutlineEffect} from 'three/examples/jsm/effects/OutlineEffect.js';
 import {GLTFLoader} from 'three/examples/jsm/loaders/GLTFLoader.js';
 import {createThreeView} from '../core/three/ThreeCanvas';
 import {Screen} from '../core/theme';
@@ -122,16 +124,18 @@ export default makeScene2D(function* (view) {
   camera.position.set(1000, 500, 1700);
   camera.lookAt(0, 250, 400);
 
-  // ── Lighting ────────────────────────────────────────────────────────
-  scene3.add(new AmbientLight(0xffffff, 0.6));
-  const dirLight = new DirectionalLight(0xffffff, 1.0);
-  dirLight.position.set(500, 800, 600);
-  scene3.add(dirLight);
+  // ── Blueprint: translucent fill + edge lines + outline contours ─────
+  const fillMat = new MeshBasicMaterial({color: 0x00e5ff, transparent: true, opacity: 0.10});
+  const edgeMat = new LineBasicMaterial({color: 0x00e5ff, transparent: true, opacity: 0.6});
+  const cubeFillMat = new MeshBasicMaterial({color: 0xff9500, transparent: true, opacity: 0.12});
+  const cubeEdgeMat = new LineBasicMaterial({color: 0xff9500, transparent: true, opacity: 0.8});
 
-  // ── Materials ────────────────────────────────────────────────────────
-  const conveyorMat = new MeshStandardMaterial({color: 0x555555, metalness: 0.6, roughness: 0.4});
-  const accentMat = new MeshStandardMaterial({color: 0x888888, metalness: 0.7, roughness: 0.3});
-  const cubeMat = new MeshStandardMaterial({color: 0xff9500, metalness: 0.3, roughness: 0.5});
+  function blueprint(geom: BoxGeometry | CylinderGeometry, fill?: MeshBasicMaterial, edge?: LineBasicMaterial): Group {
+    const g = new Group();
+    g.add(new Mesh(geom, fill ?? fillMat));
+    g.add(new LineSegments(new EdgesGeometry(geom), edge ?? edgeMat));
+    return g;
+  }
 
   // ── Conveyor Belt ─────────────────────────────────────────────────────
   const conveyor = new Group();
@@ -142,24 +146,21 @@ export default makeScene2D(function* (view) {
   const beltZ = 600;
   const legHeight = 120;
 
-  // Belt surface
-  const belt = new Mesh(new BoxGeometry(beltLength, beltHeight, beltWidth), conveyorMat);
+  const belt = blueprint(new BoxGeometry(beltLength, beltHeight, beltWidth));
   belt.position.set(0, beltY, beltZ);
   conveyor.add(belt);
 
-  // Side rails
   const railHeight = 30;
   const railThickness = 8;
   for (const side of [-1, 1]) {
-    const rail = new Mesh(new BoxGeometry(beltLength, railHeight, railThickness), accentMat);
+    const rail = blueprint(new BoxGeometry(beltLength, railHeight, railThickness));
     rail.position.set(0, beltY + beltHeight / 2 + railHeight / 2, beltZ + side * (beltWidth / 2 + railThickness / 2));
     conveyor.add(rail);
   }
 
-  // Legs (4 corners)
   for (const xSide of [-1, 1]) {
     for (const zSide of [-1, 1]) {
-      const leg = new Mesh(new CylinderGeometry(10, 10, legHeight, 8), accentMat);
+      const leg = blueprint(new CylinderGeometry(10, 10, legHeight, 8));
       leg.position.set(
         xSide * (beltLength / 2 - 40),
         beltY - beltHeight / 2 - legHeight / 2,
@@ -169,9 +170,8 @@ export default makeScene2D(function* (view) {
     }
   }
 
-  // Rollers at the ends
   for (const xSide of [-1, 1]) {
-    const roller = new Mesh(new CylinderGeometry(18, 18, beltWidth - 10, 16), conveyorMat);
+    const roller = blueprint(new CylinderGeometry(18, 18, beltWidth - 10, 16));
     roller.rotation.x = Math.PI / 2;
     roller.position.set(xSide * (beltLength / 2 - 5), beltY, beltZ);
     conveyor.add(roller);
@@ -181,15 +181,15 @@ export default makeScene2D(function* (view) {
 
   // ── Cube ──────────────────────────────────────────────────────────────
   const cubeSize = 60;
-  const cube = new Mesh(new BoxGeometry(cubeSize, cubeSize, cubeSize), cubeMat);
+  const cube = blueprint(new BoxGeometry(cubeSize, cubeSize, cubeSize), cubeFillMat, cubeEdgeMat);
   const cubeOnBeltY = beltY + beltHeight / 2 + cubeSize / 2;
-  const cubeStartX = beltLength / 2 - 50;   // starts near right end of belt
-  const cubeStopX = 0;                        // stops at center (arm's reach)
+  const cubeStartX = beltLength / 2 - 50;
+  const cubeStopX = 0;
   const cubeStartPos = new Vector3(cubeStopX, cubeOnBeltY, beltZ);
   cube.position.set(cubeStartX, cubeOnBeltY, beltZ);
   scene3.add(cube);
 
-  // ── Load model (skeleton only — visuals built from primitives) ──────
+  // ── Load model ────────────────────────────────────────────────────────
   const loader = new GLTFLoader();
   const gltf = yield new Promise<any>((resolve, reject) => {
     loader.load(MODEL_URL, resolve, undefined, reject);
@@ -197,11 +197,22 @@ export default makeScene2D(function* (view) {
   scene3.add(gltf.scene);
   const sceneRoot = gltf.scene as Object3D;
 
-  // Find skeleton root for IK
+  // Translucent fill + outline contours for robot arm
   let skeletonRoot: Bone | null = null;
   sceneRoot.traverse((obj: any) => {
     if (obj instanceof SkinnedMesh) {
       if (obj.skeleton) skeletonRoot = obj.skeleton.bones[0];
+      const mat = new MeshBasicMaterial({color: 0x00e5ff, transparent: true, opacity: 0.10});
+      (mat as any).userData.outlineParameters = {
+        thickness: 0.002, color: [0, 0.9, 1], alpha: 0.85, visible: true, keepAlive: true,
+      };
+      obj.material = mat;
+    } else if (obj instanceof Mesh) {
+      const mat = new MeshBasicMaterial({color: 0x00e5ff, transparent: true, opacity: 0.08});
+      (mat as any).userData.outlineParameters = {
+        thickness: 0.0015, color: [0, 0.9, 1], alpha: 0.65, visible: true, keepAlive: true,
+      };
+      obj.material = mat;
     }
   });
 
@@ -219,7 +230,6 @@ export default makeScene2D(function* (view) {
   }
 
   // ── Extract finger grip positions from baked animation tracks ───────
-  // Finger grip is position-animated (not quaternion) — bones translate to close
   const fingerPos: {
     open: {f1: Vector3; f2: Vector3};
     closed: {f1: Vector3; f2: Vector3};
@@ -254,7 +264,6 @@ export default makeScene2D(function* (view) {
       return p0.lerp(p1, alpha);
     }
 
-    // t=0s → open, t=1.0s → closed (max squeeze, dist=97 from SPEC probe)
     const f1Open = samplePosTrack(FINGER_NAMES.finger1, 0);
     const f2Open = samplePosTrack(FINGER_NAMES.finger2, 0);
     const f1Closed = samplePosTrack(FINGER_NAMES.finger1, 1.0);
@@ -264,7 +273,6 @@ export default makeScene2D(function* (view) {
     if (f2Open) fingerPos.open.f2.copy(f2Open);
     if (f1Closed) fingerPos.closed.f1.copy(f1Closed);
     if (f2Closed) fingerPos.closed.f2.copy(f2Closed);
-
   }
 
   // Store initial X rotations only
@@ -289,17 +297,26 @@ export default makeScene2D(function* (view) {
   const grabBlend = createSignal(0);
   const grabOrigin = new Vector3();
 
+  let outline: OutlineEffect | null = null;
+
   const threeView = createThreeView({
     width: Screen.width,
     height: Screen.height,
     scene: scene3,
     camera,
     onRender: (renderer, s, c) => {
+      if (!outline) {
+        outline = new OutlineEffect(renderer, {
+          defaultThickness: 0.002,
+          defaultColor: [0, 0.9, 1],
+          defaultAlpha: 0.75,
+        });
+      }
+
       if (bones.shoulder) bones.shoulder.rotation.x = initRot.shoulder + shoulderDelta();
       if (bones.elbow)    bones.elbow.rotation.x    = initRot.elbow    + elbowDelta();
       if (bones.wrist)    bones.wrist.rotation.x    = initRot.wrist    + wristDelta();
 
-      // Finger grip via position lerp
       const g = gripClose();
       if (fingers.finger1) {
         fingers.finger1.position.lerpVectors(fingerPos.open.f1, fingerPos.closed.f1, g);
@@ -319,7 +336,7 @@ export default makeScene2D(function* (view) {
         cube.position.x = cubeX();
       }
 
-      renderer.render(s, c);
+      outline.render(s, c);
     },
   });
 
@@ -328,11 +345,9 @@ export default makeScene2D(function* (view) {
   // ── Animation ─────────────────────────────────────────────────────────
   yield* waitFor(0.5);
 
-  // Cube slides along conveyor belt
   yield* cubeX(cubeStopX, 2.0, easeInOutCubic);
   yield* waitFor(0.5);
 
-  // Reach
   yield* all(
     shoulderDelta(reachDeltas.shoulder, 1.5, easeInOutCubic),
     elbowDelta(reachDeltas.elbow, 1.5, easeInOutCubic),
@@ -340,20 +355,17 @@ export default makeScene2D(function* (view) {
   );
   yield* waitFor(0.2);
 
-  // Grab — close fingers and attach cube
   yield* gripClose(1, 0.3, easeInOutCubic);
   grabOrigin.copy(cube.position);
   cubeAttached = true;
   yield* grabBlend(1, 0.15, easeInOutCubic);
   yield* waitFor(0.15);
 
-  // Lift
   yield* all(
     shoulderDelta(liftDeltas.shoulder, 2.0, easeInOutCubic),
     elbowDelta(liftDeltas.elbow, 2.0, easeInOutCubic),
     wristDelta(liftDeltas.wrist, 2.0, easeInOutCubic),
   );
 
-  // Hold
   yield* waitFor(2.0);
 });
