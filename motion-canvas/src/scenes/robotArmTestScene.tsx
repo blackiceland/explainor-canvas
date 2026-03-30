@@ -199,22 +199,38 @@ export default makeScene2D(function* (view) {
   scene3.add(gltf.scene);
   const sceneRoot = gltf.scene as Object3D;
 
-  // Translucent fill + outline contours for robot arm
+  // Translucent fill + dot texture + outline contours for robot arm
+  function dotArmMat(isSkinned: boolean, baseOpacity: number): MeshBasicMaterial {
+    const mat = new MeshBasicMaterial({color: 0x00e5ff, transparent: true, opacity: baseOpacity});
+    mat.onBeforeCompile = (shader) => {
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <dithering_fragment>',
+        `
+        vec2 cell = mod(gl_FragCoord.xy, vec2(5.0));
+        float d = length(cell - vec2(2.5));
+        float dot = 1.0 - smoothstep(1.0, 1.5, d);
+        gl_FragColor.a += dot * 0.07;
+        #include <dithering_fragment>
+        `,
+      );
+    };
+    (mat as any).userData.outlineParameters = {
+      thickness: isSkinned ? 0.0025 : 0.002,
+      color: [0, 0.9, 1],
+      alpha: isSkinned ? 0.9 : 0.75,
+      visible: true,
+      keepAlive: true,
+    };
+    return mat;
+  }
+
   let skeletonRoot: Bone | null = null;
   sceneRoot.traverse((obj: any) => {
     if (obj instanceof SkinnedMesh) {
       if (obj.skeleton) skeletonRoot = obj.skeleton.bones[0];
-      const mat = new MeshBasicMaterial({color: 0x00e5ff, transparent: true, opacity: 0.14});
-      (mat as any).userData.outlineParameters = {
-        thickness: 0.0025, color: [0, 0.9, 1], alpha: 0.9, visible: true, keepAlive: true,
-      };
-      obj.material = mat;
+      obj.material = dotArmMat(true, 0.14);
     } else if (obj instanceof Mesh) {
-      const mat = new MeshBasicMaterial({color: 0x00e5ff, transparent: true, opacity: 0.11});
-      (mat as any).userData.outlineParameters = {
-        thickness: 0.002, color: [0, 0.9, 1], alpha: 0.75, visible: true, keepAlive: true,
-      };
-      obj.material = mat;
+      obj.material = dotArmMat(false, 0.11);
     }
   });
 
