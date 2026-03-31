@@ -366,6 +366,8 @@ export default makeScene2D(function* (view) {
   const grabBlend = createSignal(0);
   const grabOrigin = new Vector3();
   let grabBaseY = 0;
+  let grabTilt = 0;
+  let grabTiltReady = false;
 
   let outline: OutlineEffect | null = null;
 
@@ -403,7 +405,15 @@ export default makeScene2D(function* (view) {
         const tip = hp.clone().add(hp.clone().sub(wp));
         const b = grabBlend();
         cube.position.lerpVectors(grabOrigin, tip, b);
+        const dir = hp.clone().sub(wp);
+        const horiz = Math.sqrt(dir.x * dir.x + dir.z * dir.z);
+        const tilt = Math.atan2(dir.y, horiz);
+        if (!grabTiltReady) {
+          grabTilt = tilt;
+          grabTiltReady = true;
+        }
         cube.rotation.y = baseDelta() - grabBaseY;
+        cube.rotation.x = -(tilt - grabTilt);
       } else if (!cubePlaced) {
         cube.position.x = cubeX();
       }
@@ -433,6 +443,7 @@ export default makeScene2D(function* (view) {
   yield* gripClose(0.7, 0.3, easeInOutCubic);
   grabOrigin.copy(cube.position);
   grabBaseY = baseDelta();
+  grabTiltReady = false;
   cubeAttached = true;
   yield* grabBlend(1, 0.15, easeInOutCubic);
   yield* waitFor(0.15);
@@ -459,6 +470,7 @@ export default makeScene2D(function* (view) {
   cubeAttached = false;
   cubePlaced = true;
   cube.position.copy(placeTarget);
+  cube.rotation.set(0, cube.rotation.y, 0);
   yield* gripClose(0, 0.3, easeInOutCubic);
   yield* waitFor(0.3);
 
