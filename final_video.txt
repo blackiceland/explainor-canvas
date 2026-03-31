@@ -1,0 +1,60 @@
+public byte[] exportVideo(byte[] sourceFrames, String outputFormat, String colorProfile, String subtitleTrack, String watermarkMode, String audioProfile) {
+    validateInput(sourceFrames, outputFormat);
+    byte[] preparedFrames = prepareFrames(sourceFrames, colorProfile, subtitleTrack, watermarkMode, audioProfile);
+    return encodeWithRetry(preparedFrames, outputFormat, watermarkMode, audioProfile);
+}
+private byte[] prepareFrames(byte[] sourceFrames, String colorProfile, String subtitleTrack, String watermarkMode, String audioProfile) {
+    byte[] normalizedFrames = normalizeFrames(sourceFrames);
+    byte[] coloredFrames = applyColorProfile(normalizedFrames, colorProfile);
+    byte[] subtitledFrames = overlaySubtitles(coloredFrames, subtitleTrack);
+    byte[] watermarkedFrames = applyWatermark(subtitledFrames, watermarkMode);
+    return normalizeAudio(watermarkedFrames, audioProfile);
+}
+private byte[] encodeWithRetry(byte[] preparedFrames, String outputFormat, String watermarkMode, String audioProfile) {
+    int attemptsLeft = this.maxAttempts;
+    while (attemptsLeft-- > 0) {
+        try {
+            return encode(preparedFrames, outputFormat, watermarkMode, audioProfile);
+        } catch (RuntimeException ex) { /* retry */ }
+    }
+    throw new IllegalStateException("Encoding failed");
+}
+private byte[] encode(byte[] preparedFrames, String outputFormat, String watermarkMode, String audioProfile) {
+    byte[] encodedVideo = runEncoder(preparedFrames);
+    return finalizeExport(encodedVideo, outputFormat, watermarkMode, audioProfile);
+}
+private byte[] finalizeExport(byte[] encodedVideo, String outputFormat, String watermarkMode, String audioProfile) {
+    if (!isSupportedFormat(outputFormat)) {
+        throw new IllegalArgumentException("Unsupported: " + outputFormat);
+    }
+    Container container = Muxer.mux(encodedVideo, outputFormat);
+    container.applyWatermark(watermarkMode);
+    container.normalizeAudio(audioProfile);
+    return packageOutput(container, outputFormat, watermarkMode, audioProfile);
+}
+private byte[] packageOutput(Container container, String outputFormat, String watermarkMode, String audioProfile) {
+    byte[] serializedContainer = container.toByteArray();
+    byte[] signedPayload = signContent(serializedContainer, outputFormat);
+    byte[] budgetedPayload = enforceSizeBudget(signedPayload, outputFormat);
+    return attachMetadata(budgetedPayload, outputFormat, watermarkMode, audioProfile);
+}
+private byte[] signContent(byte[] exportPayload, String outputFormat) {
+    String signingAlgorithm = resolveSigningAlgorithm(outputFormat);
+    return ContentSigner.sign(exportPayload, signingAlgorithm);
+}
+private byte[] enforceSizeBudget(byte[] signedPayload, String outputFormat) {
+    int maxPayloadSize = resolveMaxPayloadSize(outputFormat);
+    if (signedPayload.length <= maxPayloadSize) {
+        return signedPayload;
+    }
+    throw new IllegalStateException("Payload exceeds size budget: " + outputFormat);
+}
+private byte[] attachMetadata(byte[] signedPayload, String outputFormat, String watermarkMode, String audioProfile) {
+    Metadata exportMetadata = Metadata.builder()
+        .format(outputFormat)
+        .watermark(watermarkMode)
+        .audio(audioProfile)
+        .timestamp(Instant.now())
+        .build();
+    return MetadataWriter.write(signedPayload, exportMetadata);
+}
