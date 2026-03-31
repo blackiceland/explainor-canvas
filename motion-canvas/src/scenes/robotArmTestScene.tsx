@@ -126,11 +126,11 @@ export default makeScene2D(function* (view) {
 
   // ── Blueprint: translucent fill + edge lines + outline contours ─────
   // Conveyor — slightly subdued
-  const fillMat = new MeshBasicMaterial({color: 0x00a0b8, transparent: true, opacity: 0.07});
-  const edgeMat = new LineBasicMaterial({color: 0x00a0b8, transparent: true, opacity: 0.45});
+  const fillMat = new MeshBasicMaterial({color: 0x00a0b8, transparent: true, opacity: 0.12});
+  const edgeMat = new LineBasicMaterial({color: 0x00a0b8, transparent: true, opacity: 0.7});
   // Cube — warm accent
-  const cubeFillMat = new MeshBasicMaterial({color: 0xff9500, transparent: true, opacity: 0.15});
-  const cubeEdgeMat = new LineBasicMaterial({color: 0xff9500, transparent: true, opacity: 0.85});
+  const cubeFillMat = new MeshBasicMaterial({color: 0xff9500, transparent: true, opacity: 0.25});
+  const cubeEdgeMat = new LineBasicMaterial({color: 0xff9500, transparent: true, opacity: 1.0});
 
   function blueprint(geom: BoxGeometry | CylinderGeometry, fill?: MeshBasicMaterial, edge?: LineBasicMaterial): Group {
     const g = new Group();
@@ -203,12 +203,31 @@ export default makeScene2D(function* (view) {
   function dotArmMat(isSkinned: boolean, baseOpacity: number): MeshBasicMaterial {
     const mat = new MeshBasicMaterial({color: 0x00e5ff, transparent: true, opacity: baseOpacity});
     mat.onBeforeCompile = (shader) => {
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <uv_vertex>',
+        `
+        #include <uv_vertex>
+        vDotUv = uv;
+        `,
+      );
+      shader.vertexShader = shader.vertexShader.replace(
+        'void main() {',
+        `
+        varying vec2 vDotUv;
+        void main() {`,
+      );
+      shader.fragmentShader = shader.fragmentShader.replace(
+        'void main() {',
+        `
+        varying vec2 vDotUv;
+        void main() {`,
+      );
       shader.fragmentShader = shader.fragmentShader.replace(
         '#include <dithering_fragment>',
         `
-        vec2 cell = mod(gl_FragCoord.xy, vec2(5.0));
-        float d = length(cell - vec2(2.5));
-        float dot = 1.0 - smoothstep(1.0, 1.5, d);
+        vec2 cell = mod(vDotUv * 80.0, vec2(1.0));
+        float d = length(cell - vec2(0.5));
+        float dot = 1.0 - smoothstep(0.1, 0.15, d);
         gl_FragColor.a += dot * 0.07;
         #include <dithering_fragment>
         `,
