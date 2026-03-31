@@ -39,6 +39,10 @@ const FINGER_NAMES = {
   finger2: 'Bone010_010',
 };
 
+const JOINT_AXIS: Record<string, 'x' | 'y'> = {
+  base: 'y', shoulder: 'x', elbow: 'x', wrist: 'x', hand: 'x',
+};
+
 function findBone(root: Bone, name: string): Bone | null {
   if (root.name === name) return root;
   for (const child of root.children) {
@@ -57,20 +61,20 @@ function getTipPos(sceneRoot: Object3D, wrist: Bone, hand: Bone): Vector3 {
   return hp.clone().add(hp.clone().sub(wp));
 }
 
-/** Gradient-descent IK for shoulder/elbow/wrist (all X-axis). */
+/** Gradient-descent IK for base (Y) + shoulder/elbow/wrist (X). */
 function solveIK(
   sceneRoot: Object3D,
   bones: Record<string, Bone | null>,
   initRot: Record<string, number>,
   target: Vector3,
-): {shoulder: number; elbow: number; wrist: number} {
-  const JOINTS = ['shoulder', 'elbow', 'wrist'] as const;
-  const deltas = {shoulder: 0, elbow: 0, wrist: 0};
+): {base: number; shoulder: number; elbow: number; wrist: number} {
+  const JOINTS = ['base', 'shoulder', 'elbow', 'wrist'] as const;
+  const deltas = {base: 0, shoulder: 0, elbow: 0, wrist: 0};
   const EPS = 0.005;
 
   function apply() {
     for (const j of JOINTS) {
-      if (bones[j]) bones[j]!.rotation.x = initRot[j] + deltas[j];
+      if (bones[j]) bones[j]!.rotation[JOINT_AXIS[j] as 'x' | 'y'] = initRot[j] + deltas[j];
     }
   }
 
@@ -107,7 +111,7 @@ function solveIK(
 
   // Reset
   for (const j of JOINTS) {
-    if (bones[j]) bones[j]!.rotation.x = initRot[j];
+    if (bones[j]) bones[j]!.rotation[JOINT_AXIS[j] as 'x' | 'y'] = initRot[j];
   }
   sceneRoot.updateMatrixWorld(true);
 
@@ -190,6 +194,31 @@ export default makeScene2D(function* (view) {
   const cubeStartPos = new Vector3(cubeStopX, cubeOnBeltY, beltZ);
   cube.position.set(cubeStartX, cubeOnBeltY, beltZ);
   scene3.add(cube);
+
+  // ── Destination platform + placed cubes ────────────────────────────────
+  const platformX = -350;
+  const platformZ = 300;
+  const platformWidth = 260;
+  const platformDepth = 180;
+  const platformHeight = 15;
+  const platform = blueprint(new BoxGeometry(platformWidth, platformHeight, platformDepth));
+  platform.position.set(platformX, beltY, platformZ);
+  scene3.add(platform);
+
+  for (const xSide of [-1, 1]) {
+    for (const zSide of [-1, 1]) {
+      const pLeg = blueprint(new CylinderGeometry(10, 10, legHeight, 8));
+      pLeg.position.set(
+        platformX + xSide * (platformWidth / 2 - 30),
+        beltY - platformHeight / 2 - legHeight / 2,
+        platformZ + zSide * (platformDepth / 2 - 25),
+      );
+      scene3.add(pLeg);
+    }
+  }
+
+  const placedCubeY = beltY + platformHeight / 2 + cubeSize / 2;
+  const placeTarget = new Vector3(platformX, placedCubeY, platformZ);
 
   // ── Load model ────────────────────────────────────────────────────────
   const loader = new GLTFLoader();
@@ -312,27 +341,31 @@ export default makeScene2D(function* (view) {
     if (f2Closed) fingerPos.closed.f2.copy(f2Closed);
   }
 
-  // Store initial X rotations only
+  // Store initial rotations (Y for base, X for the rest)
   const initRot: Record<string, number> = {};
   for (const [key, bone] of Object.entries(bones)) {
-    if (bone) initRot[key] = bone.rotation.x;
+    if (bone) initRot[key] = bone.rotation[JOINT_AXIS[key] as 'x' | 'y'];
   }
 
   // ── IK: find deltas ──────────────────────────────────────────────────
   const reachDeltas = solveIK(sceneRoot, bones, initRot, cubeStartPos);
   const liftTarget = new Vector3(0, 550, 500);
   const liftDeltas = solveIK(sceneRoot, bones, initRot, liftTarget);
+  const placeDeltas = solveIK(sceneRoot, bones, initRot, placeTarget);
 
   // ── Signals ───────────────────────────────────────────────────────────
+  const baseDelta     = createSignal(0);
   const shoulderDelta = createSignal(0);
   const elbowDelta    = createSignal(0);
   const wristDelta    = createSignal(0);
   const gripClose     = createSignal(0);
 
   let cubeAttached = false;
+  let cubePlaced = false;
   const cubeX = createSignal(cubeStartX);
   const grabBlend = createSignal(0);
   const grabOrigin = new Vector3();
+  let grabBaseY = 0;
 
   let outline: OutlineEffect | null = null;
 
@@ -350,6 +383,7 @@ export default makeScene2D(function* (view) {
         });
       }
 
+      if (bones.base)     bones.base.rotation.y     = initRot.base     + baseDelta();
       if (bones.shoulder) bones.shoulder.rotation.x = initRot.shoulder + shoulderDelta();
       if (bones.elbow)    bones.elbow.rotation.x    = initRot.elbow    + elbowDelta();
       if (bones.wrist)    bones.wrist.rotation.x    = initRot.wrist    + wristDelta();
@@ -369,7 +403,8 @@ export default makeScene2D(function* (view) {
         const tip = hp.clone().add(hp.clone().sub(wp));
         const b = grabBlend();
         cube.position.lerpVectors(grabOrigin, tip, b);
-      } else {
+        cube.rotation.y = baseDelta() - grabBaseY;
+      } else if (!cubePlaced) {
         cube.position.x = cubeX();
       }
 
@@ -385,24 +420,55 @@ export default makeScene2D(function* (view) {
   yield* cubeX(cubeStopX, 2.0, easeInOutCubic);
   yield* waitFor(0.5);
 
+  // Reach
   yield* all(
+    baseDelta(reachDeltas.base, 1.5, easeInOutCubic),
     shoulderDelta(reachDeltas.shoulder, 1.5, easeInOutCubic),
     elbowDelta(reachDeltas.elbow, 1.5, easeInOutCubic),
     wristDelta(reachDeltas.wrist, 1.5, easeInOutCubic),
   );
   yield* waitFor(0.2);
 
+  // Grip
   yield* gripClose(0.7, 0.3, easeInOutCubic);
   grabOrigin.copy(cube.position);
+  grabBaseY = baseDelta();
   cubeAttached = true;
   yield* grabBlend(1, 0.15, easeInOutCubic);
   yield* waitFor(0.15);
 
+  // Lift
   yield* all(
+    baseDelta(liftDeltas.base, 2.0, easeInOutCubic),
     shoulderDelta(liftDeltas.shoulder, 2.0, easeInOutCubic),
     elbowDelta(liftDeltas.elbow, 2.0, easeInOutCubic),
     wristDelta(liftDeltas.wrist, 2.0, easeInOutCubic),
   );
+  yield* waitFor(0.3);
 
-  yield* waitFor(2.0);
+  // Place
+  yield* all(
+    baseDelta(placeDeltas.base, 2.0, easeInOutCubic),
+    shoulderDelta(placeDeltas.shoulder, 2.0, easeInOutCubic),
+    elbowDelta(placeDeltas.elbow, 2.0, easeInOutCubic),
+    wristDelta(placeDeltas.wrist, 2.0, easeInOutCubic),
+  );
+  yield* waitFor(0.1);
+
+  // Release
+  cubeAttached = false;
+  cubePlaced = true;
+  cube.position.copy(placeTarget);
+  yield* gripClose(0, 0.3, easeInOutCubic);
+  yield* waitFor(0.3);
+
+  // Return to rest
+  yield* all(
+    baseDelta(0, 1.5, easeInOutCubic),
+    shoulderDelta(0, 1.5, easeInOutCubic),
+    elbowDelta(0, 1.5, easeInOutCubic),
+    wristDelta(0, 1.5, easeInOutCubic),
+  );
+
+  yield* waitFor(1.0);
 });

@@ -27,12 +27,12 @@ private byte[] finalizeExport(byte[] encodedVideo, String outputFormat, String w
     if (!isSupportedFormat(outputFormat)) {
         throw new IllegalArgumentException("Unsupported: " + outputFormat);
     }
-    Container container = Muxer.mux(encodedVideo, outputFormat);
+    Container container = Muxer.есть mux(encodedVideo, outputFormat);
     container.applyWatermark(watermarkMode);
     container.normalizeAudio(audioProfile);
     return packageOutput(container, outputFormat, watermarkMode, audioProfile);
 }
-private byte[] packageOutput(Container container, String outputFormat, String watermarkMode, String audioProfile) {
+private byte[] packageOutput(Container container, String outputFormat, на стрле иString watermarkMode, String audioProfile) {
     byte[] serializedContainer = container.toByteArray();
     byte[] signedPayload = signContent(serializedContainer, outputFormat);
     byte[] budgetedPayload = enforceSizeBudget(signedPayload, outputFormat);
