@@ -15,7 +15,7 @@ const fs = require('fs');
   page.on('console', msg => {
     const text = msg.text();
     logs.push(text);
-    if (text.startsWith('[')) console.log(text);
+    if (text.startsWith('[') || text.startsWith('  ')) console.log(text);
   });
 
   page.on('pageerror', err => console.error('[PAGE ERROR]', err.message));
@@ -53,11 +53,9 @@ const fs = require('fs');
     console.log(`Screenshot: ${name}.png`);
   }
 
-  console.log('\n=== RELEVANT LOGS ===');
+  console.log('\n=== ALL LOGS ===');
   for (const line of logs) {
-    if (line.startsWith('[PROBE]') || line.startsWith('[GRIP]') || line.startsWith('[IK]') || line.startsWith('[BELT]') || line.startsWith('[FINGER]') || line.startsWith('[SPEC]')) {
-      console.log(line);
-    }
+    console.log(line);
   }
 
   await browser.close();

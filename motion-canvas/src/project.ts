@@ -21,11 +21,13 @@ import passThroughIntroSceneRu from "./scenes/passThroughIntroSceneRu?scene";
 import notifyPassThroughSceneRu from "./scenes/notifyPassThroughSceneRu?scene";
 import passThroughPianoSceneRu from "./scenes/passThroughPianoSceneRu?scene";
 import smallMethodsProblemsSubtitlesSceneRu from "./scenes/smallMethodsProblemsSubtitlesSceneRu?scene";
+import problemsYouDontHaveSubtitlesSceneEn from "./scenes/problemsYouDontHaveSubtitlesSceneEn?scene";
 import exportCallTreeSceneRu from "./scenes/exportCallTreeSceneRu?scene";
 import threeSymptomsSceneRu from "./scenes/threeSymptomsSceneRu?scene";
 import triangleAmplifierSceneRu from "./scenes/triangleAmplifierSceneRu?scene";
 import finalOutroSceneRu from "./scenes/finalOutroSceneRu?scene";
 import robotArmTestScene from "./scenes/robotArmTestScene?scene";
+import robotArmCodeScene from "./scenes/robotArmCodeScene?scene";
 
 export default makeProject({
     experimentalFeatures: true,
@@ -94,7 +96,9 @@ export default makeProject({
         // finalOutroSceneRu,
 
         //03
-        robotArmTestScene,
+        // robotArmTestScene,
+        problemsYouDontHaveSubtitlesSceneEn,
+        robotArmCodeScene,
 
     ]
 })

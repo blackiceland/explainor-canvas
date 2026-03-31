@@ -18,13 +18,15 @@ motion-canvas/output/**
 bin/
 !**/src/main/**/bin/
 !**/src/test/**/bin/
-
+*.png
+*.cjs
 ### IntelliJ IDEA ###
 .idea
 *.iws
 *.iml
 *.ipr
 *.js
+
 out/
 !**/src/main/**/out/
 !**/src/test/**/out/
@@ -38,3 +40,12 @@ out/
 
 ### VS Code ###
 .vscode/
+
+### Project artifacts ###
+*.glb
+*.mp4
+*.meta
+*.txt
+.claude/
+dist/
+debug-screenshots/

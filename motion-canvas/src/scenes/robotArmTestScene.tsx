@@ -359,6 +359,11 @@ export default makeScene2D(function* (view) {
   const elbowDelta    = createSignal(0);
   const wristDelta    = createSignal(0);
   const gripClose     = createSignal(0);
+  const gripStress    = createSignal(0);
+
+  const cubeColorBase = new Color(0xff9500);
+  const cubeColorHot  = new Color(0xff1500);
+  const cubeColorTmp  = new Color();
 
   let cubeAttached = false;
   let cubePlaced = false;
@@ -397,6 +402,12 @@ export default makeScene2D(function* (view) {
       if (fingers.finger2) {
         fingers.finger2.position.lerpVectors(fingerPos.open.f2, fingerPos.closed.f2, g);
       }
+
+      const gs = gripStress();
+      cubeColorTmp.lerpColors(cubeColorBase, cubeColorHot, gs);
+      cubeFillMat.color.copy(cubeColorTmp);
+      cubeFillMat.opacity = 0.25 + gs * 0.35;
+      cubeEdgeMat.color.copy(cubeColorTmp);
 
       if (cubeAttached) {
         const wp = new Vector3(), hp = new Vector3();
@@ -446,6 +457,11 @@ export default makeScene2D(function* (view) {
   grabTiltReady = false;
   cubeAttached = true;
   yield* grabBlend(1, 0.15, easeInOutCubic);
+
+  // Grip stress flash
+  yield* gripStress(1, 0.2, easeInOutCubic);
+  yield* waitFor(0.3);
+  yield* gripStress(0, 0.4, easeInOutCubic);
   yield* waitFor(0.15);
 
   // Lift
