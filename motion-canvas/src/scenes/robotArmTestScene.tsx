@@ -392,7 +392,7 @@ export default makeScene2D(function* (view) {
   );
   yield* waitFor(0.2);
 
-  yield* gripClose(1, 0.3, easeInOutCubic);
+  yield* gripClose(0.7, 0.3, easeInOutCubic);
   grabOrigin.copy(cube.position);
   cubeAttached = true;
   yield* grabBlend(1, 0.15, easeInOutCubic);
