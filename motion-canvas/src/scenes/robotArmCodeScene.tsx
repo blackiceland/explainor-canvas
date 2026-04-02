@@ -128,7 +128,7 @@ function solveIK(
 }
 
 // ── Code config ──────────────────────────────────────────────────────────
-const CODE_FONT_SIZE = 42;
+const CODE_FONT_SIZE = 34;
 const MAX_LINE_CHARS = 80;
 
 const VAR_LIGHT = 'rgba(244, 241, 235, 0.96)';
@@ -151,12 +151,13 @@ const COLOR_RULES = [
   {match: /^void$/,         color: KW_COLOR},
   {match: /^return$/,       color: KW_COLOR},
   {match: /^new$/,          color: KW_COLOR},
-  {match: 'handleCube',     color: VAR_LIGHT},
+  {match: 'moveCubeToTable', color: VAR_LIGHT},
   {match: 'cube',           color: VAR_LIGHT},
   {match: 'position',       color: VAR_LIGHT},
-  {match: 'destination',    color: VAR_LIGHT},
+  {match: 'table',          color: VAR_LIGHT},
   {match: 'Cube',           color: TYPE_CLEAN},
-  {match: 'move',           color: METHOD_COLOR, onlyTypes: ['method']},
+  {match: 'Table',          color: TYPE_CLEAN},
+  {match: 'moveTo',         color: METHOD_COLOR, onlyTypes: ['method']},
   {match: 'grab',           color: METHOD_COLOR, onlyTypes: ['method']},
   {match: 'lift',           color: METHOD_COLOR, onlyTypes: ['method']},
   {match: 'place',          color: METHOD_COLOR, onlyTypes: ['method']},
@@ -491,17 +492,17 @@ export default makeScene2D(function* (view) {
   const topInset   = Math.max(8, paddingY - 8);
 
   const model = JavaClass.create([
-    method('public', 'void', 'handleCube',
-      [param('Cube', 'cube')],
-      ['move(cube.position);',
+    method('public', 'void', 'moveCubeToTable',
+      [param('Cube', 'cube'), param('Table', 'table')],
+      ['moveTo(cube.position);',
        'grab(cube);',
-       'lift(cube);',
-       'place(cube, destination);',
+       'lift();',
+       'place(cube, table);',
        'release();']),
   ], MAX_LINE_CHARS);
 
   const manticore = Manticore.create(model.render(), {
-    x: CODE_CENTER_X - 20, y: 100,
+    x: CODE_CENTER_X - 20, y: 110,
     width: CODE_W,
     height: Screen.height - 80,
     fontSize, lineHeight,
@@ -511,7 +512,7 @@ export default makeScene2D(function* (view) {
     cardStyle: CODE_CARD_STYLE,
     glowAccent: false,
     noClip: true,
-    customTypes: ['Cube', 'Position', 'GripResult', 'LiftPlan', 'ObjectProfile', 'PlacementConfig'],
+    customTypes: ['Cube', 'Table', 'Position', 'GripResult', 'LiftPlan', 'ObjectProfile', 'PlacementConfig'],
   });
   manticore.mount(view);
   manticore.colorize(COLOR_RULES);

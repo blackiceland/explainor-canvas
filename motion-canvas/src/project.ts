@@ -28,6 +28,8 @@ import triangleAmplifierSceneRu from "./scenes/triangleAmplifierSceneRu?scene";
 import finalOutroSceneRu from "./scenes/finalOutroSceneRu?scene";
 import robotArmTestScene from "./scenes/robotArmTestScene?scene";
 import robotArmCodeScene from "./scenes/robotArmCodeScene?scene";
+import problemsYouDontHaveLieIntroSceneEn from "./scenes/problemsYouDontHaveLieIntroSceneEn?scene";
+import problemsYouDontHaveStrategySceneEn from "./scenes/problemsYouDontHaveStrategySceneEn?scene";
 
 export default makeProject({
     experimentalFeatures: true,
@@ -97,8 +99,11 @@ export default makeProject({
 
         //03
         // robotArmTestScene,
-        problemsYouDontHaveSubtitlesSceneEn,
-        robotArmCodeScene,
+
+        // problemsYouDontHaveSubtitlesSceneEn,
+        // robotArmCodeScene,
+        //  problemsYouDontHaveLieIntroSceneEn,
+         problemsYouDontHaveStrategySceneEn
 
     ]
 })
