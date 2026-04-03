@@ -80,8 +80,8 @@ export default makeScene2D(function* (view) {
         ref={ref}
         text={item.name}
         fontFamily={Fonts.code}
-        fontSize={item.active ? 44 : 36}
-        fill={item.active ? TEXT : GHOST}
+        fontSize={40}
+        fill={TEXT}
         y={item.y}
         opacity={0}
       />,
@@ -91,20 +91,43 @@ export default makeScene2D(function* (view) {
 
   yield* listNode().opacity(1, 0);
 
-  // active item + bar
+  // all items appear at ghost level
   yield* all(
-    itemRefs[0]().opacity(1, 0.5, easeInOutCubic),
-    barRef().opacity(1, 0.5, easeInOutCubic),
-  );
-  yield* waitFor(0.4);
-
-  // ghost items
-  yield* all(
-    itemRefs[1]().opacity(1, 0.6, easeInOutCubic),
-    itemRefs[2]().opacity(1, 0.6, easeInOutCubic),
+    itemRefs[0]().opacity(0.18, 0.4, easeInOutCubic),
+    itemRefs[1]().opacity(0.18, 0.4, easeInOutCubic),
+    itemRefs[2]().opacity(0.18, 0.4, easeInOutCubic),
+    barRef().opacity(1, 0.4, easeInOutCubic),
   );
 
-  yield* waitFor(2.5);
+  // bar scrolls through: highlight each, dim previous
+  // → StandardGrab
+  yield* itemRefs[0]().opacity(1, 0.2, easeInOutCubic);
+  yield* waitFor(0.25);
+
+  // → SoftGrab
+  yield* all(
+    barRef().y(ITEMS[1].y, 0.3, easeInOutCubic),
+    itemRefs[0]().opacity(0.18, 0.3, easeInOutCubic),
+    itemRefs[1]().opacity(1, 0.3, easeInOutCubic),
+  );
+  yield* waitFor(0.25);
+
+  // → FirmGrab
+  yield* all(
+    barRef().y(ITEMS[2].y, 0.3, easeInOutCubic),
+    itemRefs[1]().opacity(0.18, 0.3, easeInOutCubic),
+    itemRefs[2]().opacity(1, 0.3, easeInOutCubic),
+  );
+  yield* waitFor(0.25);
+
+  // → back to StandardGrab (settle)
+  yield* all(
+    barRef().y(ITEMS[0].y, 0.3, easeInOutCubic),
+    itemRefs[2]().opacity(0.18, 0.3, easeInOutCubic),
+    itemRefs[0]().opacity(1, 0.3, easeInOutCubic),
+  );
+
+  yield* waitFor(2.0);
 
   // ── Phase 4: Collapse into strategy call ──────────────────────────────
   const stratRef = createRef<Txt>();
