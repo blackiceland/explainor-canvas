@@ -21,7 +21,8 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Skill(update-config)",
-      "WebFetch(domain:sketchfab.com)"
+      "WebFetch(domain:sketchfab.com)",
+      "Bash(cp:*)"
     ]
   }
 }
