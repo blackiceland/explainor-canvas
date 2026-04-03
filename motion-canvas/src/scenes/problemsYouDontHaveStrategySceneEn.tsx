@@ -1,35 +1,16 @@
-import {makeScene2D, Txt, Rect, Node} from '@motion-canvas/2d';
+import {makeScene2D, Txt, Rect, Node, Layout} from '@motion-canvas/2d';
 import {all, createRef, easeInOutCubic, waitFor} from '@motion-canvas/core';
 import {applyBackground} from '../core/utils';
 import {Colors, Fonts} from '../core/theme';
 
 const ACCENT = Colors.accent;
 const TEXT = Colors.text.primary;
-const GHOST = 'rgba(255,255,255,0.18)';
 const BAR_COLOR = 'rgba(255,140,163,0.8)';
 
 export default makeScene2D(function* (view) {
   applyBackground(view);
 
-  // ── Phase 1: "Strategy" ───────────────────────────────────────────────
-  const titleRef = createRef<Txt>();
-  view.add(
-    <Txt
-      ref={titleRef}
-      text={'Strategy'}
-      fontFamily={Fonts.code}
-      fontSize={96}
-      fill={ACCENT}
-      opacity={0}
-    />,
-  );
-
-  yield* titleRef().opacity(0.85, 1.0, easeInOutCubic);
-  yield* waitFor(1.5);
-  yield* titleRef().opacity(0, 0.8, easeInOutCubic);
-  yield* waitFor(0.4);
-
-  // ── Phase 2: grab(cube) ───────────────────────────────────────────────
+  // ── Phase 1: grab(cube) ──────────────────────────────────────────────
   const grabRef = createRef<Txt>();
   view.add(
     <Txt
@@ -46,20 +27,19 @@ export default makeScene2D(function* (view) {
   yield* waitFor(1.4);
   yield* grabRef().y(-180, 0.7, easeInOutCubic);
 
-  // ── Phase 3: Strategy list ────────────────────────────────────────────
+  // ── Phase 2: Strategy list ────────────────────────────────────────────
   const listNode = createRef<Node>();
   view.add(<Node ref={listNode} opacity={0} />);
 
   const ITEMS = [
-    {name: 'StandardGrab', active: true,  y: -30},
-    {name: 'SoftGrab',     active: false, y:  40},
-    {name: 'FirmGrab',     active: false, y: 110},
+    {name: 'StandardGrab', y: -30},
+    {name: 'SoftGrab', y: 40},
+    {name: 'FirmGrab', y: 110},
   ];
 
   const barRef = createRef<Rect>();
   const itemRefs: ReturnType<typeof createRef<Txt>>[] = [];
 
-  // accent bar for active item
   listNode().add(
     <Rect
       ref={barRef}
@@ -91,7 +71,6 @@ export default makeScene2D(function* (view) {
 
   yield* listNode().opacity(1, 0);
 
-  // all items appear at ghost level
   yield* all(
     itemRefs[0]().opacity(0.18, 0.4, easeInOutCubic),
     itemRefs[1]().opacity(0.18, 0.4, easeInOutCubic),
@@ -99,7 +78,6 @@ export default makeScene2D(function* (view) {
     barRef().opacity(1, 0.4, easeInOutCubic),
   );
 
-  // bar scrolls through: highlight each, dim previous
   // → StandardGrab
   yield* itemRefs[0]().opacity(1, 0.2, easeInOutCubic);
   yield* waitFor(0.25);
@@ -120,36 +98,76 @@ export default makeScene2D(function* (view) {
   );
   yield* waitFor(0.25);
 
-  // → back to StandardGrab (settle)
+  // → back to StandardGrab
   yield* all(
     barRef().y(ITEMS[0].y, 0.3, easeInOutCubic),
     itemRefs[2]().opacity(0.18, 0.3, easeInOutCubic),
     itemRefs[0]().opacity(1, 0.3, easeInOutCubic),
   );
 
-  yield* waitFor(2.0);
+  yield* waitFor(1.5);
 
-  // ── Phase 4: Collapse into strategy call ──────────────────────────────
-  const stratRef = createRef<Txt>();
+  // ── Phase 3: Transform grab(cube) → grabStrategy.grab(cube) ──────────
+
+  // Decomposed line at same position — prefix starts empty so it looks
+  // identical to the single-text "grab(cube)"
+  const transformLine = createRef<Layout>();
+  const prefixRef = createRef<Txt>();
+  const verbRef = createRef<Txt>();
+  const argsRef = createRef<Txt>();
+
   view.add(
-    <Txt
-      ref={stratRef}
-      text={'grabStrategy.grab(cube)'}
-      fontFamily={Fonts.code}
-      fontSize={56}
-      fill={TEXT}
+    <Layout
+      ref={transformLine}
+      layout
+      direction={'row'}
+      gap={0}
+      y={-180}
       opacity={0}
-    />,
+    >
+      <Txt ref={prefixRef} text={''} fontFamily={Fonts.code} fontSize={64} fill={ACCENT} />
+      <Txt ref={verbRef} text={'grab'} fontFamily={Fonts.code} fontSize={64} fill={TEXT} />
+      <Txt ref={argsRef} text={'(cube)'} fontFamily={Fonts.code} fontSize={64} fill={TEXT} />
+    </Layout>,
   );
 
-  yield* all(
-    grabRef().opacity(0, 0.6, easeInOutCubic),
-    listNode().opacity(0, 0.6, easeInOutCubic),
-  );
+  // Fade list, swap single text for decomposed layout
+  yield* listNode().opacity(0, 0.5, easeInOutCubic);
+  grabRef().opacity(0);
+  transformLine().opacity(1);
 
-  yield* stratRef().opacity(1, 0.5, easeInOutCubic);
+  yield* waitFor(0.3);
+
+  // "grab" morphs into "StandardGrab" — the verb becomes a named strategy
+  yield* verbRef().text('StandardGrab', 0.4);
+  yield* waitFor(0.5);
+
+  // Flash through alternatives (dim → swap → brighten)
+  yield* verbRef().opacity(0.3, 0.1);
+  verbRef().text('SoftGrab');
+  yield* verbRef().opacity(0.8, 0.1);
+  yield* waitFor(0.2);
+
+  yield* verbRef().opacity(0.3, 0.1);
+  verbRef().text('FirmGrab');
+  yield* verbRef().opacity(0.8, 0.1);
+  yield* waitFor(0.2);
+
+  // Settle back to "grab"
+  yield* verbRef().opacity(0.3, 0.1);
+  verbRef().text('grab');
+  yield* verbRef().opacity(1, 0.15);
+
+  yield* waitFor(0.4);
+
+  // Prefix types in — "grabStrategy." pushes grab(cube) to the right
+  yield* prefixRef().text('grabStrategy.', 0.7, easeInOutCubic);
+
+  // Settle to center
+  yield* transformLine().y(0, 0.5, easeInOutCubic);
+
   yield* waitFor(1.8);
 
-  yield* stratRef().opacity(0, 0.8, easeInOutCubic);
+  yield* transformLine().opacity(0, 0.8, easeInOutCubic);
   yield* waitFor(0.3);
 });
