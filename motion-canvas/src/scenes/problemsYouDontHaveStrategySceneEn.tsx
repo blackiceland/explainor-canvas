@@ -25,7 +25,7 @@ const KW_COLOR = DryFiltersV3CodeTheme.keyword;
 
 // ── Layout ──────────────────────────────────────────────────────────────
 const LEFT_PAD = 80;
-const THREE_W = Screen.width / 2;
+const THREE_W = Screen.width;
 const THREE_H = Screen.height;
 
 // ── Text helpers ───────────────────────────────────────────────────────
