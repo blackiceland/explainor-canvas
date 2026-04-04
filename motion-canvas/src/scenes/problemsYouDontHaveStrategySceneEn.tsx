@@ -18,6 +18,10 @@ import {getCodePaddingX, getLineHeight, charDelay} from '../core/code/shared/Tex
 // ── Colors ──────────────────────────────────────────────────────────────
 const TEXT = Colors.text.primary;
 const BAR_COLOR = 'rgba(255,140,163,0.8)';
+const VAR_LIGHT = 'rgba(244, 241, 235, 0.96)';
+const TYPE_CLEAN = 'rgba(220, 215, 255, 0.80)';
+const METHOD_COLOR = DryFiltersV3CodeTheme.method;
+const KW_COLOR = DryFiltersV3CodeTheme.keyword;
 
 // ── Layout ──────────────────────────────────────────────────────────────
 const LEFT_PAD = 80;
@@ -34,23 +38,50 @@ const MC_WIDTH = 2200;
 const MC_LEFT_EDGE = -MC_WIDTH / 2 + getCodePaddingX(SZ);
 const MC_LINE_H = getLineHeight(SZ);
 
-const FULL_CODE = `public void moveCubeToTable(Cube cube, Table table) {
-    GrabStrategy grabStrategy = selectStrategy(cube);
-    moveTo(cube.position);
+const FULL_CODE = `public void handleCube(Cube cube, Table table) {
+    arm.moveTo(cube.position);
     grabStrategy.grab(cube);
-    lift();
-    place(cube, table);
-    release();
+    arm.lift();
+    arm.moveTo(table.position);
+    arm.release();
 }`;
 
-const MC_LINES = FULL_CODE.split('\n').length;       // 8
-const GRAB_LINE = 3;                                  // grabStrategy.grab(cube);
+const MC_LINES = FULL_CODE.split('\n').length;       // 7
+const GRAB_LINE = 2;                                  // grabStrategy.grab(cube);
 const GRAB_LINE_Y = -(((MC_LINES - 1) / 2) * MC_LINE_H) + GRAB_LINE * MC_LINE_H;
 
 // grab(cube) centering: grab starts after "    grabStrategy."
 const PREFIX_PX = tw('    grabStrategy.');
 const GRAB_CUBE_W = tw('grab(cube)');
 const GRAB_CUBE_CENTER = MC_LEFT_EDGE + PREFIX_PX + GRAB_CUBE_W / 2;
+
+// ── Color rules ────────────────────────────────────────────────────────
+const COLOR_RULES = [
+  {match: /^public$/,       color: KW_COLOR},
+  {match: /^void$/,         color: KW_COLOR},
+  {match: 'handleCube',     color: VAR_LIGHT},
+  {match: 'arm',            color: VAR_LIGHT},
+  {match: 'cube',           color: VAR_LIGHT},
+  {match: 'position',       color: VAR_LIGHT},
+  {match: 'table',          color: VAR_LIGHT},
+  {match: 'grabStrategy',   color: VAR_LIGHT},
+  {match: /^Cube$/,         color: TYPE_CLEAN},
+  {match: /^Table$/,        color: TYPE_CLEAN},
+  {match: 'moveTo',         color: METHOD_COLOR, onlyTypes: ['method']},
+  {match: 'grab',           color: METHOD_COLOR, onlyTypes: ['method']},
+  {match: 'lift',           color: METHOD_COLOR, onlyTypes: ['method']},
+  {match: 'release',        color: METHOD_COLOR, onlyTypes: ['method']},
+];
+
+// ── Zoom-out final layout ──────────────────────────────────────────────
+const MC_SCALE = 34 / 64;
+const MC_FINAL_X = -Screen.width / 2 + LEFT_PAD - MC_LEFT_EDGE * MC_SCALE;
+const MC_FINAL_Y = -69;
+const GRAB_CTR_X = MC_FINAL_X + GRAB_CUBE_CENTER * MC_SCALE;
+const GRAB_CTR_Y = MC_FINAL_Y + GRAB_LINE_Y * MC_SCALE;
+const ZOOM = 1 / MC_SCALE;                            // 64/34
+const ZOOM_X0 = -GRAB_CTR_X * ZOOM;                   // grab at screen x=0
+const ZOOM_Y0 = -GRAB_CTR_Y * ZOOM;                   // grab at screen y=0
 
 // ── 3D helpers ──────────────────────────────────────────────────────────
 function bp(
@@ -169,16 +200,23 @@ export default makeScene2D(function* (view) {
       outline.render(s, c);
     },
   });
+  // ── Zoom container (code + 3D zoom out together) ──
+  const zoomRef = createRef<Node>();
+  view.add(
+    <Node ref={zoomRef} scale={ZOOM} x={ZOOM_X0} y={ZOOM_Y0} />,
+  );
+
   threeView.node.x(Screen.width / 4);
   threeView.node.opacity(0);
-  view.add(threeView.node);
+  threeView.node.scale(0.85);
+  zoomRef().add(threeView.node);
 
   // ═══════════════════════════════════════════════════════════════════════
-  // MANTICORE: full code, pre-positioned, progressively revealed
+  // MANTICORE: full code, at final zoom-out position inside container
   // ═══════════════════════════════════════════════════════════════════════
   const mc = Manticore.create(FULL_CODE, {
-    x: -GRAB_CUBE_CENTER,            // grab(cube) centered horizontally
-    y: -GRAB_LINE_Y,                  // grab line at y=0 on screen
+    x: MC_FINAL_X,
+    y: MC_FINAL_Y,
     width: MC_WIDTH,
     fontSize: SZ,
     lineHeight: MC_LINE_H,
@@ -194,7 +232,9 @@ export default makeScene2D(function* (view) {
     glowAccent: false,
     customTypes: ['Cube', 'Table', 'GrabStrategy'],
   });
-  mc.mount(view);
+  mc.mount(zoomRef());
+  mc.node.scale(MC_SCALE);
+  mc.colorize(COLOR_RULES);
 
   // Hide all lines except the grab line
   for (let i = 0; i < mc.lineCount; i++) {
@@ -216,7 +256,7 @@ export default makeScene2D(function* (view) {
   yield* waitFor(1.4);
 
   // Move up — grab goes to y=-180
-  yield* mc.node.y(-180 - GRAB_LINE_Y, 0.7, easeInOutCubic);
+  yield* zoomRef().y(ZOOM_Y0 - 180, 0.7, easeInOutCubic);
 
   // ═══════════════════════════════════════════════════════════════════════
   // PHASE 2: Strategy list
@@ -324,21 +364,15 @@ export default makeScene2D(function* (view) {
   // ═══════════════════════════════════════════════════════════════════════
   // PHASE 5: Zoom out + hologram
   // ═══════════════════════════════════════════════════════════════════════
-  const scale = 34 / 64;
-  const finalX = -Screen.width / 2 + LEFT_PAD - MC_LEFT_EDGE * scale;
-
   yield* all(
-    mc.node.scale(scale, 1.2, easeInOutCubic),
-    mc.node.x(finalX, 1.2, easeInOutCubic),
-    mc.node.y(-69, 1.2, easeInOutCubic),
+    zoomRef().scale(1, 1.2, easeInOutCubic),
+    zoomRef().x(0, 1.2, easeInOutCubic),
+    zoomRef().y(0, 1.2, easeInOutCubic),
     threeView.node.opacity(1, 1.2, easeInOutCubic),
   );
 
   yield* waitFor(2.0);
 
-  yield* all(
-    mc.node.opacity(0, 0.8, easeInOutCubic),
-    threeView.node.opacity(0, 0.8, easeInOutCubic),
-  );
+  yield* zoomRef().opacity(0, 0.8, easeInOutCubic);
   yield* waitFor(0.3);
 });

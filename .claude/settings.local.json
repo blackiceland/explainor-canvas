@@ -23,7 +23,8 @@
       "Skill(update-config)",
       "WebFetch(domain:sketchfab.com)",
       "Bash(cp:*)",
-      "Bash(grep -r \"xOffset\\\\|x:\" /c/Users/black/IdeaProjects/explainor-canvas/motion-canvas/src/scenes/*.tsx)"
+      "Bash(grep -r \"xOffset\\\\|x:\" /c/Users/black/IdeaProjects/explainor-canvas/motion-canvas/src/scenes/*.tsx)",
+      "Bash(git checkout:*)"
     ]
   }
 }

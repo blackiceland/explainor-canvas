@@ -151,16 +151,16 @@ const COLOR_RULES = [
   {match: /^void$/,         color: KW_COLOR},
   {match: /^return$/,       color: KW_COLOR},
   {match: /^new$/,          color: KW_COLOR},
-  {match: 'moveCubeToTable', color: VAR_LIGHT},
+  {match: 'handleCube',     color: VAR_LIGHT},
+  {match: 'arm',            color: VAR_LIGHT},
   {match: 'cube',           color: VAR_LIGHT},
   {match: 'position',       color: VAR_LIGHT},
   {match: 'table',          color: VAR_LIGHT},
-  {match: 'Cube',           color: TYPE_CLEAN},
-  {match: 'Table',          color: TYPE_CLEAN},
+  {match: /^Cube$/,         color: TYPE_CLEAN},
+  {match: /^Table$/,        color: TYPE_CLEAN},
   {match: 'moveTo',         color: METHOD_COLOR, onlyTypes: ['method']},
   {match: 'grab',           color: METHOD_COLOR, onlyTypes: ['method']},
   {match: 'lift',           color: METHOD_COLOR, onlyTypes: ['method']},
-  {match: 'place',          color: METHOD_COLOR, onlyTypes: ['method']},
   {match: 'release',        color: METHOD_COLOR, onlyTypes: ['method']},
   {match: /^"[^"]*"$/,      color: SOFT_GREEN},
 ];
@@ -492,13 +492,13 @@ export default makeScene2D(function* (view) {
   const topInset   = Math.max(8, paddingY - 8);
 
   const model = JavaClass.create([
-    method('public', 'void', 'moveCubeToTable',
+    method('public', 'void', 'handleCube',
       [param('Cube', 'cube'), param('Table', 'table')],
-      ['moveTo(cube.position);',
-       'grab(cube);',
-       'lift();',
-       'place(cube, table);',
-       'release();']),
+      ['arm.moveTo(cube.position);',
+       'arm.grab(cube);',
+       'arm.lift();',
+       'arm.moveTo(table.position);',
+       'arm.release();']),
   ], MAX_LINE_CHARS);
 
   const manticore = Manticore.create(model.render(), {
