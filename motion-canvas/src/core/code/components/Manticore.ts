@@ -597,6 +597,7 @@ export class Manticore {
                 state.settleAnims.push(state.result[p.newIndex]!.node.opacity(1, opts.moveDuration, easeInOutCubic));
             }
             if (state.settleAnims.length > 0) yield* all(...state.settleAnims);
+            return;
         }
 
         const animateBlockParallel = (block: ReturnType<typeof buildMorphBlocks>[number]): ThreadGenerator[] => {

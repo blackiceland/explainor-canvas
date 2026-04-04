@@ -101,8 +101,8 @@ export default makeProject({
         // robotArmTestScene,
 
         // problemsYouDontHaveSubtitlesSceneEn,
-         robotArmCodeScene,
-        //  problemsYouDontHaveLieIntroSceneEn,
+        // robotArmCodeScene,
+        // problemsYouDontHaveLieIntroSceneEn,
          problemsYouDontHaveStrategySceneEn
 
     ]

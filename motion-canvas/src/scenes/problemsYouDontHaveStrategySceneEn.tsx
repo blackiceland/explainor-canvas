@@ -1,4 +1,4 @@
-import {makeScene2D, Txt, Rect, Node, Layout} from '@motion-canvas/2d';
+import {makeScene2D, Txt, Rect, Node} from '@motion-canvas/2d';
 import {all, createRef, easeInOutCubic, waitFor} from '@motion-canvas/core';
 import {
   BoxGeometry, CylinderGeometry, EdgesGeometry, Group,
@@ -11,22 +11,46 @@ import {createThreeView} from '../core/three/ThreeCanvas';
 import {applyBackground} from '../core/utils';
 import {Colors, Fonts, Screen} from '../core/theme';
 import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
+import {Manticore} from '../core/code/components/Manticore';
+import {textWidth} from '../core/utils/textMeasure';
+import {getCodePaddingX, getLineHeight, charDelay} from '../core/code/shared/TextMeasure';
 
 // ── Colors ──────────────────────────────────────────────────────────────
-const ACCENT = Colors.accent;                        // #FF8CA3
-const TEXT = Colors.text.primary;                     // #F4F1EB
+const TEXT = Colors.text.primary;
 const BAR_COLOR = 'rgba(255,140,163,0.8)';
-const METHOD = DryFiltersV3CodeTheme.method;          // #FF8CA3
-const VAR = 'rgba(244, 241, 235, 0.96)';
-const KW = DryFiltersV3CodeTheme.keyword;              // rgba(163,205,255,0.82)
-const TYPE_C = 'rgba(220, 215, 255, 0.80)';
 
-// ── Layout (matching robotArmCodeScene) ─────────────────────────────────
+// ── Layout ──────────────────────────────────────────────────────────────
 const LEFT_PAD = 80;
-const CODE_W = Screen.width / 2 - LEFT_PAD - 20;
-const CODE_CENTER_X = -Screen.width / 2 + LEFT_PAD + CODE_W / 2;
 const THREE_W = Screen.width / 2;
 const THREE_H = Screen.height;
+
+// ── Text helpers ───────────────────────────────────────────────────────
+const F = Fonts.code;
+const SZ = 64;
+const tw = (t: string) => textWidth(t, F, SZ);
+
+// ── Manticore layout constants ─────────────────────────────────────────
+const MC_WIDTH = 2200;
+const MC_LEFT_EDGE = -MC_WIDTH / 2 + getCodePaddingX(SZ);
+const MC_LINE_H = getLineHeight(SZ);
+
+const FULL_CODE = `public void moveCubeToTable(Cube cube, Table table) {
+    GrabStrategy grabStrategy = selectStrategy(cube);
+    moveTo(cube.position);
+    grabStrategy.grab(cube);
+    lift();
+    place(cube, table);
+    release();
+}`;
+
+const MC_LINES = FULL_CODE.split('\n').length;       // 8
+const GRAB_LINE = 3;                                  // grabStrategy.grab(cube);
+const GRAB_LINE_Y = -(((MC_LINES - 1) / 2) * MC_LINE_H) + GRAB_LINE * MC_LINE_H;
+
+// grab(cube) centering: grab starts after "    grabStrategy."
+const PREFIX_PX = tw('    grabStrategy.');
+const GRAB_CUBE_W = tw('grab(cube)');
+const GRAB_CUBE_CENTER = MC_LEFT_EDGE + PREFIX_PX + GRAB_CUBE_W / 2;
 
 // ── 3D helpers ──────────────────────────────────────────────────────────
 function bp(
@@ -71,7 +95,7 @@ export default makeScene2D(function* (view) {
   applyBackground(view);
 
   // ═══════════════════════════════════════════════════════════════════════
-  // SETUP: 3D hologram (static end state from robotArmCodeScene)
+  // SETUP: 3D hologram
   // ═══════════════════════════════════════════════════════════════════════
   const scene3 = new Scene();
   const camera = new PerspectiveCamera(50, THREE_W / THREE_H, 1, 10000);
@@ -150,23 +174,49 @@ export default makeScene2D(function* (view) {
   view.add(threeView.node);
 
   // ═══════════════════════════════════════════════════════════════════════
-  // PHASE 1: grab(cube)
+  // MANTICORE: full code, pre-positioned, progressively revealed
   // ═══════════════════════════════════════════════════════════════════════
-  const grabRef = createRef<Txt>();
-  view.add(
-    <Txt
-      ref={grabRef}
-      text={'grab(cube)'}
-      fontFamily={Fonts.code}
-      fontSize={64}
-      fill={TEXT}
-      opacity={0}
-    />,
-  );
+  const mc = Manticore.create(FULL_CODE, {
+    x: -GRAB_CUBE_CENTER,            // grab(cube) centered horizontally
+    y: -GRAB_LINE_Y,                  // grab line at y=0 on screen
+    width: MC_WIDTH,
+    fontSize: SZ,
+    lineHeight: MC_LINE_H,
+    fontFamily: F,
+    theme: DryFiltersV3CodeTheme,
+    noClip: true,
+    cardStyle: {
+      radius: 0, fill: 'rgba(0,0,0,0)', stroke: 'rgba(0,0,0,0)',
+      strokeWidth: 0, edge: false, opacity: 0,
+      shadowBlur: 0, shadowColor: 'rgba(0,0,0,0)',
+      shadowOffsetX: 0, shadowOffsetY: 0,
+    },
+    glowAccent: false,
+    customTypes: ['Cube', 'Table', 'GrabStrategy'],
+  });
+  mc.mount(view);
 
-  yield* grabRef().opacity(1, 0.6, easeInOutCubic);
+  // Hide all lines except the grab line
+  for (let i = 0; i < mc.lineCount; i++) {
+    if (i !== GRAB_LINE) mc.getLine(i)!.node.opacity(0);
+  }
+
+  // On the grab line, hide prefix tokens — grab stays at its final position
+  // Tokens: [0]'    ' [1]'grabStrategy' [2]'.' [3]'grab' [4]'(' [5]'cube' [6]')' [7]';'
+  const grabLine = mc.getLine(GRAB_LINE)!;
+  const gt = grabLine.tokens;
+  gt[1].ref().text('');     // grabStrategy → empty (positioned but invisible)
+  gt[2].ref().text('');     // . → empty
+  gt[7].ref().opacity(0);   // ; → hidden
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // PHASE 1: grab(cube) appears centered
+  // ═══════════════════════════════════════════════════════════════════════
+  yield* mc.appear(0.6);
   yield* waitFor(1.4);
-  yield* grabRef().y(-180, 0.7, easeInOutCubic);
+
+  // Move up — grab goes to y=-180
+  yield* mc.node.y(-180 - GRAB_LINE_Y, 0.7, easeInOutCubic);
 
   // ═══════════════════════════════════════════════════════════════════════
   // PHASE 2: Strategy list
@@ -241,131 +291,53 @@ export default makeScene2D(function* (view) {
   yield* waitFor(1.5);
 
   // ═══════════════════════════════════════════════════════════════════════
-  // PHASE 3: Transform grab(cube) → grabStrategy.grab(cube);
+  // PHASE 3: grabStrategy. appears LEFT of grab — grab does NOT move
   // ═══════════════════════════════════════════════════════════════════════
-  const codeWrap = createRef<Node>();
-  view.add(<Node ref={codeWrap} />);
-
-  const transformLine = createRef<Layout>();
-  const prefixRef = createRef<Txt>();
-  const verbRef = createRef<Txt>();
-  const argsRef = createRef<Txt>();
-
-  // "grabStrategy." = variable (VAR), "grab" = method call (METHOD), args = VAR
-  codeWrap().add(
-    <Layout
-      ref={transformLine}
-      layout direction={'row'} gap={0}
-      y={-180} opacity={0}
-    >
-      <Txt ref={prefixRef} text={''} fontFamily={Fonts.code} fontSize={64} fill={VAR} />
-      <Txt ref={verbRef} text={'grab'} fontFamily={Fonts.code} fontSize={64} fill={METHOD} />
-      <Txt ref={argsRef} text={'(cube)'} fontFamily={Fonts.code} fontSize={64} fill={VAR} />
-    </Layout>,
-  );
-
   yield* listNode().opacity(0, 0.5, easeInOutCubic);
-  grabRef().opacity(0);
-  transformLine().opacity(1);
-
   yield* waitFor(0.4);
 
-  yield* all(
-    prefixRef().text('grabStrategy.', 0.7, easeInOutCubic),
-    argsRef().text('(cube);', 0.7, easeInOutCubic),
-  );
+  // Typewriter: characters appear left of grab
+  const prefixFull = gt[1].text;   // 'grabStrategy'
+  for (let c = 0; c < prefixFull.length; c++) {
+    gt[1].ref().text(prefixFull.slice(0, c + 1));
+    yield* waitFor(charDelay(prefixFull[c], 0.015));
+  }
+  gt[2].ref().text('.');
+  yield* waitFor(charDelay('.', 0.015));
+
+  // Show semicolon
+  yield* gt[7].ref().opacity(1, 0.2, easeInOutCubic);
 
   yield* waitFor(0.6);
 
   // ═══════════════════════════════════════════════════════════════════════
-  // PHASE 4: Code assembles → zoom out → hologram
+  // PHASE 4: Surrounding code appears — grab line stays put
   // ═══════════════════════════════════════════════════════════════════════
-
-  const LINE_H = 104;
-  const GRAB_Y = -180;
-  const F = Fonts.code;
-  const SZ = 64;
-  const CW = SZ * 0.6;                       // 38.4 char width at 64px
-  const LEFT64 = -374 * (64 / 34);           // left text edge scaled to 64px
-
-  // Center-x for a left-aligned row Layout of N chars
-  const alignX = (n: number) => LEFT64 + n * CW / 2;
-
-  // Add 4-space indent to grab line, compensate x so text doesn't jump
-  prefixRef().text('    grabStrategy.');
-  transformLine().x(-76.8);                   // −(4 chars / 2) × 38.4
-
-  const grabAlignX = alignX(28);             // "    grabStrategy.grab(cube);"
-
-  // 6 surrounding lines: method sig + 4 body + closing brace
-  // NOTE: spaces must be embedded in adjacent tokens — standalone space Txt nodes
-  // render with zero width inside Motion Canvas Layout.
-  const surroundData: {y: number; ch: number; tokens: {text: string; fill: string}[]}[] = [
-    {y: GRAB_Y - 2 * LINE_H, ch: 53, tokens: [
-      {text: 'public ', fill: KW},
-      {text: 'void ', fill: KW},
-      {text: 'moveCubeToTable(', fill: VAR},
-      {text: 'Cube ', fill: TYPE_C},
-      {text: 'cube, ', fill: VAR},
-      {text: 'Table ', fill: TYPE_C},
-      {text: 'table) {', fill: VAR},
-    ]},
-    {y: GRAB_Y - LINE_H, ch: 26, tokens: [
-      {text: '    moveTo', fill: METHOD},
-      {text: '(cube.position);', fill: VAR},
-    ]},
-    {y: GRAB_Y + LINE_H, ch: 11, tokens: [
-      {text: '    lift', fill: METHOD},
-      {text: '();', fill: VAR},
-    ]},
-    {y: GRAB_Y + 2 * LINE_H, ch: 23, tokens: [
-      {text: '    place', fill: METHOD},
-      {text: '(cube, table);', fill: VAR},
-    ]},
-    {y: GRAB_Y + 3 * LINE_H, ch: 14, tokens: [
-      {text: '    release', fill: METHOD},
-      {text: '();', fill: VAR},
-    ]},
-    {y: GRAB_Y + 4 * LINE_H, ch: 1, tokens: [
-      {text: '}', fill: VAR},
-    ]},
-  ];
-
-  const lineRefs: ReturnType<typeof createRef<Layout>>[] = [];
-  for (const line of surroundData) {
-    const ref = createRef<Layout>();
-    codeWrap().add(
-      <Layout
-        ref={ref} layout direction={'row'} gap={0}
-        x={alignX(line.ch)} y={line.y} opacity={0}
-      >
-        {line.tokens.map(t => (
-          <Txt text={t.text} fontFamily={F} fontSize={SZ} fill={t.fill} />
-        ))}
-      </Layout>,
-    );
-    lineRefs.push(ref);
+  const lineAnims = [];
+  for (let i = 0; i < mc.lineCount; i++) {
+    if (i !== GRAB_LINE) lineAnims.push(mc.getLine(i)!.setOpacity(1, 0.4));
   }
+  yield* all(...lineAnims);
 
-  // Code assembles: surrounding lines fade in + grab line slides to alignment
-  yield* all(
-    ...lineRefs.map(r => r().opacity(1, 0.4, easeInOutCubic)),
-    transformLine().x(grabAlignX, 0.4, easeInOutCubic),
-  );
   yield* waitFor(0.4);
 
-  // Zoom out + slide to final Manticore-matching position + hologram
+  // ═══════════════════════════════════════════════════════════════════════
+  // PHASE 5: Zoom out + hologram
+  // ═══════════════════════════════════════════════════════════════════════
+  const scale = 34 / 64;
+  const finalX = -Screen.width / 2 + LEFT_PAD - MC_LEFT_EDGE * scale;
+
   yield* all(
-    codeWrap().scale(34 / 64, 1.2, easeInOutCubic),
-    codeWrap().x(-470, 1.2, easeInOutCubic),
-    codeWrap().y(-69, 1.2, easeInOutCubic),
+    mc.node.scale(scale, 1.2, easeInOutCubic),
+    mc.node.x(finalX, 1.2, easeInOutCubic),
+    mc.node.y(-69, 1.2, easeInOutCubic),
     threeView.node.opacity(1, 1.2, easeInOutCubic),
   );
 
   yield* waitFor(2.0);
 
   yield* all(
-    codeWrap().opacity(0, 0.8, easeInOutCubic),
+    mc.node.opacity(0, 0.8, easeInOutCubic),
     threeView.node.opacity(0, 0.8, easeInOutCubic),
   );
   yield* waitFor(0.3);
