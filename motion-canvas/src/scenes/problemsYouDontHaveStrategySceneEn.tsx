@@ -329,10 +329,7 @@ export default makeScene2D(function* (view) {
   const gripClose     = createSignal(0);
   const cube2Opacity  = createSignal(0);
   const cube2X        = createSignal(beltLen / 2);
-  const grabBlend     = createSignal(0);
-
   let cube2Attached = false;
-  const grabOrigin = new Vector3();
   const grabHandQuat = new Quaternion();
 
   let outline: OutlineEffect | null = null;
@@ -367,14 +364,10 @@ export default makeScene2D(function* (view) {
         bones.wrist.getWorldPosition(wp);
         bones.hand.getWorldPosition(hp);
         const tip = hp.clone().add(hp.clone().sub(wp));
-        const b = grabBlend();
-        cube2.position.lerpVectors(grabOrigin, tip, b);
-        // Orientation follows hand bone physically
+        cube2.position.copy(tip);
         const curQuat = new Quaternion();
         bones.hand.getWorldQuaternion(curQuat);
-        const relQuat = curQuat.clone().multiply(grabHandQuat.clone().invert());
-        const identity = new Quaternion();
-        cube2.quaternion.slerpQuaternions(identity, relQuat, b);
+        cube2.quaternion.copy(curQuat.clone().multiply(grabHandQuat.clone().invert()));
       } else if (!cube2Attached) {
         cube2.position.x = cube2X();
       }
@@ -520,28 +513,24 @@ export default makeScene2D(function* (view) {
   yield* listNode().opacity(0, 0.5, easeInOutCubic);
   yield* waitFor(0.4);
 
-  // Typewriter: characters appear left of grab
+  // Typewriter + surrounding code appear simultaneously
   const prefixFull = gt[1].text;   // 'grabStrategy'
-  for (let c = 0; c < prefixFull.length; c++) {
-    gt[1].ref().text(prefixFull.slice(0, c + 1));
-    yield* waitFor(charDelay(prefixFull[c], 0.015));
-  }
-  gt[2].ref().text('.');
-  yield* waitFor(charDelay('.', 0.015));
-
-  // Show semicolon
-  yield* gt[7].ref().opacity(1, 0.2, easeInOutCubic);
-
-  yield* waitFor(0.6);
-
-  // ═══════════════════════════════════════════════════════════════════════
-  // PHASE 4: Surrounding code appears — grab line stays put
-  // ═══════════════════════════════════════════════════════════════════════
   const lineAnims = [];
   for (let i = 0; i < mc.lineCount; i++) {
     if (i !== GRAB_LINE) lineAnims.push(mc.getLine(i)!.setOpacity(1, 0.4));
   }
-  yield* all(...lineAnims);
+  yield* all(
+    (function* () {
+      for (let c = 0; c < prefixFull.length; c++) {
+        gt[1].ref().text(prefixFull.slice(0, c + 1));
+        yield* waitFor(charDelay(prefixFull[c], 0.015));
+      }
+      gt[2].ref().text('.');
+      yield* waitFor(charDelay('.', 0.015));
+      yield* gt[7].ref().opacity(1, 0.2, easeInOutCubic);
+    })(),
+    ...lineAnims,
+  );
 
   yield* waitFor(0.4);
 
@@ -674,11 +663,9 @@ export default makeScene2D(function* (view) {
   yield* waitFor(0.2);
 
   // Gentle grip + attach
-  yield* gripClose(0.35, 0.5, easeInOutCubic);
-  grabOrigin.copy(cube2.position);
+  yield* gripClose(0.5, 0.5, easeInOutCubic);
   if (bones.hand) bones.hand.getWorldQuaternion(grabHandQuat);
   cube2Attached = true;
-  yield* grabBlend(1, 0.2, easeInOutCubic);
 
   // Lift
   yield* all(
@@ -703,6 +690,7 @@ export default makeScene2D(function* (view) {
   // Release
   cube2Attached = false;
   cube2.position.copy(stackPos);
+  cube2.quaternion.identity();
   cube2X(stackPos.x);  // prevent onRender from overriding x
   yield* gripClose(0, 0.4, easeInOutCubic);
   yield* waitFor(0.2);
