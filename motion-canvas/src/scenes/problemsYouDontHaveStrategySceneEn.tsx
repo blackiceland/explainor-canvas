@@ -3,7 +3,7 @@ import {all, createRef, createSignal, easeInOutCubic, waitFor} from '@motion-can
 import {
   Bone, BoxGeometry, CylinderGeometry, EdgesGeometry, Group,
   KeyframeTrack, LineBasicMaterial, LineSegments, Mesh, MeshBasicMaterial,
-  Object3D, PerspectiveCamera, Scene, SkinnedMesh, Vector3,
+  Object3D, PerspectiveCamera, Quaternion, Scene, SkinnedMesh, Vector3,
 } from 'three';
 import {OutlineEffect} from 'three/examples/jsm/effects/OutlineEffect.js';
 import {GLTFLoader} from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -332,10 +332,8 @@ export default makeScene2D(function* (view) {
   const grabBlend     = createSignal(0);
 
   let cube2Attached = false;
-  let grabBaseY = 0;
-  let grabTilt = 0;
-  let grabTiltReady = false;
   const grabOrigin = new Vector3();
+  const grabHandQuat = new Quaternion();
 
   let outline: OutlineEffect | null = null;
   const threeView = createThreeView({
@@ -371,12 +369,12 @@ export default makeScene2D(function* (view) {
         const tip = hp.clone().add(hp.clone().sub(wp));
         const b = grabBlend();
         cube2.position.lerpVectors(grabOrigin, tip, b);
-        const dir = hp.clone().sub(wp);
-        const horiz = Math.sqrt(dir.x * dir.x + dir.z * dir.z);
-        const tilt = Math.atan2(dir.y, horiz);
-        if (!grabTiltReady) { grabTilt = tilt; grabTiltReady = true; }
-        cube2.rotation.y = baseDelta() - grabBaseY;
-        cube2.rotation.x = -(tilt - grabTilt);
+        // Orientation follows hand bone physically
+        const curQuat = new Quaternion();
+        bones.hand.getWorldQuaternion(curQuat);
+        const relQuat = curQuat.clone().multiply(grabHandQuat.clone().invert());
+        const identity = new Quaternion();
+        cube2.quaternion.slerpQuaternions(identity, relQuat, b);
       } else if (!cube2Attached) {
         cube2.position.x = cube2X();
       }
@@ -678,8 +676,7 @@ export default makeScene2D(function* (view) {
   // Gentle grip + attach
   yield* gripClose(0.35, 0.5, easeInOutCubic);
   grabOrigin.copy(cube2.position);
-  grabBaseY = baseDelta();
-  grabTiltReady = false;
+  if (bones.hand) bones.hand.getWorldQuaternion(grabHandQuat);
   cube2Attached = true;
   yield* grabBlend(1, 0.2, easeInOutCubic);
 
@@ -706,7 +703,7 @@ export default makeScene2D(function* (view) {
   // Release
   cube2Attached = false;
   cube2.position.copy(stackPos);
-  cube2.rotation.set(0, 0, 0);
+  cube2.quaternion.identity();
   cube2X(stackPos.x);  // prevent onRender from overriding x
   yield* gripClose(0, 0.4, easeInOutCubic);
   yield* waitFor(0.2);
