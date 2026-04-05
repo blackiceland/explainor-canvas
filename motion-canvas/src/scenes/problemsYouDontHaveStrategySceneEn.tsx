@@ -360,6 +360,7 @@ export default makeScene2D(function* (view) {
       cube2EdgeMat.opacity = c2;
 
       if (cube2Attached && bones.wrist && bones.hand) {
+        sceneRoot.updateMatrixWorld(true);
         const wp = new Vector3(), hp = new Vector3();
         bones.wrist.getWorldPosition(wp);
         bones.hand.getWorldPosition(hp);
@@ -687,10 +688,9 @@ export default makeScene2D(function* (view) {
   );
   yield* waitFor(0.1);
 
-  // Release
+  // Release — cube keeps hand-given orientation
   cube2Attached = false;
   cube2.position.copy(stackPos);
-  cube2.quaternion.identity();
   cube2X(stackPos.x);  // prevent onRender from overriding x
   yield* gripClose(0, 0.4, easeInOutCubic);
   yield* waitFor(0.2);
