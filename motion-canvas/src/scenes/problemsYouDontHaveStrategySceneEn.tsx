@@ -703,7 +703,6 @@ export default makeScene2D(function* (view) {
   // Release
   cube2Attached = false;
   cube2.position.copy(stackPos);
-  cube2.quaternion.identity();
   cube2X(stackPos.x);  // prevent onRender from overriding x
   yield* gripClose(0, 0.4, easeInOutCubic);
   yield* waitFor(0.2);
