@@ -39,7 +39,9 @@ const MC_WIDTH = 2200;
 const MC_LEFT_EDGE = -MC_WIDTH / 2 + getCodePaddingX(SZ);
 const MC_LINE_H = getLineHeight(SZ);
 
-const FULL_CODE = `public void handleCube(Cube cube, Table table) {
+const INIT_CODE = `private final GrabStrategy grabStrategy = new StandardGrab();
+
+public void handleCube(Cube cube, Table table) {
     arm.moveTo(cube.position);
     grabStrategy.grab(cube);
     arm.lift();
@@ -47,19 +49,25 @@ const FULL_CODE = `public void handleCube(Cube cube, Table table) {
     arm.release();
 }`;
 
-const MC_LINES = FULL_CODE.split('\n').length;       // 7
-const GRAB_LINE = 2;                                  // grabStrategy.grab(cube);
+const SOFT_CODE = INIT_CODE.replace('new StandardGrab()', 'new SoftGrab()');
+
+const MC_LINES = INIT_CODE.split('\n').length;        // 9
+const INIT_LINE = 0;                                   // field declaration line
+const GRAB_LINE = 4;                                   // grabStrategy.grab(cube);
 const GRAB_LINE_Y = -(((MC_LINES - 1) / 2) * MC_LINE_H) + GRAB_LINE * MC_LINE_H;
 
-// grab(cube) centering: grab starts after "    grabStrategy."
+// grab(cube) centering: starts after "    grabStrategy."
 const PREFIX_PX = tw('    grabStrategy.');
-const GRAB_CUBE_W = tw('grab(cube)');
-const GRAB_CUBE_CENTER = MC_LEFT_EDGE + PREFIX_PX + GRAB_CUBE_W / 2;
+const GRAB_W = tw('grab(cube)');
+const GRAB_CENTER = MC_LEFT_EDGE + PREFIX_PX + GRAB_W / 2;
 
 // ── Color rules ────────────────────────────────────────────────────────
 const COLOR_RULES = [
   {match: /^public$/,       color: KW_COLOR},
   {match: /^void$/,         color: KW_COLOR},
+  {match: /^private$/,      color: KW_COLOR},
+  {match: /^final$/,        color: KW_COLOR},
+  {match: /^new$/,          color: KW_COLOR},
   {match: 'handleCube',     color: VAR_LIGHT},
   {match: 'arm',            color: VAR_LIGHT},
   {match: 'cube',           color: VAR_LIGHT},
@@ -68,21 +76,23 @@ const COLOR_RULES = [
   {match: 'grabStrategy',   color: VAR_LIGHT},
   {match: /^Cube$/,         color: TYPE_CLEAN},
   {match: /^Table$/,        color: TYPE_CLEAN},
+  {match: /^GrabStrategy$/, color: TYPE_CLEAN},
+  {match: /^StandardGrab$/, color: TYPE_CLEAN},
+  {match: /^SoftGrab$/,     color: TYPE_CLEAN},
   {match: 'moveTo',         color: METHOD_COLOR, onlyTypes: ['method']},
-  {match: 'grab',           color: METHOD_COLOR, onlyTypes: ['method']},
   {match: 'lift',           color: METHOD_COLOR, onlyTypes: ['method']},
   {match: 'release',        color: METHOD_COLOR, onlyTypes: ['method']},
 ];
 
 // ── Zoom-out final layout ──────────────────────────────────────────────
-const MC_SCALE = 34 / 64;
+const MC_SCALE = 26 / 64;
 const MC_FINAL_X = -Screen.width / 2 + LEFT_PAD - MC_LEFT_EDGE * MC_SCALE;
 const MC_FINAL_Y = -69;
-const GRAB_CTR_X = MC_FINAL_X + GRAB_CUBE_CENTER * MC_SCALE;
+const GRAB_CTR_X = MC_FINAL_X + GRAB_CENTER * MC_SCALE;
 const GRAB_CTR_Y = MC_FINAL_Y + GRAB_LINE_Y * MC_SCALE;
-const ZOOM = 1 / MC_SCALE;                            // 64/34
-const ZOOM_X0 = -GRAB_CTR_X * ZOOM;                   // grab at screen x=0
-const ZOOM_Y0 = -GRAB_CTR_Y * ZOOM;                   // grab at screen y=0
+const ZOOM = 1 / MC_SCALE;
+const ZOOM_X0 = -GRAB_CTR_X * ZOOM;
+const ZOOM_Y0 = -GRAB_CTR_Y * ZOOM;
 
 // ── 3D helpers ──────────────────────────────────────────────────────────
 function bp(
@@ -260,8 +270,9 @@ export default makeScene2D(function* (view) {
   const cube2FillMat = new MeshBasicMaterial({color: 0xff9500, transparent: true, opacity: 0});
   const cube2EdgeMat = new LineBasicMaterial({color: 0xff9500, transparent: true, opacity: 0});
   const cube2 = bp(new BoxGeometry(cubeSize, cubeSize, cubeSize), cube2FillMat, cube2EdgeMat);
-  cube2.renderOrder = -1;  // draw before arm so hand covers cube
+  cube2.renderOrder = -1;
   cube2.position.set(beltLen / 2, cubeOnBeltY, beltZ);
+  cube2.visible = false;   // hidden until soft-grab phase
   scene3.add(cube2);
 
   const gltf: any = yield new Promise<any>((resolve, reject) => {
@@ -437,7 +448,7 @@ export default makeScene2D(function* (view) {
   // ═══════════════════════════════════════════════════════════════════════
   // MANTICORE: full code, at final zoom-out position inside container
   // ═══════════════════════════════════════════════════════════════════════
-  const mc = Manticore.create(FULL_CODE, {
+  const MC_STYLE = {
     x: MC_FINAL_X,
     y: MC_FINAL_Y,
     width: MC_WIDTH,
@@ -453,8 +464,9 @@ export default makeScene2D(function* (view) {
       shadowOffsetX: 0, shadowOffsetY: 0,
     },
     glowAccent: false,
-    customTypes: ['Cube', 'Table', 'GrabStrategy'],
-  });
+    customTypes: ['Cube', 'Table', 'GrabStrategy', 'StandardGrab', 'SoftGrab'],
+  };
+  const mc = Manticore.create(INIT_CODE, MC_STYLE);
   mc.mount(zoomRef());
   mc.node.scale(MC_SCALE);
   mc.colorize(COLOR_RULES);
@@ -465,10 +477,10 @@ export default makeScene2D(function* (view) {
   }
 
   // On the grab line, hide prefix tokens — grab stays at its final position
-  // Tokens: [0]'    ' [1]'grabStrategy' [2]'.' [3]'grab' [4]'(' [5]'cube' [6]')' [7]';'
   const grabLine = mc.getLine(GRAB_LINE)!;
   const gt = grabLine.tokens;
-  gt[1].ref().text('');     // grabStrategy → empty (positioned but invisible)
+  const prefixFull = String(gt[1].ref().text());  // 'grabStrategy' — save before mutation
+  gt[1].ref().text('');     // grabStrategy → empty
   gt[2].ref().text('');     // . → empty
   gt[7].ref().opacity(0);   // ; → hidden
 
@@ -478,7 +490,7 @@ export default makeScene2D(function* (view) {
   yield* mc.appear(0.6);
   yield* waitFor(1.4);
 
-  // Move up — grab goes to y=-180
+  // Move up
   yield* zoomRef().y(ZOOM_Y0 - 180, 0.7, easeInOutCubic);
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -554,13 +566,12 @@ export default makeScene2D(function* (view) {
   yield* waitFor(1.5);
 
   // ═══════════════════════════════════════════════════════════════════════
-  // PHASE 3: grabStrategy. appears LEFT of grab — grab does NOT move
+  // PHASE 3: grabStrategy. appears LEFT of grab — then full code reveals
   // ═══════════════════════════════════════════════════════════════════════
   yield* listNode().opacity(0, 0.5, easeInOutCubic);
   yield* waitFor(0.4);
 
   // Typewriter + surrounding code appear simultaneously
-  const prefixFull = gt[1].text;   // 'grabStrategy'
   const lineAnims = [];
   for (let i = 0; i < mc.lineCount; i++) {
     if (i !== GRAB_LINE) lineAnims.push(mc.getLine(i)!.setOpacity(1, 0.4));
@@ -581,19 +592,7 @@ export default makeScene2D(function* (view) {
   yield* waitFor(0.4);
 
   // ═══════════════════════════════════════════════════════════════════════
-  // PHASE 5: Zoom out + hologram
-  // ═══════════════════════════════════════════════════════════════════════
-  yield* all(
-    zoomRef().scale(1, 1.2, easeInOutCubic),
-    zoomRef().x(0, 1.2, easeInOutCubic),
-    zoomRef().y(0, 1.2, easeInOutCubic),
-    threeView.node.opacity(1, 1.2, easeInOutCubic),
-  );
-
-  yield* waitFor(0.8);
-
-  // ═══════════════════════════════════════════════════════════════════════
-  // PHASE 6: Force+Speed comparison — standard vs soft grab
+  // PHASE 5: Zoom out + hologram + STANDARD gauge appears together
   // ═══════════════════════════════════════════════════════════════════════
   const GAUGE_W = 320;
   const GAUGE_X = Screen.width / 4 + 70;
@@ -608,16 +607,26 @@ export default makeScene2D(function* (view) {
   const forceFill = createRef<Rect>();
   const speedFill = createRef<Rect>();
   const modeLabel = createRef<Txt>();
+  const softLabel = createRef<Txt>();
 
-  view.add(
+  zoomRef().add(
     <Node ref={gaugeNode} x={GAUGE_X} y={GAUGE_Y} opacity={0}>
       <Txt
         ref={modeLabel}
-        text={''}
+        text={'STANDARD'}
         fontFamily={Fonts.code}
         fontSize={32}
         fill={'rgba(0, 229, 255, 0.5)'}
         y={-48}
+      />
+      <Txt
+        ref={softLabel}
+        text={'SOFT'}
+        fontFamily={Fonts.code}
+        fontSize={32}
+        fill={'rgba(0, 229, 255, 0.5)'}
+        y={-48}
+        opacity={0}
       />
       {/* Force row */}
       <Txt
@@ -664,47 +673,73 @@ export default makeScene2D(function* (view) {
     </Node>,
   );
 
-  yield* gaugeNode().opacity(1, 0.4, easeInOutCubic);
-
-  // ── Standard (reference — cube already on table) ──
-  modeLabel().text('STANDARD');
+  // Zoom out + gauge + standard bars all at once
   yield* all(
-    forceVal(0.7, 0.4, easeInOutCubic),
-    forceFill().width(GAUGE_W * 0.7, 0.4, easeInOutCubic),
-    speedVal(0.8, 0.4, easeInOutCubic),
-    speedFill().width(GAUGE_W * 0.8, 0.4, easeInOutCubic),
+    zoomRef().scale(1, 1.2, easeInOutCubic),
+    zoomRef().x(0, 1.2, easeInOutCubic),
+    zoomRef().y(0, 1.2, easeInOutCubic),
+    threeView.node.opacity(1, 1.2, easeInOutCubic),
+    gaugeNode().opacity(1, 1.2, easeInOutCubic),
+    forceFill().width(GAUGE_W * 0.7, 1.2, easeInOutCubic),
+    speedFill().width(GAUGE_W * 0.8, 1.2, easeInOutCubic),
   );
+
   yield* waitFor(1.2);
 
-  // Reset bars
+  // ═══════════════════════════════════════════════════════════════════════
+  // PHASE 6: Highlight init line → morph to SoftGrab → change gauges
+  // ═══════════════════════════════════════════════════════════════════════
+  // Smoothly dim everything except init + grab lines
   yield* all(
-    forceVal(0, 0.3, easeInOutCubic),
-    forceFill().width(0, 0.3, easeInOutCubic),
-    speedVal(0, 0.3, easeInOutCubic),
-    speedFill().width(0, 0.3, easeInOutCubic),
+    mc.dimLines(0, mc.lineCount - 1, 0.2, 0.6),
+    mc.dimLines(INIT_LINE, INIT_LINE, 1, 0.6),
+    mc.dimLines(GRAB_LINE, GRAB_LINE, 1, 0.6),
   );
-  yield* waitFor(0.4);
+  yield* waitFor(0.3);
 
-  // ── Soft grab — cube2 slides in, arm grabs gently ──
-  forceFill().fill('rgba(0, 229, 255, 0.8)');
-  speedFill().fill('rgba(0, 229, 255, 0.8)');
-  modeLabel().text('SOFT');
-
-  // Cube2 fades in and slides along conveyor belt
-  yield* cube2Opacity(1, 0.4, easeInOutCubic);
-  yield* cube2X(0, 2.0, easeInOutCubic);
-
-  // Gauges fill + arm reaches (slower to match speed gauge)
+  // Morph + gauge transition + label crossfade — all simultaneous
   yield* all(
-    forceVal(0.3, 1.0, easeInOutCubic),
+    mc.morphTo(SOFT_CODE, {addStyle: 'typewriter', charDelay: 0.025}),
     forceFill().width(GAUGE_W * 0.3, 1.0, easeInOutCubic),
-    speedVal(0.4, 1.0, easeInOutCubic),
     speedFill().width(GAUGE_W * 0.4, 1.0, easeInOutCubic),
+    // Label: STANDARD slides up + fades, SOFT slides up from below + appears
+    modeLabel().opacity(0, 0.5, easeInOutCubic),
+    modeLabel().y(-58, 0.5, easeInOutCubic),
+    (function* () {
+      softLabel().y(-38);
+      yield* all(
+        softLabel().opacity(1, 0.5, easeInOutCubic),
+        softLabel().y(-48, 0.5, easeInOutCubic),
+      );
+    })(),
+    (function* () {
+      yield* waitFor(0.4);
+      forceFill().fill('rgba(0, 229, 255, 0.8)');
+      speedFill().fill('rgba(0, 229, 255, 0.8)');
+    })(),
+  );
+  mc.colorize(COLOR_RULES);
+
+  // Keep init + grab lines highlighted — rest stays dimmed until end
+  yield* all(
+    mc.dimLines(0, mc.lineCount - 1, 0.25, 0.4),
+    mc.dimLines(INIT_LINE, INIT_LINE, 1, 0.4),
+    mc.dimLines(GRAB_LINE, GRAB_LINE, 1, 0.4),
+  );
+  yield* waitFor(0.3);
+
+  // Cube2 appears at grab position
+  cube2.visible = true;
+  cube2X(0);
+
+  // Arm reaches to cube
+  yield* all(
     baseDelta(reachDeltas.base, 2.0, easeInOutCubic),
     turretDelta(reachDeltas.turret, 2.0, easeInOutCubic),
     shoulderDelta(reachDeltas.shoulder, 2.0, easeInOutCubic),
     elbowDelta(reachDeltas.elbow, 2.0, easeInOutCubic),
     wristDelta(reachDeltas.wrist, 2.0, easeInOutCubic),
+    cube2Opacity(1, 0.6, easeInOutCubic),
   );
   yield* waitFor(0.2);
 
