@@ -156,8 +156,8 @@ function solveIK(
   initRot: Record<string, number>,
   target: Vector3,
 ): Record<string, number> {
-  const JOINTS = ['turret', 'shoulder', 'elbow', 'wrist'] as const;
-  const deltas: Record<string, number> = {turret: 0, shoulder: 0, elbow: 0, wrist: 0};
+  const JOINTS = ['base', 'turret', 'shoulder', 'elbow', 'wrist'] as const;
+  const deltas: Record<string, number> = {base: 0, turret: 0, shoulder: 0, elbow: 0, wrist: 0};
   const EPS = 0.005;
   function apply() {
     for (const j of JOINTS) {
@@ -166,9 +166,11 @@ function solveIK(
   }
   function cost(): number {
     apply();
-    return getTipPos(sceneRoot, bones.wrist!, bones.hand!).distanceTo(target);
+    const dist = getTipPos(sceneRoot, bones.wrist!, bones.hand!).distanceTo(target);
+    // Penalize base rotation — prefer turret for lateral movement
+    return dist + Math.abs(deltas.base) * 80;
   }
-  for (let i = 0; i < 1500; i++) {
+  for (let i = 0; i < 2000; i++) {
     const c0 = cost();
     if (c0 < 3) break;
     const grads: Record<string, number> = {};
@@ -215,7 +217,9 @@ export default makeScene2D(function* (view) {
 
   const conveyor = new Group();
   const beltLen = 1200, beltW = 160, beltH = 15, beltY = 0, beltZ = 600, legH = 120;
-  conveyor.add(bp(new BoxGeometry(beltLen, beltH, beltW), fillMat, edgeMat));
+  const beltSurface = bp(new BoxGeometry(beltLen, beltH, beltW), fillMat, edgeMat);
+  beltSurface.position.set(0, beltY, beltZ);
+  conveyor.add(beltSurface);
   const railH = 30, railT = 8;
   for (const s of [-1, 1]) {
     const rail = bp(new BoxGeometry(beltLen, railH, railT), fillMat, edgeMat);
@@ -663,6 +667,7 @@ export default makeScene2D(function* (view) {
     forceFill().width(GAUGE_W * 0.3, 1.0, easeInOutCubic),
     speedVal(0.4, 1.0, easeInOutCubic),
     speedFill().width(GAUGE_W * 0.4, 1.0, easeInOutCubic),
+    baseDelta(reachDeltas.base, 2.0, easeInOutCubic),
     turretDelta(reachDeltas.turret, 2.0, easeInOutCubic),
     shoulderDelta(reachDeltas.shoulder, 2.0, easeInOutCubic),
     elbowDelta(reachDeltas.elbow, 2.0, easeInOutCubic),
@@ -680,6 +685,7 @@ export default makeScene2D(function* (view) {
 
   // Lift
   yield* all(
+    baseDelta(liftDeltas.base, 1.8, easeInOutCubic),
     turretDelta(liftDeltas.turret, 1.8, easeInOutCubic),
     shoulderDelta(liftDeltas.shoulder, 1.8, easeInOutCubic),
     elbowDelta(liftDeltas.elbow, 1.8, easeInOutCubic),
@@ -689,6 +695,7 @@ export default makeScene2D(function* (view) {
 
   // Place on top of first cube
   yield* all(
+    baseDelta(placeDeltas.base, 1.8, easeInOutCubic),
     turretDelta(placeDeltas.turret, 1.8, easeInOutCubic),
     shoulderDelta(placeDeltas.shoulder, 1.8, easeInOutCubic),
     elbowDelta(placeDeltas.elbow, 1.8, easeInOutCubic),
@@ -706,6 +713,7 @@ export default makeScene2D(function* (view) {
 
   // Arm returns to rest
   yield* all(
+    baseDelta(0, 1.5, easeInOutCubic),
     turretDelta(0, 1.5, easeInOutCubic),
     shoulderDelta(0, 1.5, easeInOutCubic),
     elbowDelta(0, 1.5, easeInOutCubic),
