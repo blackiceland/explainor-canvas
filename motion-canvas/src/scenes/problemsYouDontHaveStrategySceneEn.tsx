@@ -260,6 +260,7 @@ export default makeScene2D(function* (view) {
   const cube2FillMat = new MeshBasicMaterial({color: 0xff9500, transparent: true, opacity: 0});
   const cube2EdgeMat = new LineBasicMaterial({color: 0xff9500, transparent: true, opacity: 0});
   const cube2 = bp(new BoxGeometry(cubeSize, cubeSize, cubeSize), cube2FillMat, cube2EdgeMat);
+  cube2.renderOrder = -1;  // draw before arm so hand covers cube
   cube2.position.set(beltLen / 2, cubeOnBeltY, beltZ);
   scene3.add(cube2);
 
