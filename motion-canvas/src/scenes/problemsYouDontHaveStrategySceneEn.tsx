@@ -125,12 +125,12 @@ function dotArmMat(isSkinned: boolean, baseOpacity: number): MeshBasicMaterial {
 
 // ── Bone infrastructure ────────────────────────────────────────────────
 const BONE_NAMES: Record<string, string> = {
-  base: 'Bone_00', shoulder: 'Bone003_03', elbow: 'Bone005_05',
+  base: 'Bone_00', turret: 'Bone001_01', shoulder: 'Bone003_03', elbow: 'Bone005_05',
   wrist: 'Bone007_07', hand: 'Bone008_08',
 };
 const FINGER_NAMES = {finger1: 'Bone009_09', finger2: 'Bone010_010'};
 const JOINT_AXIS: Record<string, 'x' | 'y'> = {
-  base: 'y', shoulder: 'x', elbow: 'x', wrist: 'x', hand: 'x',
+  base: 'y', turret: 'y', shoulder: 'x', elbow: 'x', wrist: 'x', hand: 'x',
 };
 
 function findBone(root: Bone, name: string): Bone | null {
@@ -156,8 +156,8 @@ function solveIK(
   initRot: Record<string, number>,
   target: Vector3,
 ): Record<string, number> {
-  const JOINTS = ['base', 'shoulder', 'elbow', 'wrist'] as const;
-  const deltas: Record<string, number> = {base: 0, shoulder: 0, elbow: 0, wrist: 0};
+  const JOINTS = ['turret', 'shoulder', 'elbow', 'wrist'] as const;
+  const deltas: Record<string, number> = {turret: 0, shoulder: 0, elbow: 0, wrist: 0};
   const EPS = 0.005;
   function apply() {
     for (const j of JOINTS) {
@@ -318,6 +318,7 @@ export default makeScene2D(function* (view) {
 
   // ── Signals ──
   const baseDelta     = createSignal(0);
+  const turretDelta   = createSignal(0);
   const shoulderDelta = createSignal(0);
   const elbowDelta    = createSignal(0);
   const wristDelta    = createSignal(0);
@@ -344,6 +345,7 @@ export default makeScene2D(function* (view) {
       }
       // Bone rotation
       if (bones.base)     bones.base.rotation.y     = initRot.base     + baseDelta();
+      if (bones.turret)   bones.turret.rotation.y   = initRot.turret   + turretDelta();
       if (bones.shoulder) bones.shoulder.rotation.x = initRot.shoulder + shoulderDelta();
       if (bones.elbow)    bones.elbow.rotation.x    = initRot.elbow    + elbowDelta();
       if (bones.wrist)    bones.wrist.rotation.x    = initRot.wrist    + wristDelta();
@@ -661,7 +663,7 @@ export default makeScene2D(function* (view) {
     forceFill().width(GAUGE_W * 0.3, 1.0, easeInOutCubic),
     speedVal(0.4, 1.0, easeInOutCubic),
     speedFill().width(GAUGE_W * 0.4, 1.0, easeInOutCubic),
-    baseDelta(reachDeltas.base, 2.0, easeInOutCubic),
+    turretDelta(reachDeltas.turret, 2.0, easeInOutCubic),
     shoulderDelta(reachDeltas.shoulder, 2.0, easeInOutCubic),
     elbowDelta(reachDeltas.elbow, 2.0, easeInOutCubic),
     wristDelta(reachDeltas.wrist, 2.0, easeInOutCubic),
@@ -678,7 +680,7 @@ export default makeScene2D(function* (view) {
 
   // Lift
   yield* all(
-    baseDelta(liftDeltas.base, 1.8, easeInOutCubic),
+    turretDelta(liftDeltas.turret, 1.8, easeInOutCubic),
     shoulderDelta(liftDeltas.shoulder, 1.8, easeInOutCubic),
     elbowDelta(liftDeltas.elbow, 1.8, easeInOutCubic),
     wristDelta(liftDeltas.wrist, 1.8, easeInOutCubic),
@@ -687,7 +689,7 @@ export default makeScene2D(function* (view) {
 
   // Place on top of first cube
   yield* all(
-    baseDelta(placeDeltas.base, 1.8, easeInOutCubic),
+    turretDelta(placeDeltas.turret, 1.8, easeInOutCubic),
     shoulderDelta(placeDeltas.shoulder, 1.8, easeInOutCubic),
     elbowDelta(placeDeltas.elbow, 1.8, easeInOutCubic),
     wristDelta(placeDeltas.wrist, 1.8, easeInOutCubic),
@@ -704,7 +706,7 @@ export default makeScene2D(function* (view) {
 
   // Arm returns to rest
   yield* all(
-    baseDelta(0, 1.5, easeInOutCubic),
+    turretDelta(0, 1.5, easeInOutCubic),
     shoulderDelta(0, 1.5, easeInOutCubic),
     elbowDelta(0, 1.5, easeInOutCubic),
     wristDelta(0, 1.5, easeInOutCubic),
