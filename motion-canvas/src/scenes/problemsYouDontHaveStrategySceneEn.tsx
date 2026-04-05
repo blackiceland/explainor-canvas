@@ -1,9 +1,9 @@
 import {makeScene2D, Txt, Rect, Node} from '@motion-canvas/2d';
-import {all, createRef, easeInOutCubic, waitFor} from '@motion-canvas/core';
+import {all, createRef, createSignal, easeInOutCubic, waitFor} from '@motion-canvas/core';
 import {
-  BoxGeometry, CylinderGeometry, EdgesGeometry, Group,
-  LineBasicMaterial, LineSegments, Mesh, MeshBasicMaterial,
-  Object3D, PerspectiveCamera, Scene, SkinnedMesh,
+  Bone, BoxGeometry, CylinderGeometry, EdgesGeometry, Group,
+  KeyframeTrack, LineBasicMaterial, LineSegments, Mesh, MeshBasicMaterial,
+  Object3D, PerspectiveCamera, Scene, SkinnedMesh, Vector3,
 } from 'three';
 import {OutlineEffect} from 'three/examples/jsm/effects/OutlineEffect.js';
 import {GLTFLoader} from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -25,8 +25,9 @@ const KW_COLOR = DryFiltersV3CodeTheme.keyword;
 
 // ── Layout ──────────────────────────────────────────────────────────────
 const LEFT_PAD = 80;
-const THREE_W = Screen.width;
-const THREE_H = Screen.height;
+const ARM_SCALE = 0.85;
+const THREE_W = Math.ceil(Screen.width / ARM_SCALE);
+const THREE_H = Math.ceil(Screen.height / ARM_SCALE);
 
 // ── Text helpers ───────────────────────────────────────────────────────
 const F = Fonts.code;
@@ -122,6 +123,80 @@ function dotArmMat(isSkinned: boolean, baseOpacity: number): MeshBasicMaterial {
   return mat;
 }
 
+// ── Bone infrastructure ────────────────────────────────────────────────
+const BONE_NAMES: Record<string, string> = {
+  base: 'Bone_00', shoulder: 'Bone003_03', elbow: 'Bone005_05',
+  wrist: 'Bone007_07', hand: 'Bone008_08',
+};
+const FINGER_NAMES = {finger1: 'Bone009_09', finger2: 'Bone010_010'};
+const JOINT_AXIS: Record<string, 'x' | 'y'> = {
+  base: 'y', shoulder: 'x', elbow: 'x', wrist: 'x', hand: 'x',
+};
+
+function findBone(root: Bone, name: string): Bone | null {
+  if (root.name === name) return root;
+  for (const child of root.children) {
+    const found = findBone(child as Bone, name);
+    if (found) return found;
+  }
+  return null;
+}
+
+function getTipPos(sceneRoot: Object3D, wrist: Bone, hand: Bone): Vector3 {
+  sceneRoot.updateMatrixWorld(true);
+  const wp = new Vector3(), hp = new Vector3();
+  wrist.getWorldPosition(wp);
+  hand.getWorldPosition(hp);
+  return hp.clone().add(hp.clone().sub(wp));
+}
+
+function solveIK(
+  sceneRoot: Object3D,
+  bones: Record<string, Bone | null>,
+  initRot: Record<string, number>,
+  target: Vector3,
+): Record<string, number> {
+  const JOINTS = ['base', 'shoulder', 'elbow', 'wrist'] as const;
+  const deltas: Record<string, number> = {base: 0, shoulder: 0, elbow: 0, wrist: 0};
+  const EPS = 0.005;
+  function apply() {
+    for (const j of JOINTS) {
+      if (bones[j]) bones[j]!.rotation[JOINT_AXIS[j] as 'x' | 'y'] = initRot[j] + deltas[j];
+    }
+  }
+  function cost(): number {
+    apply();
+    return getTipPos(sceneRoot, bones.wrist!, bones.hand!).distanceTo(target);
+  }
+  for (let i = 0; i < 1500; i++) {
+    const c0 = cost();
+    if (c0 < 3) break;
+    const grads: Record<string, number> = {};
+    for (const j of JOINTS) {
+      deltas[j] += EPS;
+      const cp = cost();
+      deltas[j] -= 2 * EPS;
+      const cm = cost();
+      deltas[j] += EPS;
+      grads[j] = (cp - cm) / (2 * EPS);
+    }
+    let norm = 0;
+    for (const j of JOINTS) norm += grads[j] * grads[j];
+    norm = Math.sqrt(norm);
+    if (norm < 1e-6) break;
+    const step = Math.min(0.05, c0 * 0.0005);
+    for (const j of JOINTS) {
+      deltas[j] -= (grads[j] / norm) * step;
+      deltas[j] = Math.max(-1.5, Math.min(1.5, deltas[j]));
+    }
+  }
+  for (const j of JOINTS) {
+    if (bones[j]) bones[j]!.rotation[JOINT_AXIS[j] as 'x' | 'y'] = initRot[j];
+  }
+  sceneRoot.updateMatrixWorld(true);
+  return deltas;
+}
+
 export default makeScene2D(function* (view) {
   applyBackground(view);
 
@@ -176,14 +251,86 @@ export default makeScene2D(function* (view) {
   cube3d.position.set(platX, placedY, platZ);
   scene3.add(cube3d);
 
+  // Second cube on conveyor (slides in during soft-grab demo)
+  const cubeOnBeltY = beltY + beltH / 2 + cubeSize / 2;
+  const cube2FillMat = new MeshBasicMaterial({color: 0xff9500, transparent: true, opacity: 0});
+  const cube2EdgeMat = new LineBasicMaterial({color: 0xff9500, transparent: true, opacity: 0});
+  const cube2 = bp(new BoxGeometry(cubeSize, cubeSize, cubeSize), cube2FillMat, cube2EdgeMat);
+  cube2.position.set(beltLen / 2, cubeOnBeltY, beltZ);
+  scene3.add(cube2);
+
   const gltf: any = yield new Promise<any>((resolve, reject) => {
     new GLTFLoader().load('/basic_robot_arm.glb', resolve, undefined, reject);
   });
   scene3.add(gltf.scene);
-  (gltf.scene as Object3D).traverse((obj: any) => {
-    if (obj instanceof SkinnedMesh) obj.material = dotArmMat(true, 0.14);
-    else if (obj instanceof Mesh) obj.material = dotArmMat(false, 0.11);
+  const sceneRoot = gltf.scene as Object3D;
+
+  let skeletonRoot: Bone | null = null;
+  sceneRoot.traverse((obj: any) => {
+    if (obj instanceof SkinnedMesh) {
+      if (obj.skeleton) skeletonRoot = obj.skeleton.bones[0];
+      obj.material = dotArmMat(true, 0.14);
+    } else if (obj instanceof Mesh) {
+      obj.material = dotArmMat(false, 0.11);
+    }
   });
+
+  const bones: Record<string, Bone | null> = {};
+  if (skeletonRoot) for (const [k, n] of Object.entries(BONE_NAMES)) bones[k] = findBone(skeletonRoot, n);
+  const fingers: Record<string, Bone | null> = {};
+  if (skeletonRoot) for (const [k, n] of Object.entries(FINGER_NAMES)) fingers[k] = findBone(skeletonRoot, n);
+
+  const fingerPos = {
+    open:   {f1: new Vector3(), f2: new Vector3()},
+    closed: {f1: new Vector3(), f2: new Vector3()},
+  };
+  if (gltf.animations?.length) {
+    const clip = gltf.animations[0];
+    function samplePos(boneName: string, t: number): Vector3 | null {
+      const track = clip.tracks.find((tr: KeyframeTrack) => tr.name.includes(boneName) && tr.name.endsWith('.position'));
+      if (!track) return null;
+      const times = track.times, vals = track.values;
+      let idx = 0;
+      for (let i = 0; i < times.length - 1; i++) { if (times[i + 1] > t) { idx = i; break; } }
+      const t0 = times[idx], t1 = times[idx + 1] ?? t0;
+      const a = t1 > t0 ? (t - t0) / (t1 - t0) : 0;
+      const p0 = new Vector3(vals[idx*3], vals[idx*3+1], vals[idx*3+2]);
+      const p1 = new Vector3(vals[(idx+1)*3], vals[(idx+1)*3+1], vals[(idx+1)*3+2]);
+      return p0.lerp(p1, a);
+    }
+    const f1o = samplePos(FINGER_NAMES.finger1, 0), f2o = samplePos(FINGER_NAMES.finger2, 0);
+    const f1c = samplePos(FINGER_NAMES.finger1, 1), f2c = samplePos(FINGER_NAMES.finger2, 1);
+    if (f1o) fingerPos.open.f1.copy(f1o);   if (f2o) fingerPos.open.f2.copy(f2o);
+    if (f1c) fingerPos.closed.f1.copy(f1c); if (f2c) fingerPos.closed.f2.copy(f2c);
+  }
+
+  const initRot: Record<string, number> = {};
+  for (const [k, bone] of Object.entries(bones)) if (bone) initRot[k] = bone.rotation[JOINT_AXIS[k] as 'x' | 'y'];
+
+  // IK targets
+  const cube2Start = new Vector3(0, cubeOnBeltY, beltZ);
+  const softLift   = new Vector3(0, 450, 500);
+  const stackPos   = new Vector3(platX, placedY + cubeSize, platZ);
+
+  const reachDeltas = solveIK(sceneRoot, bones, initRot, cube2Start);
+  const liftDeltas  = solveIK(sceneRoot, bones, initRot, softLift);
+  const placeDeltas = solveIK(sceneRoot, bones, initRot, stackPos);
+
+  // ── Signals ──
+  const baseDelta     = createSignal(0);
+  const shoulderDelta = createSignal(0);
+  const elbowDelta    = createSignal(0);
+  const wristDelta    = createSignal(0);
+  const gripClose     = createSignal(0);
+  const cube2Opacity  = createSignal(0);
+  const cube2X        = createSignal(beltLen / 2);
+  const grabBlend     = createSignal(0);
+
+  let cube2Attached = false;
+  let grabBaseY = 0;
+  let grabTilt = 0;
+  let grabTiltReady = false;
+  const grabOrigin = new Vector3();
 
   let outline: OutlineEffect | null = null;
   const threeView = createThreeView({
@@ -195,6 +342,39 @@ export default makeScene2D(function* (view) {
           defaultThickness: 0.002, defaultColor: [0, 0.9, 1], defaultAlpha: 0.75,
         });
       }
+      // Bone rotation
+      if (bones.base)     bones.base.rotation.y     = initRot.base     + baseDelta();
+      if (bones.shoulder) bones.shoulder.rotation.x = initRot.shoulder + shoulderDelta();
+      if (bones.elbow)    bones.elbow.rotation.x    = initRot.elbow    + elbowDelta();
+      if (bones.wrist)    bones.wrist.rotation.x    = initRot.wrist    + wristDelta();
+
+      // Grip
+      const g = gripClose();
+      if (fingers.finger1) fingers.finger1.position.lerpVectors(fingerPos.open.f1, fingerPos.closed.f1, g);
+      if (fingers.finger2) fingers.finger2.position.lerpVectors(fingerPos.open.f2, fingerPos.closed.f2, g);
+
+      // Cube2
+      const c2 = cube2Opacity();
+      cube2FillMat.opacity = c2 * 0.25;
+      cube2EdgeMat.opacity = c2;
+
+      if (cube2Attached && bones.wrist && bones.hand) {
+        const wp = new Vector3(), hp = new Vector3();
+        bones.wrist.getWorldPosition(wp);
+        bones.hand.getWorldPosition(hp);
+        const tip = hp.clone().add(hp.clone().sub(wp));
+        const b = grabBlend();
+        cube2.position.lerpVectors(grabOrigin, tip, b);
+        const dir = hp.clone().sub(wp);
+        const horiz = Math.sqrt(dir.x * dir.x + dir.z * dir.z);
+        const tilt = Math.atan2(dir.y, horiz);
+        if (!grabTiltReady) { grabTilt = tilt; grabTiltReady = true; }
+        cube2.rotation.y = baseDelta() - grabBaseY;
+        cube2.rotation.x = -(tilt - grabTilt);
+      } else if (!cube2Attached) {
+        cube2.position.x = cube2X();
+      }
+
       renderer.setClearColor(0x000000, 0);
       renderer.clear();
       outline.render(s, c);
@@ -208,7 +388,7 @@ export default makeScene2D(function* (view) {
 
   threeView.node.x(Screen.width / 4);
   threeView.node.opacity(0);
-  threeView.node.scale(0.85);
+  threeView.node.scale(ARM_SCALE);
   zoomRef().add(threeView.node);
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -371,8 +551,170 @@ export default makeScene2D(function* (view) {
     threeView.node.opacity(1, 1.2, easeInOutCubic),
   );
 
-  yield* waitFor(2.0);
+  yield* waitFor(0.8);
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // PHASE 6: Force+Speed comparison — standard vs soft grab
+  // ═══════════════════════════════════════════════════════════════════════
+  const GAUGE_W = 320;
+  const GAUGE_X = Screen.width / 4 + 70;
+  const GAUGE_Y = -Screen.height / 2 + 130;
+  const GAP = 38;
+  const LABEL_X = -GAUGE_W / 2 - 60;
+
+  const forceVal = createSignal(0);
+  const speedVal = createSignal(0);
+
+  const gaugeNode = createRef<Node>();
+  const forceFill = createRef<Rect>();
+  const speedFill = createRef<Rect>();
+  const modeLabel = createRef<Txt>();
+
+  view.add(
+    <Node ref={gaugeNode} x={GAUGE_X} y={GAUGE_Y} opacity={0}>
+      <Txt
+        ref={modeLabel}
+        text={''}
+        fontFamily={Fonts.code}
+        fontSize={32}
+        fill={'rgba(0, 229, 255, 0.5)'}
+        y={-48}
+      />
+      {/* Force row */}
+      <Txt
+        text={'Force'}
+        fontFamily={Fonts.code}
+        fontSize={22}
+        fill={'rgba(0, 229, 255, 0.4)'}
+        x={LABEL_X} y={-GAP / 2}
+      />
+      <Rect
+        width={GAUGE_W} height={10} radius={5}
+        fill={'rgba(0, 229, 255, 0.12)'}
+        stroke={'rgba(0, 229, 255, 0.25)'}
+        lineWidth={1} y={-GAP / 2}
+      />
+      <Rect
+        ref={forceFill}
+        width={0} height={10} radius={5}
+        fill={'rgba(255, 149, 0, 0.8)'}
+        offset={[-1, 0]}
+        x={-GAUGE_W / 2} y={-GAP / 2}
+      />
+      {/* Speed row */}
+      <Txt
+        text={'Speed'}
+        fontFamily={Fonts.code}
+        fontSize={22}
+        fill={'rgba(0, 229, 255, 0.4)'}
+        x={LABEL_X} y={GAP / 2}
+      />
+      <Rect
+        width={GAUGE_W} height={10} radius={5}
+        fill={'rgba(0, 229, 255, 0.12)'}
+        stroke={'rgba(0, 229, 255, 0.25)'}
+        lineWidth={1} y={GAP / 2}
+      />
+      <Rect
+        ref={speedFill}
+        width={0} height={10} radius={5}
+        fill={'rgba(255, 149, 0, 0.8)'}
+        offset={[-1, 0]}
+        x={-GAUGE_W / 2} y={GAP / 2}
+      />
+    </Node>,
+  );
+
+  yield* gaugeNode().opacity(1, 0.4, easeInOutCubic);
+
+  // ── Standard (reference — cube already on table) ──
+  modeLabel().text('STANDARD');
+  yield* all(
+    forceVal(0.7, 0.4, easeInOutCubic),
+    forceFill().width(GAUGE_W * 0.7, 0.4, easeInOutCubic),
+    speedVal(0.8, 0.4, easeInOutCubic),
+    speedFill().width(GAUGE_W * 0.8, 0.4, easeInOutCubic),
+  );
+  yield* waitFor(1.2);
+
+  // Reset bars
+  yield* all(
+    forceVal(0, 0.3, easeInOutCubic),
+    forceFill().width(0, 0.3, easeInOutCubic),
+    speedVal(0, 0.3, easeInOutCubic),
+    speedFill().width(0, 0.3, easeInOutCubic),
+  );
+  yield* waitFor(0.4);
+
+  // ── Soft grab — cube2 slides in, arm grabs gently ──
+  forceFill().fill('rgba(0, 229, 255, 0.8)');
+  speedFill().fill('rgba(0, 229, 255, 0.8)');
+  modeLabel().text('SOFT');
+
+  // Cube2 fades in and slides along conveyor belt
+  yield* cube2Opacity(1, 0.4, easeInOutCubic);
+  yield* cube2X(0, 2.0, easeInOutCubic);
+
+  // Gauges fill + arm reaches (slower to match speed gauge)
+  yield* all(
+    forceVal(0.3, 1.0, easeInOutCubic),
+    forceFill().width(GAUGE_W * 0.3, 1.0, easeInOutCubic),
+    speedVal(0.4, 1.0, easeInOutCubic),
+    speedFill().width(GAUGE_W * 0.4, 1.0, easeInOutCubic),
+    baseDelta(reachDeltas.base, 2.0, easeInOutCubic),
+    shoulderDelta(reachDeltas.shoulder, 2.0, easeInOutCubic),
+    elbowDelta(reachDeltas.elbow, 2.0, easeInOutCubic),
+    wristDelta(reachDeltas.wrist, 2.0, easeInOutCubic),
+  );
+  yield* waitFor(0.2);
+
+  // Gentle grip + attach
+  yield* gripClose(0.35, 0.5, easeInOutCubic);
+  grabOrigin.copy(cube2.position);
+  grabBaseY = baseDelta();
+  grabTiltReady = false;
+  cube2Attached = true;
+  yield* grabBlend(1, 0.2, easeInOutCubic);
+
+  // Lift
+  yield* all(
+    baseDelta(liftDeltas.base, 1.8, easeInOutCubic),
+    shoulderDelta(liftDeltas.shoulder, 1.8, easeInOutCubic),
+    elbowDelta(liftDeltas.elbow, 1.8, easeInOutCubic),
+    wristDelta(liftDeltas.wrist, 1.8, easeInOutCubic),
+  );
+  yield* waitFor(0.2);
+
+  // Place on top of first cube
+  yield* all(
+    baseDelta(placeDeltas.base, 1.8, easeInOutCubic),
+    shoulderDelta(placeDeltas.shoulder, 1.8, easeInOutCubic),
+    elbowDelta(placeDeltas.elbow, 1.8, easeInOutCubic),
+    wristDelta(placeDeltas.wrist, 1.8, easeInOutCubic),
+  );
+  yield* waitFor(0.1);
+
+  // Release
+  cube2Attached = false;
+  cube2.position.copy(stackPos);
+  cube2.rotation.set(0, 0, 0);
+  cube2X(stackPos.x);  // prevent onRender from overriding x
+  yield* gripClose(0, 0.4, easeInOutCubic);
+  yield* waitFor(0.2);
+
+  // Arm returns to rest
+  yield* all(
+    baseDelta(0, 1.5, easeInOutCubic),
+    shoulderDelta(0, 1.5, easeInOutCubic),
+    elbowDelta(0, 1.5, easeInOutCubic),
+    wristDelta(0, 1.5, easeInOutCubic),
+  );
+
+  yield* waitFor(0.5);
+
+  // Cleanup + fade
+  yield* gaugeNode().opacity(0, 0.4, easeInOutCubic);
+  yield* waitFor(0.2);
   yield* zoomRef().opacity(0, 0.8, easeInOutCubic);
   yield* waitFor(0.3);
 });

@@ -53,8 +53,10 @@ npm run daedalus:up
 и "3" - я даю короткую фразу, а ты сам разворачиваешь мысль.
 пиши всегда фразу сначала на русском, потом на английском
 
+claude --dangerously-skip-permissions
+
 cd C:\Users\black\IdeaProjects\explainor-canvas\motion-canvas\output\project
-C:\ffmpeg\bin\ffmpeg.exe -framerate 60 -start_number 0 -i %06d.png -c:v libx264 -pix_fmt yuv420p -crf 18 -preset slow ..\video667.mp4
+C:\ffmpeg\bin\ffmpeg.exe -framerate 60 -start_number 0 -i %06d.png -c:v libx264 -pix_fmt yuv420p -crf 18 -preset slow ..\video669.mp4
 
 
 C:\Users\anton\IdeaProjects\canvas\motion-canvas\output\still\project
