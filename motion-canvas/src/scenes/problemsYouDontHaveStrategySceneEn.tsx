@@ -315,10 +315,12 @@ export default makeScene2D(function* (view) {
   const cube2Start = new Vector3(0, cubeOnBeltY, beltZ);
   const softLift   = new Vector3(0, 450, 500);
   const stackPos   = new Vector3(platX, placedY + cubeSize, platZ);
+  // IK target slightly above stackPos — solver residual can push cube into lower one
+  const placeTarget = new Vector3(platX, placedY + cubeSize + cubeSize * 0.35, platZ);
 
   const reachDeltas = solveIK(sceneRoot, bones, initRot, cube2Start);
   const liftDeltas  = solveIK(sceneRoot, bones, initRot, softLift);
-  const placeDeltas = solveIK(sceneRoot, bones, initRot, stackPos);
+  const placeDeltas = solveIK(sceneRoot, bones, initRot, placeTarget);
 
   // ── Signals ──
   const baseDelta     = createSignal(0);
@@ -329,8 +331,23 @@ export default makeScene2D(function* (view) {
   const gripClose     = createSignal(0);
   const cube2Opacity  = createSignal(0);
   const cube2X        = createSignal(beltLen / 2);
-  let cube2Attached = false;
+  // 0 = on belt, 1 = held by hand, 2 = placed on stack
+  const cubeMode      = createSignal(0);
+
+  // Pre-compute grab quaternion from reach pose (deterministic, no render dependency)
   const grabHandQuat = new Quaternion();
+  {
+    const JOINTS = ['base', 'turret', 'shoulder', 'elbow', 'wrist'] as const;
+    for (const j of JOINTS) {
+      if (bones[j]) bones[j]!.rotation[JOINT_AXIS[j] as 'x' | 'y'] = initRot[j] + reachDeltas[j];
+    }
+    sceneRoot.updateMatrixWorld(true);
+    if (bones.hand) bones.hand.getWorldQuaternion(grabHandQuat);
+    for (const j of JOINTS) {
+      if (bones[j]) bones[j]!.rotation[JOINT_AXIS[j] as 'x' | 'y'] = initRot[j];
+    }
+    sceneRoot.updateMatrixWorld(true);
+  }
 
   let outline: OutlineEffect | null = null;
   const threeView = createThreeView({
@@ -359,7 +376,9 @@ export default makeScene2D(function* (view) {
       cube2FillMat.opacity = c2 * 0.25;
       cube2EdgeMat.opacity = c2;
 
-      if (cube2Attached && bones.wrist && bones.hand) {
+      const mode = cubeMode();
+      if (mode === 1 && bones.wrist && bones.hand) {
+        // Held: follow hand tip
         sceneRoot.updateMatrixWorld(true);
         const wp = new Vector3(), hp = new Vector3();
         bones.wrist.getWorldPosition(wp);
@@ -368,9 +387,16 @@ export default makeScene2D(function* (view) {
         cube2.position.copy(tip);
         const curQuat = new Quaternion();
         bones.hand.getWorldQuaternion(curQuat);
-        cube2.quaternion.copy(curQuat.clone().multiply(grabHandQuat.clone().invert()));
-      } else if (!cube2Attached) {
-        cube2.position.x = cube2X();
+        const rel = curQuat.clone().multiply(grabHandQuat.clone().invert());
+        cube2.quaternion.copy(new Quaternion(0, rel.y, 0, rel.w).normalize());
+      } else if (mode === 0) {
+        // Belt: signal-driven x, fixed y/z
+        cube2.position.set(cube2X(), cubeOnBeltY, beltZ);
+        cube2.quaternion.identity();
+      } else if (mode === 2) {
+        // Placed: constant position
+        cube2.position.copy(stackPos);
+        cube2.quaternion.identity();
       }
 
       renderer.setClearColor(0x000000, 0);
@@ -665,8 +691,7 @@ export default makeScene2D(function* (view) {
 
   // Gentle grip + attach
   yield* gripClose(0.5, 0.5, easeInOutCubic);
-  if (bones.hand) bones.hand.getWorldQuaternion(grabHandQuat);
-  cube2Attached = true;
+  cubeMode(1);
 
   // Lift
   yield* all(
@@ -688,10 +713,8 @@ export default makeScene2D(function* (view) {
   );
   yield* waitFor(0.1);
 
-  // Release — cube keeps hand-given orientation
-  cube2Attached = false;
-  cube2.position.copy(stackPos);
-  cube2X(stackPos.x);  // prevent onRender from overriding x
+  // Release — onRender mode=2 handles position from here
+  cubeMode(2);
   yield* gripClose(0, 0.4, easeInOutCubic);
   yield* waitFor(0.2);
 
