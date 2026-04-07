@@ -32,6 +32,7 @@ import problemsYouDontHaveLieIntroSceneEn from "./scenes/problemsYouDontHaveLieI
 import problemsYouDontHaveStrategySceneEn from "./scenes/problemsYouDontHaveStrategySceneEn?scene";
 import fromTheStartSceneEn from "./scenes/fromTheStartSceneEn?scene";
 import pipelineGrabGrowthSceneEn from "./scenes/pipelineGrabGrowthSceneEn?scene";
+import grabStrategyOrbitSceneEn from "./scenes/grabStrategyOrbitSceneEn?scene";
 
 export default makeProject({
     experimentalFeatures: true,
@@ -106,7 +107,8 @@ export default makeProject({
         // robotArmCodeScene,
         // problemsYouDontHaveLieIntroSceneEn,
         // problemsYouDontHaveStrategySceneEn,
-         pipelineGrabGrowthSceneEn,
+        // pipelineGrabGrowthSceneEn,
+        grabStrategyOrbitSceneEn,
         // fromTheStartSceneEn
 
     ]
