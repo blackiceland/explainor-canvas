@@ -33,6 +33,8 @@ import problemsYouDontHaveStrategySceneEn from "./scenes/problemsYouDontHaveStra
 import fromTheStartSceneEn from "./scenes/fromTheStartSceneEn?scene";
 import pipelineGrabGrowthSceneEn from "./scenes/pipelineGrabGrowthSceneEn?scene";
 import grabStrategyOrbitSceneEn from "./scenes/grabStrategyOrbitSceneEn?scene";
+import problemsYouDontHaveRealityHitSceneEn from "./scenes/problemsYouDontHaveRealityHitSceneEn?scene";
+import problemsYouDontHaveCostSceneEn from "./scenes/problemsYouDontHaveCostSceneEn?scene";
 
 export default makeProject({
     experimentalFeatures: true,
@@ -108,7 +110,9 @@ export default makeProject({
         // problemsYouDontHaveLieIntroSceneEn,
         // problemsYouDontHaveStrategySceneEn,
         // pipelineGrabGrowthSceneEn,
-        grabStrategyOrbitSceneEn,
+        // grabStrategyOrbitSceneEn,
+        // problemsYouDontHaveRealityHitSceneEn,
+        problemsYouDontHaveCostSceneEn,
         // fromTheStartSceneEn
 
     ]
