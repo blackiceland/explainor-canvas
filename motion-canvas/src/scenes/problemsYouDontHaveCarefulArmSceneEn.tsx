@@ -150,7 +150,7 @@ const STRAT_FONT = 20;
 const STRAT_LINE_H = Math.round(20 * 1.62 * 10) / 10;
 const STRAT_W = Screen.width / 2 - 20;
 const STRAT_X = Screen.width / 4;
-const STRAT_Y = {soft: -310, firm: 30, standard: 350};
+const STRAT_Y = {soft: -330, firm: 10, standard: 330};
 
 const VAR_LIGHT = 'rgba(244, 241, 235, 0.96)';
 const TYPE_CLEAN = 'rgba(220, 215, 255, 0.80)';
