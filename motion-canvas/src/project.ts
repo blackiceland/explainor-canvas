@@ -113,7 +113,7 @@ export default makeProject({
         // problemsYouDontHaveLieIntroSceneEn,
         problemsYouDontHaveStrategySceneEn,
         // pipelineGrabGrowthSceneEn,
-        // grabStrategyOrbitSceneEn,
+         grabStrategyOrbitSceneEn,
         // problemsYouDontHaveRealityHitSceneEn,
         problemsYouDontHaveCostSceneEn,
         // fromTheStartSceneEn

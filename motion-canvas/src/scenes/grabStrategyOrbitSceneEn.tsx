@@ -1,8 +1,19 @@
 import {makeScene2D, Node, Rect, Txt} from '@motion-canvas/2d';
 import {all, chain, createRef, easeOutCubic, waitFor} from '@motion-canvas/core';
+import {
+  EdgesGeometry,
+  LineBasicMaterial,
+  LineSegments,
+  Mesh,
+  MeshBasicMaterial,
+  PerspectiveCamera,
+  Scene as ThreeScene,
+  SphereGeometry,
+} from 'three';
 import {ColorRule, Manticore} from '../core/code/components/Manticore';
 import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
 import {Fonts, Screen} from '../core/theme';
+import {createThreeView} from '../core/three/ThreeCanvas';
 
 // ── Source code of the three Strategy implementations ────────────────
 const STANDARD_GRAB = `public class StandardGrab implements GrabStrategy {
@@ -80,34 +91,72 @@ const CARD_STYLE = {
 const CODE_FONT_SIZE = 20;
 const CODE_BLOCK_WIDTH = 760;
 
-// Elliptical orbit — wider than tall so the 1920×1080 canvas is used
-// fully without code blocks running off the top/bottom edges.
 const ORBIT_RX = 600;
 const ORBIT_RY = 380;
-
-// Angular velocity (rad/s). One full rotation ≈ 31.4s — slow drift.
 const OMEGA = 0.20;
 
-// Three blocks evenly spaced around the orbit, starting positions
-// pinned so block 0 is at the top.
 const PHASES = [
   -Math.PI / 2,
   -Math.PI / 2 + (2 * Math.PI) / 3,
   -Math.PI / 2 + (4 * Math.PI) / 3,
 ];
 
+// ── Globe wireframe ─────────────────────────────────────────────────
+const GLOBE_R = 200;
+const GLOBE_VP = 700;
+const GLOBE_OMEGA = 0.12;
+
+function buildGlobe(): Mesh {
+  const geom = new SphereGeometry(GLOBE_R, 24, 16);
+  const mat = new MeshBasicMaterial({color: 0x000000, transparent: true, opacity: 0});
+  const sphere = new Mesh(geom, mat);
+  const edges = new LineSegments(
+    new EdgesGeometry(geom, 1),
+    new LineBasicMaterial({color: 0xffffff, transparent: true, opacity: 0.45}),
+  );
+  sphere.add(edges);
+  return sphere;
+}
+
 export default makeScene2D(function* (view) {
   view.add(<Rect width={Screen.width} height={Screen.height} fill="#000000" />);
 
-  // ─── Center anchor: the word the strategies pretend to be about ───
+  // ─── 3D wireframe globe ───────────────────────────────────────────
+  const scene3 = new ThreeScene();
+  const cam = new PerspectiveCamera(50, 1, 1, 2000);
+  cam.position.set(0, 0, 600);
+  cam.lookAt(0, 0, 0);
+
+  const globe = buildGlobe();
+  scene3.add(globe);
+
+  const globeView = createThreeView({
+    width: GLOBE_VP,
+    height: GLOBE_VP,
+    scene: scene3,
+    camera: cam,
+    onRender: (renderer, s, c) => {
+      globe.rotation.y = view.globalTime() * GLOBE_OMEGA;
+      renderer.setClearColor(0x000000, 0);
+      renderer.clear();
+      renderer.render(s, c);
+    },
+  });
+  globeView.node.opacity(0);
+  view.add(globeView.node);
+
+  // ─── Center anchor: "grab" inside the globe ───────────────────────
+  const grabRef = createRef<Txt>();
   view.add(
     <Txt
+      ref={grabRef}
       text="grab"
       fontFamily={Fonts.primary}
       fontWeight={700}
-      fontSize={160}
+      fontSize={72}
       letterSpacing={2}
       fill="#FFFFFF"
+      opacity={0}
     />,
   );
 
@@ -130,16 +179,18 @@ export default makeScene2D(function* (view) {
     });
     mc.mount(wrappers[i]());
     mc.colorize(COLOR_RULES);
-    // Wrapper controls visibility; Manticore's own container stays opaque.
     mc.node.opacity(1);
 
-    // Reactive orbit driven by globalTime so the motion never stops.
     const phase = PHASES[i];
     wrappers[i]().x(() => Math.cos(phase + view.globalTime() * OMEGA) * ORBIT_RX);
     wrappers[i]().y(() => Math.sin(phase + view.globalTime() * OMEGA) * ORBIT_RY);
   }
 
-  // ─── Smooth, staggered fade-in ────────────────────────────────────
+  // ─── Fade in: globe + text, then code blocks stagger in ──────────
+  yield* all(
+    globeView.node.opacity(1, 0.8, easeOutCubic),
+    grabRef().opacity(1, 0.8, easeOutCubic),
+  );
   yield* waitFor(0.3);
   yield* all(
     ...wrappers.map((w, i) =>

@@ -1,5 +1,5 @@
-import {makeScene2D} from '@motion-canvas/2d';
-import {all, createSignal, easeInOutCubic, waitFor} from '@motion-canvas/core';
+import {blur, makeScene2D} from '@motion-canvas/2d';
+import {all, chain, createSignal, easeInOutCubic, waitFor} from '@motion-canvas/core';
 import {
   Bone,
   BoxGeometry,
@@ -21,18 +21,232 @@ import {
 import {OutlineEffect} from 'three/examples/jsm/effects/OutlineEffect.js';
 import {GLTFLoader} from 'three/examples/jsm/loaders/GLTFLoader.js';
 import {createThreeView} from '../core/three/ThreeCanvas';
-import {Screen} from '../core/theme';
+import {Fonts, Screen} from '../core/theme';
 import {applyBackground} from '../core/utils';
+import {ColorRule, Manticore} from '../core/code/components/Manticore';
+import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
+import {getCodePaddingY} from '../core/code/shared/TextMeasure';
 
-// ── Beat 3b — WHAT THE REQUIREMENTS ACTUALLY NEED ────────────────────────
-//
-// Full-screen 3D. No code. The arm demonstrates three real requirements:
-//   1. Maintain orientation during transport  → vertical beam stays vertical
-//   2. Avoid sudden movements and impacts     → slow, smooth arc
-//   3. Check/stabilize after grip before lift  → green flash after grip
-//
-// Purple cube = fragile component. Vertical beam = orientation indicator.
-// ─────────────────────────────────────────────────────────────────────────
+// ── Beat 3b — arm demonstrates requirements, then code impact + cost ────
+
+// ── Left-panel orchestrator code (matches strategyScene) ────────────────
+const ORC_CODE = `private final GrabStrategy grabStrategy = new StandardGrab();
+
+public void handleCube(Cube cube, Table table) {
+    arm.moveTo(cube.position);
+    grabStrategy.grab(cube);
+    arm.lift();
+    arm.moveTo(table.position);
+    arm.release();
+}`;
+
+// Line indices (0-based) for dimming
+const LINE_GRAB = 4;        // grabStrategy.grab(cube);
+const LINE_LIFT = 5;        // arm.lift();
+const LINE_MOVE_TABLE = 6;  // arm.moveTo(table.position);
+const LINE_RELEASE = 7;     // arm.release();
+
+// ── Morph stages for the orchestrator ───────────────────────────────────
+// Step 1: bare parameter names appear in highlighted lines
+const ORC_STEP1 = `private final GrabStrategy grabStrategy = new StandardGrab();
+
+public void handleCube(Cube cube, Table table) {
+    arm.moveTo(cube.position);
+    grabStrategy.grab(cube);
+    arm.lift(liftSpeed);
+    arm.moveTo(table.position, orientation);
+    arm.release(releaseMode);
+}`;
+
+// Step 2: GrabResult result = appears before grab
+const ORC_STEP2 = `private final GrabStrategy grabStrategy = new StandardGrab();
+
+public void handleCube(Cube cube, Table table) {
+    arm.moveTo(cube.position);
+    GrabResult result = grabStrategy.grab(cube);
+    arm.lift(liftSpeed);
+    arm.moveTo(table.position, orientation);
+    arm.release(releaseMode);
+}`;
+
+// Step 3: bare args become result.xxx
+const ORC_DONE = `private final GrabStrategy grabStrategy = new StandardGrab();
+
+public void handleCube(Cube cube, Table table) {
+    arm.moveTo(cube.position);
+    GrabResult result = grabStrategy.grab(cube);
+    arm.lift(result.liftSpeed);
+    arm.moveTo(table.position, result.orientation);
+    arm.release(result.releaseMode);
+}`;
+
+// ── Strategy implementations (empty line after class, before return) ────
+const SOFT_INIT = `public class SoftGrab implements GrabStrategy {
+
+    public void grab(Cube cube) {
+        approachSlowly(cube.position);
+        close(Force.LIGHT);
+        waitForSensor();
+        adjustToFeedback();
+    }
+}`;
+const SOFT_DONE = `public class SoftGrab implements GrabStrategy {
+
+    public GrabResult grab(Cube cube) {
+        approachSlowly(cube.position);
+        close(Force.LIGHT);
+        waitForSensor();
+        adjustToFeedback();
+
+        return GrabResult.gentle(cube);
+    }
+}`;
+
+const FIRM_INIT = `public class FirmGrab implements GrabStrategy {
+
+    public void grab(Cube cube) {
+        preAlign(cube);
+        close(Force.MAXIMUM);
+        lockWrist();
+    }
+}`;
+const FIRM_DONE = `public class FirmGrab implements GrabStrategy {
+
+    public GrabResult grab(Cube cube) {
+        preAlign(cube);
+        close(Force.MAXIMUM);
+        lockWrist();
+
+        return GrabResult.firm(cube);
+    }
+}`;
+
+const STANDARD_INIT = `public class StandardGrab implements GrabStrategy {
+
+    public void grab(Cube cube) {
+        approach(cube.position);
+        close(Force.MEDIUM);
+    }
+}`;
+const STANDARD_DONE = `public class StandardGrab implements GrabStrategy {
+
+    public GrabResult grab(Cube cube) {
+        approach(cube.position);
+        close(Force.MEDIUM);
+
+        return GrabResult.standard(cube);
+    }
+}`;
+
+// ── Styling ─────────────────────────────────────────────────────────────
+const LEFT_PAD = 80;
+const CODE_FONT_SIZE = 24;
+const CODE_W = Screen.width / 2 - LEFT_PAD;
+const CODE_CENTER_X = -Screen.width / 2 + LEFT_PAD + CODE_W / 2;
+
+// Strategies appear on the right (where arm was), stacked vertically.
+// Left edge at x≈10 so they don't cross into the left code panel.
+const STRAT_FONT = 20;
+const STRAT_LINE_H = Math.round(20 * 1.62 * 10) / 10;
+const STRAT_W = Screen.width / 2 - 20;
+const STRAT_X = Screen.width / 4;
+const STRAT_Y = {soft: -310, firm: 30, standard: 350};
+
+const VAR_LIGHT = 'rgba(244, 241, 235, 0.96)';
+const TYPE_CLEAN = 'rgba(220, 215, 255, 0.80)';
+const METHOD_COLOR = DryFiltersV3CodeTheme.method;
+const KW_COLOR = DryFiltersV3CodeTheme.keyword;
+
+const SHARED_KW_RULES: ColorRule[] = [
+  {match: /^public$/,         color: KW_COLOR},
+  {match: /^private$/,        color: KW_COLOR},
+  {match: /^final$/,          color: KW_COLOR},
+  {match: /^void$/,           color: KW_COLOR},
+  {match: /^return$/,         color: KW_COLOR},
+  {match: /^new$/,            color: KW_COLOR},
+  {match: /^class$/,          color: KW_COLOR},
+  {match: /^implements$/,     color: KW_COLOR},
+];
+
+const SHARED_VAR_RULES: ColorRule[] = [
+  {match: 'cube',             color: VAR_LIGHT},
+  {match: 'position',         color: VAR_LIGHT},
+];
+
+const SHARED_TYPE_RULES: ColorRule[] = [
+  {match: /^Cube$/,           color: TYPE_CLEAN},
+  {match: /^Table$/,          color: TYPE_CLEAN},
+  {match: /^Force$/,          color: TYPE_CLEAN},
+  {match: /^GrabStrategy$/,   color: TYPE_CLEAN},
+  {match: /^GrabResult$/,     color: TYPE_CLEAN},
+  {match: /^StandardGrab$/,   color: TYPE_CLEAN},
+  {match: /^SoftGrab$/,       color: TYPE_CLEAN},
+  {match: /^FirmGrab$/,       color: TYPE_CLEAN},
+];
+
+// Orchestrator — grab IS a call here
+const ORC_COLOR_RULES: ColorRule[] = [
+  ...SHARED_KW_RULES,
+  {match: 'handleCube',       color: VAR_LIGHT},
+  {match: 'arm',              color: VAR_LIGHT},
+  {match: 'table',            color: VAR_LIGHT},
+  {match: 'grabStrategy',     color: VAR_LIGHT},
+  {match: 'result',           color: VAR_LIGHT},
+  {match: 'liftSpeed',        color: VAR_LIGHT},
+  {match: 'orientation',      color: VAR_LIGHT},
+  {match: 'releaseMode',      color: VAR_LIGHT},
+  ...SHARED_VAR_RULES,
+  ...SHARED_TYPE_RULES,
+  {match: 'moveTo',           color: METHOD_COLOR, onlyTypes: ['method']},
+  {match: 'grab',             color: METHOD_COLOR, onlyTypes: ['method']},
+  {match: 'lift',             color: METHOD_COLOR, onlyTypes: ['method']},
+  {match: 'release',          color: METHOD_COLOR, onlyTypes: ['method']},
+];
+
+// Strategies — grab is a DEFINITION, not red
+const STRAT_COLOR_RULES: ColorRule[] = [
+  ...SHARED_KW_RULES,
+  ...SHARED_VAR_RULES,
+  ...SHARED_TYPE_RULES,
+  {match: 'approach',         color: METHOD_COLOR, onlyTypes: ['method']},
+  {match: 'approachSlowly',   color: METHOD_COLOR, onlyTypes: ['method']},
+  {match: 'waitForSensor',    color: METHOD_COLOR, onlyTypes: ['method']},
+  {match: 'adjustToFeedback', color: METHOD_COLOR, onlyTypes: ['method']},
+  {match: 'close',            color: METHOD_COLOR, onlyTypes: ['method']},
+  {match: 'preAlign',         color: METHOD_COLOR, onlyTypes: ['method']},
+  {match: 'lockWrist',        color: METHOD_COLOR, onlyTypes: ['method']},
+  {match: 'standard',         color: METHOD_COLOR, onlyTypes: ['method']},
+  {match: 'gentle',           color: METHOD_COLOR, onlyTypes: ['method']},
+  {match: 'firm',             color: METHOD_COLOR, onlyTypes: ['method']},
+];
+
+const CUSTOM_TYPES = [
+  'Cube', 'Table', 'Force',
+  'GrabStrategy', 'GrabResult',
+  'StandardGrab', 'SoftGrab', 'FirmGrab',
+];
+
+const CODE_CARD_STYLE = {
+  radius: 16, fill: 'rgba(0,0,0,0)', stroke: 'rgba(0,0,0,0)',
+  strokeWidth: 0, shadowColor: 'rgba(0,0,0,0)', shadowBlur: 0,
+  shadowOffsetX: 0, shadowOffsetY: 0, edge: false,
+} as const;
+
+const MORPH_OPTS = {
+  scrollStrategy: 'block' as const,
+  removeDuration: 0,
+  moveDuration: 0.75,
+  charDelay: 0.013,
+  lineDelay: 0.035,
+};
+
+// Strategies use parallel mode to skip ensureRangeVisible (which scrolls
+// content up inside the small clip area, even with noClip: true).
+const STRAT_MORPH_OPTS = {
+  ...MORPH_OPTS,
+  blockOrder: 'parallel' as const,
+  lineOrder: 'parallel' as const,
+};
 
 // ── Layout ────────────────────────────────────────────────────────────────
 const THREE_W = Screen.width / 2;
@@ -206,7 +420,7 @@ export default makeScene2D(function* (view) {
   const cubeStartX = beltLength / 2 - 50;
   const cubeStopX = 0;
   const cubeStartPos = new Vector3(cubeStopX, cubeOnBeltY, beltZ);
-  cube3d.position.set(cubeStartX, cubeOnBeltY, beltZ);
+  cube3d.position.set(cubeStopX, cubeOnBeltY, beltZ);
   cube3d.renderOrder = -1;
   scene3.add(cube3d);
 
@@ -512,19 +726,49 @@ export default makeScene2D(function* (view) {
 
   threeView.node.x(Screen.width / 4);
   threeView.node.opacity(0);
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // LEFT SIDE: Code (Manticore) — same orchestrator as strategyScene
+  // ═══════════════════════════════════════════════════════════════════════
+  const fontSize   = CODE_FONT_SIZE;
+  const lineHeight = Math.round(fontSize * 1.62 * 10) / 10;
+  const paddingY   = getCodePaddingY(fontSize);
+  const topInset   = Math.max(8, paddingY - 8);
+
+  const mc = Manticore.create(ORC_CODE, {
+    x: CODE_CENTER_X - 20, y: 0,
+    width: CODE_W,
+    height: Screen.height - 80,
+    fontSize, lineHeight,
+    contentOffsetY: topInset,
+    fontFamily: Fonts.code,
+    theme: DryFiltersV3CodeTheme,
+    cardStyle: CODE_CARD_STYLE,
+    glowAccent: false,
+    noClip: true,
+    customTypes: CUSTOM_TYPES,
+  });
+
+  // Blur only the 3D arm, not the code
+  const armBlur = createSignal(0);
+  threeView.node.cache(true);
+  threeView.node.cachePadding(120);
+  threeView.node.filters(() => [blur(armBlur())]);
+
   view.add(threeView.node);
+  mc.mount(view);
+  mc.colorize(ORC_COLOR_RULES);
 
   // ═══════════════════════════════════════════════════════════════════════
   // ANIMATION
   // ═══════════════════════════════════════════════════════════════════════
 
-  // Fade in
-  yield* threeView.node.opacity(1, 0.8, easeInOutCubic);
+  // Fade in — code + 3D together
+  yield* all(
+    mc.appear(0.8),
+    threeView.node.opacity(1, 0.8, easeInOutCubic),
+  );
   yield* waitFor(0.4);
-
-  // Belt moves cube
-  yield* cubeX(cubeStopX, 2.0, easeInOutCubic);
-  yield* waitFor(0.3);
 
   // ── Reach (slow, deliberate) ──────────────────────────────────────────
   yield* all(
@@ -597,22 +841,144 @@ export default makeScene2D(function* (view) {
   cube3d.rotation.x = 0;
   yield* gripClose(0, 0.4, easeInOutCubic);
 
-  // Beam disappears after placement
-  yield* beamGlow(0, 0.6, easeInOutCubic);
-  yield* waitFor(0.3);
-
-  // ── Return to rest ────────────────────────────────────────────────────
+  // Beam disappears + arm returns to rest + code highlight — all together
   yield* all(
+    beamGlow(0, 0.6, easeInOutCubic),
     baseDelta(0, 2.0, easeInOutCubic),
     turretDelta(0, 2.0, easeInOutCubic),
     shoulderDelta(0, 2.0, easeInOutCubic),
     elbowDelta(0, 2.0, easeInOutCubic),
     wristDelta(0, 2.0, easeInOutCubic),
+    mc.dimLines(0, mc.lineCount - 1, 0.2, 0.6),
+    mc.dimLines(LINE_GRAB, LINE_GRAB, 1, 0.6),
+    mc.dimLines(LINE_LIFT, LINE_LIFT, 1, 0.6),
+    mc.dimLines(LINE_MOVE_TABLE, LINE_MOVE_TABLE, 1, 0.6),
+    mc.dimLines(LINE_RELEASE, LINE_RELEASE, 1, 0.6),
   );
+  yield* waitFor(0.8);
 
-  yield* waitFor(1.5);
+  // ═══════════════════════════════════════════════════════════════════════
+  // MORPH STEP 1 — bare args appear in highlighted lines
+  // ═══════════════════════════════════════════════════════════════════════
+  yield* mc.morphTo(ORC_STEP1, MORPH_OPTS);
+  mc.colorize(ORC_COLOR_RULES);
+  yield* waitFor(0.6);
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // MORPH STEP 2 — GrabResult result = appears before grab
+  // ═══════════════════════════════════════════════════════════════════════
+  yield* mc.morphTo(ORC_STEP2, MORPH_OPTS);
+  mc.colorize(ORC_COLOR_RULES);
+  yield* waitFor(0.6);
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // MORPH STEP 3 — bare args become result.xxx
+  // ═══════════════════════════════════════════════════════════════════════
+  yield* mc.morphTo(ORC_DONE, MORPH_OPTS);
+  mc.colorize(ORC_COLOR_RULES);
+  yield* waitFor(0.6);
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // UN-DIM — restore all lines, leave final code on screen
+  // ═══════════════════════════════════════════════════════════════════════
+  yield* mc.showAllLines(0.4);
+  yield* waitFor(0.5);
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // BLUR ARM — defocus only the 3D robot, code stays sharp
+  // ═══════════════════════════════════════════════════════════════════════
+  yield* all(
+    armBlur(8, 0.8, easeInOutCubic),
+    threeView.node.opacity(0.18, 0.8, easeInOutCubic),
+  );
+  yield* waitFor(0.3);
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // STRATEGIES — appear on the right (over blurred arm), stacked vertically
+  // ═══════════════════════════════════════════════════════════════════════
+  const mcSoft = Manticore.create(SOFT_INIT, {
+    x: STRAT_X, y: STRAT_Y.soft,
+    width: STRAT_W,
+    fontSize: STRAT_FONT,
+    fontFamily: Fonts.code,
+    theme: DryFiltersV3CodeTheme,
+    cardStyle: CODE_CARD_STYLE,
+    customTypes: CUSTOM_TYPES,
+    glowAccent: false,
+    noClip: true,
+  });
+  mcSoft.mount(view);
+  mcSoft.colorize(STRAT_COLOR_RULES);
+
+  const mcFirm = Manticore.create(FIRM_INIT, {
+    x: STRAT_X, y: STRAT_Y.firm,
+    width: STRAT_W,
+    fontSize: STRAT_FONT,
+    fontFamily: Fonts.code,
+    theme: DryFiltersV3CodeTheme,
+    cardStyle: CODE_CARD_STYLE,
+    customTypes: CUSTOM_TYPES,
+    glowAccent: false,
+    noClip: true,
+  });
+  mcFirm.mount(view);
+  mcFirm.colorize(STRAT_COLOR_RULES);
+
+  const mcStd = Manticore.create(STANDARD_INIT, {
+    x: STRAT_X, y: STRAT_Y.standard,
+    width: STRAT_W,
+    fontSize: STRAT_FONT,
+    fontFamily: Fonts.code,
+    theme: DryFiltersV3CodeTheme,
+    cardStyle: CODE_CARD_STYLE,
+    customTypes: CUSTOM_TYPES,
+    glowAccent: false,
+    noClip: true,
+  });
+  mcStd.mount(view);
+  mcStd.colorize(STRAT_COLOR_RULES);
+
+  // ── Strategies cascade in from right ──────────────────────────────────
+  yield* all(
+    chain(
+      waitFor(0.15),
+      mcSoft.appear(0.7),
+    ),
+    chain(
+      waitFor(0.35),
+      mcFirm.appear(0.7),
+    ),
+    chain(
+      waitFor(0.55),
+      mcStd.appear(0.7),
+    ),
+  );
+  yield* waitFor(0.9);
+
+  // ── SoftGrab morphs ───────────────────────────────────────────────────
+  yield* mcSoft.morphTo(SOFT_DONE, STRAT_MORPH_OPTS);
+  mcSoft.colorize(STRAT_COLOR_RULES);
+  yield* waitFor(0.35);
+
+  // ── FirmGrab morphs ───────────────────────────────────────────────────
+  yield* mcFirm.morphTo(FIRM_DONE, STRAT_MORPH_OPTS);
+  mcFirm.colorize(STRAT_COLOR_RULES);
+  yield* waitFor(0.8);
+
+  // ── StandardGrab morphs — the punchline ───────────────────────────────
+  yield* mcStd.morphTo(STANDARD_DONE, STRAT_MORPH_OPTS);
+  mcStd.colorize(STRAT_COLOR_RULES);
+
+  // Hold the full damage
+  yield* waitFor(3.8);
 
   // Fade out
-  yield* threeView.node.opacity(0, 0.8, easeInOutCubic);
+  yield* all(
+    mc.disappear(0.8),
+    mcSoft.disappear(0.8),
+    mcFirm.disappear(0.8),
+    mcStd.disappear(0.8),
+    threeView.node.opacity(0, 0.8, easeInOutCubic),
+  );
   yield* waitFor(0.3);
 });
