@@ -212,7 +212,7 @@ export default makeScene2D(function* (view) {
 
   // ── Light beam (top: fixed height above cube, bottom: dynamic to surface) ─
   const beamHeight = 1500;
-  const BEAM_COLOR = 0xffcc44;
+  const BEAM_COLOR = 0xffe8b0;
   const beamCoreMat = new MeshBasicMaterial({color: BEAM_COLOR, transparent: true, opacity: 0, depthWrite: false});
   const beamMidMat  = new MeshBasicMaterial({color: BEAM_COLOR, transparent: true, opacity: 0, depthWrite: false});
   const beamOutMat  = new MeshBasicMaterial({color: BEAM_COLOR, transparent: true, opacity: 0, depthWrite: false});
