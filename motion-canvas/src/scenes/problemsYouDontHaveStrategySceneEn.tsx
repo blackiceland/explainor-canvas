@@ -3,7 +3,7 @@ import {all, createRef, createSignal, easeInOutCubic, waitFor} from '@motion-can
 import {
   Bone, BoxGeometry, CylinderGeometry, EdgesGeometry, Group,
   KeyframeTrack, LineBasicMaterial, LineSegments, Mesh, MeshBasicMaterial,
-  Object3D, PerspectiveCamera, Quaternion, Scene, SkinnedMesh, Vector3,
+  Object3D, PerspectiveCamera, Scene, SkinnedMesh, Vector3,
 } from 'three';
 import {OutlineEffect} from 'three/examples/jsm/effects/OutlineEffect.js';
 import {GLTFLoader} from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -26,6 +26,7 @@ const KW_COLOR = DryFiltersV3CodeTheme.keyword;
 // ── Layout ──────────────────────────────────────────────────────────────
 const LEFT_PAD = 80;
 const ARM_SCALE = 0.85;
+const ARM_DISPLAY = 0.7;
 const THREE_W = Math.ceil(Screen.width / ARM_SCALE);
 const THREE_H = Math.ceil(Screen.height / ARM_SCALE);
 
@@ -85,7 +86,7 @@ const COLOR_RULES = [
 ];
 
 // ── Zoom-out final layout ──────────────────────────────────────────────
-const MC_SCALE = 26 / 64;
+const MC_SCALE = 30 / 64;
 const MC_FINAL_X = -Screen.width / 2 + LEFT_PAD - MC_LEFT_EDGE * MC_SCALE;
 const MC_FINAL_Y = -69;
 const GRAB_CTR_X = MC_FINAL_X + GRAB_CENTER * MC_SCALE;
@@ -323,18 +324,14 @@ export default makeScene2D(function* (view) {
   const initRot: Record<string, number> = {};
   for (const [k, bone] of Object.entries(bones)) if (bone) initRot[k] = bone.rotation[JOINT_AXIS[k] as 'x' | 'y'];
 
-  // Grip offset: cube center hangs below tip so it doesn't clip through fingers
-  const gripOffset = cubeSize * 0.6;
-
-  // IK targets — tip aims at cube center + gripOffset (tip is above the cube)
-  const cube2Start = new Vector3(0, cubeOnBeltY + gripOffset, beltZ);
-  const softLift   = new Vector3(0, 450 + gripOffset, 500);
+  // IK targets
+  const cube2Start = new Vector3(0, cubeOnBeltY, beltZ);
+  const softLift   = new Vector3(0, 450, 500);
   const stackPos   = new Vector3(platX, placedY + cubeSize, platZ);
-  const placeTarget = new Vector3(platX, stackPos.y + gripOffset, platZ);
 
   const reachDeltas = solveIK(sceneRoot, bones, initRot, cube2Start);
   const liftDeltas  = solveIK(sceneRoot, bones, initRot, softLift);
-  const placeDeltas = solveIK(sceneRoot, bones, initRot, placeTarget);
+  const placeDeltas = solveIK(sceneRoot, bones, initRot, stackPos);
 
   // ── Signals ──
   const baseDelta     = createSignal(0);
@@ -347,36 +344,11 @@ export default makeScene2D(function* (view) {
   const cube2X        = createSignal(beltLen / 2);
   // 0 = on belt, 1 = held by hand, 2 = placed on stack
   const cubeMode      = createSignal(0);
-
-  // Pre-compute hand quaternions at grab & place poses (deterministic, seek-safe)
-  const grabHandQuat = new Quaternion();
-  const placedQuat = new Quaternion();   // final cube orientation after release
-  {
-    const JOINTS = ['base', 'turret', 'shoulder', 'elbow', 'wrist'] as const;
-    const saved: Record<string, number> = {};
-    for (const j of JOINTS) if (bones[j]) saved[j] = bones[j]!.rotation[JOINT_AXIS[j] as 'x' | 'y'];
-
-    // Grab pose → grabHandQuat
-    for (const j of JOINTS) {
-      if (bones[j]) bones[j]!.rotation[JOINT_AXIS[j] as 'x' | 'y'] = initRot[j] + reachDeltas[j];
-    }
-    sceneRoot.updateMatrixWorld(true);
-    if (bones.hand) bones.hand.getWorldQuaternion(grabHandQuat);
-
-    // Place pose → placedQuat (Y-only relative rotation, same logic as onRender held)
-    for (const j of JOINTS) {
-      if (bones[j]) bones[j]!.rotation[JOINT_AXIS[j] as 'x' | 'y'] = initRot[j] + placeDeltas[j];
-    }
-    sceneRoot.updateMatrixWorld(true);
-    const placeHandQuat = new Quaternion();
-    if (bones.hand) bones.hand.getWorldQuaternion(placeHandQuat);
-    const rel = placeHandQuat.multiply(grabHandQuat.clone().invert());
-    placedQuat.set(0, rel.y, 0, rel.w).normalize();
-
-    // Restore initial pose
-    for (const j of JOINTS) if (bones[j]) bones[j]!.rotation[JOINT_AXIS[j] as 'x' | 'y'] = saved[j];
-    sceneRoot.updateMatrixWorld(true);
-  }
+  const grabBlend     = createSignal(0);
+  const grabOrigin    = new Vector3();
+  let grabBaseY = 0;
+  let grabTilt = 0;
+  let grabTiltReady = false;
 
   let outline: OutlineEffect | null = null;
   const threeView = createThreeView({
@@ -407,26 +379,28 @@ export default makeScene2D(function* (view) {
 
       const mode = cubeMode();
       if (mode === 1 && bones.wrist && bones.hand) {
-        // Held: cube hangs below tip by gripOffset
         sceneRoot.updateMatrixWorld(true);
         const wp = new Vector3(), hp = new Vector3();
         bones.wrist.getWorldPosition(wp);
         bones.hand.getWorldPosition(hp);
         const tip = hp.clone().add(hp.clone().sub(wp));
-        tip.y -= gripOffset;
-        cube2.position.copy(tip);
-        const curQuat = new Quaternion();
-        bones.hand.getWorldQuaternion(curQuat);
-        const rel = curQuat.clone().multiply(grabHandQuat.clone().invert());
-        cube2.quaternion.copy(new Quaternion(0, rel.y, 0, rel.w).normalize());
+        const b = grabBlend();
+        cube2.position.lerpVectors(grabOrigin, tip, b);
+        const dir = hp.clone().sub(wp);
+        const horiz = Math.sqrt(dir.x * dir.x + dir.z * dir.z);
+        const tilt = Math.atan2(dir.y, horiz);
+        if (!grabTiltReady) {
+          grabTilt = tilt;
+          grabTiltReady = true;
+        }
+        cube2.rotation.y = (baseDelta() + turretDelta()) - grabBaseY;
+        cube2.rotation.x = -(tilt - grabTilt);
       } else if (mode === 0) {
-        // Belt: signal-driven x, fixed y/z
         cube2.position.set(cube2X(), cubeOnBeltY, beltZ);
-        cube2.quaternion.identity();
+        cube2.rotation.set(0, 0, 0);
       } else if (mode === 2) {
-        // Placed: keep orientation from transport
         cube2.position.copy(stackPos);
-        cube2.quaternion.copy(placedQuat);
+        cube2.rotation.x = 0;
       }
 
       renderer.setClearColor(0x000000, 0);
@@ -442,7 +416,7 @@ export default makeScene2D(function* (view) {
 
   threeView.node.x(Screen.width / 4);
   threeView.node.opacity(0);
-  threeView.node.scale(ARM_SCALE);
+  threeView.node.scale(ARM_DISPLAY);
   zoomRef().add(threeView.node);
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -745,7 +719,11 @@ export default makeScene2D(function* (view) {
 
   // Gentle grip + attach
   yield* gripClose(0.5, 0.5, easeInOutCubic);
+  grabOrigin.copy(cube2.position);
+  grabBaseY = baseDelta() + turretDelta();
+  grabTiltReady = false;
   cubeMode(1);
+  yield* grabBlend(1, 0.15, easeInOutCubic);
 
   // Lift
   yield* all(
