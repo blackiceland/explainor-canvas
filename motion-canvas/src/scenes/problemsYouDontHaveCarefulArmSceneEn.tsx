@@ -634,7 +634,7 @@ export default makeScene2D(function* (view) {
 
   let cubeAttached = false;
   let cubePlaced = false;
-  const cubeX = createSignal(cubeStartX);
+  const cubeX = createSignal(cubeStopX);
   const grabBlend = createSignal(0);
   const grabOrigin = new Vector3();
   let grabBaseY = 0;
