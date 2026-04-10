@@ -1,4 +1,4 @@
-import {blur, makeScene2D} from '@motion-canvas/2d';
+import {blur, makeScene2D, Node} from '@motion-canvas/2d';
 import {all, chain, createSignal, easeInOutCubic, waitFor} from '@motion-canvas/core';
 import {
   Bone,
@@ -98,7 +98,11 @@ const SOFT_DONE = `public class SoftGrab implements GrabStrategy {
         waitForSensor();
         adjustToFeedback();
 
-        return GrabResult.gentle(cube);
+        return new GrabResult(
+            LiftSpeed.SLOW,
+            cube.orientation(),
+            ReleaseMode.GENTLE
+        );
     }
 }`;
 
@@ -117,7 +121,11 @@ const FIRM_DONE = `public class FirmGrab implements GrabStrategy {
         close(Force.MAXIMUM);
         lockWrist();
 
-        return GrabResult.firm(cube);
+        return new GrabResult(
+            LiftSpeed.FAST,
+            Orientation.LOCKED,
+            ReleaseMode.PRECISE
+        );
     }
 }`;
 
@@ -134,7 +142,11 @@ const STANDARD_DONE = `public class StandardGrab implements GrabStrategy {
         approach(cube.position);
         close(Force.MEDIUM);
 
-        return GrabResult.standard(cube);
+        return new GrabResult(
+            LiftSpeed.NORMAL,
+            Orientation.ANY,
+            ReleaseMode.STANDARD
+        );
     }
 }`;
 
@@ -182,6 +194,9 @@ const SHARED_TYPE_RULES: ColorRule[] = [
   {match: /^StandardGrab$/,   color: TYPE_CLEAN},
   {match: /^SoftGrab$/,       color: TYPE_CLEAN},
   {match: /^FirmGrab$/,       color: TYPE_CLEAN},
+  {match: /^LiftSpeed$/,     color: TYPE_CLEAN},
+  {match: /^Orientation$/,   color: TYPE_CLEAN},
+  {match: /^ReleaseMode$/,   color: TYPE_CLEAN},
 ];
 
 // Orchestrator — grab IS a call here
@@ -215,15 +230,14 @@ const STRAT_COLOR_RULES: ColorRule[] = [
   {match: 'close',            color: METHOD_COLOR, onlyTypes: ['method']},
   {match: 'preAlign',         color: METHOD_COLOR, onlyTypes: ['method']},
   {match: 'lockWrist',        color: METHOD_COLOR, onlyTypes: ['method']},
-  {match: 'standard',         color: METHOD_COLOR, onlyTypes: ['method']},
-  {match: 'gentle',           color: METHOD_COLOR, onlyTypes: ['method']},
-  {match: 'firm',             color: METHOD_COLOR, onlyTypes: ['method']},
+  {match: 'orientation',      color: METHOD_COLOR, onlyTypes: ['method']},
 ];
 
 const CUSTOM_TYPES = [
   'Cube', 'Table', 'Force',
   'GrabStrategy', 'GrabResult',
   'StandardGrab', 'SoftGrab', 'FirmGrab',
+  'LiftSpeed', 'Orientation', 'ReleaseMode',
 ];
 
 const CODE_CARD_STYLE = {
@@ -896,6 +910,9 @@ export default makeScene2D(function* (view) {
   // ═══════════════════════════════════════════════════════════════════════
   // STRATEGIES — appear on the right (over blurred arm), stacked vertically
   // ═══════════════════════════════════════════════════════════════════════
+  const stratGroup = new Node({});
+  view.add(stratGroup);
+
   const mcSoft = Manticore.create(SOFT_INIT, {
     x: STRAT_X, y: STRAT_Y.soft,
     width: STRAT_W,
@@ -907,7 +924,7 @@ export default makeScene2D(function* (view) {
     glowAccent: false,
     noClip: true,
   });
-  mcSoft.mount(view);
+  mcSoft.mount(stratGroup);
   mcSoft.colorize(STRAT_COLOR_RULES);
 
   const mcFirm = Manticore.create(FIRM_INIT, {
@@ -921,7 +938,7 @@ export default makeScene2D(function* (view) {
     glowAccent: false,
     noClip: true,
   });
-  mcFirm.mount(view);
+  mcFirm.mount(stratGroup);
   mcFirm.colorize(STRAT_COLOR_RULES);
 
   const mcStd = Manticore.create(STANDARD_INIT, {
@@ -935,35 +952,39 @@ export default makeScene2D(function* (view) {
     glowAccent: false,
     noClip: true,
   });
-  mcStd.mount(view);
+  mcStd.mount(stratGroup);
   mcStd.colorize(STRAT_COLOR_RULES);
 
-  // ── Strategies cascade in from right ──────────────────────────────────
+  const SHIFT = 6 * STRAT_LINE_H;
+
+  // ── Strategies cascade in ─────────────────────────────────────────────
   yield* all(
-    chain(
-      waitFor(0.15),
-      mcSoft.appear(0.7),
-    ),
-    chain(
-      waitFor(0.35),
-      mcFirm.appear(0.7),
-    ),
-    chain(
-      waitFor(0.55),
-      mcStd.appear(0.7),
-    ),
+    chain(waitFor(0.15), mcSoft.appear(0.7)),
+    chain(waitFor(0.35), mcFirm.appear(0.7)),
+    chain(waitFor(0.55), mcStd.appear(0.7)),
   );
   yield* waitFor(0.9);
 
-  // ── SoftGrab morphs ───────────────────────────────────────────────────
-  yield* mcSoft.morphTo(SOFT_DONE, STRAT_MORPH_OPTS);
+  // ── SoftGrab morphs — push firm and std down ──────────────────────────
+  yield* all(
+    mcSoft.morphTo(SOFT_DONE, STRAT_MORPH_OPTS),
+    mcFirm.node.y(STRAT_Y.firm + SHIFT, 0.75, easeInOutCubic),
+    mcStd.node.y(STRAT_Y.standard + SHIFT, 0.75, easeInOutCubic),
+  );
   mcSoft.colorize(STRAT_COLOR_RULES);
-  yield* waitFor(0.35);
+  yield* waitFor(0.5);
 
-  // ── FirmGrab morphs ───────────────────────────────────────────────────
-  yield* mcFirm.morphTo(FIRM_DONE, STRAT_MORPH_OPTS);
+  // ── FirmGrab morphs — push std down ───────────────────────────────────
+  yield* all(
+    mcFirm.morphTo(FIRM_DONE, STRAT_MORPH_OPTS),
+    mcStd.node.y(STRAT_Y.standard + SHIFT * 2, 0.75, easeInOutCubic),
+  );
   mcFirm.colorize(STRAT_COLOR_RULES);
-  yield* waitFor(0.8);
+  yield* waitFor(0.5);
+
+  // ── Scroll down to reveal StandardGrab ────────────────────────────────
+  yield* stratGroup.y(-520, 0.8, easeInOutCubic);
+  yield* waitFor(0.3);
 
   // ── StandardGrab morphs — the punchline ───────────────────────────────
   yield* mcStd.morphTo(STANDARD_DONE, STRAT_MORPH_OPTS);
