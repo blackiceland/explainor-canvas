@@ -212,7 +212,7 @@ export default makeScene2D(function* (view) {
 
   // ── Light beam (top: fixed height above cube, bottom: dynamic to surface) ─
   const beamHeight = 1500;
-  const BEAM_COLOR = 0xffe8b0;
+  const BEAM_COLOR = 0xffb870;
   const beamCoreMat = new MeshBasicMaterial({color: BEAM_COLOR, transparent: true, opacity: 0, depthWrite: false});
   const beamMidMat  = new MeshBasicMaterial({color: BEAM_COLOR, transparent: true, opacity: 0, depthWrite: false});
   const beamOutMat  = new MeshBasicMaterial({color: BEAM_COLOR, transparent: true, opacity: 0, depthWrite: false});
@@ -528,11 +528,11 @@ export default makeScene2D(function* (view) {
 
   // ── Reach (slow, deliberate) ──────────────────────────────────────────
   yield* all(
-    baseDelta(reachDeltas.base, 2.5, easeInOutCubic),
-    turretDelta(reachDeltas.turret, 2.5, easeInOutCubic),
-    shoulderDelta(reachDeltas.shoulder, 2.5, easeInOutCubic),
-    elbowDelta(reachDeltas.elbow, 2.5, easeInOutCubic),
-    wristDelta(reachDeltas.wrist, 2.5, easeInOutCubic),
+    baseDelta(reachDeltas.base, 1.5, easeInOutCubic),
+    turretDelta(reachDeltas.turret, 1.5, easeInOutCubic),
+    shoulderDelta(reachDeltas.shoulder, 1.5, easeInOutCubic),
+    elbowDelta(reachDeltas.elbow, 1.5, easeInOutCubic),
+    wristDelta(reachDeltas.wrist, 1.5, easeInOutCubic),
   );
   yield* waitFor(0.2);
 
