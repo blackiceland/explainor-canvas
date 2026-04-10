@@ -3,15 +3,12 @@ import {all, createSignal, easeInOutCubic, waitFor} from '@motion-canvas/core';
 import {
   Bone,
   BoxGeometry,
-  BufferGeometry,
   Color,
   CylinderGeometry,
   EdgesGeometry,
   Group,
   KeyframeTrack,
-  Line as ThreeLine,
   LineBasicMaterial,
-  LineDashedMaterial,
   LineSegments,
   Mesh,
   MeshBasicMaterial,
@@ -44,8 +41,9 @@ const THREE_H = Screen.height;
 // ── Robot arm constants ──────────────────────────────────────────────────
 const MODEL_URL = '/basic_robot_arm.glb';
 
-const BONE_NAMES = {
+const BONE_NAMES: Record<string, string> = {
   base:     'Bone_00',
+  turret:   'Bone001_01',
   shoulder: 'Bone003_03',
   elbow:    'Bone005_05',
   wrist:    'Bone007_07',
@@ -58,7 +56,7 @@ const FINGER_NAMES = {
 };
 
 const JOINT_AXIS: Record<string, 'x' | 'y'> = {
-  base: 'y', shoulder: 'x', elbow: 'x', wrist: 'x', hand: 'x',
+  base: 'y', turret: 'y', shoulder: 'x', elbow: 'x', wrist: 'x', hand: 'x',
 };
 
 function findBone(root: Bone, name: string): Bone | null {
@@ -83,9 +81,9 @@ function solveIK(
   bones: Record<string, Bone | null>,
   initRot: Record<string, number>,
   target: Vector3,
-): {base: number; shoulder: number; elbow: number; wrist: number} {
-  const JOINTS = ['base', 'shoulder', 'elbow', 'wrist'] as const;
-  const deltas = {base: 0, shoulder: 0, elbow: 0, wrist: 0};
+): Record<string, number> {
+  const JOINTS = ['base', 'turret', 'shoulder', 'elbow', 'wrist'] as const;
+  const deltas: Record<string, number> = {base: 0, turret: 0, shoulder: 0, elbow: 0, wrist: 0};
   const EPS = 0.005;
 
   function apply() {
@@ -96,7 +94,8 @@ function solveIK(
 
   function cost(): number {
     apply();
-    return getTipPos(sceneRoot, bones.wrist!, bones.hand!).distanceTo(target);
+    const dist = getTipPos(sceneRoot, bones.wrist!, bones.hand!).distanceTo(target);
+    return dist + Math.abs(deltas.base) * 80;
   }
 
   for (let i = 0; i < 1500; i++) {
@@ -211,8 +210,8 @@ export default makeScene2D(function* (view) {
   cube3d.renderOrder = -1;
   scene3.add(cube3d);
 
-  // ── Light beam (scene-level, follows cube X/Z, full height) ────────────
-  const beamHeight = 3000;
+  // ── Light beam (above cube only) ────────────────────────────────────────
+  const beamHeight = 1500;
   const beamCoreMat = new MeshBasicMaterial({color: 0xffcc44, transparent: true, opacity: 0, depthWrite: false});
   const beamMidMat  = new MeshBasicMaterial({color: 0xffcc44, transparent: true, opacity: 0, depthWrite: false});
   const beamOutMat  = new MeshBasicMaterial({color: 0xffcc44, transparent: true, opacity: 0, depthWrite: false});
@@ -388,20 +387,6 @@ export default makeScene2D(function* (view) {
     );
   }
 
-  // Dashed arc visualization
-  const arcPoints: Vector3[] = [];
-  for (let t = 0; t <= 1; t += 0.02) arcPoints.push(bezier(t));
-  const arcDashMat = new LineDashedMaterial({
-    color: 0xffcc44, dashSize: 15, gapSize: 10,
-    transparent: true, opacity: 0,
-  });
-  const arcLine = new ThreeLine(
-    new BufferGeometry().setFromPoints(arcPoints),
-    arcDashMat,
-  );
-  arcLine.computeLineDistances();
-  scene3.add(arcLine);
-
   // IK — reach + 4 arc waypoints + place
   const reachDeltas = solveIK(sceneRoot, bones, initRot, cubeStartPos);
   const arcDeltas = [0.2, 0.4, 0.6, 0.8].map(t => solveIK(sceneRoot, bones, initRot, bezier(t)));
@@ -410,6 +395,7 @@ export default makeScene2D(function* (view) {
 
   // ── Signals ───────────────────────────────────────────────────────────
   const baseDelta     = createSignal(0);
+  const turretDelta   = createSignal(0);
   const shoulderDelta = createSignal(0);
   const elbowDelta    = createSignal(0);
   const wristDelta    = createSignal(0);
@@ -448,6 +434,7 @@ export default makeScene2D(function* (view) {
       renderer.clear();
 
       if (bones.base)     bones.base.rotation.y     = initRot.base     + baseDelta();
+      if (bones.turret)   bones.turret.rotation.y   = initRot.turret   + turretDelta();
       if (bones.shoulder) bones.shoulder.rotation.x = initRot.shoulder + shoulderDelta();
       if (bones.elbow)    bones.elbow.rotation.x    = initRot.elbow    + elbowDelta();
       if (bones.wrist)    bones.wrist.rotation.x    = initRot.wrist    + wristDelta();
@@ -472,8 +459,11 @@ export default makeScene2D(function* (view) {
       beamCoreMat.opacity = bg * 0.5;
       beamMidMat.opacity = bg * 0.1;
       beamOutMat.opacity = bg * 0.03;
-      beamObj.position.x = cube3d.position.x;
-      beamObj.position.z = cube3d.position.z;
+      beamObj.position.set(
+        cube3d.position.x,
+        cube3d.position.y + cubeSize / 2 + beamHeight / 2,
+        cube3d.position.z,
+      );
 
       // Cube position — Y rotation tracks arm, X stays 0 (no tilt)
       if (cubeAttached) {
@@ -484,7 +474,7 @@ export default makeScene2D(function* (view) {
         const b = grabBlend();
         cube3d.position.lerpVectors(grabOrigin, tip, b);
         cube3d.rotation.x = 0;
-        cube3d.rotation.y = baseDelta() - grabBaseY;
+        cube3d.rotation.y = (baseDelta() + turretDelta()) - grabBaseY;
         cube3d.rotation.z = 0;
       } else if (!cubePlaced) {
         cube3d.position.x = cubeX();
@@ -513,6 +503,7 @@ export default makeScene2D(function* (view) {
   // ── Reach (slow, deliberate) ──────────────────────────────────────────
   yield* all(
     baseDelta(reachDeltas.base, 2.5, easeInOutCubic),
+    turretDelta(reachDeltas.turret, 2.5, easeInOutCubic),
     shoulderDelta(reachDeltas.shoulder, 2.5, easeInOutCubic),
     elbowDelta(reachDeltas.elbow, 2.5, easeInOutCubic),
     wristDelta(reachDeltas.wrist, 2.5, easeInOutCubic),
@@ -522,7 +513,7 @@ export default makeScene2D(function* (view) {
   // ── Grip (gentle) ─────────────────────────────────────────────────────
   yield* gripClose(0.5, 0.5, easeInOutCubic);
   grabOrigin.copy(cube3d.position);
-  grabBaseY = baseDelta();
+  grabBaseY = baseDelta() + turretDelta();
   cubeAttached = true;
   yield* grabBlend(1, 0.15, easeInOutCubic);
 
@@ -532,42 +523,41 @@ export default makeScene2D(function* (view) {
   yield* checkGlow(0, 0.4, easeInOutCubic);
   yield* waitFor(0.2);
 
-  // ── Beam + arc dash appear ──────────────────────────────────────────────
-  yield* all(
-    beamGlow(0.7, 0.5, easeInOutCubic),
-    (function* () {
-      yield* waitFor(0.1);
-      arcDashMat.opacity = 0.4;
-    })(),
-  );
+  // ── Beam appears — orientation indicator active ───────────────────────
+  yield* beamGlow(0.7, 0.5, easeInOutCubic);
 
   // ── Smooth arc (no peak — 4 waypoints, linear middle, eased ends) ────
   yield* all(
     baseDelta(arcDeltas[0].base, 1.2, easeInOutCubic),
+    turretDelta(arcDeltas[0].turret, 1.2, easeInOutCubic),
     shoulderDelta(arcDeltas[0].shoulder, 1.2, easeInOutCubic),
     elbowDelta(arcDeltas[0].elbow, 1.2, easeInOutCubic),
     wristDelta(arcDeltas[0].wrist, 1.2, easeInOutCubic),
   );
   yield* all(
     baseDelta(arcDeltas[1].base, 1.0, linear),
+    turretDelta(arcDeltas[1].turret, 1.0, linear),
     shoulderDelta(arcDeltas[1].shoulder, 1.0, linear),
     elbowDelta(arcDeltas[1].elbow, 1.0, linear),
     wristDelta(arcDeltas[1].wrist, 1.0, linear),
   );
   yield* all(
     baseDelta(arcDeltas[2].base, 1.0, linear),
+    turretDelta(arcDeltas[2].turret, 1.0, linear),
     shoulderDelta(arcDeltas[2].shoulder, 1.0, linear),
     elbowDelta(arcDeltas[2].elbow, 1.0, linear),
     wristDelta(arcDeltas[2].wrist, 1.0, linear),
   );
   yield* all(
     baseDelta(arcDeltas[3].base, 1.0, linear),
+    turretDelta(arcDeltas[3].turret, 1.0, linear),
     shoulderDelta(arcDeltas[3].shoulder, 1.0, linear),
     elbowDelta(arcDeltas[3].elbow, 1.0, linear),
     wristDelta(arcDeltas[3].wrist, 1.0, linear),
   );
   yield* all(
     baseDelta(placeDeltas.base, 1.2, easeInOutCubic),
+    turretDelta(placeDeltas.turret, 1.2, easeInOutCubic),
     shoulderDelta(placeDeltas.shoulder, 1.2, easeInOutCubic),
     elbowDelta(placeDeltas.elbow, 1.2, easeInOutCubic),
     wristDelta(placeDeltas.wrist, 1.2, easeInOutCubic),
@@ -578,17 +568,17 @@ export default makeScene2D(function* (view) {
   cubeAttached = false;
   cubePlaced = true;
   cube3d.position.copy(placeTarget);
-  cube3d.rotation.set(0, 0, 0);
+  cube3d.rotation.x = 0;
   yield* gripClose(0, 0.4, easeInOutCubic);
 
-  // Beam + arc fade after placement
-  arcDashMat.opacity = 0;
+  // Beam fades
   yield* beamGlow(0.3, 0.6, easeInOutCubic);
   yield* waitFor(0.3);
 
   // ── Return to rest ────────────────────────────────────────────────────
   yield* all(
     baseDelta(0, 2.0, easeInOutCubic),
+    turretDelta(0, 2.0, easeInOutCubic),
     shoulderDelta(0, 2.0, easeInOutCubic),
     elbowDelta(0, 2.0, easeInOutCubic),
     wristDelta(0, 2.0, easeInOutCubic),

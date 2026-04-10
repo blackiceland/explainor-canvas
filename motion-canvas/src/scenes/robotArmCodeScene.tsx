@@ -38,8 +38,9 @@ const THREE_H = Screen.height;
 // ── Robot arm constants ──────────────────────────────────────────────────
 const MODEL_URL = '/basic_robot_arm.glb';
 
-const BONE_NAMES = {
+const BONE_NAMES: Record<string, string> = {
   base:     'Bone_00',
+  turret:   'Bone001_01',
   shoulder: 'Bone003_03',
   elbow:    'Bone005_05',
   wrist:    'Bone007_07',
@@ -52,7 +53,7 @@ const FINGER_NAMES = {
 };
 
 const JOINT_AXIS: Record<string, 'x' | 'y'> = {
-  base: 'y', shoulder: 'x', elbow: 'x', wrist: 'x', hand: 'x',
+  base: 'y', turret: 'y', shoulder: 'x', elbow: 'x', wrist: 'x', hand: 'x',
 };
 
 function findBone(root: Bone, name: string): Bone | null {
@@ -77,9 +78,9 @@ function solveIK(
   bones: Record<string, Bone | null>,
   initRot: Record<string, number>,
   target: Vector3,
-): {base: number; shoulder: number; elbow: number; wrist: number} {
-  const JOINTS = ['base', 'shoulder', 'elbow', 'wrist'] as const;
-  const deltas = {base: 0, shoulder: 0, elbow: 0, wrist: 0};
+): Record<string, number> {
+  const JOINTS = ['base', 'turret', 'shoulder', 'elbow', 'wrist'] as const;
+  const deltas: Record<string, number> = {base: 0, turret: 0, shoulder: 0, elbow: 0, wrist: 0};
   const EPS = 0.005;
 
   function apply() {
@@ -90,7 +91,8 @@ function solveIK(
 
   function cost(): number {
     apply();
-    return getTipPos(sceneRoot, bones.wrist!, bones.hand!).distanceTo(target);
+    const dist = getTipPos(sceneRoot, bones.wrist!, bones.hand!).distanceTo(target);
+    return dist + Math.abs(deltas.base) * 80;
   }
 
   for (let i = 0; i < 1500; i++) {
@@ -398,6 +400,7 @@ export default makeScene2D(function* (view) {
 
   // ── 3D signals ────────────────────────────────────────────────────────
   const baseDelta     = createSignal(0);
+  const turretDelta   = createSignal(0);
   const shoulderDelta = createSignal(0);
   const elbowDelta    = createSignal(0);
   const wristDelta    = createSignal(0);
@@ -432,6 +435,7 @@ export default makeScene2D(function* (view) {
       renderer.clear();
 
       if (bones.base)     bones.base.rotation.y     = initRot.base     + baseDelta();
+      if (bones.turret)   bones.turret.rotation.y   = initRot.turret   + turretDelta();
       if (bones.shoulder) bones.shoulder.rotation.x = initRot.shoulder + shoulderDelta();
       if (bones.elbow)    bones.elbow.rotation.x    = initRot.elbow    + elbowDelta();
       if (bones.wrist)    bones.wrist.rotation.x    = initRot.wrist    + wristDelta();
@@ -458,7 +462,7 @@ export default makeScene2D(function* (view) {
           grabTilt = tilt;
           grabTiltReady = true;
         }
-        cube3d.rotation.y = baseDelta() - grabBaseY;
+        cube3d.rotation.y = (baseDelta() + turretDelta()) - grabBaseY;
         cube3d.rotation.x = -(tilt - grabTilt);
       } else if (!cubePlaced) {
         cube3d.position.x = cubeX();
@@ -529,6 +533,7 @@ export default makeScene2D(function* (view) {
   // ── Reach ─────────────────────────────────────────────────────────────
   yield* all(
     baseDelta(reachDeltas.base, 1.5, easeInOutCubic),
+    turretDelta(reachDeltas.turret, 1.5, easeInOutCubic),
     shoulderDelta(reachDeltas.shoulder, 1.5, easeInOutCubic),
     elbowDelta(reachDeltas.elbow, 1.5, easeInOutCubic),
     wristDelta(reachDeltas.wrist, 1.5, easeInOutCubic),
@@ -538,7 +543,7 @@ export default makeScene2D(function* (view) {
   // ── Grip ──────────────────────────────────────────────────────────────
   yield* gripClose(0.7, 0.3, easeInOutCubic);
   grabOrigin.copy(cube3d.position);
-  grabBaseY = baseDelta();
+  grabBaseY = baseDelta() + turretDelta();
   grabTiltReady = false;
   cubeAttached = true;
   yield* grabBlend(1, 0.15, easeInOutCubic);
@@ -546,6 +551,7 @@ export default makeScene2D(function* (view) {
   // ── Lift ──────────────────────────────────────────────────────────────
   yield* all(
     baseDelta(liftDeltas.base, 2.0, easeInOutCubic),
+    turretDelta(liftDeltas.turret, 2.0, easeInOutCubic),
     shoulderDelta(liftDeltas.shoulder, 2.0, easeInOutCubic),
     elbowDelta(liftDeltas.elbow, 2.0, easeInOutCubic),
     wristDelta(liftDeltas.wrist, 2.0, easeInOutCubic),
@@ -555,6 +561,7 @@ export default makeScene2D(function* (view) {
   // ── Place ─────────────────────────────────────────────────────────────
   yield* all(
     baseDelta(placeDeltas.base, 2.0, easeInOutCubic),
+    turretDelta(placeDeltas.turret, 2.0, easeInOutCubic),
     shoulderDelta(placeDeltas.shoulder, 2.0, easeInOutCubic),
     elbowDelta(placeDeltas.elbow, 2.0, easeInOutCubic),
     wristDelta(placeDeltas.wrist, 2.0, easeInOutCubic),
@@ -572,6 +579,7 @@ export default makeScene2D(function* (view) {
   // ── Return to rest ────────────────────────────────────────────────────
   yield* all(
     baseDelta(0, 1.5, easeInOutCubic),
+    turretDelta(0, 1.5, easeInOutCubic),
     shoulderDelta(0, 1.5, easeInOutCubic),
     elbowDelta(0, 1.5, easeInOutCubic),
     wristDelta(0, 1.5, easeInOutCubic),
