@@ -210,17 +210,28 @@ export default makeScene2D(function* (view) {
   cube3d.renderOrder = -1;
   scene3.add(cube3d);
 
-  // ── Light beam (above cube only) ────────────────────────────────────────
+  // ── Light beam (top: fixed height above cube, bottom: dynamic to surface) ─
   const beamHeight = 1500;
-  const beamCoreMat = new MeshBasicMaterial({color: 0xffcc44, transparent: true, opacity: 0, depthWrite: false});
-  const beamMidMat  = new MeshBasicMaterial({color: 0xffcc44, transparent: true, opacity: 0, depthWrite: false});
-  const beamOutMat  = new MeshBasicMaterial({color: 0xffcc44, transparent: true, opacity: 0, depthWrite: false});
+  const BEAM_COLOR = 0xffcc44;
+  const beamCoreMat = new MeshBasicMaterial({color: BEAM_COLOR, transparent: true, opacity: 0, depthWrite: false});
+  const beamMidMat  = new MeshBasicMaterial({color: BEAM_COLOR, transparent: true, opacity: 0, depthWrite: false});
+  const beamOutMat  = new MeshBasicMaterial({color: BEAM_COLOR, transparent: true, opacity: 0, depthWrite: false});
   const beamObj = new Group();
   beamObj.add(new Mesh(new CylinderGeometry(2, 2, beamHeight, 8), beamCoreMat));
   beamObj.add(new Mesh(new CylinderGeometry(12, 12, beamHeight, 8), beamMidMat));
   beamObj.add(new Mesh(new CylinderGeometry(30, 30, beamHeight, 8), beamOutMat));
-  beamObj.position.set(cubeStartX, 0, beltZ);
   scene3.add(beamObj);
+
+  // Bottom beam — unit-height cylinders, scaled dynamically to surface below
+  const botCoreMat = new MeshBasicMaterial({color: BEAM_COLOR, transparent: true, opacity: 0, depthWrite: false});
+  const botMidMat  = new MeshBasicMaterial({color: BEAM_COLOR, transparent: true, opacity: 0, depthWrite: false});
+  const botOutMat  = new MeshBasicMaterial({color: BEAM_COLOR, transparent: true, opacity: 0, depthWrite: false});
+  const botBeamObj = new Group();
+  botBeamObj.add(new Mesh(new CylinderGeometry(2, 2, 1, 8), botCoreMat));
+  botBeamObj.add(new Mesh(new CylinderGeometry(12, 12, 1, 8), botMidMat));
+  botBeamObj.add(new Mesh(new CylinderGeometry(30, 30, 1, 8), botOutMat));
+  scene3.add(botBeamObj);
+  const surfaceY = beltY + beltHeight / 2; // belt & platform top are at same Y
 
   // ── Destination platform ──────────────────────────────────────────────
   const platformX = -350;
@@ -459,9 +470,24 @@ export default makeScene2D(function* (view) {
       beamCoreMat.opacity = bg * 0.5;
       beamMidMat.opacity = bg * 0.1;
       beamOutMat.opacity = bg * 0.03;
+      botCoreMat.opacity = bg * 0.35;
+      botMidMat.opacity = bg * 0.07;
+      botOutMat.opacity = bg * 0.02;
+
+      // Top beam — above cube
       beamObj.position.set(
         cube3d.position.x,
         cube3d.position.y + cubeSize / 2 + beamHeight / 2,
+        cube3d.position.z,
+      );
+
+      // Bottom beam — from cube bottom to nearest surface
+      const cubeBot = cube3d.position.y - cubeSize / 2;
+      const gap = Math.max(1, cubeBot - surfaceY);
+      botBeamObj.scale.y = gap;
+      botBeamObj.position.set(
+        cube3d.position.x,
+        cubeBot - gap / 2,
         cube3d.position.z,
       );
 
@@ -571,8 +597,8 @@ export default makeScene2D(function* (view) {
   cube3d.rotation.x = 0;
   yield* gripClose(0, 0.4, easeInOutCubic);
 
-  // Beam fades
-  yield* beamGlow(0.3, 0.6, easeInOutCubic);
+  // Beam disappears after placement
+  yield* beamGlow(0, 0.6, easeInOutCubic);
   yield* waitFor(0.3);
 
   // ── Return to rest ────────────────────────────────────────────────────
