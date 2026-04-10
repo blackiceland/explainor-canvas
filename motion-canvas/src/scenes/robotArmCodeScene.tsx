@@ -543,8 +543,6 @@ export default makeScene2D(function* (view) {
   cubeAttached = true;
   yield* grabBlend(1, 0.15, easeInOutCubic);
 
-  yield* waitFor(1.05);
-
   // ── Lift ──────────────────────────────────────────────────────────────
   yield* all(
     baseDelta(liftDeltas.base, 2.0, easeInOutCubic),
@@ -567,6 +565,7 @@ export default makeScene2D(function* (view) {
   cubeAttached = false;
   cubePlaced = true;
   cube3d.position.copy(placeTarget);
+  cube3d.rotation.x = 0;
   yield* gripClose(0, 0.3, easeInOutCubic);
   yield* waitFor(0.3);
 
