@@ -3,7 +3,6 @@ import {all, createSignal, easeInOutCubic, waitFor} from '@motion-canvas/core';
 import {
   Bone,
   BoxGeometry,
-  Color,
   CylinderGeometry,
   EdgesGeometry,
   Group,
@@ -239,6 +238,7 @@ export default makeScene2D(function* (view) {
   const cubeStopX = 0;
   const cubeStartPos = new Vector3(cubeStopX, cubeOnBeltY, beltZ);
   cube3d.position.set(cubeStartX, cubeOnBeltY, beltZ);
+  cube3d.renderOrder = -1;
   scene3.add(cube3d);
 
   // ── Destination platform ──────────────────────────────────────────────
@@ -402,11 +402,6 @@ export default makeScene2D(function* (view) {
   const elbowDelta    = createSignal(0);
   const wristDelta    = createSignal(0);
   const gripClose     = createSignal(0);
-  const gripStress    = createSignal(0);
-
-  const cubeColorBase = new Color(0xff9500);
-  const cubeColorHot  = new Color(0xff1500);
-  const cubeColorTmp  = new Color();
 
   let cubeAttached = false;
   let cubePlaced = false;
@@ -448,12 +443,6 @@ export default makeScene2D(function* (view) {
       if (fingers.finger2) {
         fingers.finger2.position.lerpVectors(fingerPos.open.f2, fingerPos.closed.f2, g);
       }
-
-      const gs = gripStress();
-      cubeColorTmp.lerpColors(cubeColorBase, cubeColorHot, gs);
-      cubeFillMat.color.copy(cubeColorTmp);
-      cubeFillMat.opacity = 0.25 + gs * 0.35;
-      cubeEdgeMat.color.copy(cubeColorTmp);
 
       if (cubeAttached) {
         const wp = new Vector3(), hp = new Vector3();
@@ -554,10 +543,7 @@ export default makeScene2D(function* (view) {
   cubeAttached = true;
   yield* grabBlend(1, 0.15, easeInOutCubic);
 
-  yield* gripStress(1, 0.2, easeInOutCubic);
-  yield* waitFor(0.3);
-  yield* gripStress(0, 0.4, easeInOutCubic);
-  yield* waitFor(0.15);
+  yield* waitFor(1.05);
 
   // ── Lift ──────────────────────────────────────────────────────────────
   yield* all(
@@ -581,7 +567,6 @@ export default makeScene2D(function* (view) {
   cubeAttached = false;
   cubePlaced = true;
   cube3d.position.copy(placeTarget);
-  cube3d.rotation.set(0, 0, 0);
   yield* gripClose(0, 0.3, easeInOutCubic);
   yield* waitFor(0.3);
 
