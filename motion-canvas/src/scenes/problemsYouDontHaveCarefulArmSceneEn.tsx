@@ -25,60 +25,91 @@ import {Fonts, Screen} from '../core/theme';
 import {applyBackground} from '../core/utils';
 import {ColorRule, Manticore} from '../core/code/components/Manticore';
 import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
-import {getCodePaddingY} from '../core/code/shared/TextMeasure';
 
 // ── Beat 3b — arm demonstrates requirements, then code impact + cost ────
 
-// ── Left-panel orchestrator code (matches strategyScene) ────────────────
-const ORC_CODE = `private final GrabStrategy grabStrategy = new StandardGrab();
-
-public void handleCube(Cube cube, Table table) {
-    arm.moveTo(cube.position);
-    grabStrategy.grab(cube);
-    arm.lift();
-    arm.moveTo(table.position);
-    arm.release();
+// ── Interface shown inline above the orchestrator — the contract ────────
+const INTERFACE_CODE = `public interface GrabStrategy {
+    GrabResult grab(Cube cube);
 }`;
 
-// Line indices (0-based) for dimming
-const LINE_GRAB = 4;        // grabStrategy.grab(cube);
-const LINE_LIFT = 5;        // arm.lift();
-const LINE_MOVE_TABLE = 6;  // arm.moveTo(table.position);
-const LINE_RELEASE = 7;     // arm.release();
+// ── Record shown inline below the orchestrator — the data the arm needs ──
+// Fields match what the arm visibly demonstrates:
+//   confidence    ↔ the green stabilization flash after the gentle grip
+//   motionProfile ↔ the Bezier arc with eased ends (not a discrete lift)
+//   orientation   ↔ the beam indicator + locked rotation during transport
+const RECORD_CODE = `public record GrabResult(
+    GripConfidence confidence,
+    MotionProfile motionProfile,
+    Orientation orientation
+) {}`;
+
+// ── Left-panel orchestrator code (wrapped in class so handleCube has a home)
+const ORC_CODE = `public class CubeHandler {
+
+    private final GrabStrategy grabStrategy = new StandardGrab();
+
+    public void handleCube(Cube cube, Table table) {
+        arm.moveTo(cube.position);
+        grabStrategy.grab(cube);
+        arm.confirmGrip();
+        arm.moveTo(table.position);
+        arm.release();
+    }
+}`;
+
+// Line indices (0-based) for dimming inside the class-wrapped orchestrator
+const LINE_GRAB       = 6;  // grabStrategy.grab(cube);
+const LINE_CONFIRM    = 7;  // arm.confirmGrip();
+const LINE_MOVE_TABLE = 8;  // arm.moveTo(table.position);
+const LINE_RELEASE    = 9;  // arm.release();
 
 // ── Morph stages for the orchestrator ───────────────────────────────────
 // Step 1: bare parameter names appear in highlighted lines
-const ORC_STEP1 = `private final GrabStrategy grabStrategy = new StandardGrab();
+const ORC_STEP1 = `public class CubeHandler {
 
-public void handleCube(Cube cube, Table table) {
-    arm.moveTo(cube.position);
-    grabStrategy.grab(cube);
-    arm.lift(liftSpeed);
-    arm.moveTo(table.position, orientation);
-    arm.release(releaseMode);
+    private final GrabStrategy grabStrategy = new StandardGrab();
+
+    public void handleCube(Cube cube, Table table) {
+        arm.moveTo(cube.position);
+        grabStrategy.grab(cube);
+        arm.confirmGrip(confidence);
+        arm.moveTo(table.position, motionProfile);
+        arm.release(orientation);
+    }
 }`;
 
 // Step 2: GrabResult result = appears before grab
-const ORC_STEP2 = `private final GrabStrategy grabStrategy = new StandardGrab();
+const ORC_STEP2 = `public class CubeHandler {
 
-public void handleCube(Cube cube, Table table) {
-    arm.moveTo(cube.position);
-    GrabResult result = grabStrategy.grab(cube);
-    arm.lift(liftSpeed);
-    arm.moveTo(table.position, orientation);
-    arm.release(releaseMode);
+    private final GrabStrategy grabStrategy = new StandardGrab();
+
+    public void handleCube(Cube cube, Table table) {
+        arm.moveTo(cube.position);
+        GrabResult result = grabStrategy.grab(cube);
+        arm.confirmGrip(confidence);
+        arm.moveTo(table.position, motionProfile);
+        arm.release(orientation);
+    }
 }`;
 
-// Step 3: bare args become result.xxx
-const ORC_DONE = `private final GrabStrategy grabStrategy = new StandardGrab();
+// Step 3: bare args become result.xxx — `result.` types in GREEN, then fades
+const ORC_DONE = `public class CubeHandler {
 
-public void handleCube(Cube cube, Table table) {
-    arm.moveTo(cube.position);
-    GrabResult result = grabStrategy.grab(cube);
-    arm.lift(result.liftSpeed);
-    arm.moveTo(table.position, result.orientation);
-    arm.release(result.releaseMode);
+    private final GrabStrategy grabStrategy = new StandardGrab();
+
+    public void handleCube(Cube cube, Table table) {
+        arm.moveTo(cube.position);
+        GrabResult result = grabStrategy.grab(cube);
+        arm.confirmGrip(result.confidence);
+        arm.moveTo(table.position, result.motionProfile);
+        arm.release(result.orientation);
+    }
 }`;
+
+// Line index of the `result` declaration (unchanged by STEP3 morph, so we can
+// revert it back to normal color after setting GREEN rules globally).
+const LINE_RESULT_DECLARATION = 6;
 
 // ── Strategy implementations (empty line after class, before return) ────
 const SOFT_INIT = `public class SoftGrab implements GrabStrategy {
@@ -99,9 +130,9 @@ const SOFT_DONE = `public class SoftGrab implements GrabStrategy {
         adjustToFeedback();
 
         return new GrabResult(
-            LiftSpeed.SLOW,
-            cube.orientation(),
-            ReleaseMode.GENTLE
+            GripConfidence.HIGH,
+            MotionProfile.CAUTIOUS,
+            cube.orientation()
         );
     }
 }`;
@@ -122,9 +153,9 @@ const FIRM_DONE = `public class FirmGrab implements GrabStrategy {
         lockWrist();
 
         return new GrabResult(
-            LiftSpeed.FAST,
-            Orientation.LOCKED,
-            ReleaseMode.PRECISE
+            GripConfidence.HIGH,
+            MotionProfile.FAST,
+            Orientation.LOCKED
         );
     }
 }`;
@@ -143,31 +174,52 @@ const STANDARD_DONE = `public class StandardGrab implements GrabStrategy {
         close(Force.MEDIUM);
 
         return new GrabResult(
-            LiftSpeed.NORMAL,
-            Orientation.ANY,
-            ReleaseMode.STANDARD
+            GripConfidence.MEDIUM,
+            MotionProfile.LINEAR,
+            Orientation.ANY
         );
     }
 }`;
 
 // ── Styling ─────────────────────────────────────────────────────────────
-const LEFT_PAD = 80;
+// LEFT_PAD tighter than before — column reads closer to the frame edge.
+const LEFT_PAD = 40;
 const CODE_FONT_SIZE = 24;
 const CODE_W = Screen.width / 2 - LEFT_PAD;
 const CODE_CENTER_X = -Screen.width / 2 + LEFT_PAD + CODE_W / 2;
+
+// ── Vertical stack in the left column ──────────────────────────────────
+// All three blocks share fontSize=24, so lineHeight=38.9. Block heights:
+//   interface (3 lines)   ≈ 117px  → half-span 58.35
+//   handleCube (12 lines) ≈ 467px  → half-span 233.4
+//   record (5 lines)      ≈ 195px  → half-span 97.25
+// Targets: ~100px breathing room from the top frame, ~30px gaps between
+// blocks, symmetric-ish ~140px bottom padding. Math, not guessing:
+//   Interface visual top  = -382 - 58  ≈ -440   (→100px from -540)
+//   Interface bottom      = -382 + 58  ≈ -324
+//   HandleCube top        = -324 + 30  = -294   → center -294 + 233 = -61
+//   HandleCube bottom     = -61  + 233 ≈  173
+//   Record top            =  173 + 30  ≈  203   → center  203 + 97  ≈  300
+//   Record bottom         =  300 + 97  ≈  397   (→143px from  540)
+const INTERFACE_Y = -382;
+const CODE_Y      = -61;
+const RECORD_Y    =  300;
 
 // Strategies appear on the right (where arm was), stacked vertically.
 // Left edge at x≈10 so they don't cross into the left code panel.
 const STRAT_FONT = 20;
 const STRAT_LINE_H = Math.round(20 * 1.62 * 10) / 10;
 const STRAT_W = Screen.width / 2 - 20;
-const STRAT_X = Screen.width / 4;
+const STRAT_X = Screen.width / 4 + 100;
 const STRAT_Y = {soft: -330, firm: 10, standard: 330};
 
 const VAR_LIGHT = 'rgba(244, 241, 235, 0.96)';
 const TYPE_CLEAN = 'rgba(220, 215, 255, 0.80)';
 const METHOD_COLOR = DryFiltersV3CodeTheme.method;
 const KW_COLOR = DryFiltersV3CodeTheme.keyword;
+// Ephemeral "fresh reference" highlight — used while `result.xxx` tokens
+// type into method arguments during STEP 3 of the orchestrator morph.
+const CREATE_GREEN = 'rgba(150, 230, 165, 0.96)';
 
 const SHARED_KW_RULES: ColorRule[] = [
   {match: /^public$/,         color: KW_COLOR},
@@ -186,17 +238,18 @@ const SHARED_VAR_RULES: ColorRule[] = [
 ];
 
 const SHARED_TYPE_RULES: ColorRule[] = [
-  {match: /^Cube$/,           color: TYPE_CLEAN},
-  {match: /^Table$/,          color: TYPE_CLEAN},
-  {match: /^Force$/,          color: TYPE_CLEAN},
-  {match: /^GrabStrategy$/,   color: TYPE_CLEAN},
-  {match: /^GrabResult$/,     color: TYPE_CLEAN},
-  {match: /^StandardGrab$/,   color: TYPE_CLEAN},
-  {match: /^SoftGrab$/,       color: TYPE_CLEAN},
-  {match: /^FirmGrab$/,       color: TYPE_CLEAN},
-  {match: /^LiftSpeed$/,     color: TYPE_CLEAN},
-  {match: /^Orientation$/,   color: TYPE_CLEAN},
-  {match: /^ReleaseMode$/,   color: TYPE_CLEAN},
+  {match: /^Cube$/,            color: TYPE_CLEAN},
+  {match: /^Table$/,           color: TYPE_CLEAN},
+  {match: /^Force$/,           color: TYPE_CLEAN},
+  {match: /^GrabStrategy$/,    color: TYPE_CLEAN},
+  {match: /^GrabResult$/,      color: TYPE_CLEAN},
+  {match: /^CubeHandler$/,     color: TYPE_CLEAN},
+  {match: /^StandardGrab$/,    color: TYPE_CLEAN},
+  {match: /^SoftGrab$/,        color: TYPE_CLEAN},
+  {match: /^FirmGrab$/,        color: TYPE_CLEAN},
+  {match: /^GripConfidence$/,  color: TYPE_CLEAN},
+  {match: /^MotionProfile$/,   color: TYPE_CLEAN},
+  {match: /^Orientation$/,     color: TYPE_CLEAN},
 ];
 
 // Orchestrator — grab IS a call here
@@ -207,15 +260,44 @@ const ORC_COLOR_RULES: ColorRule[] = [
   {match: 'table',            color: VAR_LIGHT},
   {match: 'grabStrategy',     color: VAR_LIGHT},
   {match: 'result',           color: VAR_LIGHT},
-  {match: 'liftSpeed',        color: VAR_LIGHT},
+  {match: 'confidence',       color: VAR_LIGHT},
+  {match: 'motionProfile',    color: VAR_LIGHT},
   {match: 'orientation',      color: VAR_LIGHT},
-  {match: 'releaseMode',      color: VAR_LIGHT},
   ...SHARED_VAR_RULES,
   ...SHARED_TYPE_RULES,
   {match: 'moveTo',           color: METHOD_COLOR, onlyTypes: ['method']},
   {match: 'grab',             color: METHOD_COLOR, onlyTypes: ['method']},
-  {match: 'lift',             color: METHOD_COLOR, onlyTypes: ['method']},
+  {match: 'confirmGrip',      color: METHOD_COLOR, onlyTypes: ['method']},
   {match: 'release',          color: METHOD_COLOR, onlyTypes: ['method']},
+];
+
+// Interface prelude — `interface` + `public` only, grab is a definition stub
+const INTERFACE_COLOR_RULES: ColorRule[] = [
+  {match: /^public$/,         color: KW_COLOR},
+  {match: /^interface$/,      color: KW_COLOR},
+  ...SHARED_VAR_RULES,
+  ...SHARED_TYPE_RULES,
+  {match: 'grab',             color: VAR_LIGHT, onlyTypes: ['method', 'plain']},
+];
+
+// Record block — `record` is Java 14+; tokenizer doesn't classify it as keyword
+const RECORD_COLOR_RULES: ColorRule[] = [
+  {match: /^public$/,         color: KW_COLOR},
+  {match: /^record$/,         color: KW_COLOR},
+  ...SHARED_TYPE_RULES,
+  {match: 'confidence',       color: VAR_LIGHT},
+  {match: 'motionProfile',    color: VAR_LIGHT},
+  {match: 'orientation',      color: VAR_LIGHT},
+];
+
+// Orchestrator rules with `result` overridden to GREEN — used ONLY during
+// STEP 3 morph so the newly-typed `result.xxx` tokens type in green, then
+// fade back via colorizeAnimated(..., ORC_COLOR_RULES).
+// NB: Manticore applies rules in order and LAST match wins (colorizeByRule
+// calls fill(color) directly), so the override MUST come after ORC_COLOR_RULES.
+const ORC_GREEN_RULES: ColorRule[] = [
+  ...ORC_COLOR_RULES,
+  {match: /^result$/,         color: CREATE_GREEN},
 ];
 
 // Strategies — grab is a DEFINITION, not red
@@ -236,8 +318,9 @@ const STRAT_COLOR_RULES: ColorRule[] = [
 const CUSTOM_TYPES = [
   'Cube', 'Table', 'Force',
   'GrabStrategy', 'GrabResult',
+  'CubeHandler',
   'StandardGrab', 'SoftGrab', 'FirmGrab',
-  'LiftSpeed', 'Orientation', 'ReleaseMode',
+  'GripConfidence', 'MotionProfile', 'Orientation',
 ];
 
 const CODE_CARD_STYLE = {
@@ -742,25 +825,37 @@ export default makeScene2D(function* (view) {
   threeView.node.opacity(0);
 
   // ═══════════════════════════════════════════════════════════════════════
-  // LEFT SIDE: Code (Manticore) — same orchestrator as strategyScene
+  // LEFT SIDE: Three stacked code blocks — interface prelude, orchestrator,
+  // record data type. Same fontSize and CODE_CENTER_X → perfectly aligned
+  // columns with ~30px gaps and symmetric top/bottom breathing room.
   // ═══════════════════════════════════════════════════════════════════════
   const fontSize   = CODE_FONT_SIZE;
   const lineHeight = Math.round(fontSize * 1.62 * 10) / 10;
-  const paddingY   = getCodePaddingY(fontSize);
-  const topInset   = Math.max(8, paddingY - 8);
 
-  const mc = Manticore.create(ORC_CODE, {
-    x: CODE_CENTER_X - 20, y: 0,
+  const codeBlockStyle = {
     width: CODE_W,
-    height: Screen.height - 80,
     fontSize, lineHeight,
-    contentOffsetY: topInset,
     fontFamily: Fonts.code,
     theme: DryFiltersV3CodeTheme,
     cardStyle: CODE_CARD_STYLE,
     glowAccent: false,
     noClip: true,
     customTypes: CUSTOM_TYPES,
+  } as const;
+
+  const mcInterface = Manticore.create(INTERFACE_CODE, {
+    x: CODE_CENTER_X, y: INTERFACE_Y,
+    ...codeBlockStyle,
+  });
+
+  const mc = Manticore.create(ORC_CODE, {
+    x: CODE_CENTER_X, y: CODE_Y,
+    ...codeBlockStyle,
+  });
+
+  const mcRecord = Manticore.create(RECORD_CODE, {
+    x: CODE_CENTER_X, y: RECORD_Y,
+    ...codeBlockStyle,
   });
 
   // Blur only the 3D arm, not the code
@@ -770,15 +865,25 @@ export default makeScene2D(function* (view) {
   threeView.node.filters(() => [blur(armBlur())]);
 
   view.add(threeView.node);
+  mcInterface.mount(view);
   mc.mount(view);
+  mcRecord.mount(view);
+  mcInterface.colorize(INTERFACE_COLOR_RULES);
   mc.colorize(ORC_COLOR_RULES);
+  mcRecord.colorize(RECORD_COLOR_RULES);
+
+  // Record starts hidden — it reveals AFTER the orchestrator morphs complete,
+  // once the interface contract has been established by the code flow.
+  mcRecord.node.opacity(0);
 
   // ═══════════════════════════════════════════════════════════════════════
   // ANIMATION
   // ═══════════════════════════════════════════════════════════════════════
 
-  // Fade in — code + 3D together
+  // Fade in — interface + orchestrator code + 3D arm together.
+  // (Record stays hidden at opacity 0 until after the morphs.)
   yield* all(
+    mcInterface.appear(0.8),
     mc.appear(0.8),
     threeView.node.opacity(1, 0.8, easeInOutCubic),
   );
@@ -855,7 +960,9 @@ export default makeScene2D(function* (view) {
   cube3d.rotation.x = 0;
   yield* gripClose(0, 0.4, easeInOutCubic);
 
-  // Beam disappears + arm returns to rest + code highlight — all together
+  // Beam disappears + arm returns to rest + code highlight — all together.
+  // Interface block dims along with non-highlighted orchestrator lines so the
+  // viewer's focus lands on the four lines about to morph (grab..release).
   yield* all(
     beamGlow(0, 0.6, easeInOutCubic),
     baseDelta(0, 2.0, easeInOutCubic),
@@ -863,9 +970,10 @@ export default makeScene2D(function* (view) {
     shoulderDelta(0, 2.0, easeInOutCubic),
     elbowDelta(0, 2.0, easeInOutCubic),
     wristDelta(0, 2.0, easeInOutCubic),
+    mcInterface.node.opacity(0.18, 0.6, easeInOutCubic),
     mc.dimLines(0, mc.lineCount - 1, 0.2, 0.6),
     mc.dimLines(LINE_GRAB, LINE_GRAB, 1, 0.6),
-    mc.dimLines(LINE_LIFT, LINE_LIFT, 1, 0.6),
+    mc.dimLines(LINE_CONFIRM, LINE_CONFIRM, 1, 0.6),
     mc.dimLines(LINE_MOVE_TABLE, LINE_MOVE_TABLE, 1, 0.6),
     mc.dimLines(LINE_RELEASE, LINE_RELEASE, 1, 0.6),
   );
@@ -887,25 +995,51 @@ export default makeScene2D(function* (view) {
 
   // ═══════════════════════════════════════════════════════════════════════
   // MORPH STEP 3 — bare args become result.xxx
+  // The new `result.` prefix tokens type in GREEN to visually bridge "the
+  // object we just declared on line 6" → "is now flowing into these args".
+  // Immediately after the morph, fade the four lines back to normal theme.
   // ═══════════════════════════════════════════════════════════════════════
+  // Set GREEN rules so applyRules() during the 'modify' morph plan paints
+  // the newly-typed `result` tokens green. Then revert line 6's own `result`
+  // declaration back to normal color so only the ARGUMENT references flash.
+  mc.colorize(ORC_GREEN_RULES);
+  mc.getLine(LINE_RESULT_DECLARATION)!.colorizeByRule('result', VAR_LIGHT);
+
   yield* mc.morphTo(ORC_DONE, MORPH_OPTS);
+  yield* waitFor(0.3);
+
+  // Fade the four argument lines back to their normal theme colors.
+  yield* mc.colorizeAnimated(LINE_CONFIRM, LINE_RELEASE, 0.6, ORC_COLOR_RULES);
   mc.colorize(ORC_COLOR_RULES);
-  yield* waitFor(0.6);
+  yield* waitFor(0.4);
 
   // ═══════════════════════════════════════════════════════════════════════
-  // UN-DIM — restore all lines, leave final code on screen
+  // UN-DIM — restore all lines + interface block, leave final code on screen
   // ═══════════════════════════════════════════════════════════════════════
-  yield* mc.showAllLines(0.4);
+  yield* all(
+    mc.showAllLines(0.4),
+    mcInterface.node.opacity(1, 0.4, easeInOutCubic),
+  );
   yield* waitFor(0.5);
 
   // ═══════════════════════════════════════════════════════════════════════
-  // BLUR ARM — defocus only the 3D robot, code stays sharp
+  // BLUR ARM — defocus only the 3D robot, code stays sharp. Soft blur (3)
+  // so viewer still senses the arm is there without it stealing focus.
   // ═══════════════════════════════════════════════════════════════════════
   yield* all(
-    armBlur(8, 0.8, easeInOutCubic),
+    armBlur(3, 0.8, easeInOutCubic),
     threeView.node.opacity(0.18, 0.8, easeInOutCubic),
   );
   yield* waitFor(0.3);
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // RECORD REVEAL — the data type the arm visibly demonstrates appears in
+  // the bottom slot of the left column. This happens BEFORE the strategies
+  // so viewers see "interface → orchestrator uses result.xxx → here's the
+  // result type" as one coherent contract before the morphs hit.
+  // ═══════════════════════════════════════════════════════════════════════
+  yield* mcRecord.appear(0.7);
+  yield* waitFor(0.6);
 
   // ═══════════════════════════════════════════════════════════════════════
   // STRATEGIES — appear on the right (over blurred arm), stacked vertically
@@ -995,7 +1129,9 @@ export default makeScene2D(function* (view) {
 
   // Fade out
   yield* all(
+    mcInterface.disappear(0.8),
     mc.disappear(0.8),
+    mcRecord.disappear(0.8),
     mcSoft.disappear(0.8),
     mcFirm.disappear(0.8),
     mcStd.disappear(0.8),
