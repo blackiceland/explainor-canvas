@@ -106,7 +106,7 @@ export default makeProject({
 
         //03
 
-        problemsYouDontHaveCarefulArmSceneEn,
+        // problemsYouDontHaveCarefulArmSceneEn,
         problemsYouDontHaveOrientationAnySceneEn,
 
         // robotArmTestScene,

@@ -5,7 +5,7 @@ import {applyBackground} from '../core/utils';
 import {ColorRule, Manticore} from '../core/code/components/Manticore';
 import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
 
-// ── Beat 4b — sync-highlight return args, zoom into Orientation.ANY ─────
+// ── Beat 4b — sync-highlight return args, fade out ─────────────────────
 
 const INTERFACE_CODE = `public interface GrabStrategy {
     GrabResult grab(Cube cube);
@@ -80,7 +80,6 @@ const STANDARD_DONE = `public class StandardGrab implements GrabStrategy {
 const SOFT_ARGS = [9, 10, 11];
 const FIRM_ARGS = [8, 9, 10];
 const STD_ARGS  = [7, 8, 9];
-const STD_ANY_LINE = 9;
 
 // ── Layout — matches CarefulArm final state exactly ─────────────────────
 const LEFT_PAD       = 40;
@@ -327,7 +326,7 @@ export default makeScene2D(function* (view) {
   yield* waitFor(1.2);
 
   // ═════════════════════════════════════════════════════════════════════
-  // 3. EVERYTHING FADES except StandardGrab line 9 (Orientation.ANY)
+  // 3. FADE OUT everything
   // ═════════════════════════════════════════════════════════════════════
   yield* all(
     mcInterface.node.opacity(0, 0.6, easeInOutCubic),
@@ -335,44 +334,6 @@ export default makeScene2D(function* (view) {
     mcRecord.node.opacity(0, 0.6, easeInOutCubic),
     mcSoft.node.opacity(0, 0.6, easeInOutCubic),
     mcFirm.node.opacity(0, 0.6, easeInOutCubic),
-    // Dim all StandardGrab lines to 0 EXCEPT line 9
-    mcStd.dimLines(0, STD_ANY_LINE - 1, 0, 0.6),
-    mcStd.dimLines(STD_ANY_LINE + 1, mcStd.lineCount - 1, 0, 0.6),
+    mcStd.node.opacity(0, 0.6, easeInOutCubic),
   );
-  yield* waitFor(0.8);
-
-  // ═════════════════════════════════════════════════════════════════════
-  // 4. ZOOM IN + "Orientation." fades during zoom
-  // ═════════════════════════════════════════════════════════════════════
-
-  // Y — manual calc, no getLineSceneY surprises:
-  //   mcStd cfg.y = 330 + 194.4*2 = 718.8
-  //   13-line block: startY = -6 * 32.4, lineY(9) = startY + 9*32.4 = 97.2
-  //   in root: STRAT_GROUP_Y + 718.8 + 97.2 = 296
-  const stdCenterY = STRAT_Y.standard + SHIFT * 2;
-  const lineOffsetY = (-((13 - 1) / 2) + STD_ANY_LINE) * STRAT_LINE_H;
-  const targetY = STRAT_GROUP_Y + stdCenterY + lineOffsetY;
-
-  // X — shift from block center towards "ANY" text
-  const charW = STRAT_FONT * 0.6;
-  const anyTextX = mcStd.getLeftEdge() + 24 * charW + 1.5 * charW;
-  const targetX = STRAT_X + anyTextX;
-
-  const ZOOM = 3;
-
-  // "Orientation" and "." fade to transparent during zoom
-  const anyLine = mcStd.getLine(STD_ANY_LINE)!;
-  const fadeAnims = [
-    ...anyLine.colorizeByRuleAnimated('Orientation', 'rgba(0,0,0,0)', 1.5),
-    ...anyLine.colorizeByRuleAnimated('.', 'rgba(0,0,0,0)', 1.5),
-  ];
-
-  yield* all(
-    root.scale(ZOOM, 2.0, easeInOutCubic),
-    root.x(-targetX * ZOOM, 2.0, easeInOutCubic),
-    root.y(-targetY * ZOOM, 2.0, easeInOutCubic),
-    ...fadeAnims,
-  );
-
-  yield* waitFor(2.0);
 });
