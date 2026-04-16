@@ -37,6 +37,9 @@ import problemsYouDontHaveRealityHitSceneEn from "./scenes/problemsYouDontHaveRe
 import problemsYouDontHaveCostSceneEn from "./scenes/problemsYouDontHaveCostSceneEn?scene";
 import problemsYouDontHaveCarefulArmSceneEn from "./scenes/problemsYouDontHaveCarefulArmSceneEn?scene";
 import problemsYouDontHaveOrientationAnySceneEn from "./scenes/problemsYouDontHaveOrientationAnySceneEn?scene";
+import problemsYouDontHaveWrongShelfSceneEn from "./scenes/problemsYouDontHaveWrongShelfSceneEn?scene";
+import wrongCenterCollapseSceneEn from "./scenes/wrongCenterCollapseSceneEn?scene";
+import foreignResponsibilityInvasionSceneEn from "./scenes/foreignResponsibilityInvasionSceneEn?scene";
 
 export default makeProject({
     experimentalFeatures: true,
@@ -106,19 +109,20 @@ export default makeProject({
 
         //03
 
-        // problemsYouDontHaveCarefulArmSceneEn,
-        problemsYouDontHaveOrientationAnySceneEn,
-
+        // clproblemsYouDontHaveCarefulArmSceneEn,
+        // problemsYouDontHaveOrientationAnySceneEn,
+        // problemsYouDontHaveWrongShelfSceneEn,
+        // wrongCenterCollapseSceneEn,
+        //
         // robotArmTestScene,
         // problemsYouDontHaveSubtitlesSceneEn,
         // robotArmCodeScene,
         // problemsYouDontHaveLieIntroSceneEn,
         // problemsYouDontHaveStrategySceneEn,
         // pipelineGrabGrowthSceneEn,
-        //  grabStrategyOrbitSceneEn,
-        // problemsYouDontHaveRealityHitSceneEn,
+        // grabStrategyOrbitSceneEn,
         // problemsYouDontHaveCostSceneEn,
-        // fromTheStartSceneEn
-
+        // fromTheStartSceneEn,
+        foreignResponsibilityInvasionSceneEn
     ]
 })
