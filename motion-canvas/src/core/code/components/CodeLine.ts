@@ -30,7 +30,7 @@ export interface TokenData {
     originalShadowOffset: [number, number];
 }
 
-const LIGATURE_OPERATORS = new Set(['!=', '==', '<=', '>=', '&&', '||', '++', '--', '->', '::']);
+export const LIGATURE_OPERATORS = new Set(['!=', '==', '<=', '>=', '&&', '||', '++', '--', '->', '::']);
 
 export class CodeLine {
     private readonly containerRef: Reference<Node> = createRef<Node>();
@@ -445,14 +445,25 @@ export class CodeLine {
     /** Посимвольный typewriter: раскрывает текст каждого токена символ за символом.
      *  Сохраняет синтаксическую подсветку. Пробелы — быстрее, пунктуация — с паузой. */
     public *typewriter(delay: number = 0.012): ThreadGenerator {
-        for (const tokenData of this.tokensData) {
+        for (let i = 0; i < this.tokensData.length; i++) {
+            const tokenData = this.tokensData[i];
             const full = tokenData.text;
             if (full.length === 0) continue;
+
+            const isLigature = tokenData.type === 'operator' && LIGATURE_OPERATORS.has(full);
+            if (isLigature) {
+                for (let c = 0; c < full.length; c++) {
+                    const partTxt = this.tokensData[i + c].ref();
+                    partTxt.opacity(1);
+                    partTxt.text(full[c]);
+                    yield* waitFor(charDelayFn(full[c], delay));
+                }
+                continue;
+            }
 
             const txtNode = tokenData.ref();
             txtNode.opacity(1);
             txtNode.text('');
-
             for (let c = 0; c < full.length; c++) {
                 txtNode.text(full.slice(0, c + 1));
                 yield* waitFor(charDelayFn(full[c], delay));

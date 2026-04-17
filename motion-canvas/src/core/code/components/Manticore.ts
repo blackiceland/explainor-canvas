@@ -3,7 +3,7 @@ import {all, createRef, easeInOutCubic, Reference, ThreadGenerator, TimingFuncti
 import {tokenizeLine, TokenType} from '../model/Tokenizer';
 import {SyntaxTheme, IntelliJDarkTheme} from '../model/SyntaxTheme';
 import {CodeCard, CodeCardStyle} from './CodeCard';
-import {CodeLine, TokenData} from './CodeLine';
+import {CodeLine, LIGATURE_OPERATORS, TokenData} from './CodeLine';
 import {getCodePaddingX, getCodePaddingY, getLineHeight, charDelay as charDelayFn} from '../shared/TextMeasure';
 import {Fonts} from '../../theme';
 import {diffLines} from '../diff/LineDiff';
@@ -757,11 +757,22 @@ export class Manticore {
             if (vis.kept.has(newIdx)) continue;
 
             const token = cl.tokens[i];
+            const full = token.text;
+            const isLigature = token.type === 'operator' && LIGATURE_OPERATORS.has(full);
+
+            if (isLigature) {
+                for (let c = 0; c < full.length; c++) {
+                    const partTxt = cl.tokens[i + c].ref();
+                    partTxt.opacity(1);
+                    partTxt.text(full[c]);
+                    yield* waitFor(charDelayFn(full[c], delay));
+                }
+                continue;
+            }
+
             const txtNode = token.ref();
             txtNode.opacity(1);
             txtNode.text('');
-            const full = token.text;
-
             for (let c = 0; c < full.length; c++) {
                 txtNode.text(full.slice(0, c + 1));
                 yield* waitFor(charDelayFn(full[c], delay));

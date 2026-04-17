@@ -7,44 +7,75 @@ import {
   easeInCubic,
   easeInOutCubic,
   easeOutCubic,
-  easeOutElastic,
   linear,
   waitFor,
 } from '@motion-canvas/core';
+import {
+  EdgesGeometry,
+  LineBasicMaterial,
+  LineSegments,
+  Mesh,
+  MeshBasicMaterial,
+  PerspectiveCamera,
+  Scene as ThreeScene,
+  SphereGeometry,
+} from 'three';
 import {Fonts} from '../core/theme';
+import {createThreeView} from '../core/three/ThreeCanvas';
 import {applyBackground} from '../core/utils';
 
 // ── Palette ───────────────────────────────────────────────────────
-const GRAB_COLOR    = 'rgba(100, 180, 255, 0.85)';   // calm blue
+const GRAB_COLOR    = 'rgba(100, 180, 255, 0.85)';
 const GRAB_BORDER   = 'rgba(100, 180, 255, 0.35)';
-const FOREIGN_COLOR = '#FF9F43';                       // orange — outputs
-const RULES_COLOR   = '#FF4757';                       // red — rules
-const TEXT_MUTED    = 'rgba(244, 241, 235, 0.5)';
-const TEXT_DIM      = 'rgba(244, 241, 235, 0.25)';
+const FOREIGN_COLOR = '#FF9F43';
+const RULES_COLOR   = '#FF4757';
+const TEXT_DIM      = 'rgba(244, 241, 235, 0.35)';
 
 // ── Layout ────────────────────────────────────────────────────────
-const MEMBRANE_R = 200;
-const DOT_R = 14;
+const MEMBRANE_R = 320;
+const DOT_R = 22;
 
-// grab's own operations — positioned inside the circle
+// Sphere silhouette must visually equal MEMBRANE_R.
+// Perspective silhouette radius = R·f / sqrt(z²−R²), so the naive z=f result
+// from the simple projection is too close. Solved exactly with f≈1180, R=320,
+// target 320: z≈1222. Extra margin keeps the sphere a touch smaller than the
+// circle so the swap reads as a clean fit, not a pop.
+const GLOBE_R = 320;
+const GLOBE_VP = 1100;
+const GLOBE_CAM_Z = 1240;
+const GLOBE_OMEGA = 0.12;
+
+const OPS_FONT = 20;
+const CENTER_FONT = 140;
+
+// Ops packed so red diamonds never overlap blue dots or orange squares
+// inside the unchanged R=320 circle.
 const OWN_OPS = [
-  {label: 'approach',  x: -60,  y: -50},
-  {label: 'close',     x:  40,  y: -20},
-  {label: 'lockWrist', x: -20,  y:  50},
+  {label: 'approach',  x: -92, y: -58},
+  {label: 'close',     x:  92, y: -58},
+  {label: 'lockWrist', x:   0, y:  86},
 ];
 
-// foreign outputs — start outside, drift in
 const FOREIGN_OPS = [
-  {label: 'MotionProfile', x: -70, y: 10,  startX: -380, startY: -80},
-  {label: 'Orientation',   x:  50, y: 60,  startX:  350, startY: -60},
+  {label: 'MotionProfile', x: -130, y: 40,  startX: -620, startY: -130},
+  {label: 'Orientation',   x:  120, y: 30,  startX:  580, startY:  -96},
 ];
 
-// foreign rules — start further out, more alarming shapes
 const RULES_OPS = [
-  {label: 'isDelicate()',    x: -90, y: -10, startX: -420, startY: -180},
-  {label: 'hasLooseParts()', x:  20, y:  80, startX:  380, startY:  160},
-  {label: 'requiresFixed()', x:  70, y: -40, startX:  400, startY: -140},
+  {label: 'isDelicate()',    x: -180, y: -115, startX: -740, startY: -320},
+  {label: 'hasLooseParts()', x:   30, y:  180, startX:  650, startY:  320},
+  {label: 'requiresFixed()', x:  180, y: -115, startX:  740, startY: -260},
 ];
+
+function buildGlobe() {
+  const geom = new SphereGeometry(GLOBE_R, 32, 20);
+  const sphereMat = new MeshBasicMaterial({color: 0x000000, transparent: true, opacity: 0});
+  const sphere = new Mesh(geom, sphereMat);
+  const lineMat = new LineBasicMaterial({color: 0xffffff, transparent: true, opacity: 0.9});
+  const edges = new LineSegments(new EdgesGeometry(geom, 1), lineMat);
+  sphere.add(edges);
+  return {sphere, lineMat};
+}
 
 export default makeScene2D(function* (view) {
   applyBackground(view);
@@ -52,9 +83,57 @@ export default makeScene2D(function* (view) {
   const root = createRef<Node>();
   view.add(<Node ref={root} />);
 
-  // ── Membrane circle ─────────────────────────────────────────────
-  const membraneScaleX = createSignal(1);
-  const membraneScaleY = createSignal(1);
+  // ── Signals driving sphere state ────────────────────────────────
+  const redness = createSignal(0);
+  const omegaBoost = createSignal(0);
+
+  // ── 3D wireframe globe ──────────────────────────────────────────
+  const scene3 = new ThreeScene();
+  const cam = new PerspectiveCamera(50, 1, 1, 4000);
+  cam.position.set(0, 0, GLOBE_CAM_Z);
+  cam.lookAt(0, 0, 0);
+
+  const {sphere: globe, lineMat} = buildGlobe();
+  scene3.add(globe);
+
+  const globeView = createThreeView({
+    width: GLOBE_VP,
+    height: GLOBE_VP,
+    scene: scene3,
+    camera: cam,
+    onRender: (renderer, s, c) => {
+      const t = view.globalTime();
+      globe.rotation.y = t * GLOBE_OMEGA * (1 + omegaBoost());
+
+      const r = redness();
+      lineMat.color.setRGB(1, 1 - r * 0.75, 1 - r * 0.92);
+
+      renderer.setClearColor(0x000000, 0);
+      renderer.clear();
+      renderer.render(s, c);
+    },
+  });
+  globeView.node.opacity(0);
+  root().add(globeView.node);
+
+  // ── Center "grab" text (sphere phase only, dissolves on transition)
+  const grabCenter = createRef<Txt>();
+  const grabCenterScale = createSignal(1);
+  root().add(
+    <Txt
+      ref={grabCenter}
+      text="grab"
+      fontFamily={Fonts.primary}
+      fontWeight={700}
+      fontSize={CENTER_FONT}
+      letterSpacing={3}
+      fill="#FFFFFF"
+      opacity={0}
+    />,
+  );
+  grabCenter().scale(() => grabCenterScale());
+
+  // ── Membrane circle (hidden until transition) ───────────────────
   const membrane = createRef<Circle>();
   root().add(
     <Circle
@@ -62,31 +141,42 @@ export default makeScene2D(function* (view) {
       width={MEMBRANE_R * 2}
       height={MEMBRANE_R * 2}
       stroke={GRAB_BORDER}
-      lineWidth={2}
+      lineWidth={3}
       fill={'rgba(100, 180, 255, 0.04)'}
       opacity={0}
-      scaleX={() => membraneScaleX()}
-      scaleY={() => membraneScaleY()}
     />,
   );
 
-  // ── Label ───────────────────────────────────────────────────────
-  const grabLabel = createRef<Txt>();
-  root().add(
-    <Txt
-      ref={grabLabel}
-      text="grab()"
-      y={MEMBRANE_R + 40}
-      fontFamily={Fonts.primary}
-      fontWeight={700}
-      fontSize={28}
-      letterSpacing={2}
-      fill={TEXT_MUTED}
-      opacity={0}
-    />,
-  );
+  // ── Foreign output shapes (orange squares, axis-aligned) ────────
+  // Rendered first so red diamonds layer above without occluding blue dots.
+  const foreignRefs = FOREIGN_OPS.map(() => createRef<Rect>());
+  const foreignLabels = FOREIGN_OPS.map(() => createRef<Txt>());
+  for (let i = 0; i < FOREIGN_OPS.length; i++) {
+    const op = FOREIGN_OPS[i];
+    root().add(
+      <Rect
+        ref={foreignRefs[i]}
+        x={op.startX} y={op.startY}
+        width={36} height={36}
+        fill={FOREIGN_COLOR}
+        radius={4}
+        opacity={0}
+      />,
+    );
+    root().add(
+      <Txt
+        ref={foreignLabels[i]}
+        text={op.label}
+        x={op.startX} y={op.startY + 40}
+        fontFamily={Fonts.code}
+        fontSize={OPS_FONT}
+        fill={FOREIGN_COLOR}
+        opacity={0}
+      />,
+    );
+  }
 
-  // ── Own operations (blue dots) ──────────────────────────────────
+  // ── Own operations (blue dots) — layered ABOVE foreign squares ─
   const ownDots = OWN_OPS.map(() => createRef<Circle>());
   const ownLabels = OWN_OPS.map(() => createRef<Txt>());
   for (let i = 0; i < OWN_OPS.length; i++) {
@@ -104,45 +194,17 @@ export default makeScene2D(function* (view) {
       <Txt
         ref={ownLabels[i]}
         text={op.label}
-        x={op.x} y={op.y + DOT_R + 14}
+        x={op.x} y={op.y + DOT_R + 22}
         fontFamily={Fonts.code}
-        fontSize={12}
+        fontSize={OPS_FONT}
         fill={TEXT_DIM}
         opacity={0}
       />,
     );
   }
 
-  // ── Foreign output shapes (orange squares) ──────────────────────
-  const foreignRefs = FOREIGN_OPS.map(() => createRef<Rect>());
-  const foreignLabels = FOREIGN_OPS.map(() => createRef<Txt>());
-  for (let i = 0; i < FOREIGN_OPS.length; i++) {
-    const op = FOREIGN_OPS[i];
-    root().add(
-      <Rect
-        ref={foreignRefs[i]}
-        x={op.startX} y={op.startY}
-        width={22} height={22}
-        fill={FOREIGN_COLOR}
-        radius={3}
-        opacity={0}
-        rotation={45}
-      />,
-    );
-    root().add(
-      <Txt
-        ref={foreignLabels[i]}
-        text={op.label}
-        x={op.startX} y={op.startY + 24}
-        fontFamily={Fonts.code}
-        fontSize={12}
-        fill={FOREIGN_COLOR}
-        opacity={0}
-      />,
-    );
-  }
-
-  // ── Foreign rule shapes (red diamonds, larger) ──────────────────
+  // ── Foreign rule shapes (red diamonds) — placed in outer ring so
+  //    they don't overlap blue dots or orange squares on arrival.
   const rulesRefs = RULES_OPS.map(() => createRef<Rect>());
   const rulesLabels = RULES_OPS.map(() => createRef<Txt>());
   for (let i = 0; i < RULES_OPS.length; i++) {
@@ -151,9 +213,9 @@ export default makeScene2D(function* (view) {
       <Rect
         ref={rulesRefs[i]}
         x={op.startX} y={op.startY}
-        width={28} height={28}
+        width={46} height={46}
         fill={RULES_COLOR}
-        radius={2}
+        radius={3}
         opacity={0}
         rotation={45}
       />,
@@ -162,9 +224,9 @@ export default makeScene2D(function* (view) {
       <Txt
         ref={rulesLabels[i]}
         text={op.label}
-        x={op.startX} y={op.startY + 28}
+        x={op.startX} y={op.startY + 48}
         fontFamily={Fonts.code}
-        fontSize={12}
+        fontSize={OPS_FONT}
         fill={RULES_COLOR}
         opacity={0}
       />,
@@ -172,12 +234,37 @@ export default makeScene2D(function* (view) {
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // Act 1 — membrane + own operations appear
+  // Act 0 — sphere prelude: rotating globe with "grab" center
   // ═══════════════════════════════════════════════════════════════
   yield* all(
-    membrane().opacity(1, 0.8, easeOutCubic),
-    grabLabel().opacity(1, 0.8, easeOutCubic),
+    globeView.node.opacity(1, 0.9, easeOutCubic),
+    grabCenter().opacity(1, 0.9, easeOutCubic),
   );
+  yield* waitFor(1.4);
+
+  yield* all(
+    redness(1, 1.3, easeInOutCubic),
+    omegaBoost(3, 1.3, easeInCubic),
+    grabCenter().fill('#FF3A2E', 1.1, easeInOutCubic),
+    grabCenterScale(1.25, 1.0, easeInOutCubic),
+  );
+  yield* waitFor(0.5);
+
+  // ═══════════════════════════════════════════════════════════════
+  // Act 0b — seamless transition: sphere silhouette becomes membrane,
+  //          center "grab" text dissolves in place
+  // ═══════════════════════════════════════════════════════════════
+  yield* all(
+    globeView.node.opacity(0, 0.9, easeInCubic),
+    omegaBoost(0, 0.9, easeInOutCubic),
+    redness(0, 0.9, easeInOutCubic),
+    grabCenter().opacity(0, 0.8, easeInCubic),
+    membrane().opacity(1, 0.9, easeOutCubic),
+  );
+
+  // ═══════════════════════════════════════════════════════════════
+  // Act 1 — own operations appear inside membrane
+  // ═══════════════════════════════════════════════════════════════
   yield* all(
     ...ownDots.map((d, i) =>
       chain(waitFor(i * 0.15), all(
@@ -186,12 +273,11 @@ export default makeScene2D(function* (view) {
       )),
     ),
   );
-  yield* waitFor(1.5);
+  yield* waitFor(1.3);
 
   // ═══════════════════════════════════════════════════════════════
-  // Act 2 — foreign outputs appear outside, then drift into membrane
+  // Act 2 — foreign outputs appear outside, drift into membrane
   // ═══════════════════════════════════════════════════════════════
-  // Appear outside
   yield* all(
     ...foreignRefs.map((r, i) => chain(
       waitFor(i * 0.2),
@@ -203,34 +289,31 @@ export default makeScene2D(function* (view) {
   );
   yield* waitFor(0.6);
 
-  // Drift through the membrane
   yield* all(
     ...foreignRefs.map((r, i) => all(
       r().x(FOREIGN_OPS[i].x, 1.2, easeInOutCubic),
       r().y(FOREIGN_OPS[i].y, 1.2, easeInOutCubic),
-      r().rotation(0, 1.2, easeInOutCubic),
     )),
     ...foreignLabels.map((l, i) => all(
       l().x(FOREIGN_OPS[i].x, 1.2, easeInOutCubic),
-      l().y(FOREIGN_OPS[i].y + 24, 1.2, easeInOutCubic),
+      l().y(FOREIGN_OPS[i].y + 40, 1.2, easeInOutCubic),
       l().opacity(0, 0.5, easeInCubic),
     )),
   );
 
-  // Membrane flickers on penetration
   yield* all(
-    membrane().stroke(FOREIGN_COLOR, 0.15, linear),
-    membrane().lineWidth(3, 0.15, linear),
+    membrane().stroke(FOREIGN_COLOR, 0.6, easeInOutCubic),
+    membrane().lineWidth(5, 0.6, easeInOutCubic),
   );
   yield* all(
-    membrane().stroke(GRAB_BORDER, 0.3, easeOutCubic),
-    membrane().lineWidth(2, 0.3, easeOutCubic),
+    membrane().stroke(GRAB_BORDER, 0.9, easeInOutCubic),
+    membrane().lineWidth(3, 0.9, easeInOutCubic),
   );
 
-  yield* waitFor(1.2);
+  yield* waitFor(1.1);
 
   // ═══════════════════════════════════════════════════════════════
-  // Act 3 — foreign rules appear and invade
+  // Act 3 — foreign rules appear and invade (non-overlapping targets)
   // ═══════════════════════════════════════════════════════════════
   yield* all(
     ...rulesRefs.map((r, i) => chain(
@@ -243,7 +326,6 @@ export default makeScene2D(function* (view) {
   );
   yield* waitFor(0.6);
 
-  // Rules push in — membrane deforms
   yield* all(
     ...rulesRefs.map((r, i) => all(
       r().x(RULES_OPS[i].x, 1.0, easeInOutCubic),
@@ -251,30 +333,23 @@ export default makeScene2D(function* (view) {
     )),
     ...rulesLabels.map((l, i) => all(
       l().x(RULES_OPS[i].x, 1.0, easeInOutCubic),
-      l().y(RULES_OPS[i].y + 28, 1.0, easeInOutCubic),
+      l().y(RULES_OPS[i].y + 48, 1.0, easeInOutCubic),
       l().opacity(0, 0.4, easeInCubic),
     )),
-    // membrane deforms under pressure
-    membraneScaleX(1.25, 1.0, easeInOutCubic),
-    membraneScaleY(0.85, 1.0, easeInOutCubic),
     membrane().stroke(RULES_COLOR, 0.8, easeInOutCubic),
-    membrane().lineWidth(2.5, 0.8, easeInOutCubic),
+    membrane().lineWidth(4, 0.8, easeInOutCubic),
   );
 
-  // Membrane flickers hard
-  yield* membrane().lineWidth(4, 0.1, linear);
-  yield* membrane().lineWidth(2.5, 0.2, easeOutCubic);
+  yield* membrane().lineWidth(6, 0.1, linear);
+  yield* membrane().lineWidth(4, 0.2, easeOutCubic);
 
-  yield* waitFor(1.5);
+  yield* waitFor(1.3);
 
   // ═══════════════════════════════════════════════════════════════
-  // Act 4 — settle: membrane stays deformed, label dims
+  // Act 4 — settle: membrane stays deformed, fill tints red
   // ═══════════════════════════════════════════════════════════════
-  yield* all(
-    grabLabel().fill(TEXT_DIM, 0.6, easeInOutCubic),
-    membrane().fill('rgba(255, 71, 87, 0.06)', 0.6, easeInOutCubic),
-  );
-  yield* waitFor(1.5);
+  yield* membrane().fill('rgba(255, 71, 87, 0.08)', 0.6, easeInOutCubic);
+  yield* waitFor(1.4);
 
   // ═══════════════════════════════════════════════════════════════
   // Act 5 — fade

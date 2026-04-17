@@ -24,7 +24,9 @@
       "WebFetch(domain:sketchfab.com)",
       "Bash(cp:*)",
       "Bash(grep -r \"xOffset\\\\|x:\" /c/Users/black/IdeaProjects/explainor-canvas/motion-canvas/src/scenes/*.tsx)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Read(//c/Users/black/AppData/Local/Temp/mc_screenshots/**)",
+      "Bash(netstat -ano)"
     ]
   }
 }

@@ -73,6 +73,7 @@ const STANDARD_GRAB_EXP = `public class StandardGrab implements GrabStrategy {
         close(Force.MEDIUM);
 
         GripConfidence confidence = readGripConfidence();
+
         boolean stable =
             confidence == GripConfidence.HIGH ||
             confidence == GripConfidence.MEDIUM;
@@ -170,42 +171,35 @@ const RULES_ECHOES = [
   {cls: 2, line: 15, text: 'requiresFixedPose()'},
 ];
 
-// Per-class lines with foreign rule methods (for cube.dot red coloring)
-const RULES_LINES = [
-  [12, 17],  // Standard: isDelicate, requiresOrientation+hasLooseParts
-  [11, 16],  // Soft: isDelicate+hasLooseParts, requiresOrientation
-  [10, 15],  // Firm: isHeavy, requiresFixedPose
-];
-
-// Per-class lines with cube.orientation() (for cube.dot orange coloring)
-const ORIENT_LINES = [18, 17, 17]; // Standard, Soft, Firm
-
 // ══════════════════════════════════════════════════════════════════════
 // Layout
 // ══════════════════════════════════════════════════════════════════════
 
-const CLASS_X = [-660, -20, 620];
-// Phase 1 alignment (13/15/14 lines, tallest=Soft 15)
-const CLASS_Y = [23, 50, 36.5];
-// Phase 2 alignment (28/27/26 lines, tallest=Standard 28) + 130px shift down
-const CLASS_Y_EXP = [130, 116.5, 103];
+const CLASS_X = [-680, -40, 560];
+// Tops align at Y_TOP=-270 (CLASS_Y = Y_TOP + startY_abs per class).
+// Phase 1: 13/15/14 lines. Phase 2 expanded bottoms all ≤ 460.
+const CLASS_Y = [-108, -81, -94.5];
 
-const CODE_FONT_SIZE = 18;
+const CODE_FONT_SIZE = 16;
 const CODE_BLOCK_WIDTH = 540;
 
-const TRANSFER_Y = -310;
-const RULES_Y = -450;
+// Two cards side-by-side at top
+const CARDS_Y        = -400;
+const TRANSFER_X     = -300;
+const TRANSFER_W     = 620;
+const RULES_X        = 350;
+const RULES_W        = 400;
+const CARD_H         = 120;
+const CARD_TITLE_Y   = -85;
 
 // ══════════════════════════════════════════════════════════════════════
 // Palette
 // ══════════════════════════════════════════════════════════════════════
 
-const VAR_LIGHT    = 'rgba(244, 241, 235, 0.96)';
-const TYPE_CLEAN   = 'rgba(220, 215, 255, 0.80)';
-const METHOD_COLOR = DryFiltersV3CodeTheme.method;
-const KW_COLOR     = DryFiltersV3CodeTheme.keyword;
-const FOREIGN      = '#FF9F43';
-const RULES_COLOR  = '#FF4757';
+const FOREIGN         = '#FF9F43';
+const RULES_COLOR     = '#FF4757';
+const CONFIDENCE_BLUE = 'rgba(100, 180, 255, 0.95)';
+const TYPE_CLEAN      = 'rgba(220, 215, 255, 0.80)';
 
 // ══════════════════════════════════════════════════════════════════════
 // Color rules
@@ -217,66 +211,23 @@ const CUSTOM_TYPES = [
   'GripConfidence', 'MotionProfile', 'Orientation',
 ];
 
-const COLOR_RULES: ColorRule[] = [
-  {match: /^public$/,         color: KW_COLOR},
-  {match: /^class$/,          color: KW_COLOR},
-  {match: /^implements$/,     color: KW_COLOR},
-  {match: /^new$/,            color: KW_COLOR},
-  {match: /^return$/,         color: KW_COLOR},
-  {match: /^Cube$/,            color: TYPE_CLEAN},
-  {match: /^Force$/,           color: TYPE_CLEAN},
-  {match: /^GrabStrategy$/,    color: TYPE_CLEAN},
-  {match: /^GrabResult$/,      color: TYPE_CLEAN},
-  {match: /^StandardGrab$/,    color: TYPE_CLEAN},
-  {match: /^SoftGrab$/,        color: TYPE_CLEAN},
-  {match: /^FirmGrab$/,        color: TYPE_CLEAN},
-  {match: /^GripConfidence$/,  color: TYPE_CLEAN},
-  {match: /^MotionProfile$/,   color: TYPE_CLEAN},
-  {match: /^Orientation$/,     color: TYPE_CLEAN},
-  {match: 'cube',             color: VAR_LIGHT},
-  {match: 'position',         color: VAR_LIGHT},
-  {match: 'approach',         color: METHOD_COLOR, onlyTypes: ['method']},
-  {match: 'approachSlowly',   color: METHOD_COLOR, onlyTypes: ['method']},
-  {match: 'preAlign',         color: METHOD_COLOR, onlyTypes: ['method']},
-  {match: 'close',            color: METHOD_COLOR, onlyTypes: ['method']},
-  {match: 'lockWrist',        color: METHOD_COLOR, onlyTypes: ['method']},
-  {match: 'waitForSensor',    color: METHOD_COLOR, onlyTypes: ['method']},
-  {match: 'adjustToFeedback', color: METHOD_COLOR, onlyTypes: ['method']},
-  {match: 'orientation',      color: METHOD_COLOR, onlyTypes: ['method']},
-];
-
-const COLOR_RULES_EXP: ColorRule[] = [
-  ...COLOR_RULES,
-  {match: /^boolean$/,          color: KW_COLOR},
-  {match: 'stable',             color: VAR_LIGHT},
-  {match: 'confidence',         color: VAR_LIGHT},
-  {match: 'motionProfile',      color: VAR_LIGHT},
-  {match: 'readGripConfidence', color: METHOD_COLOR, onlyTypes: ['method']},
-  {match: 'isDelicate',         color: METHOD_COLOR, onlyTypes: ['method']},
-  {match: 'hasLooseParts',      color: METHOD_COLOR, onlyTypes: ['method']},
-  {match: 'requiresOrientation', color: METHOD_COLOR, onlyTypes: ['method']},
-  {match: 'requiresFixedPose',  color: METHOD_COLOR, onlyTypes: ['method']},
-  {match: 'isHeavy',            color: METHOD_COLOR, onlyTypes: ['method']},
-];
-
 const FOREIGN_RULES: ColorRule[] = [
   {match: /^MotionProfile$/, color: FOREIGN},
   {match: /^Orientation$/,   color: FOREIGN},
-  {match: /^LINEAR$/,        color: FOREIGN},
-  {match: /^CAUTIOUS$/,      color: FOREIGN},
-  {match: /^FAST$/,          color: FOREIGN},
-  {match: /^ANY$/,           color: FOREIGN},
-  {match: /^LOCKED$/,        color: FOREIGN},
-  {match: /^FREE$/,          color: FOREIGN},
   {match: 'orientation',     color: FOREIGN, onlyTypes: ['method']},
+  {match: /^(LINEAR|CAUTIOUS|FAST|FREE|LOCKED|ANY)$/, color: FOREIGN, onlyTypes: ['constant']},
 ];
 
-const RULES_RULES: ColorRule[] = [
-  {match: 'isDelicate',                      color: RULES_COLOR, onlyTypes: ['method']},
-  {match: 'hasLooseParts',                    color: RULES_COLOR, onlyTypes: ['method']},
-  {match: 'requiresOrientation',  color: RULES_COLOR, onlyTypes: ['method']},
-  {match: 'requiresFixedPose',                color: RULES_COLOR, onlyTypes: ['method']},
-  {match: 'isHeavy',                          color: RULES_COLOR, onlyTypes: ['method']},
+const TYPE_CLEAN_RULES: ColorRule[] = [
+  ...CUSTOM_TYPES.map(t => ({
+    match: new RegExp(`^${t}$`),
+    color: TYPE_CLEAN,
+  } as ColorRule)),
+];
+
+// Colors every token on the line — line-scoped in colorizeAnimated(l, l, …).
+const CONFIDENCE_RULES: ColorRule[] = [
+  {match: /./, color: CONFIDENCE_BLUE},
 ];
 
 const CUBE_DOT_RULES = (color: string): ColorRule[] => [
@@ -332,30 +283,29 @@ export default makeScene2D(function* (view) {
       noClip: true,
     });
     mc.mount(wrappers[i]());
-    mc.colorize(COLOR_RULES);
     mc.node.opacity(1);
     mcs.push(mc);
   }
 
-  // ── Transfer card ──────────────────────────────────────────────
+  // ── Transfer card (left) ───────────────────────────────────────
   const transferGroup = createRef<Node>();
   stage().add(
-    <Node ref={transferGroup} x={-20} y={TRANSFER_Y} opacity={0}>
-      <Rect width={660} height={120} stroke={FOREIGN}
+    <Node ref={transferGroup} x={TRANSFER_X} y={CARDS_Y} opacity={0}>
+      <Rect width={TRANSFER_W} height={CARD_H} stroke={FOREIGN}
         strokeWidth={1.5} radius={12} opacity={0.4} />
-      <Txt text="transfer" y={-85}
+      <Txt text="transfer" y={CARD_TITLE_Y}
         fontFamily={Fonts.primary} fontWeight={700}
         fontSize={34} letterSpacing={3} fill={FOREIGN} />
     </Node>,
   );
 
-  // ── Transfer rules card (hidden until Phase 2) ─────────────────
+  // ── Transfer rules card (right, hidden until Phase 2) ──────────
   const rulesGroup = createRef<Node>();
   stage().add(
-    <Node ref={rulesGroup} x={-20} y={RULES_Y} opacity={0}>
-      <Rect width={660} height={90} stroke={RULES_COLOR}
+    <Node ref={rulesGroup} x={RULES_X} y={CARDS_Y} opacity={0}>
+      <Rect width={RULES_W} height={CARD_H} stroke={RULES_COLOR}
         strokeWidth={1.5} radius={12} opacity={0.4} />
-      <Txt text="transfer rules" y={-68}
+      <Txt text="transfer rules" y={CARD_TITLE_Y}
         fontFamily={Fonts.primary} fontWeight={700}
         fontSize={34} letterSpacing={3} fill={RULES_COLOR} />
     </Node>,
@@ -364,6 +314,7 @@ export default makeScene2D(function* (view) {
   // ═══════════════════════════════════════════════════════════════
   // Act 1 — three implementations appear
   // ═══════════════════════════════════════════════════════════════
+  mcs.forEach(mc => mc.colorize(TYPE_CLEAN_RULES));
   yield* all(
     ...wrappers.map((w, i) =>
       chain(waitFor(i * 0.18), w().opacity(1, 0.8, easeOutCubic)),
@@ -401,8 +352,9 @@ export default makeScene2D(function* (view) {
 
   yield* transferGroup().opacity(1, 0.5, easeOutCubic);
 
-  const TROW = [-25, 0, 25];
-  const TCOL = [-300, 20];
+  const TROW = [-22, 8, 38];
+  // Two columns inside transfer card (global coords, left-anchored echoes)
+  const TCOL = [TRANSFER_X - TRANSFER_W / 2 + 30, TRANSFER_X - 20];
   const flyAnims = [];
   echoIdx = 0;
   for (let i = 0; i < TRANSFER_META.length; i++) {
@@ -413,7 +365,7 @@ export default makeScene2D(function* (view) {
         all(
           ref().opacity(1, 0.3, easeOutCubic),
           ref().x(TCOL[j], 1.0, easeInOutCubic),
-          ref().y(TRANSFER_Y + TROW[i], 1.0, easeInOutCubic),
+          ref().y(CARDS_Y + TROW[i], 1.0, easeInOutCubic),
         ),
       ));
     }
@@ -421,55 +373,27 @@ export default makeScene2D(function* (view) {
   yield* all(...flyAnims);
   yield* waitFor(1.0);
 
-  // GripConfidence blink
-  const confNodes = [
-    mcs[0].getLine(7)!.node,
-    mcs[1].getLine(9)!.node,
-    mcs[2].getLine(8)!.node,
-  ];
-  for (let pulse = 0; pulse < 2; pulse++) {
-    yield* all(...confNodes.map(n => n.opacity(0.15, 0.2)));
-    yield* all(...confNodes.map(n => n.opacity(1, 0.2)));
-  }
-  yield* waitFor(0.8);
-
-  // ═══════════════════════════════════════════════════════════════
-  // Act 4 — code morphs to expanded versions
-  // ═══════════════════════════════════════════════════════════════
-  const EXP_SOURCES = [STANDARD_GRAB_EXP, SOFT_GRAB_EXP, FIRM_GRAB_EXP];
+  // GripConfidence — one blink, then turns blue with glow (echoes the membrane circle)
+  const confLines: [number, number][] = [[0, 7], [1, 9], [2, 8]];
+  const confNodes = confLines.map(([m, l]) => mcs[m].getLine(l)!.node);
+  yield* all(...confNodes.map(n => n.opacity(0.28, 0.22)));
+  yield* all(...confNodes.map(n => n.opacity(1, 0.22)));
   yield* all(
-    ...wrappers.map((w, i) => w().y(CLASS_Y_EXP[i], 1.0, easeInOutCubic)),
-    ...mcs.map((mc, i) => mc.morphTo(EXP_SOURCES[i], MORPH_OPTS)),
+    ...confLines.flatMap(([m, l]) => [
+      mcs[m].colorizeAnimated(l, l, 0.5, CONFIDENCE_RULES),
+      mcs[m].getLine(l)!.setTokensGlow([''], 12, CONFIDENCE_BLUE, 0.5),
+    ]),
   );
-
-  // Instant re-color: base palette + orange on transfer outputs
-  mcs.forEach(mc => mc.colorize(COLOR_RULES_EXP));
-  mcs.forEach(mc => mc.colorize(FOREIGN_RULES));
-  // cube.orientation() lines: cube+dot orange
-  for (let i = 0; i < 3; i++) {
-    const line = mcs[i].getLine(ORIENT_LINES[i]);
-    if (line) {
-      line.colorizeByRule('cube', FOREIGN);
-      line.colorizeByRule(/^\.$/, FOREIGN);
-    }
-  }
-
   yield* waitFor(0.6);
 
   // ═══════════════════════════════════════════════════════════════
-  // Act 5 — foreign rule methods turn red
+  // Act 4 — code morphs to expanded versions (standard palette, no re-color)
   // ═══════════════════════════════════════════════════════════════
-  const redAnims = [
-    ...mcs.map(mc => mc.colorizeAnimated(0, mc.lineCount - 1, 0.6, RULES_RULES)),
-  ];
-  // cube.dot red on rule lines
-  for (let i = 0; i < 3; i++) {
-    for (const ln of RULES_LINES[i]) {
-      redAnims.push(mcs[i].colorizeAnimated(ln, ln, 0.6, CUBE_DOT_RULES(RULES_COLOR)));
-    }
-  }
-  yield* all(...redAnims);
-  yield* waitFor(1.0);
+  const EXP_SOURCES = [STANDARD_GRAB_EXP, SOFT_GRAB_EXP, FIRM_GRAB_EXP];
+  yield* all(
+    ...mcs.map((mc, i) => mc.morphTo(EXP_SOURCES[i], MORPH_OPTS)),
+  );
+  yield* waitFor(0.8);
 
   // ═══════════════════════════════════════════════════════════════
   // Act 6 — "transfer rules" card + echoes
@@ -480,7 +404,7 @@ export default makeScene2D(function* (view) {
     stage().add(
       <Txt ref={rulesEchoRefs[i]} text={re.text}
         x={CLASS_X[re.cls]}
-        y={CLASS_Y_EXP[re.cls] + mcs[re.cls].getLineSceneY(re.line)}
+        y={CLASS_Y[re.cls] + mcs[re.cls].getLineSceneY(re.line)}
         fontFamily={Fonts.code} fontSize={CODE_FONT_SIZE}
         fill={RULES_COLOR} opacity={0} offset={[-1, 0]}
       />,
@@ -489,14 +413,15 @@ export default makeScene2D(function* (view) {
 
   yield* rulesGroup().opacity(1, 0.5, easeOutCubic);
 
-  const RROW = [-20, 0, 20];
+  const RROW = [-22, 8, 38];
+  const RCOL = RULES_X - RULES_W / 2 + 30;
   yield* all(
     ...rulesEchoRefs.map((ref, i) => chain(
       waitFor(i * 0.15),
       all(
         ref().opacity(1, 0.3, easeOutCubic),
-        ref().x(-300, 1.0, easeInOutCubic),
-        ref().y(RULES_Y + RROW[i], 1.0, easeInOutCubic),
+        ref().x(RCOL, 1.0, easeInOutCubic),
+        ref().y(CARDS_Y + RROW[i], 1.0, easeInOutCubic),
       ),
     )),
   );
