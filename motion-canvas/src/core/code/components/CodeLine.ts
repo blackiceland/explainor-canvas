@@ -729,11 +729,16 @@ export class CodeLine {
 
     /** Мгновенно окрашивает токены, соответствующие правилу. */
     public colorizeByRule(match: string | RegExp, color: string, onlyTypes?: string[]): void {
+        let groupMatches = false;
+        let groupType = '';
         for (const tokenData of this.tokensData) {
-            const matches = typeof match === 'string'
-                ? tokenData.text === match || tokenData.text.includes(match)
-                : match.test(tokenData.text);
-            if (matches && (!onlyTypes || onlyTypes.includes(tokenData.type))) {
+            if (tokenData.text.length > 0) {
+                groupMatches = typeof match === 'string'
+                    ? tokenData.text === match || tokenData.text.includes(match)
+                    : match.test(tokenData.text);
+                groupType = tokenData.type;
+            }
+            if (groupMatches && (!onlyTypes || onlyTypes.includes(groupType))) {
                 tokenData.ref().fill(color);
             }
         }
@@ -742,11 +747,16 @@ export class CodeLine {
     /** Плавно окрашивает токены, соответствующие правилу. Возвращает массив анимаций. */
     public colorizeByRuleAnimated(match: string | RegExp, color: string, duration: number = 0.4, onlyTypes?: string[]): ThreadGenerator[] {
         const anims: ThreadGenerator[] = [];
+        let groupMatches = false;
+        let groupType = '';
         for (const tokenData of this.tokensData) {
-            const matches = typeof match === 'string'
-                ? tokenData.text === match || tokenData.text.includes(match)
-                : match.test(tokenData.text);
-            if (matches && (!onlyTypes || onlyTypes.includes(tokenData.type))) {
+            if (tokenData.text.length > 0) {
+                groupMatches = typeof match === 'string'
+                    ? tokenData.text === match || tokenData.text.includes(match)
+                    : match.test(tokenData.text);
+                groupType = tokenData.type;
+            }
+            if (groupMatches && (!onlyTypes || onlyTypes.includes(groupType))) {
                 anims.push(tokenData.ref().fill(color, duration, easeInOutCubic));
             }
         }

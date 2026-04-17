@@ -396,6 +396,23 @@ export default makeScene2D(function* (view) {
   yield* waitFor(0.8);
 
   // ═══════════════════════════════════════════════════════════════
+  // Act 5 — restore foreign orange + highlight rule predicates in red
+  // ═══════════════════════════════════════════════════════════════
+  mcs.forEach(mc => mc.colorize(TYPE_CLEAN_RULES));
+  yield* all(
+    ...mcs.map(mc => mc.colorizeAnimated(0, mc.lineCount - 1, 0.6, FOREIGN_RULES)),
+  );
+  yield* waitFor(1.2);
+  const RULE_PREDICATES: ColorRule[] = [
+    {match: /^(isDelicate|hasLooseParts|requiresOrientation|requiresFixedPose|isHeavy)$/,
+     color: RULES_COLOR, onlyTypes: ['method']},
+  ];
+  yield* all(
+    ...mcs.map(mc => mc.colorizeAnimated(0, mc.lineCount - 1, 0.6, RULE_PREDICATES)),
+  );
+  yield* waitFor(1.0);
+
+  // ═══════════════════════════════════════════════════════════════
   // Act 6 — "transfer rules" card + echoes
   // ═══════════════════════════════════════════════════════════════
   const rulesEchoRefs = RULES_ECHOES.map(() => createRef<Txt>());

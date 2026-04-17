@@ -124,7 +124,8 @@ export default makeProject({
         // grabStrategyOrbitSceneEn,
         // problemsYouDontHaveCostSceneEn,
         // fromTheStartSceneEn,
+        foreignResponsibilityShapesSceneEn,
         foreignResponsibilityInvasionSceneEn,
-        foreignResponsibilityShapesSceneEn
+
     ]
 })
