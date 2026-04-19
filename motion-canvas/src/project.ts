@@ -41,6 +41,8 @@ import problemsYouDontHaveWrongShelfSceneEn from "./scenes/problemsYouDontHaveWr
 import wrongCenterCollapseSceneEn from "./scenes/wrongCenterCollapseSceneEn?scene";
 import foreignResponsibilityInvasionSceneEn from "./scenes/foreignResponsibilityInvasionSceneEn?scene";
 import foreignResponsibilityShapesSceneEn from "./scenes/foreignResponsibilityShapesSceneEn?scene";
+import separationOfConcernsQuoteSceneRu from "./scenes/separationOfConcernsQuoteSceneRu?scene";
+import whyItIsAProblemSceneEn from "./scenes/whyItIsAProblemSceneEn?scene";
 
 export default makeProject({
     experimentalFeatures: true,
@@ -124,8 +126,10 @@ export default makeProject({
         // grabStrategyOrbitSceneEn,
         // problemsYouDontHaveCostSceneEn,
         // fromTheStartSceneEn,
-        foreignResponsibilityShapesSceneEn,
-        foreignResponsibilityInvasionSceneEn,
+        // foreignResponsibilityShapesSceneEn,
+        // foreignResponsibilityInvasionSceneEn,
+        // separationOfConcernsQuoteSceneRu,
+        whyItIsAProblemSceneEn,
 
     ]
 })
