@@ -43,6 +43,8 @@ import foreignResponsibilityInvasionSceneEn from "./scenes/foreignResponsibility
 import foreignResponsibilityShapesSceneEn from "./scenes/foreignResponsibilityShapesSceneEn?scene";
 import separationOfConcernsQuoteSceneRu from "./scenes/separationOfConcernsQuoteSceneRu?scene";
 import whyItIsAProblemSceneEn from "./scenes/whyItIsAProblemSceneEn?scene";
+import prematureAbstractionTakeSceneEn from "./scenes/prematureAbstractionTakeSceneEn?scene";
+import prematureAbstractionQuoteSceneEn from "./scenes/prematureAbstractionQuoteSceneEn?scene";
 
 export default makeProject({
     experimentalFeatures: true,
@@ -129,7 +131,9 @@ export default makeProject({
         // foreignResponsibilityShapesSceneEn,
         // foreignResponsibilityInvasionSceneEn,
         // separationOfConcernsQuoteSceneRu,
-        whyItIsAProblemSceneEn,
+        // whyItIsAProblemSceneEn,
+        // prematureAbstractionTakeSceneEn,
+        prematureAbstractionQuoteSceneEn,
 
     ]
 })
