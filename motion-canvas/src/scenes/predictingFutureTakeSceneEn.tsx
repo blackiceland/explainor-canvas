@@ -1,5 +1,5 @@
 import {makeScene2D, Rect, Txt} from '@motion-canvas/2d';
-import {all, createSignal, easeInOutCubic, waitFor} from '@motion-canvas/core';
+import {all, createSignal, easeInCubic, easeInOutCubic, waitFor} from '@motion-canvas/core';
 import {
   AmbientLight,
   Bone,
@@ -30,6 +30,7 @@ const BONE_NAMES: Record<string, string> = {
   turret:   'Bone001_01',
   shoulder: 'Bone003_03',
   elbow:    'Bone005_05',
+  forearm:  'Bone006_06',
   wrist:    'Bone007_07',
   hand:     'Bone008_08',
 };
@@ -40,7 +41,7 @@ const FINGER_NAMES = {
 };
 
 const JOINT_AXIS: Record<string, 'x' | 'y'> = {
-  base: 'y', turret: 'y', shoulder: 'x', elbow: 'x', wrist: 'x', hand: 'x',
+  base: 'y', turret: 'y', shoulder: 'x', elbow: 'x', forearm: 'x', wrist: 'x', hand: 'x',
 };
 
 function findBone(root: Bone, name: string): Bone | null {
@@ -144,7 +145,7 @@ export default makeScene2D(function* (view) {
 
   // Cool cyan fill from viewer-right — complements the warm key,
   // grazes the camera-facing side of the arm ──────────────────────────
-  const rightFill = new DirectionalLight(0x4fc8e8, 2.4);
+  const rightFill = new DirectionalLight(0x4fc8e8, 3.8);
   rightFill.position.set(2200, 550, 100);
   rightFill.target.position.set(-40, 280, 450);
   rightFill.target.updateMatrixWorld();
@@ -276,8 +277,8 @@ export default makeScene2D(function* (view) {
     color: 0x1a232c,
     emissive: 0x05222c,
     emissiveIntensity: 0.32,
-    roughness: 0.5,
-    metalness: 0.45,
+    roughness: 0.72,
+    metalness: 0.22,
     outlineColor: [0.2, 0.8, 1.0],
     outlineAlpha: 0.45,
   });
@@ -367,21 +368,56 @@ export default makeScene2D(function* (view) {
   scene3.add(ghostGltf.scene);
   const ghostRoot = ghostGltf.scene as Object3D;
 
-  const ghostOutlineParamsRef: {alpha: number}[] = [];
+  const ghostOutlineParamsRef: {alpha: number, peak: number}[] = [];
 
-  // Blueprint-style ghost — matches the cyan wireframe look of
-  // robotArmCodeScene: translucent cyan fill, bright cyan outline ──
-  function ghostMat(): MeshBasicMaterial {
+  // Blueprint ghost with the dotArmMat pattern from robotArmCodeScene —
+  // translucent cyan + bright cyan outline + procedural dot texture ──
+  function ghostMat(isSkinned: boolean): MeshBasicMaterial {
+    const fillPeak = isSkinned ? 0.14 : 0.11;
+    const outlinePeak = isSkinned ? 0.9 : 0.75;
     const mat = new MeshBasicMaterial({
-      color: 0x00a0b8,
+      color: 0x00e5ff,
       transparent: true,
       opacity: 0,
       depthWrite: false,
     });
+    (mat as any).__fillPeak = fillPeak;
+    mat.onBeforeCompile = (shader) => {
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <uv_vertex>',
+        `
+        #include <uv_vertex>
+        vDotUv = uv;
+        `,
+      );
+      shader.vertexShader = shader.vertexShader.replace(
+        'void main() {',
+        `
+        varying vec2 vDotUv;
+        void main() {`,
+      );
+      shader.fragmentShader = shader.fragmentShader.replace(
+        'void main() {',
+        `
+        varying vec2 vDotUv;
+        void main() {`,
+      );
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <dithering_fragment>',
+        `
+        vec2 cell = mod(vDotUv * 80.0, vec2(1.0));
+        float d = length(cell - vec2(0.5));
+        float dot = 1.0 - smoothstep(0.1, 0.15, d);
+        gl_FragColor.a += dot * 0.12;
+        #include <dithering_fragment>
+        `,
+      );
+    };
     const outlineParams = {
-      thickness: 0.0028,
+      thickness: isSkinned ? 0.0025 : 0.002,
       color: [0.0, 0.9, 1.0] as [number, number, number],
       alpha: 0,
+      peak: outlinePeak,
       visible: true,
       keepAlive: true,
     };
@@ -394,9 +430,9 @@ export default makeScene2D(function* (view) {
   ghostRoot.traverse((obj: any) => {
     if (obj instanceof SkinnedMesh) {
       if (obj.skeleton) ghostSkeletonRoot = obj.skeleton.bones[0];
-      obj.material = ghostMat();
+      obj.material = ghostMat(true);
     } else if (obj instanceof Mesh) {
-      obj.material = ghostMat();
+      obj.material = ghostMat(false);
     }
   });
 
@@ -416,14 +452,17 @@ export default makeScene2D(function* (view) {
   for (const [key, bone] of Object.entries(ghostBones)) {
     if (bone) ghostInitRot[key] = bone.rotation[JOINT_AXIS[key] as 'x' | 'y'];
   }
-  // Initial wrist twist axis (Z) — real IK never touches this, but the
-  // ghost will spin it for showmanship
-  const ghostWristInitZ = ghostBones.wrist ? ghostBones.wrist.rotation.z : 0;
-  const ghostHandInitZ  = ghostBones.hand  ? ghostBones.hand.rotation.z  : 0;
+  // Extra axes real IK never touches — for ghost showmanship:
+  //   wrist Y = screw / screwdriver motion
+  //   hand X = the human-wrist-style bend nobody uses
+  const ghostWristInitY = ghostBones.wrist ? ghostBones.wrist.rotation.y : 0;
+  const ghostHandInitX  = ghostBones.hand  ? ghostBones.hand.rotation.x  : 0;
 
   // ── IK targets ────────────────────────────────────────────────────────
   const reachDeltas = solveIK(sceneRoot, bones, initRot, cubeStartPos);
-  const liftTarget = new Vector3(0, 550, 500);
+  //   Lift target swung further left (from arm's POV) and in front of
+  //   the belt (Z < beltZ).  Released cube drops OFF the belt. ──────
+  const liftTarget = new Vector3(-550, 580, 340);
   const liftDeltas = solveIK(sceneRoot, bones, initRot, liftTarget);
   const placeDeltas = solveIK(sceneRoot, bones, initRot, placeTarget);
 
@@ -435,22 +474,27 @@ export default makeScene2D(function* (view) {
   const wristDelta    = createSignal(0);
   const gripClose     = createSignal(0);
 
-  // ── Ghost arm signals — drives every joint independently, plus a
-  //    wrist TWIST axis (Z) the real IK never exercises ───────────────
+  // ── Ghost arm signals.  Includes two axes real IK never exercises:
+  //    wrist Y (screwdriver) and hand X (human-wrist-style bend) ──────
   const ghostOpacity  = createSignal(0);
   const gBase         = createSignal(0);
   const gTurret       = createSignal(0);
   const gShoulder     = createSignal(0);
   const gElbow        = createSignal(0);
+  const gForearmBend  = createSignal(0);  // X — joint between elbow and wrist
   const gWristPitch   = createSignal(0);
-  const gWristRoll    = createSignal(0);  // NEW: Z-axis twist
-  const gHandRoll     = createSignal(0);  // NEW: hand Z twist
+  const gWristScrew   = createSignal(0);  // Y-axis — screw motion
+  const gHandBend     = createSignal(0);  // hand X — unused wrist-bend joint
   const gGripClose    = createSignal(0);
 
   let cubeAttached = false;
   let cubePlaced = false;
   const cubeX = createSignal(cubeStopX);
   const cubeY = createSignal(cubeOnBeltY);
+  const cubeZ = createSignal(beltZ);
+  const cubeRotX = createSignal(0);
+  const cubeRotY = createSignal(0);
+  const cubeRotZ = createSignal(0);
   const grabBlend = createSignal(0);
   const grabOrigin = new Vector3();
   let grabBaseY = 0;
@@ -481,28 +525,30 @@ export default makeScene2D(function* (view) {
       renderer.setClearColor(0x000000, 0);
       renderer.clear();
 
-      // Ghost arm blueprint: translucent cyan fill + bright edge outline,
-      // both driven by ghostOpacity signal ─────────────────────────────
+      // Ghost arm blueprint: fill + outline alpha from signal, peak
+      // alphas differ for skinned vs static parts (matches dotArmMat).
       const go = ghostOpacity();
       ghostRoot.traverse((obj: any) => {
         if (obj.material && (obj instanceof SkinnedMesh || obj instanceof Mesh)) {
-          obj.material.opacity = go * 0.15;
+          const peak = (obj.material as any).__fillPeak ?? 0.14;
+          obj.material.opacity = go * peak;
         }
       });
-      for (const p of ghostOutlineParamsRef) p.alpha = go * 0.78;
+      for (const p of ghostOutlineParamsRef) p.alpha = go * p.peak;
       ghostRoot.visible = go > 0.001;
 
-      // Drive ghost bones independently from real arm
+      // Drive ghost bones — deltas, plus extra axes real IK never uses
       if (ghostBones.base)     ghostBones.base.rotation.y      = ghostInitRot.base     + gBase();
       if (ghostBones.turret)   ghostBones.turret.rotation.y    = ghostInitRot.turret   + gTurret();
       if (ghostBones.shoulder) ghostBones.shoulder.rotation.x  = ghostInitRot.shoulder + gShoulder();
       if (ghostBones.elbow)    ghostBones.elbow.rotation.x     = ghostInitRot.elbow    + gElbow();
+      if (ghostBones.forearm)  ghostBones.forearm.rotation.x   = ghostInitRot.forearm  + gForearmBend();
       if (ghostBones.wrist) {
         ghostBones.wrist.rotation.x = ghostInitRot.wrist + gWristPitch();
-        ghostBones.wrist.rotation.z = ghostWristInitZ + gWristRoll();
+        ghostBones.wrist.rotation.y = ghostWristInitY + gWristScrew();
       }
       if (ghostBones.hand) {
-        ghostBones.hand.rotation.z = ghostHandInitZ + gHandRoll();
+        ghostBones.hand.rotation.x = ghostHandInitX + gHandBend();
       }
       const gg = gGripClose();
       if (ghostFingers.finger1) {
@@ -527,24 +573,25 @@ export default makeScene2D(function* (view) {
       }
 
       if (cubeAttached) {
+        // Cube follows the gripper TIP.  Tip = hand + (hand - wrist) is
+        // the same formula the IK targets, so the tip lands exactly on
+        // the cube's grab position — no upward pop-up when attaching. ─
         const wp = new Vector3(), hp = new Vector3();
         bones.wrist!.getWorldPosition(wp);
         bones.hand!.getWorldPosition(hp);
         const tip = hp.clone().add(hp.clone().sub(wp));
         const b = grabBlend();
         cube3d.position.lerpVectors(grabOrigin, tip, b);
-        const dir = hp.clone().sub(wp);
-        const horiz = Math.sqrt(dir.x * dir.x + dir.z * dir.z);
-        const tilt = Math.atan2(dir.y, horiz);
-        if (!grabTiltReady) {
-          grabTilt = tilt;
-          grabTiltReady = true;
-        }
-        cube3d.rotation.y = (baseDelta() + turretDelta()) - grabBaseY;
-        cube3d.rotation.x = -(tilt - grabTilt);
+        // Align cube orientation to hand bone — cube is "glued" to the
+        // gripper, so it tracks every pitch/yaw/roll the arm applies.
+        bones.hand!.getWorldQuaternion(cube3d.quaternion);
       } else if (!cubePlaced) {
         cube3d.position.x = cubeX();
         cube3d.position.y = cubeY();
+        cube3d.position.z = cubeZ();
+        cube3d.rotation.x = cubeRotX();
+        cube3d.rotation.y = cubeRotY();
+        cube3d.rotation.z = cubeRotZ();
       }
 
       outline.render(s, c);
@@ -602,6 +649,51 @@ export default makeScene2D(function* (view) {
   });
   view.add(subtitle3);
 
+  // ── Animated film grain — pre-generate a noise atlas bigger than the
+  //    screen, then blit a different sub-region each frame by overriding
+  //    the Rect's draw method.  Cheap, guaranteed-animated. ──────────
+  const noiseCanvas = document.createElement('canvas');
+  noiseCanvas.width = 2560;
+  noiseCanvas.height = 1440;
+  {
+    const nctx = noiseCanvas.getContext('2d')!;
+    const img = nctx.createImageData(noiseCanvas.width, noiseCanvas.height);
+    for (let i = 0; i < img.data.length; i += 4) {
+      const v = Math.random() * 255;
+      img.data[i] = v;
+      img.data[i + 1] = v;
+      img.data[i + 2] = v;
+      img.data[i + 3] = 255;
+    }
+    nctx.putImageData(img, 0, 0);
+  }
+
+  const grain = new Rect({
+    width: Screen.width,
+    height: Screen.height,
+  });
+  const origGrainDraw = (grain as any).draw.bind(grain);
+  (grain as any).draw = function (ctx: CanvasRenderingContext2D) {
+    const maxDx = noiseCanvas.width - Screen.width;
+    const maxDy = noiseCanvas.height - Screen.height;
+    const dx = Math.floor(Math.random() * maxDx);
+    const dy = Math.floor(Math.random() * maxDy);
+    const savedAlpha = ctx.globalAlpha;
+    const savedComp = ctx.globalCompositeOperation;
+    ctx.globalAlpha = 0.07;
+    ctx.globalCompositeOperation = 'screen';
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(
+      noiseCanvas,
+      dx, dy, Screen.width, Screen.height,
+      -Screen.width / 2, -Screen.height / 2, Screen.width, Screen.height,
+    );
+    ctx.globalAlpha = savedAlpha;
+    ctx.globalCompositeOperation = savedComp;
+    origGrainDraw(ctx);
+  };
+  view.add(grain);
+
   // ═══════════════════════════════════════════════════════════════════════
   // DIRECTION
   // ═══════════════════════════════════════════════════════════════════════
@@ -639,45 +731,63 @@ export default makeScene2D(function* (view) {
   );
   yield* waitFor(0.4);
 
-  // ── Release mid-air: grip opens, cube falls, arm FREEZES here ────────
+  // ── Release mid-air: grip opens, cube drops STRAIGHT DOWN (X and Z
+  //    frozen at release point), rotation settles to the nearest face-
+  //    aligned orientation so it lands on a side — not an edge. ──────
   const releaseX = cube3d.position.x;
   const releaseY = cube3d.position.y;
+  const releaseZ = cube3d.position.z;
+  const startRotX = cube3d.rotation.x;
+  const startRotY = cube3d.rotation.y;
+  const startRotZ = cube3d.rotation.z;
   cubeX(releaseX);
   cubeY(releaseY);
+  cubeZ(releaseZ);
+  cubeRotX(startRotX);
+  cubeRotY(startRotY);
+  cubeRotZ(startRotZ);
   cubeAttached = false;
+  const snap90 = (r: number) => Math.round(r / (Math.PI / 2)) * (Math.PI / 2);
   yield* gripClose(0, 0.28, easeInOutCubic);
-  yield* cubeY(cubeOnBeltY, 0.55, easeInOutCubic);
+  yield* all(
+    cubeY(-20, 0.7, easeInCubic),  // gravity accel, straight down
+    cubeRotX(snap90(startRotX), 0.7, easeInOutCubic),
+    cubeRotY(snap90(startRotY), 0.7, easeInOutCubic),
+    cubeRotZ(snap90(startRotZ), 0.7, easeInOutCubic),
+  );
   cubePlaced = true;
+  yield* waitFor(0.5);
+
+  // ─── Ghost emerges OVERLAID on the frozen real arm.  Bake the lift
+  //     pose into ghost baseline so its silhouette starts exactly on
+  //     top of what the real arm is holding ────────────────────────
+  gBase(liftDeltas.base);
+  gTurret(liftDeltas.turret);
+  gShoulder(liftDeltas.shoulder);
+  gElbow(liftDeltas.elbow);
+  gWristPitch(liftDeltas.wrist);
+  yield* ghostOpacity(1, 0.9, easeInOutCubic);
+  yield* waitFor(0.3);
+
+  // All motions at once, no return.  Base stays fixed (it's the platform).
+  //   - shoulder droops (down)
+  //   - TURRET rotates hard left (not base)
+  //   - wrist screws (Y axis — screwdriver)
+  //   - elbow bends
+  //   - forearm (joint closer to wrist) tilts the wrist slightly UP
+  yield* all(
+    gShoulder(liftDeltas.shoulder + 0.55, 1.6, easeInOutCubic),
+    gTurret(liftDeltas.turret + 1.1, 1.6, easeInOutCubic),
+    gWristScrew(Math.PI * 2, 1.6, easeInOutCubic),
+    gElbow(liftDeltas.elbow + 0.35, 1.6, easeInOutCubic),
+    gForearmBend(-0.3, 1.6, easeInOutCubic),
+  );
   yield* waitFor(0.6);
 
-  // ─── GHOST ARM emerges out of the frozen real arm.  Blueprint style.
-  //     Real arm holds its pose; ghost shows what the joints COULD do. ─
-  yield* ghostOpacity(1, 0.9, easeInOutCubic);
-  yield* waitFor(0.2);
-
-  // Move 1: small downward tilt (shoulder bends forward-down)
-  yield* gShoulder(-0.35, 0.8, easeInOutCubic);
-  yield* waitFor(0.35);
-  yield* gShoulder(0, 0.7, easeInOutCubic);
-  yield* waitFor(0.25);
-
-  // Move 2: wrist twist (Z-axis roll, a move the real IK never makes)
-  yield* gWristRoll(Math.PI * 1.8, 1.4, easeInOutCubic);
-  yield* waitFor(0.3);
-  yield* gWristRoll(0, 0.9, easeInOutCubic);
-  yield* waitFor(0.25);
-
-  // Move 3: elbow bend
-  yield* gElbow(0.9, 0.9, easeInOutCubic);
-  yield* waitFor(0.4);
-  yield* gElbow(0, 0.8, easeInOutCubic);
-  yield* waitFor(0.4);
-
-  // Ghost dissolves back into the real arm ────────────────────────────
-  yield* ghostOpacity(0, 0.9, easeInOutCubic);
-
-  // Tail: real arm still frozen, phrase lingers, then black ────────────
-  yield* waitFor(1.2);
-  yield* subtitle.opacity(0, 1.1, easeInOutCubic);
+  // Ghost dissolves AND phrase fades simultaneously — they exit as one.
+  yield* all(
+    ghostOpacity(0, 1.0, easeInOutCubic),
+    subtitle.opacity(0, 1.0, easeInOutCubic),
+  );
   yield* waitFor(1.0);
 });
