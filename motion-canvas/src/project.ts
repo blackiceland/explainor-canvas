@@ -45,6 +45,9 @@ import separationOfConcernsQuoteSceneRu from "./scenes/separationOfConcernsQuote
 import whyItIsAProblemSceneEn from "./scenes/whyItIsAProblemSceneEn?scene";
 import prematureAbstractionTakeSceneEn from "./scenes/prematureAbstractionTakeSceneEn?scene";
 import prematureAbstractionQuoteSceneEn from "./scenes/prematureAbstractionQuoteSceneEn?scene";
+import prematureAbstractionResolutionSceneEn from "./scenes/prematureAbstractionResolutionSceneEn?scene";
+import robotArmDarkScene from "./scenes/robotArmDarkScene?scene";
+import predictingFutureTakeSceneEn from "./scenes/predictingFutureTakeSceneEn?scene";
 
 export default makeProject({
     experimentalFeatures: true,
@@ -114,7 +117,7 @@ export default makeProject({
 
         //03
 
-        // clproblemsYouDontHaveCarefulArmSceneEn,
+        // problemsYouDontHaveCarefulArmSceneEn,
         // problemsYouDontHaveOrientationAnySceneEn,
         // problemsYouDontHaveWrongShelfSceneEn,
         // wrongCenterCollapseSceneEn,
@@ -133,7 +136,10 @@ export default makeProject({
         // separationOfConcernsQuoteSceneRu,
         // whyItIsAProblemSceneEn,
         // prematureAbstractionTakeSceneEn,
-        prematureAbstractionQuoteSceneEn,
+        // prematureAbstractionQuoteSceneEn,
+        // prematureAbstractionResolutionSceneEn,
+        // robotArmDarkScene,
+        predictingFutureTakeSceneEn,
 
     ]
 })

@@ -25,21 +25,35 @@ export function method(
     return {access, returnType, name, params: [...params], body: [...body]};
 }
 
+export interface JavaClassOptions {
+    className?: string;
+    fields?: string[];
+}
+
 export class JavaClass {
     private methods: JavaMethod[];
     readonly maxChars: number;
+    readonly className?: string;
+    readonly fields: string[];
 
-    private constructor(methods: JavaMethod[], maxChars: number) {
+    private constructor(
+        methods: JavaMethod[],
+        maxChars: number,
+        className: string | undefined,
+        fields: string[],
+    ) {
         this.methods = methods.map(m => ({...m, params: [...m.params], body: [...m.body]}));
         this.maxChars = maxChars;
+        this.className = className;
+        this.fields = [...fields];
     }
 
-    static create(methods: JavaMethod[], maxChars: number): JavaClass {
-        return new JavaClass(methods, maxChars);
+    static create(methods: JavaMethod[], maxChars: number, opts: JavaClassOptions = {}): JavaClass {
+        return new JavaClass(methods, maxChars, opts.className, opts.fields ?? []);
     }
 
     clone(): JavaClass {
-        return new JavaClass(this.methods, this.maxChars);
+        return new JavaClass(this.methods, this.maxChars, this.className, this.fields);
     }
 
     getMethod(name: string): JavaMethod {
@@ -50,6 +64,11 @@ export class JavaClass {
 
     addParam(methodName: string, p: JavaParam): void {
         this.getMethod(methodName).params.push(p);
+    }
+
+    setFields(fields: string[]): void {
+        this.fields.length = 0;
+        this.fields.push(...fields);
     }
 
     setBody(methodName: string, body: string[]): void {
@@ -103,7 +122,21 @@ export class JavaClass {
     }
 
     render(): string {
-        return this.methods.map(m => this.renderMethod(m)).join('\n\n');
+        const methodBlocks = this.methods.map(m => this.renderMethod(m));
+        if (!this.className) return methodBlocks.join('\n\n');
+
+        const indentBlock = (text: string): string =>
+            text.split('\n').map(l => l === '' ? '' : '    ' + l).join('\n');
+        const indentedMethods = methodBlocks.map(indentBlock);
+
+        const parts: string[] = [`public class ${this.className} {`, ''];
+        if (this.fields.length > 0) {
+            for (const f of this.fields) parts.push(`    ${f}`);
+            if (indentedMethods.length > 0) parts.push('');
+        }
+        if (indentedMethods.length > 0) parts.push(indentedMethods.join('\n\n'));
+        parts.push('}');
+        return parts.join('\n');
     }
 
     private renderMethod(m: JavaMethod): string {
