@@ -693,7 +693,7 @@ export default makeScene2D(function* (view) {
     const dy = Math.floor(Math.random() * maxDy);
     const savedAlpha = ctx.globalAlpha;
     const savedComp = ctx.globalCompositeOperation;
-    ctx.globalAlpha = 0.1;
+    ctx.globalAlpha = 0.06;
     ctx.globalCompositeOperation = 'screen';
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(
@@ -772,12 +772,16 @@ export default makeScene2D(function* (view) {
   yield* ghostOpacity(1, 0.9, easeInOutCubic);
   yield* waitFor(0.3);
 
-  // Ghost shows two parallel degrees of freedom only:
-  //   - turret swings hard left (the platform stays fixed)
-  //   - wrist screws on its Y-axis (screwdriver motion)
-  // No bending — that's reserved for later beats. ──────────────────
+  // Ghost performs a "curtsy" while turning left: turret swings, shoulder
+  // droops, elbow bends further — bends lead the arm DOWN.  Wrist pitch
+  // counter-rotates so the gripper stays horizontal while the wrist
+  // itself screws on Y (screwdriver).  The two bends sum to +0.8 on the
+  // X axis, the wrist absorbs -0.8 to hold level. ────────────────────
   yield* all(
     gTurret(liftDeltas.turret + 1.1, 1.6, easeInOutCubic),
+    gShoulder(liftDeltas.shoulder + 0.5, 1.6, easeInOutCubic),
+    gElbow(liftDeltas.elbow + 0.3, 1.6, easeInOutCubic),
+    gWristPitch(liftDeltas.wrist - 0.8, 1.6, easeInOutCubic),
     gWristScrew(Math.PI * 2, 1.6, easeInOutCubic),
   );
   yield* waitFor(0.6);
