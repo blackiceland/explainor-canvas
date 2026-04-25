@@ -129,23 +129,23 @@ export default makeScene2D(function* (view) {
 
   // ── Lights (burning from frame 1 — reveal is via view opacity, not
   //    intensity, so the arm is always 3D-shaded even while fading in) ──
-  const ambient = new AmbientLight(0xb9d9ff, 0.3);
+  const ambient = new AmbientLight(0xb9d9ff, 0.55);
   scene3.add(ambient);
 
-  const keySpot = new SpotLight(0xfff1d6, 6.5, 4000, Math.PI / 4.5, 0.85, 1.1);
+  const keySpot = new SpotLight(0xfff1d6, 9.0, 4000, Math.PI / 4.5, 0.85, 1.1);
   keySpot.position.set(600, 1700, 900);
   keySpot.target.position.set(-40, 230, 480);
   keySpot.target.updateMatrixWorld();
   scene3.add(keySpot);
   scene3.add(keySpot.target);
 
-  const rim = new DirectionalLight(0x5bb8ff, 0.8);
+  const rim = new DirectionalLight(0x5bb8ff, 1.1);
   rim.position.set(-900, 450, -1000);
   scene3.add(rim);
 
   // Cool cyan fill from viewer-right — complements the warm key,
   // grazes the camera-facing side of the arm ──────────────────────────
-  const rightFill = new DirectionalLight(0x4fc8e8, 3.8);
+  const rightFill = new DirectionalLight(0x4fc8e8, 5.5);
   rightFill.position.set(2200, 550, 100);
   rightFill.target.position.set(-40, 280, 450);
   rightFill.target.updateMatrixWorld();
@@ -274,16 +274,21 @@ export default makeScene2D(function* (view) {
   const sceneRoot = gltf.scene as Object3D;
 
   const armMat = litMat({
-    color: 0x1a232c,
-    emissive: 0x05222c,
-    emissiveIntensity: 0.32,
-    roughness: 0.72,
-    metalness: 0.22,
+    color: 0x2e3a44,
+    emissive: 0x09222b,
+    emissiveIntensity: 0.18,
+    roughness: 0.42,
+    metalness: 0.6,
     outlineColor: [0.2, 0.8, 1.0],
-    outlineAlpha: 0.45,
+    outlineAlpha: 0.22,
   });
+  // Real arm fades out under the ghost so the blueprint can render with
+  // its native depth behavior (no z-fighting against an opaque twin). ─
+  armMat.transparent = true;
   const armMatSkinned = armMat.clone();
   (armMatSkinned as any).userData = armMat.userData;
+  const armOutlineParams = (armMat as any).userData.outlineParameters;
+  const armOutlineBaseAlpha: number = armOutlineParams.alpha;
 
   let skeletonRoot: Bone | null = null;
   sceneRoot.traverse((obj: any) => {
@@ -379,7 +384,13 @@ export default makeScene2D(function* (view) {
       color: 0x00e5ff,
       transparent: true,
       opacity: 0,
-      depthWrite: false,
+      // Push ghost fragments slightly toward the camera in depth so the
+      // ghost ALWAYS wins the z-fight against the real arm's identical
+      // geometry, while keeping standard depth-test self-occlusion within
+      // the ghost itself (back faces still hidden by ghost front faces).
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -10,
     });
     (mat as any).__fillPeak = fillPeak;
     mat.onBeforeCompile = (shader) => {
@@ -408,7 +419,7 @@ export default makeScene2D(function* (view) {
         vec2 cell = mod(vDotUv * 80.0, vec2(1.0));
         float d = length(cell - vec2(0.5));
         float dot = 1.0 - smoothstep(0.1, 0.15, d);
-        gl_FragColor.a += dot * 0.12;
+        gl_FragColor.a += dot * 0.07;
         #include <dithering_fragment>
         `,
       );
@@ -431,8 +442,10 @@ export default makeScene2D(function* (view) {
     if (obj instanceof SkinnedMesh) {
       if (obj.skeleton) ghostSkeletonRoot = obj.skeleton.bones[0];
       obj.material = ghostMat(true);
+      obj.renderOrder = 1000;
     } else if (obj instanceof Mesh) {
       obj.material = ghostMat(false);
+      obj.renderOrder = 1000;
     }
   });
 
@@ -476,6 +489,7 @@ export default makeScene2D(function* (view) {
 
   // ── Ghost arm signals.  Includes two axes real IK never exercises:
   //    wrist Y (screwdriver) and hand X (human-wrist-style bend) ──────
+  const realArmOpacity = createSignal(1);
   const ghostOpacity  = createSignal(0);
   const gBase         = createSignal(0);
   const gTurret       = createSignal(0);
@@ -492,14 +506,8 @@ export default makeScene2D(function* (view) {
   const cubeX = createSignal(cubeStopX);
   const cubeY = createSignal(cubeOnBeltY);
   const cubeZ = createSignal(beltZ);
-  const cubeRotX = createSignal(0);
-  const cubeRotY = createSignal(0);
-  const cubeRotZ = createSignal(0);
   const grabBlend = createSignal(0);
   const grabOrigin = new Vector3();
-  let grabBaseY = 0;
-  let grabTilt = 0;
-  let grabTiltReady = false;
 
   let outline: OutlineEffect | null = null;
 
@@ -524,6 +532,17 @@ export default makeScene2D(function* (view) {
 
       renderer.setClearColor(0x000000, 0);
       renderer.clear();
+
+      // Real arm fades to zero before/while the ghost takes over, so the
+      // ghost's depth pass is unobstructed and looks identical to the
+      // standalone blueprint scene.  Outline alpha tracks material alpha.
+      const ro = realArmOpacity();
+      armMat.opacity = ro;
+      armMatSkinned.opacity = ro;
+      armMat.depthWrite = ro > 0.99;
+      armMatSkinned.depthWrite = ro > 0.99;
+      armOutlineParams.alpha = ro * armOutlineBaseAlpha;
+      sceneRoot.visible = ro > 0.001;
 
       // Ghost arm blueprint: fill + outline alpha from signal, peak
       // alphas differ for skinned vs static parts (matches dotArmMat).
@@ -573,25 +592,19 @@ export default makeScene2D(function* (view) {
       }
 
       if (cubeAttached) {
-        // Cube follows the gripper TIP.  Tip = hand + (hand - wrist) is
-        // the same formula the IK targets, so the tip lands exactly on
-        // the cube's grab position — no upward pop-up when attaching. ─
+        // Cube follows the gripper TIP position only.  Orientation is
+        // pinned to identity (horizontal, top-face up) — the gripper is
+        // treated as a level platform, no roll/pitch leaks into the cube.
         const wp = new Vector3(), hp = new Vector3();
         bones.wrist!.getWorldPosition(wp);
         bones.hand!.getWorldPosition(hp);
         const tip = hp.clone().add(hp.clone().sub(wp));
         const b = grabBlend();
         cube3d.position.lerpVectors(grabOrigin, tip, b);
-        // Align cube orientation to hand bone — cube is "glued" to the
-        // gripper, so it tracks every pitch/yaw/roll the arm applies.
-        bones.hand!.getWorldQuaternion(cube3d.quaternion);
       } else if (!cubePlaced) {
         cube3d.position.x = cubeX();
         cube3d.position.y = cubeY();
         cube3d.position.z = cubeZ();
-        cube3d.rotation.x = cubeRotX();
-        cube3d.rotation.y = cubeRotY();
-        cube3d.rotation.z = cubeRotZ();
       }
 
       outline.render(s, c);
@@ -680,7 +693,7 @@ export default makeScene2D(function* (view) {
     const dy = Math.floor(Math.random() * maxDy);
     const savedAlpha = ctx.globalAlpha;
     const savedComp = ctx.globalCompositeOperation;
-    ctx.globalAlpha = 0.07;
+    ctx.globalAlpha = 0.1;
     ctx.globalCompositeOperation = 'screen';
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(
@@ -716,8 +729,6 @@ export default makeScene2D(function* (view) {
   // ── Grip closes around cube ──────────────────────────────────────────
   yield* gripClose(0.72, 0.4, easeInOutCubic);
   grabOrigin.copy(cube3d.position);
-  grabBaseY = baseDelta() + turretDelta();
-  grabTiltReady = false;
   cubeAttached = true;
   yield* grabBlend(1, 0.18, easeInOutCubic);
 
@@ -731,30 +742,18 @@ export default makeScene2D(function* (view) {
   );
   yield* waitFor(0.4);
 
-  // ── Release mid-air: grip opens, cube drops STRAIGHT DOWN (X and Z
-  //    frozen at release point), rotation settles to the nearest face-
-  //    aligned orientation so it lands on a side — not an edge. ──────
+  // ── Release mid-air: grip opens, cube drops STRAIGHT DOWN with X/Z
+  //    frozen at release.  Orientation stays at identity throughout, so
+  //    it lands flat — no rotation animation needed. ──────────────────
   const releaseX = cube3d.position.x;
   const releaseY = cube3d.position.y;
   const releaseZ = cube3d.position.z;
-  const startRotX = cube3d.rotation.x;
-  const startRotY = cube3d.rotation.y;
-  const startRotZ = cube3d.rotation.z;
   cubeX(releaseX);
   cubeY(releaseY);
   cubeZ(releaseZ);
-  cubeRotX(startRotX);
-  cubeRotY(startRotY);
-  cubeRotZ(startRotZ);
   cubeAttached = false;
-  const snap90 = (r: number) => Math.round(r / (Math.PI / 2)) * (Math.PI / 2);
   yield* gripClose(0, 0.28, easeInOutCubic);
-  yield* all(
-    cubeY(-20, 0.7, easeInCubic),  // gravity accel, straight down
-    cubeRotX(snap90(startRotX), 0.7, easeInOutCubic),
-    cubeRotY(snap90(startRotY), 0.7, easeInOutCubic),
-    cubeRotZ(snap90(startRotZ), 0.7, easeInOutCubic),
-  );
+  yield* cubeY(-20, 0.7, easeInCubic);
   cubePlaced = true;
   yield* waitFor(0.5);
 
@@ -766,21 +765,20 @@ export default makeScene2D(function* (view) {
   gShoulder(liftDeltas.shoulder);
   gElbow(liftDeltas.elbow);
   gWristPitch(liftDeltas.wrist);
+  // Ghost appears OVER the still-visible real arm.  Polygon-offset on
+  // the ghost material wins the z-fight against the identical real-arm
+  // geometry, so the blueprint reads cleanly without losing the lit
+  // arm beneath it.
   yield* ghostOpacity(1, 0.9, easeInOutCubic);
   yield* waitFor(0.3);
 
-  // All motions at once, no return.  Base stays fixed (it's the platform).
-  //   - shoulder droops (down)
-  //   - TURRET rotates hard left (not base)
-  //   - wrist screws (Y axis — screwdriver)
-  //   - elbow bends
-  //   - forearm (joint closer to wrist) tilts the wrist slightly UP
+  // Ghost shows two parallel degrees of freedom only:
+  //   - turret swings hard left (the platform stays fixed)
+  //   - wrist screws on its Y-axis (screwdriver motion)
+  // No bending — that's reserved for later beats. ──────────────────
   yield* all(
-    gShoulder(liftDeltas.shoulder + 0.55, 1.6, easeInOutCubic),
     gTurret(liftDeltas.turret + 1.1, 1.6, easeInOutCubic),
     gWristScrew(Math.PI * 2, 1.6, easeInOutCubic),
-    gElbow(liftDeltas.elbow + 0.35, 1.6, easeInOutCubic),
-    gForearmBend(-0.3, 1.6, easeInOutCubic),
   );
   yield* waitFor(0.6);
 

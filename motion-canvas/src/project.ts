@@ -122,7 +122,7 @@ export default makeProject({
         // problemsYouDontHaveWrongShelfSceneEn,
         // wrongCenterCollapseSceneEn,
         //
-        // robotArmTestScene,
+         robotArmTestScene,
         // problemsYouDontHaveSubtitlesSceneEn,
         // robotArmCodeScene,
         // problemsYouDontHaveLieIntroSceneEn,
