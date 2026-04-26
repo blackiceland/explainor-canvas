@@ -1,5 +1,5 @@
 import {makeScene2D, Rect, Txt} from '@motion-canvas/2d';
-import {all, createSignal, easeInCubic, easeInOutCubic, waitFor} from '@motion-canvas/core';
+import {all, createSignal, easeInCubic, easeInOutCubic, easeOutCubic, waitFor} from '@motion-canvas/core';
 import {
   AmbientLight,
   Bone,
@@ -24,7 +24,12 @@ import {
 import {OutlineEffect} from 'three/examples/jsm/effects/OutlineEffect.js';
 import {GLTFLoader} from 'three/examples/jsm/loaders/GLTFLoader.js';
 import {createThreeView} from '../core/three/ThreeCanvas';
-import {Fonts, Screen} from '../core/theme';
+import {Fonts, Screen, Timing} from '../core/theme';
+import {ColorRule, Manticore} from '../core/code/components/Manticore';
+import {Medusa} from '../core/code/director/Medusa';
+import {JavaClass, method, param} from '../core/code/model/JavaModel';
+import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
+import {getCodePaddingX, measureChar} from '../core/code/shared/TextMeasure';
 
 const MODEL_URL = '/basic_robot_arm.glb';
 
@@ -572,6 +577,11 @@ export default makeScene2D(function* (view) {
   const cubeZ = createSignal(beltZ);
   const grabBlend = createSignal(0);
   const grabOrigin = new Vector3();
+  // Wrist-yaw / wrist-pitch reference captured at the moment of grab so
+  // the cube rotates WITH the gripper instead of staying world-aligned.
+  let grabBaseY = 0;
+  let grabTilt = 0;
+  let grabTiltReady = false;
 
   let outline: OutlineEffect | null = null;
 
@@ -656,15 +666,24 @@ export default makeScene2D(function* (view) {
       }
 
       if (cubeAttached) {
-        // Cube follows the gripper TIP position only.  Orientation is
-        // pinned to identity (horizontal, top-face up) — the gripper is
-        // treated as a level platform, no roll/pitch leaks into the cube.
+        // Cube follows the gripper: tip-position interpolated, plus YAW
+        // tracking the arm's base+turret rotation. Yaw axis is world-Y
+        // regardless of arm pose, so this stays correct under any motion.
+        // Pitch is intentionally not applied — the arm's wrist pitch is
+        // around the joint's LOCAL X, which only maps to world X at zero
+        // turret; once turret rotates, applying rotation.x to the cube
+        // produces a wrong-axis tilt. ────────────────────────────────
         const wp = new Vector3(), hp = new Vector3();
         bones.wrist!.getWorldPosition(wp);
         bones.hand!.getWorldPosition(hp);
         const tip = hp.clone().add(hp.clone().sub(wp));
         const b = grabBlend();
         cube3d.position.lerpVectors(grabOrigin, tip, b);
+        if (!grabTiltReady) {
+          grabBaseY = baseDelta() + turretDelta();
+          grabTiltReady = true;
+        }
+        cube3d.rotation.y = (baseDelta() + turretDelta()) - grabBaseY;
       } else if (!cubePlaced) {
         cube3d.position.x = cubeX();
         cube3d.position.y = cubeY();
@@ -815,6 +834,7 @@ export default makeScene2D(function* (view) {
   // ── Grip closes around cube ──────────────────────────────────────────
   yield* gripClose(0.72, 0.4, easeInOutCubic);
   grabOrigin.copy(cube3d.position);
+  grabTiltReady = false;
   cubeAttached = true;
   yield* grabBlend(1, 0.18, easeInOutCubic);
 
@@ -838,6 +858,9 @@ export default makeScene2D(function* (view) {
   cubeY(releaseY);
   cubeZ(releaseZ);
   cubeAttached = false;
+  // Cube keeps the orientation the gripper handed it — no pre-drop snap.
+  // It falls in-place, frozen at the lift-pose rotation; reads as honest
+  // physics instead of a teleported reset.
   yield* gripClose(0, 0.28, easeInOutCubic);
   yield* cubeY(-20, 0.7, easeInCubic);
   cubePlaced = true;
@@ -892,14 +915,210 @@ export default makeScene2D(function* (view) {
 
   // Gripper snaps shut horizontally on a round sphere — and STAYS shut.
   // Two layers of failure baked in: призрак is intangible AND parallel
-  // jaws can't pinch a sphere.  Hold the closed pose into the dissolve
-  // — no release.  The abstraction was on the wrong axis. ──────────
+  // jaws can't pinch a sphere.  Hold the closed pose; the 3D tableau is
+  // about to recede into background as the code section takes over. ───
   yield* gGripClose(0.72, 0.2, easeInOutCubic);
   yield* waitFor(0.6);
 
-  // For now: only the призрак dissolves.  The real arm, the belt, the
-  // new cube and the subtitle all stay — leaving the lit-arm/belt/cube
-  // tableau as the last frame.  (Wider dissolve can come later.) ────
-  yield* ghostOpacity(0, 1.4, easeInOutCubic);
-  yield* waitFor(1.0);
+  // ═══════════════════════════════════════════════════════════════════════
+  //  CODE PHASE — abstraction grows in four beats
+  //
+  //  Direction:
+  //    1. Subtitle 1 fades out (it was the opener, no longer relevant).
+  //    2. 3D scene dims to ~0.30 — the arm/ghost/cube tableau becomes a
+  //       silent backdrop, not foreground.  It stays in frame as the
+  //       silent accusation; code does the talking.
+  //    3. Manticore appears on the LEFT half with V0 — naïve direct calls.
+  //    4. Four Medusa morphs add infrastructure beat-by-beat.  Viewer
+  //       SEES abstraction metastasize, not arrive pre-grown.
+  //    5. Final beat: body collapses to one line.  Dim everything except
+  //       that one line, recolor it red — the punchline.
+  // ═══════════════════════════════════════════════════════════════════════
+
+  const LEFT_PAD       = 80;
+  const CODE_W         = Screen.width / 2 - LEFT_PAD - 20;
+  const CODE_CENTER_X  = -Screen.width / 2 + LEFT_PAD + CODE_W / 2;
+  const CODE_FONT      = 18;
+  const CODE_LINE_H    = Math.round(CODE_FONT * 1.62 * 10) / 10;
+  const MAX_LINE_CHARS = Math.floor(
+    (CODE_W - getCodePaddingX(CODE_FONT)) / measureChar(CODE_FONT),
+  );
+
+  const VAR_LIGHT    = 'rgba(244, 241, 235, 0.96)';
+  const TYPE_CLEAN   = 'rgba(220, 215, 255, 0.80)';
+  const METHOD_COLOR = DryFiltersV3CodeTheme.method;
+  const FINAL_RED    = 'rgba(255, 90, 80, 1.0)';
+
+  const CUSTOM_TYPES = [
+    'CubeHandler', 'HandlingConfig', 'HandlingPipeline', 'HandlingHooks',
+    'HandlingContext', 'HandlingStep', 'ArmDriver', 'RobotArmAdapter', 'RobotArm',
+    'GripMode', 'MotionProfile', 'ReleaseStyle', 'Cube', 'Table', 'Position',
+    'List', 'BeforeGripHookStep', 'BeforeTransferHookStep', 'BeforeReleaseHookStep',
+    'GripStep', 'TransferStep', 'ReleaseStep', 'ResolveConfigStep',
+  ];
+
+  const COLOR_RULES: ColorRule[] = [
+    {match: 'arm',      color: VAR_LIGHT},
+    {match: 'cube',     color: VAR_LIGHT},
+    {match: 'table',    color: VAR_LIGHT},
+    {match: 'config',   color: VAR_LIGHT},
+    {match: 'hooks',    color: VAR_LIGHT},
+    {match: 'pipeline', color: VAR_LIGHT},
+    ...CUSTOM_TYPES.map(t => ({
+      match: new RegExp(`^${t}$`), color: TYPE_CLEAN,
+    } as ColorRule)),
+    {match: 'grab',           color: METHOD_COLOR, onlyTypes: ['method']},
+    {match: 'moveTo',         color: METHOD_COLOR, onlyTypes: ['method']},
+    {match: 'release',        color: METHOD_COLOR, onlyTypes: ['method']},
+    {match: 'load',           color: METHOD_COLOR, onlyTypes: ['method']},
+    {match: 'beforeGrip',     color: METHOD_COLOR, onlyTypes: ['method']},
+    {match: 'beforeTransfer', color: METHOD_COLOR, onlyTypes: ['method']},
+    {match: 'beforeRelease',  color: METHOD_COLOR, onlyTypes: ['method']},
+    {match: 'run',            color: METHOD_COLOR, onlyTypes: ['method']},
+    {match: 'handleCube',     color: METHOD_COLOR, onlyTypes: ['method']},
+    {match: 'gripMode',       color: METHOD_COLOR, onlyTypes: ['method']},
+    {match: 'motionProfile',  color: METHOD_COLOR, onlyTypes: ['method']},
+    {match: 'releaseStyle',   color: METHOD_COLOR, onlyTypes: ['method']},
+    {match: 'position',       color: METHOD_COLOR, onlyTypes: ['method']},
+    {match: 'of',             color: METHOD_COLOR, onlyTypes: ['method']},
+  ];
+
+  const CARD_STYLE = {
+    radius: 16, fill: 'rgba(0,0,0,0)', stroke: 'rgba(0,0,0,0)',
+    strokeWidth: 0, shadowColor: 'rgba(0,0,0,0)', shadowBlur: 0,
+    shadowOffsetX: 0, shadowOffsetY: 0, edge: false,
+  } as const;
+
+  // ── Field bundles per beat ─────────────────────────────────────────
+  const FIELDS_V0 = [
+    'private final RobotArm arm = new RobotArm();',
+  ];
+  const FIELDS_V1 = [
+    'private final RobotArm arm = new RobotArm();',
+    'private final HandlingConfig config = HandlingConfig.load();',
+  ];
+  const FIELDS_V2 = [
+    'private final ArmDriver arm = new RobotArmAdapter(new RobotArm());',
+    'private final HandlingConfig config = HandlingConfig.load();',
+  ];
+  const FIELDS_V3 = [
+    ...FIELDS_V2,
+    'private final HandlingHooks hooks = new HandlingHooks();',
+  ];
+  const FIELDS_V4 = [
+    ...FIELDS_V3,
+    'private final HandlingPipeline pipeline = new HandlingPipeline(List.of(',
+    '    new ResolveConfigStep(config),',
+    '    new BeforeGripHookStep(hooks),',
+    '    new GripStep(arm),',
+    '    new BeforeTransferHookStep(hooks),',
+    '    new TransferStep(arm),',
+    '    new BeforeReleaseHookStep(hooks),',
+    '    new ReleaseStep(arm)',
+    '));',
+  ];
+
+  const BODY_V0 = [
+    'arm.grab(cube);',
+    'arm.moveTo(table.position());',
+    'arm.release();',
+  ];
+  const BODY_V1 = [
+    'arm.grab(cube, config.gripMode());',
+    'arm.moveTo(table.position(), config.motionProfile());',
+    'arm.release(config.releaseStyle());',
+  ];
+  const BODY_V3 = [
+    'hooks.beforeGrip(cube);',
+    'arm.grab(cube, config.gripMode());',
+    'hooks.beforeTransfer(cube, table);',
+    'arm.moveTo(table.position(), config.motionProfile());',
+    'hooks.beforeRelease(cube);',
+    'arm.release(config.releaseStyle());',
+  ];
+  const BODY_V4 = [
+    'pipeline.run(new HandlingContext(cube, table));',
+  ];
+
+  const codeModel = JavaClass.create(
+    [method('public', 'void', 'handleCube',
+      [param('Cube', 'cube'), param('Table', 'table')], BODY_V0)],
+    MAX_LINE_CHARS,
+    {className: 'CubeHandler', fields: FIELDS_V0},
+  );
+
+  const code = Manticore.create(codeModel.render(), {
+    x: CODE_CENTER_X, y: 0,
+    width: CODE_W,
+    height: Screen.height - 80,
+    fontSize: CODE_FONT, lineHeight: CODE_LINE_H,
+    fontFamily: Fonts.code,
+    theme: DryFiltersV3CodeTheme,
+    cardStyle: CARD_STYLE,
+    glowAccent: false,
+    noClip: true,
+    customTypes: CUSTOM_TYPES,
+  });
+  code.mount(view);
+  code.colorize(COLOR_RULES);
+
+  const dir = new Medusa(codeModel, code, {
+    morphDefaults: {
+      scrollStrategy: 'block', removeDuration: 0, moveDuration: 0.6,
+      charDelay: 0.012, lineDelay: 0.03,
+    },
+    pauseAfterMorph: 0.3,
+  });
+
+  // ── Phase transition: opener subtitle out, 3D dims, code rises ─────
+  //   VO opener "we start buying flexibility…" — ≈4.5s ────────────────
+  yield* all(
+    subtitle.opacity(0, 0.6, easeInOutCubic),
+    threeView.node.opacity(0.30, 0.9, easeInOutCubic),
+    code.appear(Timing.slow),
+  );
+  yield* waitFor(3.4);
+
+  // ── Beat 1 — configs / promises to the future ──≈6.5s ──────────────
+  yield* dir.apply(m => {
+    m.setFields(FIELDS_V1);
+    m.setBody('handleCube', BODY_V1);
+  });
+  yield* waitFor(4.5);
+
+  // ── Beat 2 — interfaces, adapters ──≈4s ────────────────────────────
+  yield* dir.apply(m => { m.setFields(FIELDS_V2); });
+  yield* waitFor(2.7);
+
+  // ── Beat 3 — empty extension points ──≈4.5s ────────────────────────
+  yield* dir.apply(m => {
+    m.setFields(FIELDS_V3);
+    m.setBody('handleCube', BODY_V3);
+  });
+  yield* waitFor(2.5);
+
+  // ── Beat 4 — generic pipeline; body collapses to one line ──≈7.5s ──
+  //   Big morph (8 new pipeline lines + body collapse to one). The
+  //   typewriter on 8 lines eats ~3.5s itself; then breathe. ──────────
+  yield* dir.apply(m => {
+    m.setFields(FIELDS_V4);
+    m.setBody('handleCube', BODY_V4);
+  });
+  yield* waitFor(3.5);
+
+  // ── Closing punch — dim everything, light the one-liner red ──≈5.7s
+  //   VO: "we call it foresight... but most of the time, it's just
+  //   complexity trying to look responsible." ─────────────────────────
+  const finalIdx = code.findLine('pipeline.run(new HandlingContext');
+  if (finalIdx >= 0) {
+    const finalLine = code.getLine(finalIdx);
+    if (finalLine) {
+      yield* all(
+        code.dimLines(0, finalIdx - 1, 0.28, 0.7),
+        code.dimLines(finalIdx + 1, code.lineCount - 1, 0.28, 0.7),
+        finalLine.recolorAll(FINAL_RED, 0.7),
+      );
+    }
+  }
+  yield* waitFor(5.0);
 });

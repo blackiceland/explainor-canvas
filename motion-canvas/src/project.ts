@@ -102,7 +102,7 @@ export default makeProject({
         //  validateMonolithSceneRu,
         //  starWarsCrawlSceneRu,
         //   jackIntroSceneEn,
-           codeWithActionsSceneRu,
+        //   codeWithActionsSceneRu,
         // codeWithActionsSceneRuTilt,
         // exportCallTreeSceneRu,
         // triangleAmplifierSceneRu,
