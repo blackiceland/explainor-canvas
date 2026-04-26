@@ -69,6 +69,7 @@ function solveIK(
   bones: Record<string, Bone | null>,
   initRot: Record<string, number>,
   target: Vector3,
+  pitchSumTarget?: number,
 ): Record<string, number> {
   const JOINTS = ['base', 'turret', 'shoulder', 'elbow', 'wrist'] as const;
   const deltas: Record<string, number> = {base: 0, turret: 0, shoulder: 0, elbow: 0, wrist: 0};
@@ -83,10 +84,19 @@ function solveIK(
   function cost(): number {
     apply();
     const dist = getTipPos(sceneRoot, bones.wrist!, bones.hand!).distanceTo(target);
-    return dist + Math.abs(deltas.base) * 80;
+    let c = dist + Math.abs(deltas.base) * 80;
+    // Optional pitch-sum constraint: keep shoulder+elbow+wrist at a target
+    // value so the gripper world-orientation matches a chosen reference
+    // pose (e.g. lift's "horizontal jaws").
+    if (pitchSumTarget !== undefined) {
+      const sumDev = deltas.shoulder + deltas.elbow + deltas.wrist - pitchSumTarget;
+      c += sumDev * sumDev * 800;
+    }
+    return c;
   }
 
-  for (let i = 0; i < 1500; i++) {
+  const maxIter = pitchSumTarget !== undefined ? 3000 : 1500;
+  for (let i = 0; i < maxIter; i++) {
     const c0 = cost();
     if (c0 < 3) break;
 
@@ -518,6 +528,14 @@ export default makeScene2D(function* (view) {
   const liftTarget = new Vector3(-550, 580, 340);
   const liftDeltas = solveIK(sceneRoot, bones, initRot, liftTarget);
   const placeDeltas = solveIK(sceneRoot, bones, initRot, placeTarget);
+  // Призрак-к-сфере: тот же tip target что и у куба, но с constraint —
+  // pitch-sum держим равным lift-сумме, чтобы кисть пришла к шару
+  // ГОРИЗОНТАЛЬНО (jaws как при удержании куба), а не «клювом вниз». ──
+  const horizontalPitchSum =
+    liftDeltas.shoulder + liftDeltas.elbow + liftDeltas.wrist;
+  const sphereGhostDeltas = solveIK(
+    sceneRoot, bones, initRot, cubeStartPos, horizontalPitchSum,
+  );
 
   // ── 3D signals ────────────────────────────────────────────────────────
   const baseDelta     = createSignal(0);
@@ -861,22 +879,22 @@ export default makeScene2D(function* (view) {
   yield* cube2Materialize(1, 0.7, easeInOutCubic);
   yield* waitFor(0.25);
 
-  // Призрак lowers the arm from the curtsy pose into the proper IK reach
-  // for the SPHERE (further along the belt, opposite side of screen
-  // from the floor cube).  Wrist screw stops where it was — the showy
-  // flourish was ALREADY done. ─────────────────────────────────────
+  // Призрак lowers the arm from the curtsy pose toward the sphere — full
+  // IK adapts ALL joints (turret/shoulder/elbow/wrist) so that the wrist
+  // lands AT sphere level with jaws horizontal (pitch-sum constrained to
+  // the lift pose). Whole arm bends down together. ──────────────────
   yield* all(
-    gTurret(reachDeltas.turret,    1.4, easeInOutCubic),
-    gShoulder(reachDeltas.shoulder,1.4, easeInOutCubic),
-    gElbow(reachDeltas.elbow,      1.4, easeInOutCubic),
-    gWristPitch(reachDeltas.wrist, 1.4, easeInOutCubic),
+    gTurret(sphereGhostDeltas.turret,     1.4, easeInOutCubic),
+    gShoulder(sphereGhostDeltas.shoulder, 1.4, easeInOutCubic),
+    gElbow(sphereGhostDeltas.elbow,       1.4, easeInOutCubic),
+    gWristPitch(sphereGhostDeltas.wrist,  1.4, easeInOutCubic),
   );
 
-  // One short grab attempt — gripper snaps shut, opens.  Fails because
-  // призрак is intangible: the cube never moves.  Single failed attempt
-  // is enough to seal the metaphor — repetition would dilute it. ────
+  // Gripper snaps shut horizontally on a round sphere — and STAYS shut.
+  // Two layers of failure baked in: призрак is intangible AND parallel
+  // jaws can't pinch a sphere.  Hold the closed pose into the dissolve
+  // — no release.  The abstraction was on the wrong axis. ──────────
   yield* gGripClose(0.72, 0.2, easeInOutCubic);
-  yield* gGripClose(0,    0.2, easeInOutCubic);
   yield* waitFor(0.6);
 
   // For now: only the призрак dissolves.  The real arm, the belt, the
