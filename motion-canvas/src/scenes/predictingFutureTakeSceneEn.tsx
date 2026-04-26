@@ -4,6 +4,8 @@ import {
   AmbientLight,
   Bone,
   BoxGeometry,
+  BufferGeometry,
+  Color,
   CylinderGeometry,
   DirectionalLight,
   Group,
@@ -15,6 +17,7 @@ import {
   PerspectiveCamera,
   Scene,
   SkinnedMesh,
+  SphereGeometry,
   SpotLight,
   Vector3,
 } from 'three';
@@ -180,9 +183,14 @@ export default makeScene2D(function* (view) {
   }
 
   const frameMat = litMat({color: 0x0f141a, emissive: 0x081018, emissiveIntensity: 0.22, outlineAlpha: 0.3});
+  // Belt / platform / legs all share frameMat — make it fadable so we
+  // can dissolve the whole stage at the end while keeping cube3d visible.
+  frameMat.transparent = true;
+  const frameOutlineParams = (frameMat as any).userData.outlineParameters;
+  const frameOutlineBaseAlpha: number = frameOutlineParams.alpha;
   const cubeMat  = litMat({color: 0xff9a3c, emissive: 0x4a1f05, emissiveIntensity: 1.0, roughness: 0.45, metalness: 0.2, outlineColor: [1, 0.55, 0.2], outlineAlpha: 0.8});
 
-  function blueprintLit(geom: BoxGeometry | CylinderGeometry, mat: MeshStandardMaterial): Group {
+  function blueprintLit(geom: BufferGeometry, mat: MeshStandardMaterial): Group {
     const g = new Group();
     g.add(new Mesh(geom, mat));
     return g;
@@ -239,6 +247,38 @@ export default makeScene2D(function* (view) {
   cube3d.position.set(cubeStopX, cubeOnBeltY, beltZ);
   cube3d.renderOrder = -1;
   scene3.add(cube3d);
+
+  // ── Second item — a SPHERE, not a cube.  Appears AFTER the curtsy as
+  //    a black shadow, then materialises into the same warm orange.
+  //    The sphere is the metaphor's twist: the призрак built itself
+  //    flexibility along the WRONG axis (joint angles), and the new
+  //    requirement varies along a DIFFERENT axis (object shape).  Even
+  //    if the призрак were tangible, parallel jaws couldn't grip a
+  //    sphere — the prepared abstraction is orthogonal to the real change.
+  const cube2Mat = cubeMat.clone();
+  cube2Mat.transparent = true;
+  cube2Mat.opacity = 0;
+  cube2Mat.color.set(0x000000);
+  cube2Mat.emissive.set(0x000000);
+  cube2Mat.emissiveIntensity = 0;
+  (cube2Mat as any).userData = {
+    ...cubeMat.userData,
+    outlineParameters: {...(cubeMat as any).userData.outlineParameters, alpha: 0},
+  };
+  const cube2OutlineParams = (cube2Mat as any).userData.outlineParameters;
+  const cube2OutlineFinalAlpha: number = (cubeMat as any).userData.outlineParameters.alpha;
+  // Sphere sits FURTHER along the belt than the original cube — that
+  // way it ends up clearly opposite of cube3d in screen-space (cube3d
+  // falls left to the floor, sphere stays right on the belt). ─────
+  const cube2_3d = blueprintLit(new SphereGeometry(cubeSize / 2, 32, 20), cube2Mat);
+  cube2_3d.position.set(cubeStopX, cubeOnBeltY, beltZ);
+  cube2_3d.renderOrder = -1;
+  scene3.add(cube2_3d);
+  // Endpoint colors used by the materialise tween — cached so we don't
+  // allocate a Color object every frame.
+  const cube2BlackColor = new Color(0x000000);
+  const cube2FinalColor = new Color(0xff9a3c);
+  const cube2FinalEmissive = new Color(0x4a1f05);
 
   // ── Destination platform ──────────────────────────────────────────────
   const platformX = -350;
@@ -500,6 +540,12 @@ export default makeScene2D(function* (view) {
   const gWristScrew   = createSignal(0);  // Y-axis — screw motion
   const gHandBend     = createSignal(0);  // hand X — unused wrist-bend joint
   const gGripClose    = createSignal(0);
+  // Cube #2 staging — shadow phase first, then full materialise.
+  const cube2Shadow      = createSignal(0);  // 0=invisible, 1=full-opaque black silhouette
+  const cube2Materialize = createSignal(0);  // 0=black,      1=orange + emissive on
+  // Final dissolve: belt + platform + legs all fade together.  Cube3d
+  // (the failed cube on the floor) is NOT in this group — it survives.
+  const worldOpacity     = createSignal(1);
 
   let cubeAttached = false;
   let cubePlaced = false;
@@ -606,6 +652,28 @@ export default makeScene2D(function* (view) {
         cube3d.position.y = cubeY();
         cube3d.position.z = cubeZ();
       }
+
+      // Cube #2 — two-stage materialisation.  Shadow phase: opacity grows
+      // while material stays pure black (cube reads as a silhouette).
+      // Materialise phase: color + emissive lerp from black to the warm
+      // orange.  Outline alpha tracks the shadow phase so the silhouette
+      // already has its outline before color comes in.
+      const sh = cube2Shadow();
+      const mz = cube2Materialize();
+      cube2Mat.opacity = sh;
+      cube2Mat.color.lerpColors(cube2BlackColor, cube2FinalColor, mz);
+      cube2Mat.emissive.lerpColors(cube2BlackColor, cube2FinalEmissive, mz);
+      cube2Mat.emissiveIntensity = mz * 1.0;
+      cube2OutlineParams.alpha = sh * cube2OutlineFinalAlpha;
+      cube2_3d.visible = sh > 0.001;
+
+      // Stage dissolve — belt + platform + legs all share frameMat, so a
+      // single opacity tween fades them together.  cube3d uses cubeMat
+      // (untouched) so it survives the dissolve. ────────────────────
+      const wo = worldOpacity();
+      frameMat.opacity = wo;
+      frameMat.depthWrite = wo > 0.99;
+      frameOutlineParams.alpha = wo * frameOutlineBaseAlpha;
 
       outline.render(s, c);
     },
@@ -786,10 +854,34 @@ export default makeScene2D(function* (view) {
   );
   yield* waitFor(0.6);
 
-  // Ghost dissolves AND phrase fades simultaneously — they exit as one.
+  // ── A new cube emerges on the belt.  First phase: shadow — fades in
+  //    as a pure-black silhouette, no color, just presence.
+  yield* cube2Shadow(1, 0.6, easeInOutCubic);
+  // Second phase: materialise — black warms into orange, emissive lights up.
+  yield* cube2Materialize(1, 0.7, easeInOutCubic);
+  yield* waitFor(0.25);
+
+  // Призрак lowers the arm from the curtsy pose into the proper IK reach
+  // for the SPHERE (further along the belt, opposite side of screen
+  // from the floor cube).  Wrist screw stops where it was — the showy
+  // flourish was ALREADY done. ─────────────────────────────────────
   yield* all(
-    ghostOpacity(0, 1.0, easeInOutCubic),
-    subtitle.opacity(0, 1.0, easeInOutCubic),
+    gTurret(reachDeltas.turret,    1.4, easeInOutCubic),
+    gShoulder(reachDeltas.shoulder,1.4, easeInOutCubic),
+    gElbow(reachDeltas.elbow,      1.4, easeInOutCubic),
+    gWristPitch(reachDeltas.wrist, 1.4, easeInOutCubic),
   );
+
+  // One short grab attempt — gripper snaps shut, opens.  Fails because
+  // призрак is intangible: the cube never moves.  Single failed attempt
+  // is enough to seal the metaphor — repetition would dilute it. ────
+  yield* gGripClose(0.72, 0.2, easeInOutCubic);
+  yield* gGripClose(0,    0.2, easeInOutCubic);
+  yield* waitFor(0.6);
+
+  // For now: only the призрак dissolves.  The real arm, the belt, the
+  // new cube and the subtitle all stay — leaving the lit-arm/belt/cube
+  // tableau as the last frame.  (Wider dissolve can come later.) ────
+  yield* ghostOpacity(0, 1.4, easeInOutCubic);
   yield* waitFor(1.0);
 });
