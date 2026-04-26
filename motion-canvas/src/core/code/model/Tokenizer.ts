@@ -28,6 +28,14 @@ const JAVA_KEYWORDS = new Set([
     'import', 'package',
 ]);
 
+// Primitive type keywords that legitimately precede a method name in a
+// definition (e.g. `void grab(`, `int count(`).  When the name is followed
+// by `(` and the previous token is one of these, classify the name as
+// 'plain' (a definition), NOT 'method' (a call).
+const JAVA_PRIMITIVE_TYPES = new Set([
+    'void', 'int', 'long', 'double', 'float', 'boolean', 'char', 'byte', 'short',
+]);
+
 const JAVA_TYPES = new Set([
     'String', 'Integer', 'Long', 'Double', 'Float', 'Boolean', 'Character', 'Byte', 'Short',
     'Object', 'Class', 'Void',
@@ -71,9 +79,16 @@ function classifyWord(
         return 'type';
     }
     if (nextChar === '(') {
-        // Определение метода: предыдущий значимый токен — тип возврата (type) или ']' (byte[])
+        // Определение метода vs вызов.  Определение, если предыдущий
+        // значимый токен — тип возврата (custom/JAVA_TYPES → 'type'),
+        // массив типа (`byte[]` → ']'), или примитивный тип-ключевое
+        // слово (`void`, `int`, …).  Иначе — вызов.
         const prev = previousMeaningful;
-        const isDefinition = prev && (prev.type === 'type' || prev.text === ']');
+        const isDefinition = !!prev && (
+            prev.type === 'type' ||
+            prev.text === ']' ||
+            (prev.type === 'keyword' && JAVA_PRIMITIVE_TYPES.has(prev.text))
+        );
         if (!isDefinition) return 'method';
     }
     if (isConstant(word)) return 'constant';
