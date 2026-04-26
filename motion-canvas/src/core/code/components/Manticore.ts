@@ -594,7 +594,13 @@ export class Manticore {
         const isAddOnly = state.activePlan.every(p => p.kind === 'add');
         if (isAddOnly) {
             for (const p of state.activePlan) {
-                state.settleAnims.push(state.result[p.newIndex]!.node.opacity(1, opts.moveDuration, easeInOutCubic));
+                const cl = state.result[p.newIndex]!;
+                state.settleAnims.push(cl.node.opacity(1, opts.moveDuration, easeInOutCubic));
+                if (opts.addStyle === 'typewriter') {
+                    state.settleAnims.push(cl.typewriter(opts.charDelay));
+                } else {
+                    state.settleAnims.push(cl.setAllTokensOpacity(1, opts.moveDuration));
+                }
             }
             if (state.settleAnims.length > 0) yield* all(...state.settleAnims);
             return;
@@ -758,6 +764,7 @@ export class Manticore {
 
             const token = cl.tokens[i];
             const full = token.text;
+            if (full.length === 0) continue;
             const isLigature = token.type === 'operator' && LIGATURE_OPERATORS.has(full);
 
             if (isLigature) {
