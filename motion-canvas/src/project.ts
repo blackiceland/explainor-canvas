@@ -51,6 +51,7 @@ import predictingFutureTakeSceneEn from "./scenes/predictingFutureTakeSceneEn?sc
 import earnedAbstractionSceneEn from "./scenes/earnedAbstractionSceneEn?scene";
 import preparationVsFantasySceneEn from "./scenes/preparationVsFantasySceneEn?scene";
 import chapterTwoOpenSceneEn from "./scenes/chapterTwoOpenSceneEn?scene";
+import chapter2ReversibilitySceneEn from "./scenes/chapter2ReversibilitySceneEn?scene";
 
 export default makeProject({
     experimentalFeatures: true,
@@ -144,6 +145,7 @@ export default makeProject({
         // robotArmDarkScene,
         // predictingFutureTakeSceneEn,
         earnedAbstractionSceneEn,
+        chapter2ReversibilitySceneEn,
 
 
 
