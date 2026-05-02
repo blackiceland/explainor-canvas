@@ -49,6 +49,8 @@ import prematureAbstractionResolutionSceneEn from "./scenes/prematureAbstraction
 import robotArmDarkScene from "./scenes/robotArmDarkScene?scene";
 import predictingFutureTakeSceneEn from "./scenes/predictingFutureTakeSceneEn?scene";
 import earnedAbstractionSceneEn from "./scenes/earnedAbstractionSceneEn?scene";
+import preparationVsFantasySceneEn from "./scenes/preparationVsFantasySceneEn?scene";
+import chapterTwoOpenSceneEn from "./scenes/chapterTwoOpenSceneEn?scene";
 
 export default makeProject({
     experimentalFeatures: true,
@@ -100,10 +102,10 @@ export default makeProject({
 
         // smallMethodsProblemsSubtitlesSceneRu,
         // notifyPassThroughSceneRu,
-        //  validateMonolithSceneRu,
-        //  starWarsCrawlSceneRu,
-        //   jackIntroSceneEn,
-        //   codeWithActionsSceneRu,
+        // validateMonolithSceneRu,
+        // starWarsCrawlSceneRu,
+        // jackIntroSceneEn,
+        // codeWithActionsSceneRu,
         // codeWithActionsSceneRuTilt,
         // exportCallTreeSceneRu,
         // triangleAmplifierSceneRu,
@@ -136,12 +138,15 @@ export default makeProject({
         // foreignResponsibilityInvasionSceneEn,
         // separationOfConcernsQuoteSceneRu,
         // whyItIsAProblemSceneEn,
-        //  prematureAbstractionTakeSceneEn,
-        //  prematureAbstractionQuoteSceneEn,
+        // prematureAbstractionTakeSceneEn,
+        // prematureAbstractionQuoteSceneEn,
         // prematureAbstractionResolutionSceneEn,
         // robotArmDarkScene,
         // predictingFutureTakeSceneEn,
         earnedAbstractionSceneEn,
+
+
+
 
     ]
 })
