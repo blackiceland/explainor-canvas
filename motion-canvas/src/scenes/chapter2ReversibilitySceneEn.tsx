@@ -254,8 +254,8 @@ const CUSTOM_TYPES = [
 ];
 
 // ── Geometry ─────────────────────────────────────────────────────────
-const FONT_SIZE  = 13;
-const LINE_H     = 21;
+const FONT_SIZE  = 17;
+const LINE_H     = 27;
 
 const ENT_W      = 760;
 const ENT_H      = SafeZone.bottom - SafeZone.top - 36;  // 924
@@ -447,8 +447,8 @@ export default makeScene2D(function* (view) {
         radius={4}
         end={0}
         opacity={0}
-        shadowColor={'rgba(0, 0, 0, 0.75)'}
-        shadowBlur={28}
+        shadowColor={'rgba(0, 0, 0, 0.90)'}
+        shadowBlur={26}
         shadowOffset={[-8, 14]}
       />,
     );
@@ -467,9 +467,9 @@ export default makeScene2D(function* (view) {
         stroke={BOX_STROKE}
         lineWidth={1.5}
         opacity={0}
-        shadowColor={'rgba(0, 0, 0, 0.85)'}
-        shadowBlur={60}
-        shadowOffset={[-22, 30]}
+        shadowColor={'rgba(0, 0, 0, 0.55)'}
+        shadowBlur={30}
+        shadowOffset={[-10, 16]}
       >
         <Txt
           ref={labelRefs[i]}
@@ -495,6 +495,9 @@ export default makeScene2D(function* (view) {
       stroke={ACCENT}
       lineWidth={2}
       opacity={nodeOpaSig}
+      shadowColor={'rgba(0, 0, 0, 0.55)'}
+      shadowBlur={30}
+      shadowOffset={[-10, 16]}
     >
       <Txt
         ref={nodeLbl}
@@ -714,7 +717,7 @@ export default makeScene2D(function* (view) {
   const PANEL_W         = 780;
   const PANEL_H         = 560;
   const PANEL_TOP_PAD   = 12;
-  const PANEL_BIG_Y     = +60;
+  const PANEL_BIG_Y     = 0;
   const PANEL_X_LEFT    = -360;
   const PANEL_X_RIGHT   = +360;
 
@@ -757,11 +760,11 @@ export default makeScene2D(function* (view) {
     <Txt
       ref={trTitleRef}
       text={'Tracer bullet'}
-      x={0} y={-360}
+      x={0} y={-400}
       fontFamily={Fonts.primary}
-      fontSize={64}
+      fontSize={56}
       fontWeight={500}
-      letterSpacing={2.4}
+      letterSpacing={2}
       fill={WARM_CREAM}
       opacity={trTitleOp}
     />,
@@ -770,24 +773,26 @@ export default makeScene2D(function* (view) {
     <Txt
       ref={trSubRef}
       text={'A thin end-to-end slice of real code that proves the path.'}
-      x={0} y={-308}
+      x={0} y={-348}
       fontFamily={Fonts.primary}
-      fontSize={26}
+      fontSize={22}
       fontWeight={400}
-      letterSpacing={0.8}
-      fill={'rgba(244, 230, 200, 0.65)'}
+      letterSpacing={0.6}
+      fill={WARM_CREAM}
       opacity={trSubOp}
     />,
   );
 
-  // 4a — graph + central node fade out AT THE SAME TIME as the left
-  // code dims. One synchronous step.
+  // 4a — graph, central node AND the left code panel all fade out
+  // at the same time. The left code disappears completely (instead of
+  // dimming) — at the end of the beat the original S0 will return as
+  // a fresh panel, side-by-side with the profile alternative.
   yield* all(
-    nodeOpaSig(0, 0.65, easeInCubic),
-    ...boxRefs.map(r => r().opacity(0, 0.65, easeInCubic)),
-    ...lineRefs.map(r => r().opacity(0, 0.65, easeInCubic)),
-    strikeRef().opacity(0, 0.65, easeInCubic),
-    code.node.opacity(0.16, 0.65, easeInOutCubic),
+    nodeOpaSig(0, 0.7, easeInCubic),
+    ...boxRefs.map(r => r().opacity(0, 0.7, easeInCubic)),
+    ...lineRefs.map(r => r().opacity(0, 0.7, easeInCubic)),
+    strikeRef().opacity(0, 0.7, easeInCubic),
+    code.node.opacity(0, 0.7, easeInOutCubic),
   );
 
   // 4b — RobotArm appears on the LEFT.
@@ -801,23 +806,21 @@ export default makeScene2D(function* (view) {
   // 4d — caption fades in ABOVE the panels, panels stay visible.
   yield* trTitleOp(1, 0.8, easeOutCubic);
   yield* trSubOp(1, 0.6, easeOutCubic);
-  yield* waitFor(2.6);
+  yield* waitFor(2.8);
 
-  // 4e — code panels AND caption fade out together, synchronously.
+  // 4e — code panels AND caption fade out together, slow & smooth.
   yield* all(
-    panelArm.node.opacity(0, 0.75, easeInCubic),
-    panelHandler.node.opacity(0, 0.75, easeInCubic),
-    trTitleOp(0, 0.75, easeInCubic),
-    trSubOp(0, 0.75, easeInCubic),
+    panelArm.node.opacity(0, 1.4, easeInOutCubic),
+    panelHandler.node.opacity(0, 1.4, easeInOutCubic),
+    trTitleOp(0, 1.4, easeInOutCubic),
+    trSubOp(0, 1.4, easeInOutCubic),
   );
-  yield* waitFor(0.25);
+  yield* waitFor(0.3);
 
-  // ═══ Beat 6 — restore: original LEFT becomes clear, profile RIGHT ═══
-  //   The dimmed left code (its post-cascade state from the start of
-  //   the scene) un-dims back to full. On the right, a NEW panel
-  //   appears at the SAME size and position metrics as the left —
-  //   showing the CubeHandler/HandlingProfile alternative from
-  //   earnedAbstractionSceneEn.
+  // ═══ Beat 6 — original code (S0, with strategies) returns LEFT;
+  //   profile alternative appears on the RIGHT, at the same size.
+  //   Two fresh Manticore panels — no leftover red/dim/strike state
+  //   to scrub.
   const RIGHT_PROFILE_CODE = `class CubeHandler {
 
     private final RobotArm arm = new RobotArm();
@@ -844,6 +847,23 @@ class HandlingProfile {
 
 }`;
 
+  const codeStart = Manticore.create(S0, {
+    x: ENT_X_LEFT, y: ENT_Y,
+    width: ENT_W,
+    height: ENT_H,
+    clipPaddingY: 6,
+    fontSize: FONT_SIZE, lineHeight: LINE_H,
+    contentOffsetY: topInset,
+    fontFamily: Fonts.code,
+    theme: DryFiltersV3CodeTheme,
+    cardStyle: CODE_CARD_STYLE,
+    glowAccent: false,
+    customTypes: CUSTOM_TYPES,
+  });
+  codeStart.mount(view);
+  codeStart.node.opacity(0);
+  codeStart.colorize(COLOR_RULES);
+
   const codeRight = Manticore.create(RIGHT_PROFILE_CODE, {
     x: -ENT_X_LEFT, y: ENT_Y,
     width: ENT_W,
@@ -862,8 +882,8 @@ class HandlingProfile {
   codeRight.colorize(COLOR_RULES);
 
   yield* all(
-    code.node.opacity(1, 0.85, easeInOutCubic),
-    codeRight.appear(0.85),
+    codeStart.appear(0.95),
+    codeRight.appear(0.95),
   );
-  yield* waitFor(2.6);
+  yield* waitFor(2.8);
 });

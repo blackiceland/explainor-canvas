@@ -1,59 +1,76 @@
-import {Rect, Txt, makeScene2D} from '@motion-canvas/2d';
+import {Layout, Rect, Txt, makeScene2D} from '@motion-canvas/2d';
 import {
     all, createRef,
-    easeInCubic, easeInOutCubic, easeOutCubic, easeOutQuart,
-    ThreadGenerator, Vector2, waitFor,
+    easeInCubic, easeInOutCubic, easeOutCubic,
+    Reference, ThreadGenerator, Vector2, waitFor,
 } from '@motion-canvas/core';
 import {ColorRule, Manticore} from '../core/code/components/Manticore';
 import {SyntaxTheme} from '../core/code/model/SyntaxTheme';
 
 // ══════════════════════════════════════════════════════════════════════
-// Reels · Don't Fight Duplication — 30s · Vertical 1080×1920 · Light Lab
-//
-//   0–3s   Hook       "This looks like duplication."
-//   3–8s   Pair       Two near-mirror Kotlin extension functions, stacked.
-//                     The condition expression in each `if` recolours to
-//                     accent — the only signal of mirror, no card pills.
-//   8–12s  Merge      Two blocks fade out, single `notice(condition)` fades in.
-//   12–17s Isolate    Other lines fade to 0.18; condition: Boolean stays
-//                     full opacity. No bg pill, no ghost labels.
-//   17–22s Hold       Code restores to full, but `condition` recolours to
-//                     accent — what we have left of the domain knowledge.
-//   22–26s Thesis     Code FULLY disappears, then thesis appears.
-//                     "Clean code can erase meaning."
-//   26–30s Axiom      "Don't fight duplication / until you know what it
-//                     remembers." — held 2s.
+// Three code-styling variants, same snippet, vertical 1080×1920.
+//   V1  Light editorial — warm bg, ink text, ONE accent token, quiet puncts.
+//   V2  Dark pastel — graphite bg, soft lilac/blue/grey, big line-height.
+//   V3  Serif italic — light bg, code rendered as poem (no syntax colour).
+// No headlines, no chrome, no captions. Just code.
 // ══════════════════════════════════════════════════════════════════════
 
-// ── Palette (§4) ──────────────────────────────────────────────────────
-const BG        = '#E8E3D8';
-const INK       = '#1F2326';
-const SECONDARY = '#706D66';
-const KW        = '#A75B38';
-const TYP       = '#55748C';
-const STR       = '#6B7F5A';
-const ACCENT    = KW;
+const F_MONO  = 'JetBrains Mono, IBM Plex Mono, monospace';
+const F_SERIF = 'EB Garamond, Caslon, Georgia, serif';
 
-// ── Typography (§5) ───────────────────────────────────────────────────
-const F_HEAD = 'Geist, Space Grotesk, Inter, sans-serif';
-const F_CODE = 'JetBrains Mono, IBM Plex Mono, monospace';
+// ── Snippet (matches the dark-pastel reference verbatim) ──────────────
+const SNIPPET = `while noSuccess:
+    tryAgain()
 
-// ── SyntaxTheme: Light Lab semantic colours, no decorative tones. ─────
-const LightLabTheme: SyntaxTheme = {
-    keyword:     KW,
-    type:        TYP,
-    string:      STR,
-    number:      INK,
-    operator:    INK,
-    punctuation: INK,
-    method:      INK,
-    comment:     SECONDARY,
-    annotation:  KW,
-    constant:    TYP,
-    plain:       INK,
+    if dead:
+        break`;
+
+// ── V1 · Light editorial ──────────────────────────────────────────────
+const V1_BG       = '#E0DACE';
+const V1_INK      = '#1B1815';
+const V1_QUIET    = 'rgba(27,24,21,0.42)';
+const V1_ACCENT   = '#A75B38';
+const V1_THEME: SyntaxTheme = {
+    keyword:     V1_INK,
+    type:        V1_INK,
+    string:      V1_INK,
+    number:      V1_INK,
+    operator:    V1_QUIET,
+    punctuation: V1_QUIET,
+    method:      V1_INK,
+    comment:     V1_QUIET,
+    annotation:  V1_INK,
+    constant:    V1_INK,
+    plain:       V1_INK,
+};
+const V1_RULES: ColorRule[] = [
+    {match: /^tryAgain$/, color: V1_ACCENT, onlyTypes: ['method']},
+];
+
+// ── V2 · Dark pastel (the while/if/break reference) ───────────────────
+const V2_BG       = '#1A1B1F';
+const V2_PLAIN    = '#C7C3B9';
+const V2_LILAC    = '#B8A3D4';
+const V2_BLUE     = '#9FBED9';
+const V2_QUIET    = '#6E6F73';
+const V2_THEME: SyntaxTheme = {
+    keyword:     V2_LILAC,
+    type:        V2_PLAIN,
+    string:      V2_PLAIN,
+    number:      V2_PLAIN,
+    operator:    V2_QUIET,
+    punctuation: V2_QUIET,
+    method:      V2_BLUE,
+    comment:     V2_QUIET,
+    annotation:  V2_LILAC,
+    constant:    V2_PLAIN,
+    plain:       V2_PLAIN,
 };
 
-// CodeCard goes invisible — code sits directly on the warm-greige page.
+// ── V3 · Serif italic / editorial poem ────────────────────────────────
+const V3_BG  = '#E0DACE';
+const V3_INK = '#1B1815';
+
 const FLAT_CARD = {
     radius: 0,
     fill: 'rgba(0,0,0,0)',
@@ -66,266 +83,110 @@ const FLAT_CARD = {
     edge: false,
 } as const;
 
-// ── Code samples ──────────────────────────────────────────────────────
-// Kotlin extension functions: shorter signatures fit fontSize 36 within
-// the 880-px card. Single-arg Message keeps lines short and the merge
-// monomorphic.
-const BILLING = `fun Invoice.notice(): Message {
-    if (isOverdue) {
-        return Message(URGENT)
-    }
-    return Message(NORMAL)
-}`;
-
-const SECURITY = `fun Login.notice(): Message {
-    if (isSuspicious) {
-        return Message(URGENT)
-    }
-    return Message(NORMAL)
-}`;
-
-// Multi-line signature — keeps each visible line short.
-const MERGED = `fun notice(
-    condition: Boolean
-): Message {
-    if (condition) {
-        return Message(URGENT)
-    }
-    return Message(NORMAL)
-}`;
-
-const CUSTOM_TYPES = ['Message', 'Invoice', 'Login'];
-
-// Tokenizer is Java-only — `fun` lands as 'plain'. Recolour without
-// touching the lexer.
-const KOTLIN_KW_RULES: ColorRule[] = [
-    {match: /^fun$/, color: KW, onlyTypes: ['plain']},
-];
-
-const CODE_FONT = 36;
-const CODE_LH   = 56;
-const CODE_W    = 880;
+const CODE_FONT = 56;
+const CODE_LH   = 100;   // ≈ 1.8× — Open-style breathing
+const CODE_W    = 920;
 
 // ══════════════════════════════════════════════════════════════════════
 export default makeScene2D(function* (view) {
     view.size(new Vector2(1080, 1920));
-    view.fill(BG);
+    view.fill(V1_BG);
 
-    // Solid backing rect — guarantees full coverage even if the player
-    // letter-boxes the canvas.
-    view.add(<Rect width={1080} height={1920} fill={BG}/>);
+    // Two background layers — we crossfade between them as the variant
+    // changes. Light is on top by default.
+    const bgLight = createRef<Rect>();
+    const bgDark  = createRef<Rect>();
+    view.add(<Rect ref={bgLight} width={1080} height={1920} fill={V1_BG} opacity={1}/>);
+    view.add(<Rect ref={bgDark}  width={1080} height={1920} fill={V2_BG} opacity={0}/>);
 
-    // ─── BEAT 0 (0–3s) · HOOK ─────────────────────────────────────────
-    const hook = createRef<Txt>();
-    view.add(<Txt
-        ref={hook}
-        text="This looks like duplication."
-        fontFamily={F_HEAD}
-        fontSize={64}
-        fontWeight={500}
-        fill={INK}
-        letterSpacing={-1.4}
-        opacity={0}
-        y={-30}
-    />);
+    // ─── V1 ──────────────────────────────────────────────────────────
+    const v1 = makeBlock(SNIPPET, V1_THEME);
+    v1.mount(view);
+    v1.colorize(V1_RULES);
+    yield* v1.appear(0.6);
+    yield* waitFor(3.4);
+
+    // ─── V1 → V2 (light → dark, swap code) ────────────────────────────
+    const v2 = makeBlock(SNIPPET, V2_THEME);
+    v2.mount(view);
+    v2.node.opacity(0);
     yield* all(
-        hook().opacity(1, 0.55, easeOutQuart),
-        hook().y(0, 0.55, easeOutQuart),
+        v1.node.opacity(0, 0.55, easeInOutCubic),
+        bgLight().opacity(0, 0.55),
+        bgDark().opacity(1, 0.55),
+        v2.node.opacity(1, 0.55, easeInOutCubic),
     );
-    yield* waitFor(1.6);
-    yield* hook().opacity(0, 0.45, easeInCubic);
-    hook().remove();
-    yield* waitFor(0.05);
+    v1.node.opacity(0);
+    v1.node.remove();
 
-    // ─── BEAT 1 (3–8s) · TWO BLOCKS (compare pair) ────────────────────
-    const billing  = makeBlock(BILLING,  -260);
-    const security = makeBlock(SECURITY,  260);
-    billing.mount(view);
-    security.mount(view);
-    billing.colorize(KOTLIN_KW_RULES);
-    security.colorize(KOTLIN_KW_RULES);
+    yield* waitFor(3.4);
 
-    // Slide in from below + fade.
-    billing.node.y(billing.node.y() + 140);
-    security.node.y(security.node.y() + 140);
+    // ─── V2 → V3 (dark → light, code becomes serif italic) ────────────
+    const v3 = buildSerifBlock(view);
+    v3.opacity(0);
     yield* all(
-        billing.node.y(-260, 0.7, easeOutQuart),
-        security.node.y(260, 0.7, easeOutQuart),
-        billing.appear(0.6),
-        security.appear(0.6),
+        v2.node.opacity(0, 0.55, easeInOutCubic),
+        bgDark().opacity(0, 0.55),
+        bgLight().opacity(1, 0.55),
+        v3.opacity(1, 0.55, easeInOutCubic),
     );
+    v2.node.opacity(0);
+    v2.node.remove();
 
-    yield* waitFor(0.5);
+    yield* waitFor(4.0);
 
-    // Recolour the condition expressions (the part that carries domain
-    // knowledge) to accent — no bg pills, only token colour.
-    yield* all(
-        ...billing.getLine(billing.findLine('isOverdue'))!
-            .colorizeByRuleAnimated('isOverdue', ACCENT, 0.45, ['plain']),
-        ...security.getLine(security.findLine('isSuspicious'))!
-            .colorizeByRuleAnimated('isSuspicious', ACCENT, 0.45, ['plain']),
-    );
-
-    yield* waitFor(2.4);
-
-    // ─── BEAT 2 (8–12s) · MERGE ───────────────────────────────────────
-    yield* all(
-        billing.node.y(-60, 0.55, easeInOutCubic),
-        security.node.y(60, 0.55, easeInOutCubic),
-        billing.disappear(0.5),
-        security.disappear(0.5),
-    );
-    billing.node.remove();
-    security.node.remove();
-
-    const merged = makeBlock(MERGED, 0);
-    merged.mount(view);
-    merged.colorize(KOTLIN_KW_RULES);
-    merged.node.scale(0.92);
-    yield* all(
-        merged.appear(0.55),
-        merged.node.scale(1, 0.55, easeOutCubic),
-    );
-
-    yield* waitFor(2.3);
-
-    // ─── BEAT 3 (12–17s) · ISOLATE `condition: Boolean` ───────────────
-    // Pure isolation through opacity differential. No pill, no ghosts.
-    const condLine = merged.findLine('condition: Boolean');
-
-    const dimOthers: ThreadGenerator[] = [];
-    for (let i = 0; i < merged.lineCount; i++) {
-        if (i === condLine) continue;
-        const ln = merged.getLine(i);
-        if (ln) dimOthers.push(ln.setOpacity(0.18, 0.5));
-    }
-    yield* all(...dimOthers);
-
-    yield* waitFor(2.4);
-
-    // ─── BEAT 4 (17–22s) · DOMAIN KNOWLEDGE GONE ──────────────────────
-    // Restore other lines, then recolour `condition` to accent — the only
-    // residue of the lost domain names.
-    const restoreLines: ThreadGenerator[] = [];
-    for (let i = 0; i < merged.lineCount; i++) {
-        if (i === condLine) continue;
-        const ln = merged.getLine(i);
-        if (ln) restoreLines.push(ln.setOpacity(1, 0.55));
-    }
-    yield* all(...restoreLines);
-
-    const condCl = merged.getLine(condLine)!;
-    yield* all(
-        ...condCl.colorizeByRuleAnimated('condition', ACCENT, 0.5, ['plain']),
-    );
-
-    yield* waitFor(2.6);
-
-    // ─── BEAT 5 (22–26s) · THESIS ─────────────────────────────────────
-    // Code MUST be fully gone before the thesis lands.
-    yield* merged.disappear(0.55);
-    merged.node.remove();
-
-    const thesisLead   = createRef<Txt>();
-    const thesisAccent = createRef<Txt>();
-    view.add(<Txt
-        ref={thesisLead}
-        text="Clean code can erase"
-        fontFamily={F_HEAD}
-        fontSize={72}
-        fontWeight={500}
-        fill={INK}
-        letterSpacing={-1.6}
-        x={0}
-        y={-110}
-        opacity={0}
-    />);
-    view.add(<Txt
-        ref={thesisAccent}
-        text="meaning."
-        fontFamily={F_HEAD}
-        fontSize={88}
-        fontWeight={600}
-        fill={INK}
-        letterSpacing={-2.2}
-        x={0}
-        y={10}
-        opacity={0}
-    />);
-    yield* all(
-        thesisLead().opacity(1, 0.55, easeOutQuart),
-        thesisLead().y(-130, 0.55, easeOutQuart),
-    );
-    yield* waitFor(0.25);
-    yield* all(
-        thesisAccent().opacity(1, 0.6, easeOutQuart),
-        thesisAccent().y(-10, 0.6, easeOutQuart),
-    );
-    yield* waitFor(0.3);
-    yield* thesisAccent().fill(ACCENT, 0.55, easeInOutCubic);
-
-    yield* waitFor(1.5);
-
-    // ─── BEAT 6 (26–30s) · FINAL AXIOM ────────────────────────────────
-    yield* all(
-        thesisLead().opacity(0, 0.5, easeInCubic),
-        thesisAccent().opacity(0, 0.5, easeInCubic),
-    );
-    thesisLead().remove();
-    thesisAccent().remove();
-
-    const axiomA = createRef<Txt>();
-    const axiomB = createRef<Txt>();
-    view.add(<Txt
-        ref={axiomA}
-        text="Don't fight duplication"
-        fontFamily={F_HEAD}
-        fontSize={72}
-        fontWeight={500}
-        fill={INK}
-        letterSpacing={-1.6}
-        x={0}
-        y={-60}
-        opacity={0}
-    />);
-    view.add(<Txt
-        ref={axiomB}
-        text="until you know what it remembers."
-        fontFamily={F_HEAD}
-        fontSize={50}
-        fontWeight={400}
-        fill={SECONDARY}
-        letterSpacing={-0.8}
-        x={0}
-        y={30}
-        opacity={0}
-    />);
-
-    yield* all(
-        axiomA().opacity(1, 0.6, easeOutQuart),
-        axiomA().y(-50, 0.6, easeOutQuart),
-    );
-    yield* waitFor(0.4);
-    yield* all(
-        axiomB().opacity(0.95, 0.6, easeOutQuart),
-        axiomB().y(40, 0.6, easeOutQuart),
-    );
-
-    yield* waitFor(2.0);
+    // Tail fade so the loop ends clean.
+    yield* v3.opacity(0, 0.45, easeInCubic);
 });
 
 // ── Helpers ───────────────────────────────────────────────────────────
-function makeBlock(code: string, y: number): Manticore {
+function makeBlock(code: string, theme: SyntaxTheme): Manticore {
     return Manticore.create(code, {
         x: 0,
-        y,
+        y: 0,
         width: CODE_W,
         fontSize: CODE_FONT,
         lineHeight: CODE_LH,
-        fontFamily: F_CODE,
-        theme: LightLabTheme,
+        fontFamily: F_MONO,
+        theme,
         cardStyle: FLAT_CARD,
-        customTypes: CUSTOM_TYPES,
         glowAccent: false,
     });
+}
+
+// V3 doesn't go through Manticore — it's serif italic, deliberately not
+// monospace. Each line is a Txt placed by hand. Indents become
+// typographic, not tabular.
+function buildSerifBlock(view: Layout): Layout {
+    const lines = [
+        {text: 'while noSuccess:',     indent: 0},
+        {text: 'tryAgain()',           indent: 1},
+        {text: '',                     indent: 0},
+        {text: 'if dead:',             indent: 1},
+        {text: 'break',                indent: 2},
+    ];
+    const FS = 64;
+    const LH = 96;
+    const INDENT = 64;
+    const total = lines.length * LH;
+
+    const wrap = new Layout({y: 0, opacity: 0});
+    for (let i = 0; i < lines.length; i++) {
+        const ln = lines[i];
+        const y = -total / 2 + i * LH + LH / 2;
+        if (ln.text.length === 0) continue;
+        wrap.add(<Txt
+            text={ln.text}
+            fontFamily={F_SERIF}
+            fontSize={FS}
+            fontStyle="italic"
+            fontWeight={400}
+            fill={V3_INK}
+            x={-CODE_W / 2 + ln.indent * INDENT}
+            y={y}
+            offset={[-1, 0]}
+        />);
+    }
+    view.add(wrap);
+    return wrap;
 }
