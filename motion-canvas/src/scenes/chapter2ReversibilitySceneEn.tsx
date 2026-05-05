@@ -37,9 +37,11 @@ const ACCENT_FILL  = 'rgba(255, 140, 163, 0.18)';
 const TYPE_CLEAN   = 'rgba(220, 215, 255, 0.85)';
 const WARM_CREAM   = 'rgba(244, 230, 200, 0.96)';
 
-// Tree-box style (correctBoundariesSceneRu canon)
-const BOX_FILL     = 'rgba(244, 241, 235, 0.16)';
-const BOX_STROKE   = 'rgba(244, 241, 235, 0.25)';
+// Tree-box style — solid surface like dryFilters PanelStyle so the
+// drop shadow lands on the dark canvas instead of vanishing into
+// translucent fill.
+const BOX_FILL     = '#1B1D21';
+const BOX_STROKE   = '#262A34';
 const BOX_LABEL    = 'rgba(244, 241, 235, 0.90)';
 const LINK_STROKE  = 'rgba(244, 241, 235, 0.22)';
 
@@ -230,6 +232,9 @@ const COLOR_RULES: ColorRule[] = [
   {match: /^ForceSensor$/,         color: TYPE_CLEAN},
   {match: /^Position$/,            color: TYPE_CLEAN},
   {match: /^GripFailedException$/, color: TYPE_CLEAN},
+  // earnedAbstractionSceneEn profile companion
+  {match: /^HandlingProfile$/,    color: TYPE_CLEAN},
+  {match: /^GripForce$/,          color: TYPE_CLEAN},
 ];
 
 const RED_ALL_RULES: ColorRule[] = [{match: /./, color: BROKEN_RED}];
@@ -244,6 +249,8 @@ const CUSTOM_TYPES = [
   // Concrete-wiring panel (Beat 3)
   'Conveyor', 'MotionController', 'Gripper', 'ForceSensor',
   'Position', 'GripFailedException',
+  // Profile companion (Beat 5 right panel)
+  'HandlingProfile', 'GripForce',
 ];
 
 // ── Geometry ─────────────────────────────────────────────────────────
@@ -440,9 +447,9 @@ export default makeScene2D(function* (view) {
         radius={4}
         end={0}
         opacity={0}
-        shadowColor={'rgba(0, 0, 0, 0.50)'}
-        shadowBlur={20}
-        shadowOffset={[-6, 10]}
+        shadowColor={'rgba(0, 0, 0, 0.75)'}
+        shadowBlur={28}
+        shadowOffset={[-8, 14]}
       />,
     );
   });
@@ -460,9 +467,9 @@ export default makeScene2D(function* (view) {
         stroke={BOX_STROKE}
         lineWidth={1.5}
         opacity={0}
-        shadowColor={'rgba(0, 0, 0, 0.50)'}
-        shadowBlur={44}
-        shadowOffset={[-16, 22]}
+        shadowColor={'rgba(0, 0, 0, 0.85)'}
+        shadowBlur={60}
+        shadowOffset={[-22, 30]}
       >
         <Txt
           ref={labelRefs[i]}
@@ -664,8 +671,8 @@ export default makeScene2D(function* (view) {
   //   Graph and central node fade out at the SAME TIME as the left
   //   code dims to a ghost backdrop. RobotArm appears on the left,
   //   then CubeHandler — full classes, no chips, no merge gymnastics.
-  //   Two pieces of the bullet, side by side, top-aligned. They are
-  //   read together; then BOTH disappear; only afterwards the caption.
+  //   After a couple seconds the "Tracer bullet" caption appears
+  //   ABOVE the pair, between the panel tops and the frame edge.
   const ROBOT_ARM_FULL = `public final class RobotArm {
 
     private final MotionController motion;
@@ -705,8 +712,9 @@ export default makeScene2D(function* (view) {
   const PANEL_FONT      = 22;
   const PANEL_LINE      = 33;
   const PANEL_W         = 780;
-  const PANEL_H         = 660;
+  const PANEL_H         = 560;
   const PANEL_TOP_PAD   = 12;
+  const PANEL_BIG_Y     = +60;
   const PANEL_X_LEFT    = -360;
   const PANEL_X_RIGHT   = +360;
 
@@ -726,7 +734,7 @@ export default makeScene2D(function* (view) {
 
   const panelArm = Manticore.create(ROBOT_ARM_FULL, {
     ...PANEL_OPTS,
-    x: PANEL_X_LEFT, y: 0,
+    x: PANEL_X_LEFT, y: PANEL_BIG_Y,
   });
   panelArm.mount(view);
   panelArm.node.opacity(0);
@@ -734,11 +742,43 @@ export default makeScene2D(function* (view) {
 
   const panelHandler = Manticore.create(CUBE_HANDLER_RIGHT, {
     ...PANEL_OPTS,
-    x: PANEL_X_RIGHT, y: 0,
+    x: PANEL_X_RIGHT, y: PANEL_BIG_Y,
   });
   panelHandler.mount(view);
   panelHandler.node.opacity(0);
   panelHandler.colorize(COLOR_RULES);
+
+  // ── Tracer bullet caption — placed ABOVE the panels.
+  const trTitleOp  = createSignal(0);
+  const trSubOp    = createSignal(0);
+  const trTitleRef = createRef<Txt>();
+  const trSubRef   = createRef<Txt>();
+  view.add(
+    <Txt
+      ref={trTitleRef}
+      text={'Tracer bullet'}
+      x={0} y={-360}
+      fontFamily={Fonts.primary}
+      fontSize={64}
+      fontWeight={500}
+      letterSpacing={2.4}
+      fill={WARM_CREAM}
+      opacity={trTitleOp}
+    />,
+  );
+  view.add(
+    <Txt
+      ref={trSubRef}
+      text={'A thin end-to-end slice of real code that proves the path.'}
+      x={0} y={-308}
+      fontFamily={Fonts.primary}
+      fontSize={26}
+      fontWeight={400}
+      letterSpacing={0.8}
+      fill={'rgba(244, 230, 200, 0.65)'}
+      opacity={trSubOp}
+    />,
+  );
 
   // 4a — graph + central node fade out AT THE SAME TIME as the left
   // code dims. One synchronous step.
@@ -750,56 +790,80 @@ export default makeScene2D(function* (view) {
     code.node.opacity(0.16, 0.65, easeInOutCubic),
   );
 
-  // 4b — RobotArm appears on the LEFT. Read time.
+  // 4b — RobotArm appears on the LEFT.
   yield* panelArm.node.opacity(1, 0.85, easeOutCubic);
+  yield* waitFor(1.6);
+
+  // 4c — CubeHandler appears on the RIGHT.
+  yield* panelHandler.node.opacity(1, 0.85, easeOutCubic);
   yield* waitFor(2.0);
 
-  // 4c — CubeHandler appears on the RIGHT. Read time for the pair.
-  yield* panelHandler.node.opacity(1, 0.85, easeOutCubic);
-  yield* waitFor(3.2);
-
-  // 4d — both panels disappear. ONLY AFTER they are gone the caption
-  // shows up (Beat 5 below).
-  yield* all(
-    panelArm.node.opacity(0, 0.7, easeInCubic),
-    panelHandler.node.opacity(0, 0.7, easeInCubic),
-    code.node.opacity(0, 0.7, easeInCubic),
-  );
-  yield* waitFor(0.35);
-
-  // ═══ Beat 5 — explanation card: tracer bullet ═══════════════════
-  const trTitleOp = createSignal(0);
-  const trSubOp   = createSignal(0);
-  const trTitleRef = createRef<Txt>();
-  const trSubRef   = createRef<Txt>();
-  view.add(
-    <Txt
-      ref={trTitleRef}
-      text={'Tracer bullet'}
-      x={0} y={-44}
-      fontFamily={Fonts.primary}
-      fontSize={104}
-      fontWeight={500}
-      letterSpacing={3}
-      fill={WARM_CREAM}
-      opacity={trTitleOp}
-    />,
-  );
-  view.add(
-    <Txt
-      ref={trSubRef}
-      text={'A thin end-to-end slice of real code that proves the path.'}
-      x={0} y={50}
-      fontFamily={Fonts.primary}
-      fontSize={34}
-      fontWeight={400}
-      letterSpacing={1}
-      fill={'rgba(244, 230, 200, 0.65)'}
-      opacity={trSubOp}
-    />,
-  );
-
+  // 4d — caption fades in ABOVE the panels, panels stay visible.
   yield* trTitleOp(1, 0.8, easeOutCubic);
   yield* trSubOp(1, 0.6, easeOutCubic);
-  yield* waitFor(2.4);
+  yield* waitFor(2.6);
+
+  // 4e — code panels AND caption fade out together, synchronously.
+  yield* all(
+    panelArm.node.opacity(0, 0.75, easeInCubic),
+    panelHandler.node.opacity(0, 0.75, easeInCubic),
+    trTitleOp(0, 0.75, easeInCubic),
+    trSubOp(0, 0.75, easeInCubic),
+  );
+  yield* waitFor(0.25);
+
+  // ═══ Beat 6 — restore: original LEFT becomes clear, profile RIGHT ═══
+  //   The dimmed left code (its post-cascade state from the start of
+  //   the scene) un-dims back to full. On the right, a NEW panel
+  //   appears at the SAME size and position metrics as the left —
+  //   showing the CubeHandler/HandlingProfile alternative from
+  //   earnedAbstractionSceneEn.
+  const RIGHT_PROFILE_CODE = `class CubeHandler {
+
+    private final RobotArm arm = new RobotArm();
+
+    public void handleCube(Cube cube, Table table) {
+        HandlingProfile handling = new HandlingProfile(
+            GripForce.forMass(cube.mass),
+            MotionProfile.forTransfer(cube, table),
+            ReleaseStyle.forTable(table.surface)
+        );
+
+        arm.moveTo(cube.position);
+        arm.grab(cube, handling.gripForce);
+        arm.moveTo(table.position, handling.motionProfile);
+        arm.release(handling.releaseStyle);
+    }
+}
+
+class HandlingProfile {
+
+    public final GripForce gripForce;
+    public final MotionProfile motionProfile;
+    public final ReleaseStyle releaseStyle;
+
+}`;
+
+  const codeRight = Manticore.create(RIGHT_PROFILE_CODE, {
+    x: -ENT_X_LEFT, y: ENT_Y,
+    width: ENT_W,
+    height: ENT_H,
+    clipPaddingY: 6,
+    fontSize: FONT_SIZE, lineHeight: LINE_H,
+    contentOffsetY: topInset,
+    fontFamily: Fonts.code,
+    theme: DryFiltersV3CodeTheme,
+    cardStyle: CODE_CARD_STYLE,
+    glowAccent: false,
+    customTypes: CUSTOM_TYPES,
+  });
+  codeRight.mount(view);
+  codeRight.node.opacity(0);
+  codeRight.colorize(COLOR_RULES);
+
+  yield* all(
+    code.node.opacity(1, 0.85, easeInOutCubic),
+    codeRight.appear(0.85),
+  );
+  yield* waitFor(2.6);
 });
