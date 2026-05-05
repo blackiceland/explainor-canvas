@@ -21,7 +21,7 @@ const JAVA_KEYWORDS = new Set([
     'void', 'int', 'long', 'double', 'float', 'boolean', 'char', 'byte', 'short',
     'if', 'else', 'for', 'while', 'do', 'switch', 'case', 'default', 'break', 'continue', 'return',
     'try', 'catch', 'finally', 'throw', 'throws',
-    'class', 'interface', 'enum', 'extends', 'implements',
+    'class', 'interface', 'enum', 'record', 'extends', 'implements',
     'public', 'private', 'protected', 'static', 'final', 'abstract', 'synchronized', 'volatile', 'transient',
     'new', 'this', 'super', 'instanceof',
     'true', 'false', 'null',
@@ -74,7 +74,7 @@ function classifyWord(
     if (
         previousMeaningful &&
         previousMeaningful.type === 'keyword' &&
-        (previousMeaningful.text === 'class' || previousMeaningful.text === 'interface' || previousMeaningful.text === 'enum')
+        (previousMeaningful.text === 'class' || previousMeaningful.text === 'interface' || previousMeaningful.text === 'enum' || previousMeaningful.text === 'record')
     ) {
         return 'type';
     }

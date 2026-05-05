@@ -52,6 +52,16 @@ import earnedAbstractionSceneEn from "./scenes/earnedAbstractionSceneEn?scene";
 import preparationVsFantasySceneEn from "./scenes/preparationVsFantasySceneEn?scene";
 import chapterTwoOpenSceneEn from "./scenes/chapterTwoOpenSceneEn?scene";
 import chapter2ReversibilitySceneEn from "./scenes/chapter2ReversibilitySceneEn?scene";
+import dontFightDuplicationVerticalSceneEn from "./scenes/dontFightDuplicationVerticalSceneEn?scene";
+import chapter3IntroScene from "./scenes/chapter3IntroScene?scene";
+import paymentInputsSceneV3 from "./scenes/paymentInputsSceneV3?scene";
+import splitDtoSceneV3 from "./scenes/splitDtoSceneV3?scene";
+import dryKnowledgeSceneV3 from "./scenes/dryKnowledgeSceneV3?scene";
+import typewriterCodeSceneRu from "./scenes/typewriterCodeSceneRu?scene";
+import duplicationBestChoiceTitleSceneEn from "./scenes/duplicationBestChoiceTitleSceneEn?scene";
+import doItAllComponentTitleSceneEn from "./scenes/doItAllComponentTitleSceneEn?scene";
+import dryFiltersScene from './scenes/dryFiltersScene?scene';
+import chapter1IntroScene from "./scenes/chapter1IntroScene?scene";
 
 export default makeProject({
     experimentalFeatures: true,
@@ -63,7 +73,7 @@ export default makeProject({
         // chapter1IntroScene,
         // dryFiltersScene,
         // dryConditionsScene,
-        // chapter2IntroScene, // intro 2
+        // chapter2IntroScene,
         // paymentInputsScene,
         // splitDtoScene,
         // dryKnowledgeScene,
@@ -81,7 +91,7 @@ export default makeProject({
         // dryConditionsSceneV3,
         // chapter3IntroScene,
         // paymentInputsSceneV3,
-        //  splitDtoSceneV3,
+        // splitDtoSceneV3,
         // dryKnowledgeSceneV3,
         // typewriterCodeSceneRu,
 
@@ -144,8 +154,11 @@ export default makeProject({
         // prematureAbstractionResolutionSceneEn,
         // robotArmDarkScene,
         // predictingFutureTakeSceneEn,
-        earnedAbstractionSceneEn,
-        chapter2ReversibilitySceneEn,
+        // earnedAbstractionSceneEn,
+          chapter2ReversibilitySceneEn,
+
+        // Vertical Reels — Light Lab
+        dontFightDuplicationVerticalSceneEn,
 
 
 

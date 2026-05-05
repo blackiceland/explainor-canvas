@@ -49,6 +49,13 @@ export interface MorphOptions {
     addStyle?: 'typewriter' | 'fade';
     lineOrder?: 'sequential' | 'parallel';
     blockOrder?: 'sequential' | 'parallel';
+    /**
+     * When > 0, kept tokens (closing brackets, semicolons, persisted
+     * identifiers) tween their X position from old to new instead of
+     * snapping. Visible closing puncts also stop being re-typed and
+     * slide directly. Default 0 preserves the original behaviour.
+     */
+    tokenSlideDuration?: number;
 }
 
 interface LinePlan {
@@ -78,6 +85,7 @@ interface MorphResolvedOptions {
     addStyle: 'typewriter' | 'fade';
     lineOrder: 'sequential' | 'parallel';
     blockOrder: 'sequential' | 'parallel';
+    tokenSlideDuration: number;
 }
 
 interface MorphPreparedState {
@@ -216,7 +224,7 @@ export class Manticore {
         }
     }
 
-    private resolveTokenVisibility(td: TokenDiffEntry[]): TokenVisibility {
+    private resolveTokenVisibility(td: TokenDiffEntry[], keepClosingPuncts = false): TokenVisibility {
         let firstAddIdx = Infinity;
         for (const entry of td) {
             if (entry.op === 'add' && entry.newIndex < firstAddIdx) {
@@ -234,7 +242,11 @@ export class Manticore {
             const trimmed = entry.token.text.trim();
             const isWhitespace = entry.token.type === 'plain' && trimmed.length === 0;
             const isClosingPunct = entry.token.type === 'punctuation' && /^[)\]}]+$/.test(trimmed);
-            if (!isWhitespace && !isClosingPunct) kept.add(entry.newIndex);
+            if (isWhitespace) continue;
+            // When sliding, closing puncts stay visible so they can glide
+            // to their new x instead of being hidden and re-typed.
+            if (isClosingPunct && !keepClosingPuncts) continue;
+            kept.add(entry.newIndex);
         }
 
         return {kept};
@@ -512,6 +524,7 @@ export class Manticore {
             addStyle: opts.addStyle ?? 'typewriter',
             lineOrder: opts.lineOrder ?? 'sequential',
             blockOrder: opts.blockOrder ?? 'sequential',
+            tokenSlideDuration: opts.tokenSlideDuration ?? 0,
         };
     }
 
@@ -619,9 +632,10 @@ export class Manticore {
                 if (p.kind === 'modify') {
                     const cl = state.modifyMap.get(p.newIndex)!;
                     const newTokens = tokenizeLine(p.newText, this.cfg.customTypes);
-                    const vis = this.resolveTokenVisibility(p.tokenDiff!);
-                    cl.mutateInPlace(p.tokenDiff!, newTokens, vis.kept);
+                    const vis = this.resolveTokenVisibility(p.tokenDiff!, opts.tokenSlideDuration > 0);
+                    const slideAnims = cl.mutateInPlace(p.tokenDiff!, newTokens, vis.kept, opts.tokenSlideDuration);
                     this.applyRules(cl);
+                    lineAnims.push(...slideAnims);
                     lineAnims.push(this.typewriterNewTokens(cl, vis, opts.charDelay));
                 } else {
                     const addCl = state.result[p.newIndex]!;
@@ -684,9 +698,10 @@ export class Manticore {
                 if (p.kind === 'modify') {
                     const cl = state.modifyMap.get(p.newIndex)!;
                     const newTokens = tokenizeLine(p.newText, this.cfg.customTypes);
-                    const vis = this.resolveTokenVisibility(p.tokenDiff!);
-                    cl.mutateInPlace(p.tokenDiff!, newTokens, vis.kept);
+                    const vis = this.resolveTokenVisibility(p.tokenDiff!, opts.tokenSlideDuration > 0);
+                    const slideAnims = cl.mutateInPlace(p.tokenDiff!, newTokens, vis.kept, opts.tokenSlideDuration);
                     this.applyRules(cl);
+                    lineAnims.push(...slideAnims);
                     lineAnims.push(this.typewriterNewTokens(cl, vis, opts.charDelay));
                 } else {
                     const addCl = state.result[p.newIndex]!;

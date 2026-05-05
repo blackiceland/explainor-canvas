@@ -146,7 +146,8 @@ export class CodeLine {
         tokenDiff: TokenDiffEntry[],
         newTokens: Token[],
         visibleKept: Set<number>,
-    ): void {
+        slideDuration: number = 0,
+    ): ThreadGenerator[] {
         const container = this.containerRef();
         const {fontFamily, fontSize, theme, leftEdge} = this.config;
 
@@ -176,6 +177,7 @@ export class CodeLine {
         }
 
         const newData: TokenData[] = [];
+        const slideAnims: ThreadGenerator[] = [];
 
         for (let ni = 0; ni < newTokens.length; ni++) {
             const token = newTokens[ni];
@@ -187,7 +189,12 @@ export class CodeLine {
 
                 if (group.length === 1) {
                     const td = this.tokensData[group[0]];
-                    td.ref().x(x);
+                    const oldX = td.localX;
+                    if (slideDuration > 0 && visible && Math.abs(oldX - x) > 0.5) {
+                        slideAnims.push(td.ref().x(x, slideDuration, easeInOutCubic));
+                    } else {
+                        td.ref().x(x);
+                    }
                     td.localX = x;
                     if (!visible) {
                         td.ref().opacity(0);
@@ -198,7 +205,12 @@ export class CodeLine {
                     let cx = x;
                     for (let gi = 0; gi < group.length; gi++) {
                         const td = this.tokensData[group[gi]];
-                        td.ref().x(cx);
+                        const oldX = td.localX;
+                        if (slideDuration > 0 && visible && Math.abs(oldX - cx) > 0.5) {
+                            slideAnims.push(td.ref().x(cx, slideDuration, easeInOutCubic));
+                        } else {
+                            td.ref().x(cx);
+                        }
                         td.localX = cx;
                         if (!visible) {
                             td.ref().opacity(0);
@@ -276,6 +288,8 @@ export class CodeLine {
 
         this.tokensData.length = 0;
         this.tokensData.push(...newData);
+
+        return slideAnims;
     }
 
     public get node(): Node {
