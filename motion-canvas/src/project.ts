@@ -52,7 +52,6 @@ import earnedAbstractionSceneEn from "./scenes/earnedAbstractionSceneEn?scene";
 import preparationVsFantasySceneEn from "./scenes/preparationVsFantasySceneEn?scene";
 import chapterTwoOpenSceneEn from "./scenes/chapterTwoOpenSceneEn?scene";
 import chapter2ReversibilitySceneEn from "./scenes/chapter2ReversibilitySceneEn?scene";
-import dontFightDuplicationVerticalSceneEn from "./scenes/dontFightDuplicationVerticalSceneEn?scene";
 import chapter3IntroScene from "./scenes/chapter3IntroScene?scene";
 import paymentInputsSceneV3 from "./scenes/paymentInputsSceneV3?scene";
 import splitDtoSceneV3 from "./scenes/splitDtoSceneV3?scene";
@@ -156,9 +155,6 @@ export default makeProject({
         // predictingFutureTakeSceneEn,
         // earnedAbstractionSceneEn,
           chapter2ReversibilitySceneEn,
-
-        // Vertical Reels — Light Lab
-        dontFightDuplicationVerticalSceneEn,
 
 
 

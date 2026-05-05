@@ -447,9 +447,6 @@ export default makeScene2D(function* (view) {
         radius={4}
         end={0}
         opacity={0}
-        shadowColor={'rgba(0, 0, 0, 0.90)'}
-        shadowBlur={26}
-        shadowOffset={[-8, 14]}
       />,
     );
   });
@@ -751,35 +748,36 @@ export default makeScene2D(function* (view) {
   panelHandler.node.opacity(0);
   panelHandler.colorize(COLOR_RULES);
 
-  // ── Tracer bullet caption — placed ABOVE the panels.
-  const trTitleOp  = createSignal(0);
-  const trSubOp    = createSignal(0);
-  const trTitleRef = createRef<Txt>();
-  const trSubRef   = createRef<Txt>();
+  // ── Quote from The Pragmatic Programmer, placed ABOVE the panels.
+  const trQuoteOp  = createSignal(0);
+  const trSrcOp    = createSignal(0);
+  const trQuoteRef = createRef<Txt>();
+  const trSrcRef   = createRef<Txt>();
   view.add(
     <Txt
-      ref={trTitleRef}
-      text={'Tracer bullet'}
-      x={0} y={-400}
+      ref={trQuoteRef}
+      text={'«Use tracer bullets to find the target.»'}
+      x={0} y={-410}
       fontFamily={Fonts.primary}
-      fontSize={56}
-      fontWeight={500}
-      letterSpacing={2}
+      fontSize={42}
+      fontWeight={400}
+      fontStyle={'italic'}
+      letterSpacing={0.8}
       fill={WARM_CREAM}
-      opacity={trTitleOp}
+      opacity={trQuoteOp}
     />,
   );
   view.add(
     <Txt
-      ref={trSubRef}
-      text={'A thin end-to-end slice of real code that proves the path.'}
-      x={0} y={-348}
+      ref={trSrcRef}
+      text={'- Hunt & Thomas, The Pragmatic Programmer'}
+      x={0} y={-352}
       fontFamily={Fonts.primary}
-      fontSize={22}
+      fontSize={26}
       fontWeight={400}
-      letterSpacing={0.6}
+      letterSpacing={0.5}
       fill={WARM_CREAM}
-      opacity={trSubOp}
+      opacity={trSrcOp}
     />,
   );
 
@@ -803,17 +801,17 @@ export default makeScene2D(function* (view) {
   yield* panelHandler.node.opacity(1, 0.85, easeOutCubic);
   yield* waitFor(2.0);
 
-  // 4d — caption fades in ABOVE the panels, panels stay visible.
-  yield* trTitleOp(1, 0.8, easeOutCubic);
-  yield* trSubOp(1, 0.6, easeOutCubic);
-  yield* waitFor(2.8);
+  // 4d — quote fades in ABOVE the panels, panels stay visible.
+  yield* trQuoteOp(1, 0.85, easeOutCubic);
+  yield* trSrcOp(1, 0.65, easeOutCubic);
+  yield* waitFor(3.0);
 
-  // 4e — code panels AND caption fade out together, slow & smooth.
+  // 4e — code panels AND quote fade out together, slow & smooth.
   yield* all(
     panelArm.node.opacity(0, 1.4, easeInOutCubic),
     panelHandler.node.opacity(0, 1.4, easeInOutCubic),
-    trTitleOp(0, 1.4, easeInOutCubic),
-    trSubOp(0, 1.4, easeInOutCubic),
+    trQuoteOp(0, 1.4, easeInOutCubic),
+    trSrcOp(0, 1.4, easeInOutCubic),
   );
   yield* waitFor(0.3);
 

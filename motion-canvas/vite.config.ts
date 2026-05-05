@@ -4,7 +4,9 @@ import motionCanvas from '@motion-canvas/vite-plugin';
 const motionCanvasFactory = (motionCanvas as unknown as {default?: typeof motionCanvas}).default ?? motionCanvas;
 
 export default defineConfig({
-  plugins: [motionCanvasFactory()],
+  plugins: [motionCanvasFactory({
+    project: ['./src/project.ts', './src/verticalProject.ts'],
+  })],
   resolve: {
     dedupe: ['three'],
   },

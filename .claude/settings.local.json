@@ -27,7 +27,14 @@
       "Bash(git checkout:*)",
       "Read(//c/Users/black/AppData/Local/Temp/mc_screenshots/**)",
       "Bash(netstat -ano)",
-      "PowerShell(Split-Path *)"
+      "PowerShell(Split-Path *)",
+      "Bash(taskkill //F //PID 1732)",
+      "Bash(taskkill /F /PID 1732)",
+      "Bash(kill 1732)",
+      "PowerShell(Get-Process *)",
+      "PowerShell(Get-NetTCPConnection *)",
+      "PowerShell(curl.exe -s -o NUL -w \"%{http_code}\" http://localhost:5173/)",
+      "PowerShell(curl.exe -s -o NUL -w \"%{http_code}`n\" \"http://localhost:5173/src/verticalProject\"; curl.exe -s -o NUL -w \"%{http_code}`n\" \"http://localhost:5173/src/project\")"
     ]
   }
 }
