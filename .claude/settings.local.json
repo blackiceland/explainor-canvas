@@ -36,7 +36,14 @@
       "PowerShell(curl.exe -s -o NUL -w \"%{http_code}\" http://localhost:5173/)",
       "PowerShell(curl.exe -s -o NUL -w \"%{http_code}`n\" \"http://localhost:5173/src/verticalProject\"; curl.exe -s -o NUL -w \"%{http_code}`n\" \"http://localhost:5173/src/project\")",
       "PowerShell(npm install *)",
-      "Read(//c/Users/black/Downloads/**)"
+      "Read(//c/Users/black/Downloads/**)",
+      "PowerShell(Rename-Item *)",
+      "PowerShell(Get-ChildItem *)",
+      "PowerShell(Test-Path *)",
+      "Bash(expTreeSumie)",
+      "Bash(expTreeProctree\" | head -10)",
+      "Bash(\"/mnt/c/ffmpeg/bin/ffmpeg.exe\" -y -i \"/mnt/c/Users/black/Downloads/65450d5ec7003e03a09b842150d040ca.jpg\" -vf negate \"/mnt/c/Users/black/IdeaProjects/explainor-canvas/motion-canvas/public/tree-sumie.png\")",
+      "PowerShell(New-Item *)"
     ]
   }
 }

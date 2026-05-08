@@ -31,9 +31,6 @@ const SIG_ONE_TRUE  = `fun save(file: File, data: Data, overwrite: Boolean = tru
 const SIG_FINAL = `fun save(file: File, data: Data, overwrite: Boolean = true,
     createDirs: Boolean = false, skipBackup: Boolean = false,
     force: Boolean = false, silent: Boolean = false)`;
-const SIG_FINAL_SILENT_TRUE = `fun save(file: File, data: Data, overwrite: Boolean = true,
-    createDirs: Boolean = false, skipBackup: Boolean = false,
-    force: Boolean = false, silent: Boolean = true)`;
 
 const F = Fonts.code;
 const SZ = 50;
@@ -393,33 +390,18 @@ export default makeScene2D(function* (view) {
   }
   yield* waitFor(0.2);
 
-  // Step 3: zero-motion swap. Kept tokens stay at their dimmed/full opacity.
-  yield* codeFinal.morphTo(SIG_FINAL_SILENT_TRUE, {
-    addStyle: 'fade',
-    moveDuration: 0,
-    removeDuration: 0.3,
-    tokenSlideDuration: 0,
-  });
-  codeFinal.colorize(CODE_RULES);
-
-  // Step 4: glow the fresh `true` from warm-cream into keyword color.
-  let silentTrueRef: TokenRef | null = null;
-  const newRow3 = codeFinal.getLine(2)!.tokens;
-  let inSilent = false;
-  for (const tok of newRow3) {
-    const t = String(tok.ref().text());
-    if (t === 'silent') inSilent = true;
-    if (inSilent && t === 'true') {
-      silentTrueRef = tok.ref();
-      break;
-    }
-  }
-  if (silentTrueRef) {
-    silentTrueRef.fill(WARM_CREAM);
-    yield* silentTrueRef.fill(DryFiltersV3CodeTheme.keyword, 0.75, easeInOutCubic);
+  // Step 3: in-place text swap. NO morphTo, NO layout reflow — every
+  //         other token stays at its exact position. `save` cannot move.
+  if (silentFalseRef) {
+    silentFalseRef.text('true');
+    silentFalseRef.fill(WARM_CREAM);
+    yield* all(
+      silentFalseRef.opacity(1, 0.3, easeOutCubic),
+      silentFalseRef.fill(DryFiltersV3CodeTheme.keyword, 0.75, easeInOutCubic),
+    );
   }
 
-  // Step 5: let it sit. The lie has settled.
+  // Step 4: let it sit. The lie has settled.
   yield* waitFor(1.6);
 
   // ═══════════════════════════════════════════════════════════════════════

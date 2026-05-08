@@ -62,6 +62,16 @@ import doItAllComponentTitleSceneEn from "./scenes/doItAllComponentTitleSceneEn?
 import dryFiltersScene from './scenes/dryFiltersScene?scene';
 import chapter1IntroScene from "./scenes/chapter1IntroScene?scene";
 import chapter1YudanSceneEn from "./scenes/chapter1YudanSceneEn?scene";
+import expTreeGrowthScene from "./scenes/expTreeGrowthScene?scene";
+import expTreeLayeredScene from "./scenes/expTreeLayeredScene?scene";
+import expTreeSumieScene from "./scenes/expTreeSumieScene?scene";
+import expTreeProctreeScene from "./scenes/expTreeProctreeScene?scene";
+import expTreeLimboScene from "./scenes/expTreeLimboScene?scene";
+import expTreeLimboV2Scene from "./scenes/expTreeLimboV2Scene?scene";
+import expTreeLimboV3Scene from "./scenes/expTreeLimboV3Scene?scene";
+import expTreeLimboV4Scene from "./scenes/expTreeLimboV4Scene?scene";
+import expTreeAssetScene from "./scenes/expTreeAssetScene?scene";
+import expTreeTracedScene from "./scenes/expTreeTracedScene?scene";
 
 export default makeProject({
     experimentalFeatures: true,
@@ -159,7 +169,15 @@ export default makeProject({
         //04
 
 
-        chapter1YudanSceneEn,
+        // chapter1YudanSceneEn,
+        // expTreeSumieScene,
+        // expTreeProctreeScene,
+        // expTreeLimboScene,
+        // expTreeLimboV2Scene,
+        // expTreeLimboV3Scene,
+        // expTreeLimboV4Scene,
+        // expTreeTracedScene,
+        expTreeAssetScene,
 
     ]
 })

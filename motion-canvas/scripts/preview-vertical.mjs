@@ -51,10 +51,10 @@ async function ensureDir() {
             await document.fonts.load('700 38px "JetBrains Mono"');
             await document.fonts.load('400 32px "JetBrains Mono"');
             await document.fonts.load('700 32px "JetBrains Mono"');
-            await document.fonts.load('400 120px "Cormorant Garamond"');
-            await document.fonts.load('italic 400 120px "Cormorant Garamond"');
-            await document.fonts.load('400 32px "Cormorant Garamond"');
-            await document.fonts.load('italic 400 32px "Cormorant Garamond"');
+            await document.fonts.load('400 120px "Newsreader"');
+            await document.fonts.load('italic 400 120px "Newsreader"');
+            await document.fonts.load('500 22px "Newsreader"');
+            await document.fonts.load('400 32px "Newsreader"');
         } catch (e) { return {err: String(e)}; }
         await document.fonts.ready;
         return {
