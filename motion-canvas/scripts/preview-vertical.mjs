@@ -5,9 +5,9 @@ const URL = process.env.MC_URL || 'http://localhost:5173/src/verticalProject';
 const OUT = process.env.OUT_DIR || './scripts/preview-out';
 
 const beatTimes = [
-    ['before',  3.5],
-    ['after',  10.0],
-    ['thesis', 17.0],
+    ['intro', 3.0],
+    ['read',  6.0],
+    ['outro', 9.0],
 ];
 
 async function ensureDir() {
@@ -40,59 +40,87 @@ async function ensureDir() {
 
     // Wait for Motion Canvas editor canvas to be ready.
     await page.waitForSelector('canvas', {timeout: 15000});
+
+    // Force-load the code font before any screenshot so monospace metrics
+    // line up with what Manticore expects (otherwise tokens collide).
+    const fontStatus = await page.evaluate(async () => {
+        try {
+            // Load the actual size used by paperCodeSceneEn so canvas2d's
+            // measureText returns true monospace metrics, not the fallback.
+            await document.fonts.load('400 32px "JetBrains Mono"');
+            await document.fonts.load('700 32px "JetBrains Mono"');
+            await document.fonts.load('400 28px "JetBrains Mono"');
+            await document.fonts.load('700 28px "JetBrains Mono"');
+        } catch (e) { return {err: String(e)}; }
+        await document.fonts.ready;
+        return {
+            check400: document.fonts.check('400 32px "JetBrains Mono"'),
+            check700: document.fonts.check('700 32px "JetBrains Mono"'),
+            faces: Array.from(document.fonts).map(f => `${f.family}/${f.weight}/${f.status}`),
+        };
+    });
+    console.log('[fonts]', JSON.stringify(fontStatus));
+
+    // Pre-decode the paper-weave PNG so the first scene frame already
+    // has the texture in browser memory.
+    await page.evaluate(async () => {
+        const img = new Image();
+        img.src = '/paper-weave.png';
+        try { await img.decode(); } catch {}
+    });
+
+    // Reload so Motion Canvas / Manticore initialise AFTER the font
+    // and texture are warm in the browser cache. Without this, the
+    // first scene mount measures token widths against the proportional
+    // fallback and tokens overlap.
+    await page.reload({waitUntil: 'domcontentloaded'});
+    await new Promise(r => setTimeout(r, 8000));
+    await page.waitForSelector('canvas', {timeout: 15000});
+    await page.evaluate(async () => {
+        await document.fonts.ready;
+    });
     await new Promise(r => setTimeout(r, 1500));
 
-    // Seek the playhead to the start of the dontFight scene by clicking
-    // its LEFT EDGE on the timeline track.
-    {
-        const handle = await page.evaluateHandle(() => {
-            const track = document.querySelector('[class*=sceneTrack]');
-            if (!track) return null;
-            return Array.from(track.children).find(el =>
-                (el.textContent || '').includes('dontFight')) || null;
-        });
-        const el = handle.asElement();
-        if (el) {
-            await el.scrollIntoView();
-            await new Promise(r => setTimeout(r, 300));
-            const box = await el.boundingBox();
-            if (box) {
-                // Click ~3px in from the left edge to land at frame 0 of my scene.
-                await page.mouse.click(box.x + 3, box.y + box.height / 2);
-                console.log(`[seek-to-scene-start] ${Math.round(box.x + 3)},${Math.round(box.y + box.height / 2)} w=${Math.round(box.width)}`);
-            }
+    // Click the editor's Play button (DOM action, no keyboard focus
+    // race) so the playhead actually advances past code.appear().
+    const playClicked = await page.evaluate(() => {
+        const btns = Array.from(document.querySelectorAll('button'));
+        const play = btns.find(b => /Play \[Space\]/i.test(b.title || ''));
+        if (!play) return false;
+        play.click();
+        return true;
+    });
+    console.log(`[play-button-click] ${playClicked}`);
+
+    const captureCanvas = () => page.evaluate(() => {
+        const list = Array.from(document.querySelectorAll('canvas'));
+        const exact = list.find(c => c.width === 1080 && c.height === 1920);
+        if (exact) return exact.toDataURL('image/png');
+        let best = null, bestArea = 0;
+        for (const c of list) {
+            if (c.width === 0 || c.height === 0) continue;
+            const ratio = c.width / c.height;
+            if (ratio < 0.5 || ratio > 0.65) continue;
+            const area = c.width * c.height;
+            if (area > bestArea) { bestArea = area; best = c; }
         }
-    }
-    await new Promise(r => setTimeout(r, 800));
+        return best ? best.toDataURL('image/png') : null;
+    });
 
-    // Find the visible preview canvas (largest by area among visible).
-    const previewSelector = 'canvas';
-    const canvas = await page.$(previewSelector);
-    if (!canvas) {
-        console.log('No canvas');
-        await browser.close();
-        return;
-    }
-
-    // Strategy: press Space to start playback, capture screenshots at each
-    // beat time (relative to play start). Track elapsed wall-clock.
-    await page.keyboard.press('Space');  // play
     const playStart = Date.now();
-
     for (const [label, t] of beatTimes) {
         const targetMs = playStart + t * 1000;
         const wait = Math.max(0, targetMs - Date.now());
         if (wait > 0) await new Promise(r => setTimeout(r, wait));
 
-        // Pause briefly to capture stable frame.
-        await page.keyboard.press('Space');
-        await new Promise(r => setTimeout(r, 250));
-
-        const buf = await canvas.screenshot({type: 'png'});
-        writeFileSync(`${OUT}/${label}.png`, buf);
-        console.log(`[${label}] t≈${((Date.now()-playStart)/1000).toFixed(2)}s saved`);
-
-        await page.keyboard.press('Space');  // resume
+        const dataUri = await captureCanvas();
+        if (dataUri) {
+            const b64 = dataUri.replace(/^data:image\/png;base64,/, '');
+            writeFileSync(`${OUT}/${label}.png`, Buffer.from(b64, 'base64'));
+            console.log(`[${label}] t≈${((Date.now()-playStart)/1000).toFixed(2)}s saved`);
+        } else {
+            console.log(`[${label}] NO CANVAS`);
+        }
     }
 
     // (Disabled the previous seek-via-API loop below.)

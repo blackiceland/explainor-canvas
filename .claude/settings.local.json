@@ -34,7 +34,8 @@
       "PowerShell(Get-Process *)",
       "PowerShell(Get-NetTCPConnection *)",
       "PowerShell(curl.exe -s -o NUL -w \"%{http_code}\" http://localhost:5173/)",
-      "PowerShell(curl.exe -s -o NUL -w \"%{http_code}`n\" \"http://localhost:5173/src/verticalProject\"; curl.exe -s -o NUL -w \"%{http_code}`n\" \"http://localhost:5173/src/project\")"
+      "PowerShell(curl.exe -s -o NUL -w \"%{http_code}`n\" \"http://localhost:5173/src/verticalProject\"; curl.exe -s -o NUL -w \"%{http_code}`n\" \"http://localhost:5173/src/project\")",
+      "PowerShell(npm install *)"
     ]
   }
 }

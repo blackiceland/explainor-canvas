@@ -61,6 +61,7 @@ import duplicationBestChoiceTitleSceneEn from "./scenes/duplicationBestChoiceTit
 import doItAllComponentTitleSceneEn from "./scenes/doItAllComponentTitleSceneEn?scene";
 import dryFiltersScene from './scenes/dryFiltersScene?scene';
 import chapter1IntroScene from "./scenes/chapter1IntroScene?scene";
+import chapter1YudanSceneEn from "./scenes/chapter1YudanSceneEn?scene";
 
 export default makeProject({
     experimentalFeatures: true,
@@ -134,7 +135,6 @@ export default makeProject({
         // problemsYouDontHaveOrientationAnySceneEn,
         // problemsYouDontHaveWrongShelfSceneEn,
         // wrongCenterCollapseSceneEn,
-        //
         // robotArmTestScene,
         // problemsYouDontHaveSubtitlesSceneEn,
         // robotArmCodeScene,
@@ -154,10 +154,12 @@ export default makeProject({
         // robotArmDarkScene,
         // predictingFutureTakeSceneEn,
         // earnedAbstractionSceneEn,
-          chapter2ReversibilitySceneEn,
+        // chapter2ReversibilitySceneEn,
+
+        //04
 
 
-
+        chapter1YudanSceneEn,
 
     ]
 })
