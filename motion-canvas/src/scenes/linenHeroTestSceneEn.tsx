@@ -10,24 +10,26 @@ import {SyntaxTheme} from '../core/code/model/SyntaxTheme';
 // last word italic, then a moderate-size code block below.
 // ══════════════════════════════════════════════════════════════════════
 
-const F_SERIF = 'Playfair Display, serif';
+const F_SERIF = 'Cormorant Garamond, EB Garamond, serif';
 const F_MONO  = 'JetBrains Mono, IBM Plex Mono, monospace';
 
 const VIEW_W = 1080;
 const VIEW_H = 1920;
 
-// Pulled from the reference photo: hero text is a deep forest green
-// (not black), and the code carries a few accent tokens in that same
-// green family.
+// Pixel-sampled directly from the reference:
+//   hero  → sage green #39593F (lighter than first guess)
+//   `fun` → warm brown #5B3813
+//   `Boolean`, `String` (types only) → forest green #1A4D2A
+//   everything else in code (send, identifiers, punctuation) → INK.
 const INK   = '#1F2326';
-const HERO  = '#1E3F22';
+const HERO  = '#39593F';
 const GREEN = '#1A4D2A';
-const QUIET = '#3E3A30';
+const BROWN = '#5B3813';
 
 const THEME: SyntaxTheme = {
     keyword:     INK,
     type:        GREEN,
-    string:      GREEN,
+    string:      INK,
     number:      INK,
     operator:    INK,
     punctuation: INK,
@@ -39,8 +41,7 @@ const THEME: SyntaxTheme = {
 };
 
 const RULES: ColorRule[] = [
-    {match: /^fun$/,     color: GREEN},
-    {match: /^send$/,    color: GREEN},
+    {match: /^fun$/,     color: BROWN},
     {match: /^Boolean$/, color: GREEN},
     {match: /^String$/,  color: GREEN},
 ];
@@ -76,9 +77,9 @@ function* awaitFontsReady(): ThreadGenerator {
     try {
         document.fonts.load(`400 ${CODE_FONT}px "JetBrains Mono"`);
         document.fonts.load(`700 ${CODE_FONT}px "JetBrains Mono"`);
-        document.fonts.load(`400 120px "Playfair Display"`);
-        document.fonts.load(`400 italic 120px "Playfair Display"`);
-        document.fonts.load(`400 28px "Playfair Display"`);
+        document.fonts.load(`400 120px "Cormorant Garamond"`);
+        document.fonts.load(`italic 400 120px "Cormorant Garamond"`);
+        document.fonts.load(`400 32px "Cormorant Garamond"`);
     } catch {}
 
     const span = document.createElement('span');
@@ -92,7 +93,7 @@ function* awaitFontsReady(): ThreadGenerator {
     if (!ctx) { document.body.removeChild(span); return; }
     for (let i = 0; i < 60; i++) {
         if (document.fonts.check(`400 ${CODE_FONT}px "JetBrains Mono"`) &&
-            document.fonts.check(`400 120px "Playfair Display"`)) {
+            document.fonts.check(`400 120px "Cormorant Garamond"`)) {
             ctx.font = `400 ${CODE_FONT}px "JetBrains Mono", monospace`;
             const wI = ctx.measureText('iiiiiiiiii').width;
             const wM = ctx.measureText('MMMMMMMMMM').width;
@@ -166,12 +167,11 @@ export default makeScene2D(function* (view) {
     />);
 
     // ── Code block, mono — centred as a block, content left-aligned ──
-    // Manticore lays content out starting at the container's local x=0,
-    // so to centre the longest line (~23 chars × 0.6 × 38 ≈ 525 px) we
-    // shift the container left by half that width.
-    const CODE_BLOCK_W = 23 * 0.6 * CODE_FONT;
+    // Manticore: text-left absolute = container.x - cardWidth/2 + paddingX.
+    // For fontSize 38, paddingX clamps to 56. Longest line ≈ 524 px,
+    // so for visual centring: x = 524/2 - 720/2 + 56 = 42.
     const code = Manticore.create(CODE, {
-        x: -CODE_BLOCK_W / 2,
+        x: 42,
         y: 400,
         width: CODE_W,
         fontSize: CODE_FONT,

@@ -47,10 +47,14 @@ async function ensureDir() {
         try {
             // Load the actual size used by paperCodeSceneEn so canvas2d's
             // measureText returns true monospace metrics, not the fallback.
+            await document.fonts.load('400 38px "JetBrains Mono"');
+            await document.fonts.load('700 38px "JetBrains Mono"');
             await document.fonts.load('400 32px "JetBrains Mono"');
             await document.fonts.load('700 32px "JetBrains Mono"');
-            await document.fonts.load('400 28px "JetBrains Mono"');
-            await document.fonts.load('700 28px "JetBrains Mono"');
+            await document.fonts.load('400 120px "Cormorant Garamond"');
+            await document.fonts.load('italic 400 120px "Cormorant Garamond"');
+            await document.fonts.load('400 32px "Cormorant Garamond"');
+            await document.fonts.load('italic 400 32px "Cormorant Garamond"');
         } catch (e) { return {err: String(e)}; }
         await document.fonts.ready;
         return {
@@ -61,11 +65,11 @@ async function ensureDir() {
     });
     console.log('[fonts]', JSON.stringify(fontStatus));
 
-    // Pre-decode the paper-weave PNG so the first scene frame already
-    // has the texture in browser memory.
+    // Pre-decode the linen texture so the first scene frame already
+    // has the BG image in browser memory.
     await page.evaluate(async () => {
         const img = new Image();
-        img.src = '/paper-weave.png';
+        img.src = '/linen.jpg';
         try { await img.decode(); } catch {}
     });
 

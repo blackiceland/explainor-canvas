@@ -31,6 +31,9 @@ const SIG_ONE_TRUE  = `fun save(file: File, data: Data, overwrite: Boolean = tru
 const SIG_FINAL = `fun save(file: File, data: Data, overwrite: Boolean = true,
     createDirs: Boolean = false, skipBackup: Boolean = false,
     force: Boolean = false, silent: Boolean = false)`;
+const SIG_FINAL_SILENT_TRUE = `fun save(file: File, data: Data, overwrite: Boolean = true,
+    createDirs: Boolean = false, skipBackup: Boolean = false,
+    force: Boolean = false, silent: Boolean = true)`;
 
 const F = Fonts.code;
 const SZ = 50;
@@ -344,27 +347,80 @@ export default makeScene2D(function* (view) {
   yield* waitFor(0.7);
 
   // ═══════════════════════════════════════════════════════════════════════
-  // PHASE 2d — inverted reveal: Booleans STAY in place, everything else
-  //            fades out. No white strike, no recolor — just dimming.
+  // PHASE 2d — focal narrowing: everything dims except `silent: Boolean = false`
+  //            on row 3. Then `false` flips to `true` (mirroring the swap
+  //            that opened the catastrophe with `overwrite`). The lie that
+  //            was loud at the top is now quiet at the bottom.
   // ═══════════════════════════════════════════════════════════════════════
+  // Locate the silent group on row 3.
+  const row3 = codeFinal.getLine(2)!.tokens;
+  let silentStartIdx = -1;
+  let silentFalseIdx = -1;
+  for (let i = 0; i < row3.length; i++) {
+    const t = String(row3[i].ref().text());
+    if (silentStartIdx === -1 && t === 'silent') silentStartIdx = i;
+    if (silentStartIdx !== -1 && t === 'false') silentFalseIdx = i;
+  }
+
   const otherRefs: TokenRef[] = [];
-  for (let i = 0; i < codeFinal.lineCount; i++) {
-    const line = codeFinal.getLine(i);
+  let silentFalseRef: TokenRef | null = null;
+  for (let lineIdx = 0; lineIdx < codeFinal.lineCount; lineIdx++) {
+    const line = codeFinal.getLine(lineIdx);
     if (!line) continue;
-    for (const tok of line.tokens) {
-      const ref = tok.ref();
-      if (String(ref.text()) !== 'Boolean') {
+    for (let i = 0; i < line.tokens.length; i++) {
+      const ref = line.tokens[i].ref();
+      if (lineIdx === 2 && i >= silentStartIdx && i <= silentFalseIdx) {
+        if (i === silentFalseIdx) silentFalseRef = ref;
+        // kept at full opacity
+      } else {
         otherRefs.push(ref);
       }
     }
   }
 
+  // Step 1: dim everything except the silent group.
   yield* all(
     ...otherRefs.map(r => r.opacity(0.14, 1.5, easeInOutCubic)),
   );
+  yield* waitFor(1.1);
 
-  // Hold on the Booleans — let the pattern register before the title arrives.
-  yield* waitFor(2.5);
+  // Step 2: pre-flash false (warm + dim) — the hint of doubt, again.
+  if (silentFalseRef) {
+    yield* all(
+      silentFalseRef.fill(QUOTE_BEIGE, 0.35, easeInOutCubic),
+      silentFalseRef.opacity(0.55, 0.35, easeInOutCubic),
+    );
+  }
+  yield* waitFor(0.2);
+
+  // Step 3: zero-motion swap. Kept tokens stay at their dimmed/full opacity.
+  yield* codeFinal.morphTo(SIG_FINAL_SILENT_TRUE, {
+    addStyle: 'fade',
+    moveDuration: 0,
+    removeDuration: 0.3,
+    tokenSlideDuration: 0,
+  });
+  codeFinal.colorize(CODE_RULES);
+
+  // Step 4: glow the fresh `true` from warm-cream into keyword color.
+  let silentTrueRef: TokenRef | null = null;
+  const newRow3 = codeFinal.getLine(2)!.tokens;
+  let inSilent = false;
+  for (const tok of newRow3) {
+    const t = String(tok.ref().text());
+    if (t === 'silent') inSilent = true;
+    if (inSilent && t === 'true') {
+      silentTrueRef = tok.ref();
+      break;
+    }
+  }
+  if (silentTrueRef) {
+    silentTrueRef.fill(WARM_CREAM);
+    yield* silentTrueRef.fill(DryFiltersV3CodeTheme.keyword, 0.75, easeInOutCubic);
+  }
+
+  // Step 5: let it sit. The lie has settled.
+  yield* waitFor(1.6);
 
   // ═══════════════════════════════════════════════════════════════════════
   // PHASE 3 — chapter title: clean handoff, not an overlay.
