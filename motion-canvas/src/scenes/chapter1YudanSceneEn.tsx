@@ -23,37 +23,48 @@ const TYPE_CLEAN  = 'rgba(220, 215, 255, 0.85)';
 const FLASH_WHITE = 'rgba(255, 255, 255, 1.0)';
 
 // ── Code ────────────────────────────────────────────────────────────────
-const SIG_ONE_FALSE = `fun save(file: File, data: Data, overwrite: Boolean = false)`;
+const SIG_ONE       = `fun save(file: File, data: Data, overwrite: Boolean = false)`;
 const SIG_ONE_TRUE  = `fun save(file: File, data: Data, overwrite: Boolean = true)`;
-const SIG_MANY = `fun save(
-    file: File,
-    data: Data,
-    overwrite: Boolean = true,
-    createDirs: Boolean = false,
-    skipBackup: Boolean = false,
-    force: Boolean = false,
-    silent: Boolean = false,
-)`;
+// SIG_FINAL keeps the post-swap first line intact, then packs four new
+// Boolean parameters into rows two and three (two per row, no closing
+// line for `)`).
+const SIG_FINAL = `fun save(file: File, data: Data, overwrite: Boolean = true,
+    createDirs: Boolean = false, skipBackup: Boolean = false,
+    force: Boolean = false, silent: Boolean = false)`;
 
 const F = Fonts.code;
 const SZ = 50;
 const LH = 76;
 const MC_W = 2200;
 
-// Position of "overwrite: Boolean = false" inside SIG_ONE_FALSE.
 const MC_LEFT_EDGE = -MC_W / 2 + getCodePaddingX(SZ);
-const PREFIX_PX = textWidth('fun save(file: File, data: Data, ', F, SZ);
-const TARGET_PX = textWidth('overwrite: Boolean = false', F, SZ);
-const TARGET_CENTER = MC_LEFT_EDGE + PREFIX_PX + TARGET_PX / 2;
 
-// Block-centering offsets — keep both signatures visually centered on x=0.
-const SIG_ONE_W = textWidth(SIG_ONE_FALSE, F, SZ);
+// Anchor positions for the staged reveal:
+//   - Boolean alone (Phase 2a)
+//   - "overwrite: Boolean = false" fragment (Phase 2b1)
+//   - full single-line signature   (Phase 2b2)
+const BOOLEAN_PREFIX_PX = textWidth('fun save(file: File, data: Data, overwrite: ', F, SZ);
+const BOOLEAN_PX = textWidth('Boolean', F, SZ);
+const BOOLEAN_CENTER = MC_LEFT_EDGE + BOOLEAN_PREFIX_PX + BOOLEAN_PX / 2;
+
+const FRAGMENT_PREFIX_PX = textWidth('fun save(file: File, data: Data, ', F, SZ);
+const FRAGMENT_PX = textWidth('overwrite: Boolean = false', F, SZ);
+const FRAGMENT_CENTER = MC_LEFT_EDGE + FRAGMENT_PREFIX_PX + FRAGMENT_PX / 2;
+
+const SIG_ONE_W = textWidth(SIG_ONE, F, SZ);
 const SIG_ONE_OFFSET_X = -(MC_LEFT_EDGE + SIG_ONE_W / 2);
 
-const SIG_MANY_MAX_W = Math.max(
-  ...SIG_MANY.split('\n').map(l => textWidth(l, F, SZ)),
+// Block-centering offset shared by sig_one (Phase 2b2/2b.5) AND the
+// 3-row codeFinal (Phase 2c). Using the max line width across the final
+// composition keeps `save` at the same world-x in both Manticores.
+const SIG_FINAL_MAX_W = Math.max(
+  ...[
+    'fun save(file: File, data: Data, overwrite: Boolean = true,',
+    '    createDirs: Boolean = false, skipBackup: Boolean = false,',
+    '    force: Boolean = false, silent: Boolean = false)',
+  ].map(l => textWidth(l, F, SZ)),
 );
-const SIG_MANY_OFFSET_X = -(MC_LEFT_EDGE + SIG_MANY_MAX_W / 2);
+const SIG_FINAL_OFFSET_X = -(MC_LEFT_EDGE + SIG_FINAL_MAX_W / 2);
 
 const CODE_RULES = [
   {match: /^fun$/,      color: DryFiltersV3CodeTheme.keyword},
@@ -145,58 +156,83 @@ export default makeScene2D(function* (view) {
   // ═══════════════════════════════════════════════════════════════════════
   const codeRoot = createRef<Node>();
   view.add(<Node ref={codeRoot} opacity={0} />);
-  const code = Manticore.create(SIG_ONE_FALSE, {x: 0, y: 0, ...CODE_OPTS_BASE});
+  const code = Manticore.create(SIG_ONE, {x: 0, y: 0, ...CODE_OPTS_BASE});
   code.mount(codeRoot());
   code.colorize(CODE_RULES);
   code.node.opacity(1);
   type TokenRef = ReturnType<NonNullable<ReturnType<typeof code.getLine>>['tokens'][number]['ref']>;
 
-  // Hide every token except the [overwrite … false] range.
+  // Locate the three anchor tokens.
   const tokens = code.getLine(0)!.tokens;
   let overwriteIdx = -1;
+  let booleanIdx = -1;
   let falseIdx = -1;
   for (let i = 0; i < tokens.length; i++) {
     const t = String(tokens[i].ref().text());
     if (overwriteIdx === -1 && t === 'overwrite') overwriteIdx = i;
+    if (booleanIdx === -1 && t === 'Boolean') booleanIdx = i;
     if (t === 'false') falseIdx = i;
   }
-  const hiddenTokens: ReturnType<typeof tokens[number]['ref']>[] = [];
+
+  // Stage A — only Boolean visible.
+  // Stage B1 — overwrite … false range visible.
+  // Stage B2 — everything visible.
+  const stageB1Reveal: TokenRef[] = [];   // tokens revealed when going A → B1
+  const stageB2Reveal: TokenRef[] = [];   // tokens revealed when going B1 → B2
   for (let i = 0; i < tokens.length; i++) {
-    if (i < overwriteIdx || i > falseIdx) {
-      tokens[i].ref().opacity(0);
-      hiddenTokens.push(tokens[i].ref());
+    const ref = tokens[i].ref();
+    if (i === booleanIdx) continue;          // already visible
+    if (i >= overwriteIdx && i <= falseIdx) {
+      ref.opacity(0);
+      stageB1Reveal.push(ref);
+    } else {
+      ref.opacity(0);
+      stageB2Reveal.push(ref);
     }
   }
 
 
   // ═══════════════════════════════════════════════════════════════════════
-  // PHASE 2a — same Manticore, scaled UP, x-shifted so
-  //            "overwrite: Boolean = false" sits dead-center.
+  // PHASE 2a — only "Boolean" is visible, large, dead-center.
+  //            The type comes first; identifiers and defaults come later.
   // ═══════════════════════════════════════════════════════════════════════
-  const SCALE_BIG = 1.5;
-  codeRoot().scale(SCALE_BIG);
-  codeRoot().x(-TARGET_CENTER * SCALE_BIG);
+  const SCALE_2A = 2.4;
+  codeRoot().scale(SCALE_2A);
+  codeRoot().x(-BOOLEAN_CENTER * SCALE_2A);
 
   yield* codeRoot().opacity(1, 0.7, easeOutCubic);
-  yield* waitFor(1.7);
+  yield* waitFor(1.0);
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // PHASE 2b1 — pull back: surrounding fragment "overwrite: Boolean = false"
+  //             fades in around the Boolean anchor.
+  // ═══════════════════════════════════════════════════════════════════════
+  const SCALE_2B1 = 1.55;
+  yield* all(
+    codeRoot().scale(SCALE_2B1, 0.95, easeInOutCubic),
+    codeRoot().x(-FRAGMENT_CENTER * SCALE_2B1, 0.95, easeInOutCubic),
+    ...stageB1Reveal.map(r => r.opacity(1, 0.8, easeOutCubic)),
+  );
+  yield* waitFor(1.1);
 
   // ═══════════════════════════════════════════════════════════════════════
   // PHASE 2b — honest zoom-out: same glyphs, scale → 1, hidden tokens fade in
   // ═══════════════════════════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════════════════════
+  // PHASE 2b2 — full pull-back: rest of the signature fades in around
+  //             the fragment. The line is now the canonical sig_one.
+  // ═══════════════════════════════════════════════════════════════════════
   yield* all(
-    codeRoot().scale(1, 1.1, easeInOutCubic),
-    codeRoot().x(SIG_ONE_OFFSET_X, 1.1, easeInOutCubic),
-    ...hiddenTokens.map(t => t.opacity(1, 0.95, easeOutCubic)),
+    codeRoot().scale(1, 1.0, easeInOutCubic),
+    codeRoot().x(SIG_FINAL_OFFSET_X, 1.0, easeInOutCubic),
+    ...stageB2Reveal.map(r => r.opacity(1, 0.9, easeOutCubic)),
   );
-  yield* waitFor(1.8);
+  yield* waitFor(1.3);
 
   // ═══════════════════════════════════════════════════════════════════════
-  // PHASE 2b.5 — false → true. Three beats:
-  //    (a) the existing `false` dims and warms — a hint of doubt;
-  //    (b) Manticore swaps the token at zero motion;
-  //    (c) the fresh `true` glows warm-cream, then settles to keyword color.
+  // PHASE 2b.5 — false → true. The reasonable default flips. Pre-dim,
+  //              zero-motion swap, post-glow that settles to keyword color.
   // ═══════════════════════════════════════════════════════════════════════
-  // (a) Find `false` — pre-flash: dim + warm.
   let falseRef: TokenRef | null = null;
   for (let i = 0; i < code.lineCount; i++) {
     const line = code.getLine(i);
@@ -215,9 +251,8 @@ export default makeScene2D(function* (view) {
       falseRef.opacity(0.55, 0.35, easeInOutCubic),
     );
   }
-  yield* waitFor(0.25);
+  yield* waitFor(0.2);
 
-  // (b) Token swap, no slide, no flash from Manticore — just exchange.
   yield* code.morphTo(SIG_ONE_TRUE, {
     addStyle: 'fade',
     moveDuration: 0,
@@ -226,7 +261,6 @@ export default makeScene2D(function* (view) {
   });
   code.colorize(CODE_RULES);
 
-  // (c) Find `true` — glow from warm-cream into the keyword color.
   let trueRef: TokenRef | null = null;
   for (let i = 0; i < code.lineCount; i++) {
     const line = code.getLine(i);
@@ -243,57 +277,90 @@ export default makeScene2D(function* (view) {
     trueRef.fill(WARM_CREAM);
     yield* trueRef.fill(DryFiltersV3CodeTheme.keyword, 0.75, easeInOutCubic);
   }
-  yield* waitFor(1.0);
-
-  // ═══════════════════════════════════════════════════════════════════════
-  // PHASE 2c — seamless transformation: tokens DON'T slide. The single
-  //            line dissolves in place; the multi-line shape emerges
-  //            in its new positions through fade. `save` doesn't fly —
-  //            it dims out and re-appears as part of the broader form.
-  // ═══════════════════════════════════════════════════════════════════════
-  yield* all(
-    code.morphTo(SIG_MANY, {
-      addStyle: 'fade',
-      lineOrder: 'parallel',
-      blockOrder: 'parallel',
-      tokenSlideDuration: 0,
-      moveDuration: 0,
-      removeDuration: 0.55,
-    }),
-    codeRoot().x(SIG_MANY_OFFSET_X, 0.75, easeInOutCubic),
-  );
-  code.colorize(CODE_RULES);
   yield* waitFor(0.9);
 
   // ═══════════════════════════════════════════════════════════════════════
-  // PHASE 2d — inverted reveal: Booleans STAY, everything else fades.
-  //            One pattern, repeated. The names don't matter; the type does.
+  // PHASE 2c — three rows. First row is identical to sig_one_true (with
+  //            a trailing comma) and its position is fixed: `save` does
+  //            NOT move. Rows two and three fill up parameter-by-parameter,
+  //            two per row, in sequence.
   // ═══════════════════════════════════════════════════════════════════════
-  const boolRefs: TokenRef[] = [];
+  // Build the second Manticore at the SHARED block-centering offset so
+  // that identical first-row glyphs sit at exactly the same world-x.
+  // Vertical: Manticore centers its content around y=0, so row 1 of a
+  // 3-line block sits at y = -LH. Push codeFinalRoot DOWN by one LH so
+  // row 1 lands on the same world-y as the single-line `code`. `save`
+  // physically does not move during the handoff.
+  const SIG_FINAL_LINE_COUNT = 3;
+  const codeFinalY = ((SIG_FINAL_LINE_COUNT - 1) / 2) * LH;
+  const codeFinalRoot = createRef<Node>();
+  view.add(
+    <Node ref={codeFinalRoot} opacity={0} x={SIG_FINAL_OFFSET_X} y={codeFinalY} />,
+  );
+  const codeFinal = Manticore.create(SIG_FINAL, {x: 0, y: 0, ...CODE_OPTS_BASE});
+  codeFinal.mount(codeFinalRoot());
+  codeFinal.colorize(CODE_RULES);
+  codeFinal.node.opacity(1);
+
+  // Hide every token of rows 2 and 3 — they reveal one parameter at a time.
+  const row2Tokens = codeFinal.getLine(1)!.tokens.map(t => t.ref());
+  const row3Tokens = codeFinal.getLine(2)!.tokens.map(t => t.ref());
+  for (const r of row2Tokens) r.opacity(0);
+  for (const r of row3Tokens) r.opacity(0);
+
+  // Group tokens into "parameter chunks" by trailing commas. Each chunk
+  // is everything up to and including the next `,`; the trailing chunk
+  // (with `silent` + `)` ) is the leftover after the last comma.
+  const splitParams = (refs: TokenRef[]): TokenRef[][] => {
+    const groups: TokenRef[][] = [];
+    let current: TokenRef[] = [];
+    for (const ref of refs) {
+      current.push(ref);
+      if (String(ref.text()) === ',') {
+        groups.push(current);
+        current = [];
+      }
+    }
+    if (current.length > 0) groups.push(current);
+    return groups;
+  };
+  const row2Params = splitParams(row2Tokens);   // [createDirs..,, skipBackup..,]
+  const row3Params = splitParams(row3Tokens);   // [force..,, silent..)]
+
+  // Instant handoff: code (sig_one_true) hides; codeFinal row 1 takes over.
+  yield* all(
+    codeRoot().opacity(0, 0.2, easeInCubic),
+    codeFinalRoot().opacity(1, 0.2, easeOutCubic),
+  );
+
+  // Stagger reveal: createDirs → skipBackup → force → silent (with `)`).
+  const PARAM_FADE = 0.45;
+  const PARAM_PAUSE = 0.22;
+  for (const group of [...row2Params, ...row3Params]) {
+    yield* all(...group.map(r => r.opacity(1, PARAM_FADE, easeOutCubic)));
+    yield* waitFor(PARAM_PAUSE);
+  }
+
+  yield* waitFor(0.7);
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // PHASE 2d — inverted reveal: Booleans STAY in place, everything else
+  //            fades out. No white strike, no recolor — just dimming.
+  // ═══════════════════════════════════════════════════════════════════════
   const otherRefs: TokenRef[] = [];
-  for (let i = 0; i < code.lineCount; i++) {
-    const line = code.getLine(i);
+  for (let i = 0; i < codeFinal.lineCount; i++) {
+    const line = codeFinal.getLine(i);
     if (!line) continue;
     for (const tok of line.tokens) {
       const ref = tok.ref();
-      if (String(ref.text()) === 'Boolean') {
-        boolRefs.push(ref);
-      } else {
+      if (String(ref.text()) !== 'Boolean') {
         otherRefs.push(ref);
       }
     }
   }
 
-  // Brief strike: Booleans rise to pure white in unison.
   yield* all(
-    ...boolRefs.map(r => r.fill(FLASH_WHITE, 0.20, easeOutCubic)),
-  );
-  yield* waitFor(0.45);
-
-  // Decay: everything else dims to a whisper; Booleans settle back to TYPE_CLEAN.
-  yield* all(
-    ...otherRefs.map(r => r.opacity(0.16, 1.5, easeInOutCubic)),
-    ...boolRefs.map(r => r.fill(TYPE_CLEAN, 1.3, easeInOutCubic)),
+    ...otherRefs.map(r => r.opacity(0.14, 1.5, easeInOutCubic)),
   );
 
   // Hold on the Booleans — let the pattern register before the title arrives.
@@ -303,7 +370,7 @@ export default makeScene2D(function* (view) {
   // PHASE 3 — chapter title: clean handoff, not an overlay.
   //           Code goes first, breath, then YŪDAN rises into empty space.
   // ═══════════════════════════════════════════════════════════════════════
-  yield* codeRoot().opacity(0, 1.0, easeInOutCubic);
+  yield* codeFinalRoot().opacity(0, 1.0, easeInOutCubic);
   yield* waitFor(0.5);
 
   const chapterContainer = createRef<Node>();
