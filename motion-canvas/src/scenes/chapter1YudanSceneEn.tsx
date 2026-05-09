@@ -11,7 +11,8 @@ import {
   Vector2,
   waitFor,
 } from '@motion-canvas/core';
-import {Colors, Fonts} from '../core/theme';
+import {Fonts} from '../core/theme';
+import {applyBackground} from '../core/utils';
 import {Manticore} from '../core/code/components/Manticore';
 import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
 import {textWidth} from '../core/utils/textMeasure';
@@ -133,9 +134,9 @@ const LABEL_FALSE_COL = 'rgba(225, 165, 155, 0.85)';
 
 // Beat 2 final composition: trunk-base sits low in the frame so its roots
 // can splay along the lower edge; tree leans up-and-right.
-const TREE_X_FINAL      = -700;
-const TREE_Y_FINAL      = 200;
-const TREE_SCALE_FINAL  = 0.5;
+const TREE_X_FINAL      = -640;
+const TREE_Y_FINAL      = 160;
+const TREE_SCALE_FINAL  = 0.62;
 
 function mulberry32(a: number): () => number {
   return () => {
@@ -200,24 +201,8 @@ function strokeShape(
 export default makeScene2D(function* (view) {
   view.removeChildren();
 
-  // Project gradient background (matches Colors.background) without the
-  // warm spotlight from applyBackground — same lifted-graphite tone, no
-  // central glow.
-  view.add(
-    <Rect
-      width={SCREEN_W}
-      height={SCREEN_H}
-      fill={new Gradient({
-        type: 'linear',
-        from: new Vector2(0, -SCREEN_H / 2),
-        to: new Vector2(0, SCREEN_H / 2),
-        stops: [
-          {offset: 0, color: Colors.background.from},
-          {offset: 1, color: Colors.background.to},
-        ],
-      })}
-    />,
-  );
+  // Same background as other title scenes (gradient + warm spotlight).
+  applyBackground(view);
 
   type GrowSig = ReturnType<typeof createSignal<number>>;
   type TreeLabel = {
@@ -501,8 +486,42 @@ export default makeScene2D(function* (view) {
     if (!beat1Set.has(b)) b.grow(1);
   }
 
+  // Beat-1 LEAVES taper to a true point — internal beat-1 branches keep
+  // the natural V3 taper (parent.endW → child.startW * 0.55) so the
+  // chain reads as a continuous narrowing from trunk to fork-tip.
+  for (const b of allBranches) {
+    if (!beat1Set.has(b)) continue;
+    const childrenInBeat = b.children.filter(c => beat1Set.has(c)).length;
+    if (childrenInBeat === 0) {
+      b.endW = 0;
+      b.isTip = true;
+    }
+  }
+
+  // Branches that descend from beat-1 LEAVES are excluded from rendering
+  // entirely — that way the camera pull-back doesn't sprout extra twigs
+  // out of the visible fork-tips. The big tree continues to grow ELSEWHERE
+  // (other depth-1 paths), so the canopy still reads, just not as a
+  // continuation of the beat-1 sub-tree.
+  const beat1Leaves: Branch[] = [];
+  for (const b of allBranches) {
+    if (!beat1Set.has(b)) continue;
+    if (b.children.every(c => !beat1Set.has(c))) beat1Leaves.push(b);
+  }
+  const skipFromBigTree = new Set<Branch>();
+  const collectDescendants = (b: Branch) => {
+    for (const c of b.children) {
+      if (skipFromBigTree.has(c)) continue;
+      if (beat1Set.has(c)) continue;     // still part of beat-1 sub-tree
+      skipFromBigTree.add(c);
+      collectDescendants(c);
+    }
+  };
+  for (const leaf of beat1Leaves) collectDescendants(leaf);
+
   // ── Render branches: route to beat1Group or restGroup ──────────────────
   for (const b of allBranches) {
+    if (skipFromBigTree.has(b)) continue;   // descendants of beat-1 leaves
     const target = beat1Set.has(b) ? beat1Group() : restGroup();
     const lumpAmt = b.depth === 0 ? TRUNK_LUMP_BOOST : (b.depth === 1 ? 1.0 : 0.4);
     target.add(
@@ -853,6 +872,9 @@ export default makeScene2D(function* (view) {
   const beat2Labels: TreeLabel[] = [];
   for (const b of allBranches) {
     if (beat1Set.has(b)) continue;
+    // Only the largest forks of the big tree get labels — keeps the
+    // wide-shot composition clean (no cluttered canopy of true/false).
+    if (b.depth > 2) continue;
     for (const l of b.forkLabels) beat2Labels.push(l);
   }
 
@@ -873,75 +895,19 @@ export default makeScene2D(function* (view) {
   yield* waitFor(0.7);
 
   // ═══════════════════════════════════════════════════════════════════════
-  // PHASE 2c — single-line code expands to three-line; three new boolean
-  //            parameters appear ONE BY ONE quickly. Each one is its own
-  //            small reveal — comma + name + type + default.
-  // ═══════════════════════════════════════════════════════════════════════
-  const SIG_FINAL_LINE_COUNT = 3;
-  const codeFinalY = ((SIG_FINAL_LINE_COUNT - 1) / 2) * LH * BEAT1_CODE_SCALE + BEAT1_CODE_Y;
-  const codeFinalRoot = createRef<Node>();
-  codeGroup().add(
-    <Node
-      ref={codeFinalRoot}
-      opacity={0}
-      x={BEAT1_CODE_X}
-      y={codeFinalY}
-      scale={BEAT1_CODE_SCALE}
-    />,
-  );
-  const codeFinal = Manticore.create(SIG_FINAL, {x: 0, y: 0, ...CODE_OPTS_BASE});
-  codeFinal.mount(codeFinalRoot());
-  codeFinal.colorize(CODE_RULES);
-  codeFinal.node.opacity(1);
-
-  // The new params live on rows 1 and 2. Hide them initially.
-  const row1Tokens = codeFinal.getLine(1)!.tokens.map(t => t.ref());
-  const row2Tokens = codeFinal.getLine(2)!.tokens.map(t => t.ref());
-  const newRowTokens = [...row1Tokens, ...row2Tokens];
-  for (const r of newRowTokens) r.opacity(0);
-
-  // Split row-1 tokens into 3 chunks by comma — one chunk per new param.
-  const splitParams = (refs: TokenRef[]): TokenRef[][] => {
-    const groups: TokenRef[][] = [];
-    let current: TokenRef[] = [];
-    for (const ref of refs) {
-      current.push(ref);
-      if (String(ref.text()) === ',') {
-        groups.push(current);
-        current = [];
-      }
-    }
-    if (current.length > 0) groups.push(current);
-    return groups;
-  };
-  const newParamChunks = splitParams(newRowTokens);
-
-  // Instant handoff from single-line to two-line frame.
-  yield* all(
-    codeRoot().opacity(0, 0.2, easeInCubic),
-    codeFinalRoot().opacity(1, 0.2, easeOutCubic),
-  );
-
-  // Three params slot in one after another — quick stagger, no dropdown.
-  for (const chunk of newParamChunks) {
-    yield* all(...chunk.map(r => r.opacity(1, 0.18, easeOutCubic)));
-    yield* waitFor(0.08);
-  }
-  yield* waitFor(0.7);
-
-  // ═══════════════════════════════════════════════════════════════════════
-  // INVERSION BEAT — camera pulls back. The booleans we just admired fade
-  // out; the tree reveals itself in full; an inscription rises to the
-  // right of the tree: "A Boolean Is Never Just a Boolean".
+  // INVERSION BEAT — camera pulls back continuously. fun save fades out,
+  // the big tree reveals itself in full, and the inscription rises on
+  // the right. No discrete pan-then-zoom: position and scale animate
+  // together with one ease curve so the move reads as a single sweep.
   // ═══════════════════════════════════════════════════════════════════════
   const inscriptionRef = createRef<Txt>();
   view.add(
     <Txt
       ref={inscriptionRef}
       text={'A boolean is never just a boolean'}
-      x={350}
-      y={-30}
-      width={820}
+      x={520}
+      y={-40}
+      width={680}
       textWrap={true}
       textAlign={'center'}
       fontFamily={F}
@@ -952,52 +918,46 @@ export default makeScene2D(function* (view) {
     />,
   );
 
-  const INV_DUR = 3.4;
-  const INV_ZOOM_DELAY = 0.6;
-
+  const INV_DUR = 5.4;            // longer for cinematic pull-back
   yield* all(
-    // Cinematic camera move: pan + progressive zoom-out.
+    // Single coordinated camera move: x, y, and scale animate together.
     treeGroup().x(TREE_X_FINAL, INV_DUR, easeInOutCubic),
     treeGroup().y(TREE_Y_FINAL, INV_DUR, easeInOutCubic),
+    treeGroup().scale(TREE_SCALE_FINAL, INV_DUR, easeInOutCubic),
+
+    // Big tree fades in throughout the move — never hanging in the air.
     chain(
-      waitFor(INV_ZOOM_DELAY),
-      treeGroup().scale(TREE_SCALE_FINAL, INV_DUR - INV_ZOOM_DELAY, easeInOutCubic),
+      restGroup().opacity(0.35, INV_DUR * 0.5, easeInOutCubic),
+      restGroup().opacity(1.0, INV_DUR * 0.5, easeInOutCubic),
     ),
 
-    // Big tree fades in IMMEDIATELY (faintly behind the branch) so the
-    // branch never hangs in the air alone — by the time it shrinks away,
-    // the tree is already there. Two-stage curve: faint at first, then
-    // resolves to full opacity as beat-1 fades out.
+    // fun save fades out smoothly across the move — no new booleans, no
+    // multi-line — just the original one-line method receding.
+    codeRoot().opacity(0, INV_DUR * 0.55, easeInOutCubic),
+
+    // Inscription rises only as the camera settles — appears at the end.
     chain(
-      restGroup().opacity(0.35, INV_DUR * 0.45, easeInOutCubic),
-      restGroup().opacity(1.0, INV_DUR * 0.55, easeInOutCubic),
+      waitFor(INV_DUR * 0.72),
+      inscriptionRef().opacity(1, INV_DUR * 0.32, easeInOutCubic),
     ),
 
-    // The booleans we just made loud now smoothly fade away — they were
-    // a setup for the camera move, not a destination.
-    codeFinalRoot().opacity(0, INV_DUR * 0.6, easeInOutCubic),
-
-    // Inscription rises on the right side AT THE END of the zoom-out —
-    // appears as the camera move is concluding, not during it.
-    chain(
-      waitFor(INV_DUR * 0.7),
-      inscriptionRef().opacity(1, INV_DUR * 0.4 + 0.3, easeInOutCubic),
-    ),
-
-    // LIMBO atmosphere awakens with the camera move — fog, vignette,
-    // motes drifting up, snowflakes falling from above.
+    // LIMBO atmosphere awakens throughout the move. Snow finishes
+    // exactly when the move does — no freeze-frame at the end.
     limboGroup().opacity(1, INV_DUR, easeInOutCubic),
     moteTime(1, INV_DUR, easeInOutCubic),
-    snowTime(1, INV_DUR + 1.4, easeInOutCubic),
+    snowTime(1, INV_DUR, easeInOutCubic),
 
-    // Beat-2 labels cascade as their forks come into view during pull-back.
-    ...beat2Labels.map((l, i) =>
-      chain(waitFor(0.8 + i * 0.04), l.opacity(1, 0.4, easeOutCubic)),
+    // All big-tree labels appear together with the tree — no cascade,
+    // no extra "branching" effect during the camera pull-back.
+    chain(
+      waitFor(INV_DUR * 0.55),
+      all(...beat2Labels.map(l => l.opacity(1, INV_DUR * 0.4, easeInOutCubic))),
     ),
   );
 
-  // Hold the wide composition: tree on the left, inscription on the right.
-  yield* waitFor(2.0);
+  // Brief breath, then straight into the chapter title — no held
+  // freeze-frame with motionless snow.
+  yield* waitFor(0.4);
 
   // ═══════════════════════════════════════════════════════════════════════
   // PHASE 3 — chapter title YŪDAN.
@@ -1037,7 +997,7 @@ export default makeScene2D(function* (view) {
         fill={WARM_CREAM}
         textAlign={'center'}
         x={0}
-        y={28}
+        y={48}
       />
     </Node>,
   );

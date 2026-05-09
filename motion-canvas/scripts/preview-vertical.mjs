@@ -4,7 +4,7 @@ import {writeFileSync} from 'fs';
 const URL = process.env.MC_URL || 'http://localhost:5173/src/verticalProject';
 const OUT = process.env.OUT_DIR || './scripts/preview-out';
 
-const SCENE_OFFSET = 12.0;
+const SCENE_OFFSET = 9.0;
 const beatTimes = [
     ['01-hero-preview',  SCENE_OFFSET +  2.0],
     ['02-zoom',          SCENE_OFFSET +  4.5],

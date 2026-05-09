@@ -97,51 +97,39 @@ const FLAT_CARD = {
 } as const;
 
 // ── Code blocks ──────────────────────────────────────────────────────
-// Sculpted code per feedback: multi-line signature, two-line body
-// blocks (val/operation), paragraph break before each new logical
-// step, no secondary mechanics. Three semantic layers visible:
-// signature → render(...) → send(...). Specimen, not IDE dump.
-const CODE_CART_V1 = `fun sendCartReminder(
-    user: User,
-    cart: Cart
-): SendResult {
-    val message =
-        templates.render("cart_reminder", cart)
-
-    val result =
-        whatsapp.send(user.phone, message)
+// Methods: inline signature, single-line body operations including
+// deliveries.record(...) — full body restored per feedback. Empty line
+// before `return`. Each duplicate operation lives on a clean single
+// row so the highlight beat lights up whole statements.
+const CODE_CART_V1 = `fun sendCartReminder(user: User, cart: Cart): SendResult {
+    val message = templates.render("cart_reminder", cart)
+    val result = whatsapp.send(user.phone, message)
+    deliveries.record(user, message, result)
 
     return result
 }`;
 
-const CODE_LOGIN_V1 = `fun sendLogin(
-    user: User,
-    code: LoginCode
-): SendResult {
-    val message =
-        templates.render("login_code", code)
-
-    val result =
-        whatsapp.send(user.phone, message)
+const CODE_LOGIN_V1 = `fun sendLogin(user: User, code: LoginCode): SendResult {
+    val message = templates.render("login_code", code)
+    val result = whatsapp.send(user.phone, message)
+    deliveries.record(user, message, result)
 
     return result
 }`;
 
-// Merged code follows the same sculpted rhythm — multi-line signature,
-// two-line body blocks, paragraph break, return. fontSize=32 keeps it
-// strongly mobile-readable. No secondary mechanics.
+// Merged code: multi-line signature (params one per line — keeps the
+// "merged interface" form), single-line body, deliveries.record kept
+// per feedback. fontSize=30 lh=50 — readable on mobile.
 const CODE_MERGED = `fun sendMessage(
     user: User,
     template: String,
     payload: Any
 ): SendResult {
-    val message =
-        templates.render(template, payload)
+    val msg = templates.render(template, payload)
+    val res = whatsapp.send(user.phone, msg)
+    deliveries.record(user, msg, res)
 
-    val result =
-        whatsapp.send(user.phone, message)
-
-    return result
+    return res
 }`;
 
 const CODE_CART_V4 = `fun sendCartReminder(user: User, cart: Cart): SendResult {
@@ -206,22 +194,16 @@ function mergedShapePoints(): [number, number][] {
     return pts;
 }
 
-// Crystal — vertical hex-cut gem. Slim, faceted, paper-cut feel.
-// Rendered with HERO stroke + a subtle HERO tint fill, so it reads as
-// an editorial jewel rather than a flat marker.
-function crystalPoints(size = 14): [number, number][] {
+// Crystal — 4-point rhombus, slightly elongated vertically, smaller
+// per feedback. Solid HERO fill, no stroke.
+function crystalPoints(size = 8): [number, number][] {
     return [
-        [0, -size * 1.4],
-        [size * 0.55, -size * 0.4],
-        [size * 0.55, size * 0.4],
-        [0, size * 1.4],
-        [-size * 0.55, size * 0.4],
-        [-size * 0.55, -size * 0.4],
+        [0, -size * 1.45],
+        [size, 0],
+        [0, size * 1.45],
+        [-size, 0],
     ];
 }
-
-// HERO at low opacity for the crystal's inner tint.
-const CRYSTAL_TINT = 'rgba(57, 89, 63, 0.10)';
 
 // ── Polygon helpers — used to compress bars into a figure silhouette ──
 function figureYExtent(points: [number, number][]): {minY: number; maxY: number} {
@@ -471,14 +453,12 @@ export default makeScene2D(function* (view) {
     //  at scale 0.6 — a quiet preview that the zoom-in will pull
     //  forward.
     // ════════════════════════════════════════════════════════════════
-    // Hero now smaller (fontSize=64) — sculpted methods at 12 lines
-    // need more vertical real estate, so the heading must yield room
-    // without disappearing. Sits clean between KUROSHIMA and the
-    // methods area.
+    // Hero at fontSize=72 — methods are back to inline (6 rows), so
+    // the heading can reclaim a touch of weight without crowding.
     const hero = createRef<Node>();
-    const HERO_TOP = -740;
-    const HERO_LH  = 80;
-    const HERO_SZ  = 64;
+    const HERO_TOP = -700;
+    const HERO_LH  = 88;
+    const HERO_SZ  = 72;
 
     view.add(<Node ref={hero}>
         <Txt
@@ -499,14 +479,12 @@ export default makeScene2D(function* (view) {
         />
     </Node>);
 
-    // Methods now have 12 sculpted rows (multi-line signature + body
-    // blocks + paragraph breaks). At fontSize=24 lh=40 each block is
-    // 11 × 40 = 440 px tall. y=-260/+260 → 80 px gap between blocks.
-    // Width=1040 fits the longest body line (templates.render(...) at
-    // 47 chars × 14.4 = 677 px) inside the 928 px content area with
-    // 251 px to spare — generous mobile margins.
-    const cart  = makeBlock({code: CODE_CART_V1,  y: -260, fontSize: 24, lineHeight: 40, width: 1040});
-    const login = makeBlock({code: CODE_LOGIN_V1, y: +260, fontSize: 24, lineHeight: 40, width: 1040});
+    // Methods inline-signature, 6 rows. fontSize=26 lh=42 → 5 × 42 =
+    // 210 px tall per block. At y=-220/+220 the 188 px gap between
+    // blocks reads as paired-but-distinct, with comfortable lateral
+    // margins inside the 1040 px card.
+    const cart  = makeBlock({code: CODE_CART_V1,  y: -220, fontSize: 26, lineHeight: 42, width: 1040});
+    const login = makeBlock({code: CODE_LOGIN_V1, y: +220, fontSize: 26, lineHeight: 42, width: 1040});
     cart.mount(view);
     login.mount(view);
     cart.colorize(RULES);
@@ -534,33 +512,30 @@ export default makeScene2D(function* (view) {
     //  each method and slides downward as the highlight steps from
     //  render → send → record.
     // ════════════════════════════════════════════════════════════════
-    const lh_methods = 40;
-    const lineCount_methods = 12;
-    const startRel_methods = -((lineCount_methods - 1) / 2) * lh_methods; // -220
+    const lh_methods = 42;
+    const lineCount_methods = 7;
+    const startRel_methods = -((lineCount_methods - 1) / 2) * lh_methods; // -126
     const lineYRel = (i: number) => startRel_methods + i * lh_methods;
-    const cartCenterYBeat3 = -260;
-    const loginCenterYBeat3 = +260;
+    const cartCenterYBeat3 = -220;
+    const loginCenterYBeat3 = +220;
 
-    // Crystal — hex-cut gem, HERO outline + subtle HERO tint fill.
-    // Body text body starts at contentLeft + 8-space-indent for the
-    // operation lines (templates.render / whatsapp.send at lines L5/L8).
-    // x=-440 keeps the gem to the left of all method content.
+    // Crystal — vertically elongated rhombus, solid HERO fill. Sits
+    // to the LEFT of the highlighted body line. x=-440 leaves a clean
+    // ~38 px gap before the body text (which starts at -402).
     const cartCrystal = createRef<Line>();
     const loginCrystal = createRef<Line>();
     const CRYSTAL_X = -440;
-    const CRYSTAL_SIZE = 14;
 
-    // Highlights now point at L5 (templates.render) and L8 (whatsapp.send) —
-    // the actual operation lines, the only ones that vary across methods.
-    const RENDER_LINE = 5;
-    const SEND_LINE = 8;
+    // Highlights walk through the three duplicate body operations:
+    // L1 (templates.render), L2 (whatsapp.send), L3 (deliveries.record).
+    const RENDER_LINE = 1;
+    const SEND_LINE = 2;
+    const RECORD_LINE = 3;
 
     view.add(<Line
         ref={cartCrystal}
-        points={crystalPoints(CRYSTAL_SIZE)} closed
-        fill={CRYSTAL_TINT}
-        stroke={HERO}
-        lineWidth={1.6}
+        points={crystalPoints(8)} closed
+        fill={HERO}
         x={CRYSTAL_X}
         y={cartCenterYBeat3 + lineYRel(RENDER_LINE)}
         opacity={0}
@@ -568,10 +543,8 @@ export default makeScene2D(function* (view) {
     />);
     view.add(<Line
         ref={loginCrystal}
-        points={crystalPoints(CRYSTAL_SIZE)} closed
-        fill={CRYSTAL_TINT}
-        stroke={HERO}
-        lineWidth={1.6}
+        points={crystalPoints(8)} closed
+        fill={HERO}
         x={CRYSTAL_X}
         y={loginCenterYBeat3 + lineYRel(RENDER_LINE)}
         opacity={0}
@@ -589,15 +562,23 @@ export default makeScene2D(function* (view) {
         loginCrystal().scale(1, 0.5, easeOutCubic),
     );
     hero().remove();
-    yield* waitFor(0.9);
+    yield* waitFor(0.75);
 
     // SEND highlight — crystal glides to the next operation line.
     yield* all(
-        highlightOnly([cart, login], SEND_LINE, 0.45),
-        cartCrystal().y(cartCenterYBeat3 + lineYRel(SEND_LINE), 0.45, easeInOutCubic),
-        loginCrystal().y(loginCenterYBeat3 + lineYRel(SEND_LINE), 0.45, easeInOutCubic),
+        highlightOnly([cart, login], SEND_LINE, 0.4),
+        cartCrystal().y(cartCenterYBeat3 + lineYRel(SEND_LINE), 0.4, easeInOutCubic),
+        loginCrystal().y(loginCenterYBeat3 + lineYRel(SEND_LINE), 0.4, easeInOutCubic),
     );
-    yield* waitFor(0.9);
+    yield* waitFor(0.75);
+
+    // RECORD highlight — last duplicate operation.
+    yield* all(
+        highlightOnly([cart, login], RECORD_LINE, 0.4),
+        cartCrystal().y(cartCenterYBeat3 + lineYRel(RECORD_LINE), 0.4, easeInOutCubic),
+        loginCrystal().y(loginCenterYBeat3 + lineYRel(RECORD_LINE), 0.4, easeInOutCubic),
+    );
+    yield* waitFor(0.75);
 
     // Restore + crystals fade
     yield* all(
@@ -626,30 +607,27 @@ export default makeScene2D(function* (view) {
 
     // Bar widths roughly mirror each code line's actual pixel width at
     // fontSize=26. Indents reflect the 4-space body indent (62 px).
-    const lineCount = 12;
-    const lh = 40;
-    const indent4 = 58; // 4 × charwidth(24) ≈ 58
-    const indent8 = 116;
-    // Bars at code rows: signature head L0, params L1/L2, signature
-    // tail L3, val message L4, render call L5, val result L7, send
-    // call L8, return L10. Skip empty L6/L9 and closing brace L11.
-    const cartLineIndices = [0, 1, 2, 3, 4, 5, 7, 8, 10];
-    // Indents per bar in the same order as cartLineIndices.
-    const indents = [0, indent4, indent4, 0, indent4, indent8, indent4, indent8, indent4];
-    // Manticore card: width 1040, paddingX = max(24, min(56, 24*2+8)) = 56,
+    const lineCount = 7;
+    const lh = 42;
+    const indent4 = 62; // 4 × charwidth(26) ≈ 62
+    // Bars at code rows: L0 (signature), L1 (render), L2 (send),
+    // L3 (record), L5 (return). Skip empty L4, closing L6.
+    const cartLineIndices = [0, 1, 2, 3, 5];
+    const indents = [0, indent4, indent4, indent4, indent4];
+    // Manticore card: width 1040, paddingX = max(24, min(56, 26*2+8)) = 56,
     // so contentLeft = -1040/2 + 56 = -464.
     const contentLeft = -464;
 
-    // Approximate code-line widths at fontSize=24 (charwidth ≈ 14.4).
-    const cartWidths  = [302, 216, 202, 202, 259, 677, 245, 605, 245];
-    const loginWidths = [264, 216, 274, 202, 259, 677, 245, 605, 245];
+    // Approximate code-line widths at fontSize=26 (charwidth ≈ 15.6).
+    const cartWidths  = [874, 889, 796, 686, 265];
+    const loginWidths = [858, 842, 796, 686, 265];
 
-    const cartCenterY  = -260;
-    const loginCenterY =  260;
+    const cartCenterY  = -220;
+    const loginCenterY =  220;
     const barCount = cartLineIndices.length;
 
-    // Bar y positions relative to each method's centre. With 12 rows
-    // at lh=40 and startRel=-220, bar i sits at startRel + idx*40.
+    // Bar y positions relative to each method's centre. With 6 rows
+    // at lh=42 and startRel=-105, bar i sits at startRel + idx*42.
     const barYsRel = cartLineIndices.map(idx =>
         idx * lh + (-((lineCount - 1) / 2) * lh),
     );
@@ -751,94 +729,48 @@ export default makeScene2D(function* (view) {
     yield* waitFor(3.0);
 
     // ════════════════════════════════════════════════════════════════
-    //  Beat 6 — SHAPES MERGE (squash → bridge → settle)
+    //  Beat 6 — SHAPES MERGE (overlap at full scale)
     //
-    //  Three-phase merge so it reads physically, not as cross-fade:
-    //
-    //  A. Approach + squash — both figures slide to y=0 and squash
-    //     vertically (scale.y → 0.55) while stretching horizontally
-    //     (scale.x → 1.15). Like droplets pulled by surface tension.
-    //
-    //  B. Bridge — the merged shape, pre-mounted at the same squashed
-    //     scale, cross-fades up while the parents fade out. The middle
-    //     frame is a single squashed pancake — the audience reads
-    //     "two became one" rather than "two stacked".
-    //
-    //  C. Settle — the merged shape un-squashes back to its natural
-    //     proportions with an easeOut so it bounces gently into form.
+    //  Both figures slide to y=0 at full size — no shrink, no scale
+    //  change. They overlap at the centre, becoming a single visual
+    //  mass. Labels fade alongside. The merge IS the overlap.
     // ════════════════════════════════════════════════════════════════
-    const mergedShape = createRef<Line>();
-    view.add(<Line
-        ref={mergedShape}
-        points={mergedShapePoints()} closed
-        fill={MASS} y={0}
-        scale={[1.15, 0.55]}
-        opacity={0}
-    />);
-
-    // Phase A — approach + squash
     yield* all(
-        marketingShape().position.y(0, 0.55, easeInOutCubic),
-        securityShape().position.y(0, 0.55, easeInOutCubic),
-        marketingShape().scale([1.15, 0.55], 0.55, easeInOutCubic),
-        securityShape().scale([1.15, 0.55], 0.55, easeInOutCubic),
+        marketingShape().position.y(0, 0.7, easeInOutCubic),
+        securityShape().position.y(0, 0.7, easeInOutCubic),
         labels().opacity(0, 0.45, easeInCubic),
     );
     labels().remove();
-
-    // Phase B — bridge: cross-fade parents into merged shape at the
-    // same squashed proportions. Same silhouette → seamless swap.
-    yield* all(
-        marketingShape().opacity(0, 0.35, easeInOutCubic),
-        securityShape().opacity(0, 0.35, easeInOutCubic),
-        mergedShape().opacity(1, 0.35, easeOutCubic),
-    );
-    marketingShape().remove();
-    securityShape().remove();
-
-    // Phase C — settle: un-squash to natural form with a bounce.
-    yield* mergedShape().scale([1, 1], 0.55, easeOutCubic);
     yield* waitFor(0.3);
 
     // ════════════════════════════════════════════════════════════════
-    //  Beat 7 — REVERSE MORPH (symmetric inverse of forward)
+    //  Beat 7 — FIGURE → BARS → CODE (3-step reverse)
     //
-    //  Bars are spawned directly at the merged-code line y positions,
-    //  with each bar's INITIAL width equal to the converged figure's
-    //  outline at that y. Bars whose y lies outside the figure's
-    //  vertical extent start at width=0 (invisible). Cross-fade the
-    //  figures into those bars: the visible bars trace the figure's
-    //  outline at the merged-code line levels.
+    //  Phase A — spawn paper-band bars at the merged-code's real line
+    //  positions and widths (skeleton of the upcoming text).
     //
-    //  Then the bars EXPAND: widths animate to merged-code line
-    //  widths, x slides to the left-aligned text positions, fill
-    //  shifts to the paper-band SKEL color. Bars that started at
-    //  width=0 grow visible — the merged-code skeleton "fills in"
-    //  beyond the figure's outline. Finally the merged-code text
-    //  cross-fades in.
+    //  Phase B — cross-fade: figures dissolve while the bar skeleton
+    //  appears in their place. Bars at full code-line widths from the
+    //  start, so the read is "the merged form unfolds into rows".
     //
-    //  Merged code is at fontSize=30 (was 22) so it reads on mobile.
+    //  Phase C — bar skeleton cross-fades into the actual merged code
+    //  text. Bars and text share the same y rhythm → seamless swap.
     // ════════════════════════════════════════════════════════════════
-    // Merged code is now 13 rows (sculpted multi-line at fontSize=32).
-    // Bars at code rows: L0..L6 (signature head + params + tail + val
-    // message + render call), L8 (val result), L9 (send call), L11
-    // (return). Skip empty L7/L10 and closing brace L12.
-    const MERGED_LH = 54;
-    const MERGED_TOTAL_LINES = 13;
-    const MERGED_TOP = -((MERGED_TOTAL_LINES - 1) / 2) * MERGED_LH; // -324
-    // Widths at fontSize=32 (charwidth ≈ 19.2). Indents: 4-space=77,
-    // 8-space=154 for the operation call lines.
-    const mergedWidths  = [307, 288, 403, 307, 269, 346, 845, 326, 806, 326];
-    const mergedIndents = [  0,  77,  77,  77,   0,  77, 154,  77, 154,  77];
-    const mergedLineIndices = [0, 1, 2, 3, 4, 5, 6, 8, 9, 11];
+    const MERGED_LH = 50;
+    const MERGED_TOTAL_LINES = 11;
+    const MERGED_TOP = -((MERGED_TOTAL_LINES - 1) / 2) * MERGED_LH; // -250
+    // Widths at fontSize=30 (charwidth ≈ 18). Indents: 4-space ≈ 72.
+    const mergedWidths  = [288, 270, 378, 288, 252, 882, 792, 666, 252];
+    const mergedIndents = [  0,  72,  72,  72,   0,  72,  72,  72,  72];
+    // Code rows: signature head + 3 params + signature tail + 3 body
+    // ops (val msg, val res, deliveries.record) + return. Skip empty
+    // L8 and closing-brace L10.
+    const mergedLineIndices = [0, 1, 2, 3, 4, 5, 6, 7, 9];
     const mergedContentLeft = -464;
     const N_REV_BARS = mergedWidths.length;
 
-    // Phase A — spawn merged-code bars at their final line y positions.
-    // Initial widths follow the *merged* shape outline at each bar's y
-    // (the merged blob is wider than either parent, so a few extra
-    // bars at the edges start non-zero).
-    const mergedPts = mergedShapePoints();
+    // Phase A — spawn the bar skeleton at full widths and final
+    // positions, opacity 0.
     const revBarsNode = createRef<Node>();
     const revBarRefs: Reference<Rect>[] = [];
 
@@ -847,48 +779,32 @@ export default makeScene2D(function* (view) {
             const ref = createRef<Rect>();
             revBarRefs.push(ref);
             const barY = MERGED_TOP + mergedLineIndices[i] * MERGED_LH;
-            const initialW = widthAtY(mergedPts, barY);
+            const targetX = mergedContentLeft + mergedIndents[i] + mergedWidths[i] / 2;
             return (
                 <Rect
                     ref={ref}
-                    width={initialW}
+                    width={mergedWidths[i]}
                     height={12}
                     radius={4}
-                    fill={MASS}
-                    x={0}
+                    fill={SKEL}
+                    x={targetX}
                     y={barY}
                 />
             );
         })}
     </Node>);
 
-    // Phase B — the merged blob dissolves into the bar skeleton. Bars
-    // inside the blob's y range take its outline width; bars outside
-    // (top and bottom code rows) start invisible (width≈0) and fill
-    // in during the next phase.
+    // Phase B — cross-fade figures → bars at full size (no shrink).
     yield* all(
-        mergedShape().opacity(0, 0.5, easeInOutCubic),
-        revBarsNode().opacity(1, 0.5, easeInOutCubic),
+        marketingShape().opacity(0, 0.55, easeInCubic),
+        securityShape().opacity(0, 0.55, easeInCubic),
+        revBarsNode().opacity(1, 0.55, easeOutCubic),
     );
-    mergedShape().remove();
-    yield* waitFor(0.3);
+    marketingShape().remove();
+    securityShape().remove();
+    yield* waitFor(0.4);
 
-    // Phase C — bars expand to merged-code line widths and slide to
-    // their left-aligned x positions. Bars that started at width=0
-    // grow into visible paper bands — the code skeleton "fills in"
-    // beyond the merged shape's outline.
-    const expandOps: ThreadGenerator[] = [];
-    for (let i = 0; i < N_REV_BARS; i++) {
-        const b = revBarRefs[i];
-        const targetX = mergedContentLeft + mergedIndents[i] + mergedWidths[i] / 2;
-        expandOps.push(b().width(mergedWidths[i], 0.6, easeInOutCubic));
-        expandOps.push(b().x(targetX, 0.6, easeInOutCubic));
-        expandOps.push(b().fill(SKEL, 0.6, easeInOutCubic));
-    }
-    yield* all(...expandOps);
-    yield* waitFor(0.25);
-
-    // Phase D — bars cross-fade into the real merged code text.
+    // Phase C — bar skeleton cross-fades into the merged code text.
     const merged = makeBlock({
         code: CODE_MERGED, y: 0,
         fontSize: 30, lineHeight: MERGED_LH,

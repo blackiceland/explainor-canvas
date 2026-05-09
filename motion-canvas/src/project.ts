@@ -75,6 +75,7 @@ import expTreeTracedScene from "./scenes/expTreeTracedScene?scene";
 import expTreeRevealScene from "./scenes/expTreeRevealScene?scene";
 import dryConditionsScene from "./scenes/dryConditionsScene?scene";
 import flowStepIntroScene from "./scenes/flowStepIntroScene?scene";
+import whatsappCodePairSceneEn from "./scenes/whatsappCodePairSceneEn?scene";
 
 export default makeProject({
     experimentalFeatures: true,
@@ -173,6 +174,7 @@ export default makeProject({
 
 
         // flowStepIntroScene,
+         whatsappCodePairSceneEn,
          chapter1YudanSceneEn,
         // expTreeSumieScene,
         // expTreeProctreeScene,
