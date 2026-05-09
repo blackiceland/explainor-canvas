@@ -21,15 +21,15 @@ const grab = async () => page.evaluate(() => {
     return c ? c.toDataURL('image/png') : null;
 });
 
-await page.evaluate(() => localStorage.setItem('project/frame', '180'));
+await page.evaluate(() => localStorage.setItem('project/frame', '240'));
 await page.reload({waitUntil: 'domcontentloaded'});
 await new Promise(r => setTimeout(r, 6000));
 
 const dataUrl = await grab();
 if (dataUrl) {
     const png = Buffer.from(dataUrl.split(',')[1], 'base64');
-    await fs.writeFile(path.join(OUT, 'variants.png'), png);
-    console.log('saved variants.png', png.length, 'bytes');
+    await fs.writeFile(path.join(OUT, 'variantB.png'), png);
+    console.log('saved variantB.png', png.length, 'bytes');
 }
 
 await browser.close();

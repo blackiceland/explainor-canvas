@@ -119,19 +119,21 @@ const CODE_LOGIN_V1 = `fun sendLogin(user: User, code: LoginCode): SendResult {
     return result
 }`;
 
-// Merged code: multi-line signature (params one per line — keeps the
-// "merged interface" form), single-line body, deliveries.record kept
-// per feedback. fontSize=30 lh=50 — readable on mobile.
+// Merged code: multi-line signature (params one per line), full
+// readable variable names (message / result, not msg / res). Body
+// includes deliveries.record. Empty line before return. fontSize=30
+// lh=50 width=1100 → longest line (val message = templates.render(...)
+// at 53 chars × 18 = 954 px) fits the 988 px content area.
 const CODE_MERGED = `fun sendMessage(
     user: User,
     template: String,
     payload: Any
 ): SendResult {
-    val msg = templates.render(template, payload)
-    val res = whatsapp.send(user.phone, msg)
-    deliveries.record(user, msg, res)
+    val message = templates.render(template, payload)
+    val result = whatsapp.send(user.phone, message)
+    deliveries.record(user, message, result)
 
-    return res
+    return result
 }`;
 
 const CODE_CART_V4 = `fun sendCartReminder(user: User, cart: Cart): SendResult {
@@ -495,45 +497,9 @@ export default makeScene2D(function* (view) {
     cart.colorize(RULES);
     login.colorize(RULES);
 
-    // Domain labels — small uppercase tracked caps in the same left
-    // x-position as the code text. Per design pass: each block is a
-    // named specimen, not just a duplicate paragraph.
-    const LABEL_X = -494 + 108; // contentLeft + half label width
-    const labelTop = createRef<Txt>();
-    const labelBot = createRef<Txt>();
-    const cartTopY = -200 - 138; // method center - half height
-    const loginTopY = +200 - 138;
-
-    view.add(<Txt
-        ref={labelTop}
-        text="CART REMINDER"
-        fontFamily={F_SERIF}
-        fontSize={22}
-        fontWeight={500}
-        letterSpacing={4}
-        fill={HERO}
-        x={LABEL_X}
-        y={cartTopY - 32}
-        opacity={0}
-    />);
-    view.add(<Txt
-        ref={labelBot}
-        text="LOGIN CODE"
-        fontFamily={F_SERIF}
-        fontSize={22}
-        fontWeight={500}
-        letterSpacing={4}
-        fill={HERO}
-        x={LABEL_X - 25} // narrower text → adjust to keep same left edge
-        y={loginTopY - 32}
-        opacity={0}
-    />);
-
     yield* all(
         cart.appear(0.55),
         login.appear(0.55),
-        labelTop().opacity(1, 0.55, easeOutCubic),
-        labelBot().opacity(1, 0.55, easeOutCubic),
     );
     yield* waitFor(2.6);
 
@@ -602,10 +568,6 @@ export default makeScene2D(function* (view) {
         cartCrystal().scale(1, 0.5, easeOutCubic),
         loginCrystal().opacity(1, 0.5, easeOutCubic),
         loginCrystal().scale(1, 0.5, easeOutCubic),
-        // Domain labels dim slightly during the highlight beat so the
-        // eye lands on the duplicate body lines, then restore later.
-        labelTop().opacity(DIM_OP, 0.5),
-        labelBot().opacity(DIM_OP, 0.5),
     );
     hero().remove();
     yield* waitFor(0.75);
@@ -626,8 +588,7 @@ export default makeScene2D(function* (view) {
     );
     yield* waitFor(0.75);
 
-    // Restore + crystals fade + labels dim down (they leave with the
-    // methods when the figures take over).
+    // Restore + crystals fade
     yield* all(
         cart.showAllLines(0.4),
         login.showAllLines(0.4),
@@ -635,8 +596,6 @@ export default makeScene2D(function* (view) {
         cartCrystal().scale(0.5, 0.4, easeInCubic),
         loginCrystal().opacity(0, 0.4, easeInCubic),
         loginCrystal().scale(0.5, 0.4, easeInCubic),
-        labelTop().opacity(1, 0.4),
-        labelBot().opacity(1, 0.4),
     );
     cartCrystal().remove();
     loginCrystal().remove();
@@ -689,19 +648,15 @@ export default makeScene2D(function* (view) {
 
     // Phase A — code text fades, skeleton bars take its place. Lines
     // are at the same y, so the read is "letters dropped, structure
-    // stayed". Domain labels also retire with the code text.
+    // stayed".
     yield* all(
         cart.node.opacity(0, 0.45, easeInOutCubic),
         login.node.opacity(0, 0.45, easeInOutCubic),
         cartSkel.handle.node().opacity(1, 0.45, easeInOutCubic),
         loginSkel.handle.node().opacity(1, 0.45, easeInOutCubic),
-        labelTop().opacity(0, 0.45, easeInCubic),
-        labelBot().opacity(0, 0.45, easeInCubic),
     );
     cart.node.remove();
     login.node.remove();
-    labelTop().remove();
-    labelBot().remove();
 
     // Phase B — bars compress widths only. Each bar STAYS at its code-
     // line y, keeps its 12-px height, and only its width animates so
@@ -820,13 +775,18 @@ export default makeScene2D(function* (view) {
     const MERGED_TOTAL_LINES = 11;
     const MERGED_TOP = -((MERGED_TOTAL_LINES - 1) / 2) * MERGED_LH; // -250
     // Widths at fontSize=30 (charwidth ≈ 18). Indents: 4-space ≈ 72.
-    const mergedWidths  = [288, 270, 378, 288, 252, 882, 792, 666, 252];
+    // Updated for full variable names (message / result, not msg/res):
+    // L5 val message = templates.render(...) → 53 chars × 18 = 954 px,
+    // L6 val result = whatsapp.send(...)     → 51 chars × 18 = 918 px,
+    // L7 deliveries.record(user, message, result) → 44 × 18 = 792 px.
+    const mergedWidths  = [288, 270, 378, 288, 252, 954, 918, 792, 306];
     const mergedIndents = [  0,  72,  72,  72,   0,  72,  72,  72,  72];
     // Code rows: signature head + 3 params + signature tail + 3 body
-    // ops (val msg, val res, deliveries.record) + return. Skip empty
-    // L8 and closing-brace L10.
+    // ops + return. Skip empty L8 and closing-brace L10.
     const mergedLineIndices = [0, 1, 2, 3, 4, 5, 6, 7, 9];
-    const mergedContentLeft = -464;
+    // Card width=1100 to fit the longest body line; contentLeft =
+    // -1100/2 + 56 = -494.
+    const mergedContentLeft = -494;
     const N_REV_BARS = mergedWidths.length;
 
     // Phase A — spawn bars at silhouette widths (centred at x=0). Use
@@ -882,7 +842,7 @@ export default makeScene2D(function* (view) {
     const merged = makeBlock({
         code: CODE_MERGED, y: 0,
         fontSize: 30, lineHeight: MERGED_LH,
-        width: 1040, noClip: true,
+        width: 1100, noClip: true,
     });
     merged.mount(view);
     merged.colorize(RULES);

@@ -498,6 +498,32 @@ export default makeScene2D(function* (view) {
     }
   }
 
+  // ── Drop the SIBLING of beat-1 sub-tree slightly lower ─────────────────
+  // The depth-2 branch that diverges from beat-1's parent fork is gently
+  // pulled downward — keeps its start connected to the parent's tip but
+  // the branch droops and its descendants follow.
+  const SIBLING_DROOP = 50;
+  const beat1Siblings = beat1Tree.parent
+    ? beat1Tree.parent.children.filter(c => c !== beat1Tree)
+    : [];
+  const shiftSubtree = (b: Branch, dy: number) => {
+    b.start = new Vector2(b.start.x, b.start.y + dy);
+    b.end   = new Vector2(b.end.x,   b.end.y + dy);
+    b.ctrl1 = new Vector2(b.ctrl1.x, b.ctrl1.y + dy);
+    b.ctrl2 = new Vector2(b.ctrl2.x, b.ctrl2.y + dy);
+    for (const lbl of b.forkLabels) lbl.y += dy;
+    for (const c of b.children) shiftSubtree(c, dy);
+  };
+  for (const s of beat1Siblings) {
+    // Sibling itself: keep start anchored to parent, droop only end + ctrls.
+    s.end   = new Vector2(s.end.x,   s.end.y + SIBLING_DROOP);
+    s.ctrl1 = new Vector2(s.ctrl1.x, s.ctrl1.y + SIBLING_DROOP);
+    s.ctrl2 = new Vector2(s.ctrl2.x, s.ctrl2.y + SIBLING_DROOP);
+    for (const lbl of s.forkLabels) lbl.y += SIBLING_DROOP;
+    // Descendants ride along with the new end position.
+    for (const c of s.children) shiftSubtree(c, SIBLING_DROOP);
+  }
+
   // Branches that descend from beat-1 LEAVES are excluded from rendering
   // entirely — that way the camera pull-back doesn't sprout extra twigs
   // out of the visible fork-tips. The big tree continues to grow ELSEWHERE
@@ -808,10 +834,7 @@ export default makeScene2D(function* (view) {
   // ═══════════════════════════════════════════════════════════════════════
   const SCALE_2A = 2.4;
   codeRoot().scale(SCALE_2A);
-  // Empirical nudge — textWidth slightly under-estimates JetBrains Mono's
-  // rendered glyph spacing, so Boolean drifts ~70 world-px right of center
-  // without this correction.
-  codeRoot().x(-BOOLEAN_CENTER * SCALE_2A - 70);
+  codeRoot().x(-BOOLEAN_CENTER * SCALE_2A);
   codeRoot().y(0);
 
   yield* codeRoot().opacity(1, 0.7, easeOutCubic);
@@ -930,10 +953,11 @@ export default makeScene2D(function* (view) {
     treeGroup().scale(TREE_SCALE_FINAL, INV_DUR, easeInOutCubic),
 
     // Backdrop branches start drawing IMMEDIATELY with the camera move
-    // so the beat-1 sub-tree never floats alone — it stays attached to
-    // the trunk that's already faintly there, then resolves to full.
+    // and rise quickly to near-full opacity — keeps brightness close to
+    // beat-1 throughout the move so the contrast doesn't read as
+    // "white branch / pale trunk".
     chain(
-      restGroup().opacity(0.45, INV_DUR * 0.35, easeInOutCubic),
+      restGroup().opacity(0.85, INV_DUR * 0.35, easeInOutCubic),
       restGroup().opacity(1.0, INV_DUR * 0.65, easeInOutCubic),
     ),
 
@@ -962,9 +986,9 @@ export default makeScene2D(function* (view) {
     ),
   );
 
-  // Hold the wide composition for a couple of seconds — snow keeps
-  // rising during the hold so the air never freezes.
-  yield* snowTime(1, 2.4, linear);
+  // Brief hold before chapter — snow keeps rising during this window
+  // so the air never freezes.
+  yield* snowTime(1, 1.4, linear);
 
   // ═══════════════════════════════════════════════════════════════════════
   // PHASE 3 — chapter title YŪDAN.
