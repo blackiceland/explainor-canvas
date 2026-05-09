@@ -5,31 +5,79 @@ import {
     easeOutCubic,
     waitFor,
 } from '@motion-canvas/core';
+import {ColorRule, Manticore} from '../core/code/components/Manticore';
+import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
 import {Fonts} from '../core/theme';
 import {applyBackground} from '../core/utils';
 
 // ══════════════════════════════════════════════════════════════════════════
-//  WhatsApp dark-mode messenger — realistic.
-//
-//  Anatomy (top-to-bottom inside the panel):
-//
-//    1. Chat header bar — avatar + sender name + "online" status.
-//    2. Earlier message bubble (context, smaller).
-//    3. Main message bubble — Payment failed + sub-line + timestamp.
-//    4. Input field — emoji glyph + placeholder + clip + mic.
-//
-//  Colours follow the canonical WA dark-mode palette: panel #0B141A,
-//  header / bubble #1F2C33, accent green for status dot #25D366
-//  (toned down to a calmer #4DA37D so it doesn't shout). Text in the
-//  message is sans-serif (system-feel), with the headline kept in
-//  Newsreader serif so the editorial brand still bleeds through.
+//   LEFT  — code (mechanism). codeWithActionsSceneRu palette, no card,
+//           no chip-labels.
+//   RIGHT — realistic WhatsApp dark-mode messenger panel. Two equal-
+//           size bubbles (context + main) + chat header + input field.
 // ══════════════════════════════════════════════════════════════════════════
 
 const F_SERIF = 'Newsreader, "Source Serif 4", "EB Garamond", serif';
 const F_SANS  = Fonts.primary;
 const F_MONO  = Fonts.code;
 
-// Realistic WA dark palette
+// ── code palette (codeWithActionsSceneRu canon + explicit fun accent) ────
+const VAR_LIGHT    = 'rgba(244,241,235,0.96)';
+const TYPE_CLEAN   = 'rgba(220,215,255,0.80)';
+const METHOD_COLOR = '#FF8CA3';
+const SOFT_GREEN   = 'rgba(168,214,178,0.88)';
+const FUN_BLUE     = '#A3CDFF';
+
+const CODE_CARD_STYLE = {
+    radius: 0,
+    fill: 'rgba(0,0,0,0)',
+    stroke: 'rgba(0,0,0,0)',
+    strokeWidth: 0,
+    shadowColor: 'rgba(0,0,0,0)',
+    shadowBlur: 0,
+    shadowOffsetX: 0,
+    shadowOffsetY: 0,
+    edge: false,
+} as const;
+
+const COLOR_RULES: ColorRule[] = [
+    {match: /^fun$/,            color: FUN_BLUE},
+    {match: 'sendCartReminder', color: METHOD_COLOR, onlyTypes: ['method']},
+    {match: 'sendLoginCode',    color: METHOD_COLOR, onlyTypes: ['method']},
+    {match: 'render',           color: METHOD_COLOR, onlyTypes: ['method']},
+    {match: /^send$/,           color: METHOD_COLOR, onlyTypes: ['method']},
+    {match: 'record',           color: METHOD_COLOR, onlyTypes: ['method']},
+    {match: /^"[^"]*"$/,        color: SOFT_GREEN},
+    {match: 'user',             color: VAR_LIGHT},
+    {match: 'cart',             color: VAR_LIGHT},
+    {match: /^code$/,           color: VAR_LIGHT},
+    {match: 'message',          color: VAR_LIGHT},
+    {match: 'result',           color: VAR_LIGHT},
+    {match: 'phone',            color: VAR_LIGHT},
+    {match: 'templates',        color: VAR_LIGHT},
+    {match: 'whatsapp',         color: VAR_LIGHT},
+    {match: 'deliveries',       color: VAR_LIGHT},
+    {match: /^User$/,           color: TYPE_CLEAN},
+    {match: /^Cart$/,           color: TYPE_CLEAN},
+    {match: /^LoginCode$/,      color: TYPE_CLEAN},
+    {match: /^SendResult$/,     color: TYPE_CLEAN},
+];
+
+const CODE_PAIR = `fun sendCartReminder(user: User, cart: Cart): SendResult {
+    val message = templates.render("cart_reminder", cart)
+    val result  = whatsapp.send(user.phone, message)
+    deliveries.record(user, message, result)
+    return result
+}
+
+fun sendLoginCode(user: User, code: LoginCode): SendResult {
+    val message = templates.render("login_code", code)
+    val result  = whatsapp.send(user.phone, message)
+    deliveries.record(user, message, result)
+    return result
+}`;
+
+// ── messenger palette (canonical WA dark mode) ───────────────────────────
 const PANEL_BG     = '#0B141A';
 const HEADER_BG    = '#1F2C33';
 const BUBBLE_BG    = '#1F2C33';
@@ -44,108 +92,75 @@ const PANEL_STROKE = 'rgba(255,255,255,0.04)';
 const PANEL_SHADOW = 'rgba(0,0,0,0.45)';
 
 // ── proportions ───────────────────────────────────────────────────────────
-const PANEL_W       = 620;
-const PANEL_H       = 760;
-const PANEL_RADIUS  = 36;
-const PANEL_Y       = 0;
+const CODE_CENTER_X  = -480;
+const CODE_W         = 820;
+const CODE_FONT      = 21;
+const CODE_LH        = 34;
+
+const PANEL_X        = +460;
+const PANEL_W        = 540;
+const PANEL_H        = 640;
+const PANEL_RADIUS   = 32;
 
 // header bar
-const HEADER_H      = 70;
+const HEADER_H      = 60;
 const HEADER_Y_REL  = -PANEL_H / 2 + HEADER_H / 2;
-const AVATAR_R      = 22;
-const AVATAR_X_REL  = -PANEL_W / 2 + 32 + AVATAR_R;
-const NAME_X_REL    = AVATAR_X_REL + AVATAR_R + 18;
+const AVATAR_R      = 20;
+const AVATAR_X_REL  = -PANEL_W / 2 + 28 + AVATAR_R;
 
-// earlier bubble (context)
-const EBUBBLE_W     = 280;
-const EBUBBLE_H     = 56;
-const EBUBBLE_X_REL = -PANEL_W / 2 + 30 + EBUBBLE_W / 2;
-const EBUBBLE_Y_REL = -190;
-
-// main bubble
-const BUBBLE_W      = 440;
-const BUBBLE_H      = 158;
-const BUBBLE_RADIUS = 18;
+// bubbles (equal size)
+const BUBBLE_W      = 380;
+const BUBBLE_H      = 104;
+const BUBBLE_RADIUS = 16;
 const BUBBLE_X_REL  = -PANEL_W / 2 + 30 + BUBBLE_W / 2;
-const BUBBLE_Y_REL  = -10;
 
-// main-bubble path (bubble + tail) in path-local coords
-const BUBBLE_AX = -BUBBLE_W / 2;
-const BUBBLE_AY = -BUBBLE_H / 2;
-const TAIL_TIP_X = BUBBLE_AX - 10;
-const TAIL_TIP_Y = BUBBLE_AY - 4;
-const MAIN_BUBBLE_PATH = [
-    `M ${BUBBLE_AX + BUBBLE_RADIUS} ${BUBBLE_AY}`,
-    `H ${BUBBLE_AX + BUBBLE_W - BUBBLE_RADIUS}`,
-    `Q ${BUBBLE_AX + BUBBLE_W} ${BUBBLE_AY} ${BUBBLE_AX + BUBBLE_W} ${BUBBLE_AY + BUBBLE_RADIUS}`,
-    `V ${BUBBLE_AY + BUBBLE_H - BUBBLE_RADIUS}`,
-    `Q ${BUBBLE_AX + BUBBLE_W} ${BUBBLE_AY + BUBBLE_H} ${BUBBLE_AX + BUBBLE_W - BUBBLE_RADIUS} ${BUBBLE_AY + BUBBLE_H}`,
-    `H ${BUBBLE_AX + BUBBLE_RADIUS}`,
-    `Q ${BUBBLE_AX} ${BUBBLE_AY + BUBBLE_H} ${BUBBLE_AX} ${BUBBLE_AY + BUBBLE_H - BUBBLE_RADIUS}`,
-    `V ${BUBBLE_AY + 6}`,
+const EARLIER_Y_REL = -160;
+const MAIN_Y_REL    = -30;
+
+// shared bubble path (with left-bottom tail)
+const BUB_AX = -BUBBLE_W / 2;
+const BUB_AY = -BUBBLE_H / 2;
+const TAIL_TIP_X = BUB_AX - 8;
+const TAIL_TIP_Y = BUB_AY - 3;
+const BUBBLE_PATH = [
+    `M ${BUB_AX + BUBBLE_RADIUS} ${BUB_AY}`,
+    `H ${BUB_AX + BUBBLE_W - BUBBLE_RADIUS}`,
+    `Q ${BUB_AX + BUBBLE_W} ${BUB_AY} ${BUB_AX + BUBBLE_W} ${BUB_AY + BUBBLE_RADIUS}`,
+    `V ${BUB_AY + BUBBLE_H - BUBBLE_RADIUS}`,
+    `Q ${BUB_AX + BUBBLE_W} ${BUB_AY + BUBBLE_H} ${BUB_AX + BUBBLE_W - BUBBLE_RADIUS} ${BUB_AY + BUBBLE_H}`,
+    `H ${BUB_AX + BUBBLE_RADIUS}`,
+    `Q ${BUB_AX} ${BUB_AY + BUBBLE_H} ${BUB_AX} ${BUB_AY + BUBBLE_H - BUBBLE_RADIUS}`,
+    `V ${BUB_AY + 5}`,
     `L ${TAIL_TIP_X} ${TAIL_TIP_Y}`,
-    `L ${BUBBLE_AX + 6} ${BUBBLE_AY}`,
+    `L ${BUB_AX + 5} ${BUB_AY}`,
     `Z`,
 ].join(' ');
 
-// earlier-bubble path (smaller, same tail anatomy)
-const EB_AX = -EBUBBLE_W / 2;
-const EB_AY = -EBUBBLE_H / 2;
-const EB_R  = 16;
-const EB_TAIL_TIP_X = EB_AX - 8;
-const EB_TAIL_TIP_Y = EB_AY - 3;
-const EARLIER_BUBBLE_PATH = [
-    `M ${EB_AX + EB_R} ${EB_AY}`,
-    `H ${EB_AX + EBUBBLE_W - EB_R}`,
-    `Q ${EB_AX + EBUBBLE_W} ${EB_AY} ${EB_AX + EBUBBLE_W} ${EB_AY + EB_R}`,
-    `V ${EB_AY + EBUBBLE_H - EB_R}`,
-    `Q ${EB_AX + EBUBBLE_W} ${EB_AY + EBUBBLE_H} ${EB_AX + EBUBBLE_W - EB_R} ${EB_AY + EBUBBLE_H}`,
-    `H ${EB_AX + EB_R}`,
-    `Q ${EB_AX} ${EB_AY + EBUBBLE_H} ${EB_AX} ${EB_AY + EBUBBLE_H - EB_R}`,
-    `V ${EB_AY + 5}`,
-    `L ${EB_TAIL_TIP_X} ${EB_TAIL_TIP_Y}`,
-    `L ${EB_AX + 5} ${EB_AY}`,
-    `Z`,
-].join(' ');
+// input
+const INPUT_W       = PANEL_W - 56;
+const INPUT_H       = 52;
+const INPUT_RADIUS  = 26;
+const INPUT_Y_REL   = +PANEL_H / 2 - 50;
 
-// input field
-const INPUT_W       = PANEL_W - 60;
-const INPUT_H       = 56;
-const INPUT_RADIUS  = 28;
-const INPUT_Y_REL   = +PANEL_H / 2 - 56;
-
-// ── tiny vector glyphs ────────────────────────────────────────────────────
-function plusGlyph(cx: number, cy: number, size = 16, tint = ICON_TINT) {
-    const t = 2;
+// ── glyphs ────────────────────────────────────────────────────────────────
+function plusGlyph(cx: number, cy: number, size = 14) {
+    const t = 1.8;
     return (
         <>
-            <Rect x={cx} y={cy} width={size} height={t} radius={1} fill={tint} />
-            <Rect x={cx} y={cy} width={t} height={size} radius={1} fill={tint} />
+            <Rect x={cx} y={cy} width={size} height={t} radius={1} fill={ICON_TINT} />
+            <Rect x={cx} y={cy} width={t} height={size} radius={1} fill={ICON_TINT} />
         </>
     );
 }
 
-function micGlyph(cx: number, cy: number, tint = ICON_TINT) {
+function micGlyph(cx: number, cy: number) {
     return (
         <>
-            <Rect x={cx} y={cy - 4} width={10} height={16} radius={5}
-                fill="rgba(0,0,0,0)" stroke={tint} lineWidth={1.6} />
-            <Rect x={cx} y={cy + 8} width={2} height={4} radius={1} fill={tint} />
-            <Rect x={cx} y={cy + 11} width={12} height={2} radius={1} fill={tint} />
+            <Rect x={cx} y={cy - 4} width={9} height={14} radius={4.5}
+                fill="rgba(0,0,0,0)" stroke={ICON_TINT} lineWidth={1.4} />
+            <Rect x={cx} y={cy + 7} width={2} height={3} radius={1} fill={ICON_TINT} />
+            <Rect x={cx} y={cy + 9} width={11} height={2} radius={1} fill={ICON_TINT} />
         </>
-    );
-}
-
-// double check-marks (the WA "delivered/read" indicator) — outgoing only;
-// for incoming bubbles we just show the timestamp.
-function timestamp(cx: number, cy: number, text: string) {
-    return (
-        <Txt
-            text={text}
-            fontFamily={F_SANS} fontSize={11} fontWeight={400}
-            fill={TEXT_MUTED}
-            x={cx} y={cy}
-        />
     );
 }
 
@@ -153,130 +168,113 @@ function timestamp(cx: number, cy: number, text: string) {
 export default makeScene2D(function* (view) {
     applyBackground(view);
 
+    // ── messenger panel (right) ──────────────────────────────────────────
     const panelRef    = createRef<Rect>();
-    const headerBgRef = createRef<Rect>();
-    const avatarRef   = createRef<Circle>();
-    const avatarLetter = createRef<Txt>();
-    const nameRef     = createRef<Txt>();
-    const statusRef   = createRef<Txt>();
-    const statusDotRef = createRef<Circle>();
-
-    const earlierBubbleRef = createRef<Path>();
-    const earlierTextRef   = createRef<Txt>();
-
-    const bubbleRef    = createRef<Path>();
-    const headlineRef  = createRef<Txt>();
-    const sublineRef   = createRef<Txt>();
-    const timeRef      = createRef<Txt>();
-
-    const inputRef = createRef<Rect>();
+    const earlierBubble = createRef<Path>();
+    const earlierText   = createRef<Txt>();
+    const earlierTime   = createRef<Txt>();
+    const mainBubble    = createRef<Path>();
+    const mainHeadline  = createRef<Txt>();
+    const mainTime      = createRef<Txt>();
+    const inputRef    = createRef<Rect>();
 
     view.add(
         <Rect
             ref={panelRef}
-            y={PANEL_Y}
+            x={PANEL_X} y={0}
             width={PANEL_W} height={PANEL_H}
             radius={PANEL_RADIUS}
             fill={PANEL_BG}
             stroke={PANEL_STROKE} lineWidth={1}
-            shadowColor={PANEL_SHADOW} shadowBlur={40} shadowOffset={[-10, 18]}
+            shadowColor={PANEL_SHADOW} shadowBlur={36} shadowOffset={[-10, 16]}
             opacity={0}
             clip
         >
             {/* header bar */}
             <Rect
-                ref={headerBgRef}
                 width={PANEL_W} height={HEADER_H}
                 fill={HEADER_BG}
                 y={HEADER_Y_REL}
             />
             <Circle
-                ref={avatarRef}
                 width={AVATAR_R * 2} height={AVATAR_R * 2}
                 fill="#3A4F5A"
                 x={AVATAR_X_REL} y={HEADER_Y_REL}
             />
             <Txt
-                ref={avatarLetter}
                 text="A"
-                fontFamily={F_SANS} fontSize={18} fontWeight={600}
+                fontFamily={F_SANS} fontSize={16} fontWeight={600}
                 fill={TEXT_PRIMARY}
                 x={AVATAR_X_REL} y={HEADER_Y_REL}
             />
             <Txt
-                ref={nameRef}
                 text="Acme Notifications"
-                fontFamily={F_SANS} fontSize={17} fontWeight={500}
+                fontFamily={F_SANS} fontSize={16} fontWeight={500}
                 fill={TEXT_PRIMARY}
                 textAlign="left"
-                x={NAME_X_REL + 90} y={HEADER_Y_REL - 9}
+                x={AVATAR_X_REL + AVATAR_R + 100} y={HEADER_Y_REL - 8}
             />
             <Circle
-                ref={statusDotRef}
                 width={6} height={6}
                 fill={ONLINE_DOT}
-                x={NAME_X_REL + 4} y={HEADER_Y_REL + 12}
+                x={AVATAR_X_REL + AVATAR_R + 16} y={HEADER_Y_REL + 11}
             />
             <Txt
-                ref={statusRef}
                 text="online"
-                fontFamily={F_SANS} fontSize={12}
+                fontFamily={F_SANS} fontSize={11}
                 fill={TEXT_MUTED}
-                x={NAME_X_REL + 38} y={HEADER_Y_REL + 12}
+                x={AVATAR_X_REL + AVATAR_R + 47} y={HEADER_Y_REL + 11}
             />
 
-            {/* earlier (context) bubble */}
+            {/* earlier bubble — equal size */}
             <Path
-                ref={earlierBubbleRef}
-                data={EARLIER_BUBBLE_PATH}
+                ref={earlierBubble}
+                data={BUBBLE_PATH}
                 fill={BUBBLE_BG}
-                x={EBUBBLE_X_REL} y={EBUBBLE_Y_REL}
+                x={BUBBLE_X_REL} y={EARLIER_Y_REL}
                 opacity={0}
             />
             <Txt
-                ref={earlierTextRef}
+                ref={earlierText}
                 text="Your card on file was declined."
                 fontFamily={F_SANS} fontSize={15} fontWeight={400}
                 fill={TEXT_PRIMARY}
-                x={EBUBBLE_X_REL} y={EBUBBLE_Y_REL - 4}
-                opacity={0}
-            />
-            {timestamp(EBUBBLE_X_REL + EBUBBLE_W / 2 - 26, EBUBBLE_Y_REL + 16, '2:12')}
-
-            {/* main bubble */}
-            <Path
-                ref={bubbleRef}
-                data={MAIN_BUBBLE_PATH}
-                fill={BUBBLE_BG}
-                x={BUBBLE_X_REL} y={BUBBLE_Y_REL}
+                x={BUBBLE_X_REL} y={EARLIER_Y_REL - 8}
                 opacity={0}
             />
             <Txt
-                ref={headlineRef}
+                ref={earlierTime}
+                text="2:12 PM"
+                fontFamily={F_SANS} fontSize={11}
+                fill={TEXT_MUTED}
+                x={BUBBLE_X_REL + BUBBLE_W / 2 - 32}
+                y={EARLIER_Y_REL + BUBBLE_H / 2 - 14}
+                opacity={0}
+            />
+
+            {/* main bubble — equal size */}
+            <Path
+                ref={mainBubble}
+                data={BUBBLE_PATH}
+                fill={BUBBLE_BG}
+                x={BUBBLE_X_REL} y={MAIN_Y_REL}
+                opacity={0}
+            />
+            <Txt
+                ref={mainHeadline}
                 text="Payment failed"
                 fontFamily={F_SERIF} fontSize={32} fontWeight={500}
                 fill={SERIF_WHITE}
-                x={BUBBLE_X_REL} y={BUBBLE_Y_REL - 28}
+                x={BUBBLE_X_REL} y={MAIN_Y_REL - 10}
                 opacity={0}
             />
             <Txt
-                ref={sublineRef}
-                text="We couldn't charge your card. Update payment to resume service."
-                fontFamily={F_SANS} fontSize={14} fontWeight={400}
-                fill={TEXT_MUTED}
-                width={BUBBLE_W - 60}
-                textAlign="left"
-                textWrap
-                x={BUBBLE_X_REL} y={BUBBLE_Y_REL + 18}
-                opacity={0}
-            />
-            <Txt
-                ref={timeRef}
+                ref={mainTime}
                 text="2:14 PM"
-                fontFamily={F_SANS} fontSize={11} fontWeight={400}
+                fontFamily={F_SANS} fontSize={11}
                 fill={TEXT_MUTED}
-                x={BUBBLE_X_REL + BUBBLE_W / 2 - 36}
-                y={BUBBLE_Y_REL + BUBBLE_H / 2 - 14}
+                x={BUBBLE_X_REL + BUBBLE_W / 2 - 32}
+                y={MAIN_Y_REL + BUBBLE_H / 2 - 14}
                 opacity={0}
             />
 
@@ -288,40 +286,66 @@ export default makeScene2D(function* (view) {
                 y={INPUT_Y_REL}
                 opacity={0}
             >
-                {plusGlyph(-INPUT_W / 2 + 26, 0, 16)}
+                {plusGlyph(-INPUT_W / 2 + 24, 0, 14)}
                 <Txt
                     text="Message"
-                    fontFamily={F_SANS} fontSize={15}
+                    fontFamily={F_SANS} fontSize={14}
                     fill={TEXT_MUTED}
-                    x={-INPUT_W / 2 + 70}
+                    x={-INPUT_W / 2 + 64}
                     textAlign="left"
                 />
-                {micGlyph(+INPUT_W / 2 - 26, 0)}
+                {micGlyph(+INPUT_W / 2 - 24, 0)}
             </Rect>
         </Rect>,
     );
 
+    // ── code (left) ──────────────────────────────────────────────────────
+    const code = Manticore.create(CODE_PAIR, {
+        x: CODE_CENTER_X,
+        y: 0,
+        width: CODE_W,
+        fontSize: CODE_FONT,
+        lineHeight: CODE_LH,
+        fontFamily: F_MONO,
+        theme: DryFiltersV3CodeTheme,
+        cardStyle: CODE_CARD_STYLE,
+        glowAccent: false,
+        customTypes: ['User', 'Cart', 'LoginCode', 'SendResult'],
+    });
+    code.mount(view);
+    code.colorize(COLOR_RULES);
+
+    yield* code.dimLines(7, 12, 0, 0);
+    code.node.opacity(0);
+
+    // ══════════════════════════════════════════════════════════════════════
+    //  Sequence — panel + header settle, then bubbles arrive in order
+    //  (earlier → main), then input. Code pair fades in as the last
+    //  beat: cart reads first, login reveals after a quiet pause.
+    // ══════════════════════════════════════════════════════════════════════
     yield* panelRef().opacity(1, 0.55, easeOutCubic);
     yield* waitFor(0.18);
 
     yield* all(
-        earlierBubbleRef().opacity(1, 0.45, easeOutCubic),
-        earlierTextRef().opacity(1, 0.45, easeOutCubic),
+        earlierBubble().opacity(1, 0.45, easeOutCubic),
+        earlierText().opacity(1, 0.45, easeOutCubic),
+        earlierTime().opacity(1, 0.45, easeOutCubic),
     );
-    yield* waitFor(0.35);
+    yield* waitFor(0.4);
 
     yield* all(
-        bubbleRef().opacity(1, 0.5, easeOutCubic),
-        headlineRef().opacity(1, 0.5, easeOutCubic),
-    );
-    yield* waitFor(0.15);
-    yield* all(
-        sublineRef().opacity(1, 0.4, easeOutCubic),
-        timeRef().opacity(1, 0.4, easeOutCubic),
+        mainBubble().opacity(1, 0.5, easeOutCubic),
+        mainHeadline().opacity(1, 0.5, easeOutCubic),
+        mainTime().opacity(1, 0.5, easeOutCubic),
     );
     yield* waitFor(0.35);
 
     yield* inputRef().opacity(1, 0.4, easeOutCubic);
+    yield* waitFor(0.4);
 
-    yield* waitFor(4.0);
+    yield* code.appear(0.55);
+    yield* waitFor(1.6);
+    yield* code.dimLines(7, 12, 1, 0.55);
+
+    yield* waitFor(2.6);
 });

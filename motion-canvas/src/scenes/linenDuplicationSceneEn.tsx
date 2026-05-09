@@ -634,18 +634,26 @@ export default makeScene2D(function* (view) {
     const indent4 = 67; // 4 × charwidth(28) ≈ 67
     // Bars at body operation rows only: L1 (render), L2 (send),
     // L3 (record), L5 (return). Signature L0 dropped — it's a header,
-    // not a body operation, and its bar was poking above the figure's
-    // top edge before the merge. Empty L4 and closing brace L6 also
-    // skipped, as before.
+    // not a body operation. Empty L4 and closing brace L6 also skipped.
     const cartLineIndices = [1, 2, 3, 5];
     const indents = [indent4, indent4, indent4, indent4];
-    // Manticore card: width 1100, paddingX = max(24, min(56, 28*2+8)) = 56,
-    // so contentLeft = -1100/2 + 56 = -494.
+    // Manticore card: width 1100, paddingX = 56, so contentLeft = -494.
     const contentLeft = -494;
 
-    // Approximate code-line widths at fontSize=28 (charwidth ≈ 16.8).
-    const cartWidths  = [958, 857, 740, 286];
-    const loginWidths = [907, 857, 740, 286];
+    // Bar widths = TEXT-ONLY widths (excluding the 4 leading spaces),
+    // because `indent4` already shifts the bar past the leading
+    // whitespace. Earlier the widths included the 4 spaces AND the
+    // bars were further shifted by indent4 — bars came out ~67 px
+    // longer than the actual rendered text on every body row.
+    //
+    // fontSize=28, charwidth ≈ 16.8.
+    //   cart L1 "val message = templates.render(\"cart_reminder\", cart)" = 53 ch → 890
+    //   cart L2 "val result = whatsapp.send(user.phone, message)"        = 47 ch → 790
+    //   cart L3 "deliveries.record(user, message, result)"               = 40 ch → 672
+    //   cart L5 "return result"                                          = 13 ch → 218
+    //   login L1 "val message = templates.render(\"login_code\", code)"  = 50 ch → 840
+    const cartWidths  = [890, 790, 672, 218];
+    const loginWidths = [840, 790, 672, 218];
 
     const cartCenterY  = -200;
     const loginCenterY =  200;
@@ -791,18 +799,23 @@ export default makeScene2D(function* (view) {
     const MERGED_LH = 50;
     const MERGED_TOTAL_LINES = 11;
     const MERGED_TOP = -((MERGED_TOTAL_LINES - 1) / 2) * MERGED_LH; // -250
-    // Widths at fontSize=30 (charwidth ≈ 18). Indents: 4-space ≈ 72.
-    // Updated for full variable names (message / result, not msg/res):
-    // L5 val message = templates.render(...) → 53 chars × 18 = 954 px,
-    // L6 val result = whatsapp.send(...)     → 51 chars × 18 = 918 px,
-    // L7 deliveries.record(user, message, result) → 44 × 18 = 792 px.
-    const mergedWidths  = [288, 270, 378, 288, 252, 954, 918, 792, 306];
+    // TEXT-ONLY widths (no leading spaces — indent shifts already).
+    // fontSize=30 charwidth ≈ 18.
+    //   L0 "fun sendMessage("                                  16 → 288 (no indent)
+    //   L1 "user: User,"                                       11 → 198
+    //   L2 "template: String,"                                 17 → 306
+    //   L3 "payload: Any"                                      12 → 216
+    //   L4 "): SendResult {"                                   14 → 252 (no indent)
+    //   L5 "val message = templates.render(template, payload)" 49 → 882
+    //   L6 "val result = whatsapp.send(user.phone, message)"   47 → 846
+    //   L7 "deliveries.record(user, message, result)"          40 → 720
+    //   L9 "return result"                                     13 → 234
+    const mergedWidths  = [288, 198, 306, 216, 252, 882, 846, 720, 234];
     const mergedIndents = [  0,  72,  72,  72,   0,  72,  72,  72,  72];
     // Code rows: signature head + 3 params + signature tail + 3 body
     // ops + return. Skip empty L8 and closing-brace L10.
     const mergedLineIndices = [0, 1, 2, 3, 4, 5, 6, 7, 9];
-    // Card width=1100 to fit the longest body line; contentLeft =
-    // -1100/2 + 56 = -494.
+    // Card width=1100, contentLeft = -1100/2 + 56 = -494.
     const mergedContentLeft = -494;
     const N_REV_BARS = mergedWidths.length;
 

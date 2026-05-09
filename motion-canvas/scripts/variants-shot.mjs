@@ -21,7 +21,7 @@ const grab = async () => page.evaluate(() => {
     return c ? c.toDataURL('image/png') : null;
 });
 
-await page.evaluate(() => localStorage.setItem('project/frame', '240'));
+await page.evaluate(() => localStorage.setItem('project/frame', '420'));
 await page.reload({waitUntil: 'domcontentloaded'});
 await new Promise(r => setTimeout(r, 6000));
 

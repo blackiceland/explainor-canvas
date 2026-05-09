@@ -719,7 +719,11 @@ export default makeScene2D(function* (view) {
     limboGroup().add(
       <Circle
         x={() => startX + Math.sin(phase + snowTime() * swayFreq * Math.PI * 2) * swayAmp}
-        y={() => startY + riseDist * Math.max(0, snowTime() - offset * 0.4)}
+        // Looping rise: each flake's local progress wraps mod 1, so it
+        // teleports from off-frame top back to off-frame bottom unseen.
+        // Result — every flake keeps moving at the same constant speed,
+        // forever, regardless of how high snowTime gets.
+        y={() => startY + riseDist * (((snowTime() + offset) % 1 + 1) % 1)}
         width={radius * 2}
         height={radius * 2}
         fill={'rgba(244, 244, 250, 1.0)'}
@@ -931,7 +935,7 @@ export default makeScene2D(function* (view) {
   view.add(
     <Txt
       ref={inscriptionRef}
-      text={'A boolean is never just a boolean'}
+      text={'A Boolean is never just a Boolean'}
       x={520}
       y={-40}
       width={680}
@@ -971,12 +975,15 @@ export default makeScene2D(function* (view) {
       inscriptionRef().opacity(1, INV_DUR * 0.32, easeInOutCubic),
     ),
 
-    // LIMBO atmosphere awakens throughout the move. Snow advances only
-    // halfway in INVERSION — the rest moves during the hold so flakes
-    // never freeze before the chapter transition.
+    // LIMBO atmosphere. Snow runs as ONE continuous animation across
+    // the move + hold (no two-stage hand-off, so no freeze on the
+    // boundary between the all() block and the subsequent yield).
     limboGroup().opacity(1, INV_DUR, easeInOutCubic),
     moteTime(1, INV_DUR, easeInOutCubic),
-    snowTime(0.55, INV_DUR, linear),
+    // Snow advances 0 → 0.78 over the move + hold; the remaining 0.22
+    // unfolds at the same speed during the chapter title for a couple
+    // of extra seconds of continuous flake motion.
+    snowTime(0.78, INV_DUR + 1.4, linear),
 
     // All big-tree labels appear together with the tree — no cascade,
     // no extra "branching" effect during the camera pull-back.
@@ -986,19 +993,21 @@ export default makeScene2D(function* (view) {
     ),
   );
 
-  // Brief hold before chapter — snow keeps rising during this window
-  // so the air never freezes.
-  yield* snowTime(1, 1.4, linear);
+  // Snow has already advanced through the +1.4s tail of the all() block
+  // — we go straight into PHASE 3 with no extra hold and no freeze.
 
   // ═══════════════════════════════════════════════════════════════════════
-  // PHASE 3 — chapter title YŪDAN.
+  // PHASE 3 — chapter title YŪDAN. Snow keeps drifting at one constant
+  //           linear speed across every phase until limbo is fully gone
+  //           — no stop, no acceleration.
   // ═══════════════════════════════════════════════════════════════════════
   yield* all(
     treeGroup().opacity(0, 1.4, easeInOutCubic),
     inscriptionRef().opacity(0, 1.4, easeInOutCubic),
-    limboGroup().opacity(0, 1.4, easeInOutCubic),
+    snowTime(0.94, 1.4, linear),
   );
-  yield* waitFor(0.4);
+  // Brief gap before the title — snow keeps moving.
+  yield* snowTime(0.985, 0.4, linear);
 
   const chapterContainer = createRef<Node>();
   const chapterRef = createRef<Txt>();
@@ -1033,8 +1042,17 @@ export default makeScene2D(function* (view) {
     </Node>,
   );
 
-  yield* chapterContainer().opacity(1, 1.0, easeInOutCubic);
-  yield* waitFor(2.6);
+  yield* all(
+    chapterContainer().opacity(1, 1.0, easeInOutCubic),
+    snowTime(1.10, 1.0, linear),
+  );
+  // Title held — snow keeps drifting at the same speed, and limbo fades
+  // out simultaneously so motion + atmosphere die TOGETHER, not in two
+  // separate steps.
+  yield* all(
+    snowTime(1.40, 2.6, linear),
+    limboGroup().opacity(0, 2.6, easeInOutCubic),
+  );
 
   yield* chapterContainer().opacity(0, 1.2, easeInOutCubic);
   yield* waitFor(0.3);
