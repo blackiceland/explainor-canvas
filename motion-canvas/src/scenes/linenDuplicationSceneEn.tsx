@@ -74,14 +74,16 @@ const THEME: SyntaxTheme = {
 // linenHero canon — declaration keyword stands out, body keywords
 // like val/return/if stay neutral so the eye lands on intent, not
 // noise). Types still take green.
+// Minimal coloring per design pass: fun + return get the brown accent
+// (declaration / return pivots), types take green, everything else
+// stays neutral INK so the code reads as editorial specimen, not IDE.
 const RULES: ColorRule[] = [
     {match: /^fun$/,          color: BROWN},
+    {match: /^return$/,       color: BROWN},
     {match: /^User$/,         color: GREEN},
     {match: /^Cart$/,         color: GREEN},
     {match: /^LoginCode$/,    color: GREEN},
     {match: /^SendResult$/,   color: GREEN},
-    {match: /^Skipped$/,      color: GREEN},
-    {match: /^OtpSent$/,      color: GREEN},
 ];
 
 const FLAT_CARD = {
@@ -479,20 +481,59 @@ export default makeScene2D(function* (view) {
         />
     </Node>);
 
-    // Methods inline-signature, 6 rows. fontSize=26 lh=42 → 5 × 42 =
-    // 210 px tall per block. At y=-220/+220 the 188 px gap between
-    // blocks reads as paired-but-distinct, with comfortable lateral
-    // margins inside the 1040 px card.
-    const cart  = makeBlock({code: CODE_CART_V1,  y: -220, fontSize: 26, lineHeight: 42, width: 1040});
-    const login = makeBlock({code: CODE_LOGIN_V1, y: +220, fontSize: 26, lineHeight: 42, width: 1040});
+    // Bigger, wider methods per design pass: fontSize=28 lh=46 (1.64
+    // line-height ratio), card width=1100 puts the longest signature
+    // (cart, 58 chars × 16.8 = 974 px) inside content area 988 px with
+    // ~14 px spare. y=±200 → 124 px gap between blocks (in the 120-160
+    // editorial range). Card extends ~10 px past view edges; the card
+    // background is transparent so only the (left-aligned) code text
+    // matters — text spans -494 to +480, leaving 46/60 px margins.
+    const cart  = makeBlock({code: CODE_CART_V1,  y: -200, fontSize: 28, lineHeight: 46, width: 1100});
+    const login = makeBlock({code: CODE_LOGIN_V1, y: +200, fontSize: 28, lineHeight: 46, width: 1100});
     cart.mount(view);
     login.mount(view);
     cart.colorize(RULES);
     login.colorize(RULES);
 
+    // Domain labels — small uppercase tracked caps in the same left
+    // x-position as the code text. Per design pass: each block is a
+    // named specimen, not just a duplicate paragraph.
+    const LABEL_X = -494 + 108; // contentLeft + half label width
+    const labelTop = createRef<Txt>();
+    const labelBot = createRef<Txt>();
+    const cartTopY = -200 - 138; // method center - half height
+    const loginTopY = +200 - 138;
+
+    view.add(<Txt
+        ref={labelTop}
+        text="CART REMINDER"
+        fontFamily={F_SERIF}
+        fontSize={22}
+        fontWeight={500}
+        letterSpacing={4}
+        fill={HERO}
+        x={LABEL_X}
+        y={cartTopY - 32}
+        opacity={0}
+    />);
+    view.add(<Txt
+        ref={labelBot}
+        text="LOGIN CODE"
+        fontFamily={F_SERIF}
+        fontSize={22}
+        fontWeight={500}
+        letterSpacing={4}
+        fill={HERO}
+        x={LABEL_X - 25} // narrower text → adjust to keep same left edge
+        y={loginTopY - 32}
+        opacity={0}
+    />);
+
     yield* all(
         cart.appear(0.55),
         login.appear(0.55),
+        labelTop().opacity(1, 0.55, easeOutCubic),
+        labelBot().opacity(1, 0.55, easeOutCubic),
     );
     yield* waitFor(2.6);
 
@@ -512,19 +553,20 @@ export default makeScene2D(function* (view) {
     //  each method and slides downward as the highlight steps from
     //  render → send → record.
     // ════════════════════════════════════════════════════════════════
-    const lh_methods = 42;
+    const lh_methods = 46;
     const lineCount_methods = 7;
-    const startRel_methods = -((lineCount_methods - 1) / 2) * lh_methods; // -126
+    const startRel_methods = -((lineCount_methods - 1) / 2) * lh_methods; // -138
     const lineYRel = (i: number) => startRel_methods + i * lh_methods;
-    const cartCenterYBeat3 = -220;
-    const loginCenterYBeat3 = +220;
+    const cartCenterYBeat3 = -200;
+    const loginCenterYBeat3 = +200;
 
     // Crystal — vertically elongated rhombus, solid HERO fill. Sits
-    // to the LEFT of the highlighted body line. x=-440 leaves a clean
-    // ~38 px gap before the body text (which starts at -402).
+    // to the LEFT of the highlighted body line. Body text now starts
+    // at contentLeft + indent4 = -494 + 67 = -427, so x=-465 leaves
+    // a clean ~38 px gap before the body line begins.
     const cartCrystal = createRef<Line>();
     const loginCrystal = createRef<Line>();
-    const CRYSTAL_X = -440;
+    const CRYSTAL_X = -465;
 
     // Highlights walk through the three duplicate body operations:
     // L1 (templates.render), L2 (whatsapp.send), L3 (deliveries.record).
@@ -560,6 +602,10 @@ export default makeScene2D(function* (view) {
         cartCrystal().scale(1, 0.5, easeOutCubic),
         loginCrystal().opacity(1, 0.5, easeOutCubic),
         loginCrystal().scale(1, 0.5, easeOutCubic),
+        // Domain labels dim slightly during the highlight beat so the
+        // eye lands on the duplicate body lines, then restore later.
+        labelTop().opacity(DIM_OP, 0.5),
+        labelBot().opacity(DIM_OP, 0.5),
     );
     hero().remove();
     yield* waitFor(0.75);
@@ -580,7 +626,8 @@ export default makeScene2D(function* (view) {
     );
     yield* waitFor(0.75);
 
-    // Restore + crystals fade
+    // Restore + crystals fade + labels dim down (they leave with the
+    // methods when the figures take over).
     yield* all(
         cart.showAllLines(0.4),
         login.showAllLines(0.4),
@@ -588,6 +635,8 @@ export default makeScene2D(function* (view) {
         cartCrystal().scale(0.5, 0.4, easeInCubic),
         loginCrystal().opacity(0, 0.4, easeInCubic),
         loginCrystal().scale(0.5, 0.4, easeInCubic),
+        labelTop().opacity(1, 0.4),
+        labelBot().opacity(1, 0.4),
     );
     cartCrystal().remove();
     loginCrystal().remove();
@@ -608,22 +657,22 @@ export default makeScene2D(function* (view) {
     // Bar widths roughly mirror each code line's actual pixel width at
     // fontSize=26. Indents reflect the 4-space body indent (62 px).
     const lineCount = 7;
-    const lh = 42;
-    const indent4 = 62; // 4 × charwidth(26) ≈ 62
+    const lh = 46;
+    const indent4 = 67; // 4 × charwidth(28) ≈ 67
     // Bars at code rows: L0 (signature), L1 (render), L2 (send),
     // L3 (record), L5 (return). Skip empty L4, closing L6.
     const cartLineIndices = [0, 1, 2, 3, 5];
     const indents = [0, indent4, indent4, indent4, indent4];
-    // Manticore card: width 1040, paddingX = max(24, min(56, 26*2+8)) = 56,
-    // so contentLeft = -1040/2 + 56 = -464.
-    const contentLeft = -464;
+    // Manticore card: width 1100, paddingX = max(24, min(56, 28*2+8)) = 56,
+    // so contentLeft = -1100/2 + 56 = -494.
+    const contentLeft = -494;
 
-    // Approximate code-line widths at fontSize=26 (charwidth ≈ 15.6).
-    const cartWidths  = [874, 889, 796, 686, 265];
-    const loginWidths = [858, 842, 796, 686, 265];
+    // Approximate code-line widths at fontSize=28 (charwidth ≈ 16.8).
+    const cartWidths  = [974, 958, 857, 740, 286];
+    const loginWidths = [941, 907, 857, 740, 286];
 
-    const cartCenterY  = -220;
-    const loginCenterY =  220;
+    const cartCenterY  = -200;
+    const loginCenterY =  200;
     const barCount = cartLineIndices.length;
 
     // Bar y positions relative to each method's centre. With 6 rows
@@ -640,15 +689,19 @@ export default makeScene2D(function* (view) {
 
     // Phase A — code text fades, skeleton bars take its place. Lines
     // are at the same y, so the read is "letters dropped, structure
-    // stayed".
+    // stayed". Domain labels also retire with the code text.
     yield* all(
         cart.node.opacity(0, 0.45, easeInOutCubic),
         login.node.opacity(0, 0.45, easeInOutCubic),
         cartSkel.handle.node().opacity(1, 0.45, easeInOutCubic),
         loginSkel.handle.node().opacity(1, 0.45, easeInOutCubic),
+        labelTop().opacity(0, 0.45, easeInCubic),
+        labelBot().opacity(0, 0.45, easeInCubic),
     );
     cart.node.remove();
     login.node.remove();
+    labelTop().remove();
+    labelBot().remove();
 
     // Phase B — bars compress widths only. Each bar STAYS at its code-
     // line y, keeps its 12-px height, and only its width animates so

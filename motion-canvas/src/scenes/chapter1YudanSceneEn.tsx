@@ -947,11 +947,12 @@ export default makeScene2D(function* (view) {
       inscriptionRef().opacity(1, INV_DUR * 0.32, easeInOutCubic),
     ),
 
-    // LIMBO atmosphere awakens throughout the move. Snow finishes
-    // exactly when the move does — no freeze-frame at the end.
+    // LIMBO atmosphere awakens throughout the move. Snow advances only
+    // halfway in INVERSION — the rest moves during the hold so flakes
+    // never freeze before the chapter transition.
     limboGroup().opacity(1, INV_DUR, easeInOutCubic),
     moteTime(1, INV_DUR, easeInOutCubic),
-    snowTime(1, INV_DUR, easeInOutCubic),
+    snowTime(0.55, INV_DUR, linear),
 
     // All big-tree labels appear together with the tree — no cascade,
     // no extra "branching" effect during the camera pull-back.
@@ -961,9 +962,9 @@ export default makeScene2D(function* (view) {
     ),
   );
 
-  // Hold the wide composition for a couple of seconds before the
-  // chapter title takes over.
-  yield* waitFor(2.4);
+  // Hold the wide composition for a couple of seconds — snow keeps
+  // rising during the hold so the air never freezes.
+  yield* snowTime(1, 2.4, linear);
 
   // ═══════════════════════════════════════════════════════════════════════
   // PHASE 3 — chapter title YŪDAN.

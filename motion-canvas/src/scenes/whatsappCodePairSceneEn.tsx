@@ -1,260 +1,324 @@
-import {Rect, Txt, makeScene2D} from '@motion-canvas/2d';
+import {Line, Rect, Txt, makeScene2D} from '@motion-canvas/2d';
 import {
+    Reference,
     all,
     createRef,
     easeOutCubic,
     waitFor,
 } from '@motion-canvas/core';
-import {ColorRule, Manticore} from '../core/code/components/Manticore';
-import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
 import {Fonts} from '../core/theme';
 import {applyBackground} from '../core/utils';
 
 // ══════════════════════════════════════════════════════════════════════════
-//  WhatsApp + code-pair (horizontal 1920×1080)
+//  Three messenger-panel variants, side by side, for the author to pick.
 //
-//   LEFT  — code (mechanism). codeWithActionsSceneRu palette, no card
-//           under the code, no chip-labels.
-//
-//   RIGHT — messenger panel (product). Light matte graphite, just three
-//           elements inside: WHATSAPP caption, Today, the bubble. NO
-//           input pill — it doesn't say anything. Panel is intentionally
-//           lighter than before: shorter height, softer shadow, thinner
-//           stroke, so it doesn't outweigh the code column.
+//   A — minimal abstract (current).
+//   B — adds tail + left-alignment + date pill.
+//   C — adds sender name + tail + alignment + date pill.
 // ══════════════════════════════════════════════════════════════════════════
 
 const F_SERIF = 'Newsreader, "Source Serif 4", "EB Garamond", serif';
 const F_MONO  = Fonts.code;
 
-// ── code palette (codeWithActionsSceneRu canon + explicit fun accent) ────
-const VAR_LIGHT    = 'rgba(244,241,235,0.96)';
-const TYPE_CLEAN   = 'rgba(220,215,255,0.80)';
-const METHOD_COLOR = '#FF8CA3';
-const SOFT_GREEN   = 'rgba(168,214,178,0.88)';
-const FUN_BLUE     = '#A3CDFF';
-
-const CODE_CARD_STYLE = {
-    radius: 0,
-    fill: 'rgba(0,0,0,0)',
-    stroke: 'rgba(0,0,0,0)',
-    strokeWidth: 0,
-    shadowColor: 'rgba(0,0,0,0)',
-    shadowBlur: 0,
-    shadowOffsetX: 0,
-    shadowOffsetY: 0,
-    edge: false,
-} as const;
-
-const COLOR_RULES: ColorRule[] = [
-    {match: /^fun$/,            color: FUN_BLUE},
-    {match: 'sendCartReminder', color: METHOD_COLOR, onlyTypes: ['method']},
-    {match: 'sendLoginCode',    color: METHOD_COLOR, onlyTypes: ['method']},
-    {match: 'render',           color: METHOD_COLOR, onlyTypes: ['method']},
-    {match: /^send$/,           color: METHOD_COLOR, onlyTypes: ['method']},
-    {match: 'record',           color: METHOD_COLOR, onlyTypes: ['method']},
-    {match: /^"[^"]*"$/,        color: SOFT_GREEN},
-    {match: 'user',             color: VAR_LIGHT},
-    {match: 'cart',             color: VAR_LIGHT},
-    {match: /^code$/,           color: VAR_LIGHT},
-    {match: 'message',          color: VAR_LIGHT},
-    {match: 'result',           color: VAR_LIGHT},
-    {match: 'phone',            color: VAR_LIGHT},
-    {match: 'templates',        color: VAR_LIGHT},
-    {match: 'whatsapp',         color: VAR_LIGHT},
-    {match: 'deliveries',       color: VAR_LIGHT},
-    {match: /^User$/,           color: TYPE_CLEAN},
-    {match: /^Cart$/,           color: TYPE_CLEAN},
-    {match: /^LoginCode$/,      color: TYPE_CLEAN},
-    {match: /^SendResult$/,     color: TYPE_CLEAN},
-];
-
-const CODE_PAIR = `fun sendCartReminder(user: User, cart: Cart): SendResult {
-    val message = templates.render("cart_reminder", cart)
-    val result  = whatsapp.send(user.phone, message)
-    deliveries.record(user, message, result)
-    return result
-}
-
-fun sendLoginCode(user: User, code: LoginCode): SendResult {
-    val message = templates.render("login_code", code)
-    val result  = whatsapp.send(user.phone, message)
-    deliveries.record(user, message, result)
-    return result
-}`;
-
-// ── messenger palette (light matte graphite, no green) ───────────────────
+// Palette
 const MSG_SURFACE   = '#1A1D1C';
 const MSG_STROKE    = 'rgba(255,255,255,0.05)';
 const MSG_SHADOW    = 'rgba(0,0,0,0.32)';
-const MSG_SHADOW_BLUR  = 30;
-const MSG_SHADOW_OFFS: [number, number] = [-8, 14];
-
-const BUBBLE_FILL   = '#2A2E2D';   // brighter — has to clearly separate from MSG_SURFACE
+const BUBBLE_FILL   = '#2A2E2D';
 const BUBBLE_STROKE = 'rgba(255,255,255,0.07)';
 
-const CAPTION_DIM   = 'rgba(244,241,235,0.65)';   // small caps caption: visible, not loud
-const CAPTION_VERY  = 'rgba(244,241,235,0.38)';
+const CAPTION_DIM   = 'rgba(244,241,235,0.65)';
+const CAPTION_VERY  = 'rgba(244,241,235,0.42)';
+const CAPTION_MUTE  = 'rgba(244,241,235,0.55)';
 const SERIF_WHITE   = '#E8E1D3';
 const URGENT_AMBER  = '#B07A3E';
 
-// ── proportions ───────────────────────────────────────────────────────────
-const CODE_CENTER_X  = -480;
-const CODE_W         = 820;
-const CODE_FONT      = 21;
-const CODE_LH        = 34;
+// Layout: three panels in a row.
+const PANEL_W       = 540;
+const PANEL_H       = 620;
+const PANEL_RADIUS  = 32;
+const PANEL_GAP     = 60;
+const PANEL_Y       = -10;
 
-const MSG_X          = +460;
-const MSG_W          = 760;
-const MSG_H          = 460;        // tighter — three elements stop drifting
-const MSG_RADIUS     = 34;
+const CENTERS_X = [
+    -(PANEL_W + PANEL_GAP),
+    0,
+    +(PANEL_W + PANEL_GAP),
+];
+const TAG_Y = PANEL_Y + PANEL_H / 2 + 56;
 
-// All three elements (header / today / bubble) form one tight group.
-// Header sits in the upper third, today right below it, bubble centred
-// just below the panel mid-line. ~60 px of breathing room under the
-// bubble — calm, not "we forgot to put something there".
-const HEADER_Y       = -180;
-const TODAY_Y        = -140;
-const BUBBLE_Y       = +30;
-const BUBBLE_W       = 440;
-const BUBBLE_H       = 184;
-const BUBBLE_RADIUS  = 32;
-const BUBBLE_X_INSIDE = -40;
+// Bubble shared dimensions
+const BUBBLE_W      = 360;
+const BUBBLE_H      = 168;
+const BUBBLE_RADIUS = 30;
+
+// ──────────────────────────────────────────────────────────────────────────
+// Variant A — minimal abstract (current state, kept as the control)
+//   panel, WHATSAPP small caps, italic Today, centred bubble (no tail).
+// ──────────────────────────────────────────────────────────────────────────
+function variantA(centerX: number) {
+    const panel    = createRef<Rect>();
+    const header   = createRef<Txt>();
+    const today    = createRef<Txt>();
+    const bubble   = createRef<Rect>();
+    const payment  = createRef<Txt>();
+    const urgent   = createRef<Txt>();
+
+    const HEADER_Y_REL = -PANEL_H / 2 + 70;
+    const TODAY_Y_REL  = HEADER_Y_REL + 44;
+    const BUBBLE_Y_REL = +60;
+
+    const jsx = (
+        <Rect
+            ref={panel}
+            x={centerX} y={PANEL_Y}
+            width={PANEL_W} height={PANEL_H}
+            radius={PANEL_RADIUS}
+            fill={MSG_SURFACE}
+            stroke={MSG_STROKE} lineWidth={1}
+            shadowColor={MSG_SHADOW} shadowBlur={30} shadowOffset={[-8, 14]}
+            opacity={0}
+        >
+            <Txt ref={header} text="WHATSAPP"
+                fontFamily={F_SERIF} fontSize={17} fontWeight={500}
+                fill={CAPTION_DIM} letterSpacing={4}
+                y={HEADER_Y_REL} />
+            <Txt ref={today} text="Today"
+                fontFamily={F_SERIF} fontSize={22}
+                fontStyle="italic" fontWeight={400}
+                fill={CAPTION_VERY} y={TODAY_Y_REL} />
+
+            <Rect ref={bubble}
+                width={BUBBLE_W} height={BUBBLE_H} radius={BUBBLE_RADIUS}
+                fill={BUBBLE_FILL} stroke={BUBBLE_STROKE} lineWidth={1}
+                y={BUBBLE_Y_REL} />
+            <Txt ref={payment} text="Payment failed"
+                fontFamily={F_SERIF} fontSize={36} fontWeight={500}
+                fill={SERIF_WHITE}
+                y={BUBBLE_Y_REL - 18} />
+            <Txt ref={urgent} text="URGENT"
+                fontFamily={F_MONO} fontSize={20} fontWeight={500}
+                fill={URGENT_AMBER} letterSpacing={4}
+                y={BUBBLE_Y_REL + 32} />
+        </Rect>
+    );
+
+    return {jsx, ref: panel};
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Variant B — tail + left-alignment + date pill.
+//   Bubble is anchored at the LEFT inset of the panel and grows a tail
+//   on its left-bottom edge. "Today" becomes a small centred pill.
+// ──────────────────────────────────────────────────────────────────────────
+function variantB(centerX: number) {
+    const panel  = createRef<Rect>();
+    const header = createRef<Txt>();
+    const datePill = createRef<Rect>();
+    const dateTxt  = createRef<Txt>();
+    const bubble = createRef<Rect>();
+    const tail   = createRef<Line>();
+    const payment = createRef<Txt>();
+    const urgent  = createRef<Txt>();
+
+    const HEADER_Y_REL = -PANEL_H / 2 + 60;
+    const PILL_Y_REL   = HEADER_Y_REL + 60;
+    const BUBBLE_Y_REL = +70;
+
+    // Bubble pinned to the left inset (30 px from the panel's left edge).
+    const BUBBLE_X_REL = -PANEL_W / 2 + 30 + BUBBLE_W / 2;
+
+    // Tail: small triangle on the bubble's left-bottom edge. Coordinates
+    // are LOCAL TO PANEL (so the tail can be a sibling of bubble, not a
+    // child — kept simple).
+    const tailRootX = BUBBLE_X_REL - BUBBLE_W / 2;
+    const tailRootY = BUBBLE_Y_REL + BUBBLE_H / 2 - 22;
+    const TAIL_W    = 14;
+    const TAIL_H    = 18;
+
+    const jsx = (
+        <Rect
+            ref={panel}
+            x={centerX} y={PANEL_Y}
+            width={PANEL_W} height={PANEL_H}
+            radius={PANEL_RADIUS}
+            fill={MSG_SURFACE}
+            stroke={MSG_STROKE} lineWidth={1}
+            shadowColor={MSG_SHADOW} shadowBlur={30} shadowOffset={[-8, 14]}
+            opacity={0}
+        >
+            <Txt ref={header} text="WHATSAPP"
+                fontFamily={F_SERIF} fontSize={17} fontWeight={500}
+                fill={CAPTION_DIM} letterSpacing={4}
+                y={HEADER_Y_REL} />
+
+            {/* date pill — centred, small, mono-uppercase */}
+            <Rect ref={datePill}
+                width={68} height={22} radius={11}
+                fill="rgba(255,255,255,0.06)"
+                stroke="rgba(255,255,255,0.05)" lineWidth={1}
+                y={PILL_Y_REL} />
+            <Txt ref={dateTxt} text="TODAY"
+                fontFamily={F_MONO} fontSize={11} fontWeight={500}
+                fill={CAPTION_MUTE} letterSpacing={2}
+                y={PILL_Y_REL} />
+
+            {/* bubble */}
+            <Rect ref={bubble}
+                width={BUBBLE_W} height={BUBBLE_H} radius={BUBBLE_RADIUS}
+                fill={BUBBLE_FILL} stroke={BUBBLE_STROKE} lineWidth={1}
+                x={BUBBLE_X_REL} y={BUBBLE_Y_REL} />
+
+            {/* tail */}
+            <Line ref={tail} closed
+                fill={BUBBLE_FILL}
+                stroke={BUBBLE_STROKE} lineWidth={1}
+                points={[
+                    [tailRootX,           tailRootY - TAIL_H / 2],
+                    [tailRootX - TAIL_W,  tailRootY + TAIL_H / 2],
+                    [tailRootX,           tailRootY + TAIL_H / 2],
+                ]}
+            />
+
+            {/* text inside bubble */}
+            <Txt ref={payment} text="Payment failed"
+                fontFamily={F_SERIF} fontSize={36} fontWeight={500}
+                fill={SERIF_WHITE}
+                x={BUBBLE_X_REL} y={BUBBLE_Y_REL - 18} />
+            <Txt ref={urgent} text="URGENT"
+                fontFamily={F_MONO} fontSize={20} fontWeight={500}
+                fill={URGENT_AMBER} letterSpacing={4}
+                x={BUBBLE_X_REL} y={BUBBLE_Y_REL + 32} />
+        </Rect>
+    );
+
+    return {jsx, ref: panel};
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Variant C — sender name + tail + alignment + date pill.
+//   "Acme Notifications" sits below the WHATSAPP caption — gives the
+//   message a "from" identity. Otherwise same anatomy as B.
+// ──────────────────────────────────────────────────────────────────────────
+function variantC(centerX: number) {
+    const panel  = createRef<Rect>();
+    const header = createRef<Txt>();
+    const sender = createRef<Txt>();
+    const datePill = createRef<Rect>();
+    const dateTxt  = createRef<Txt>();
+    const bubble = createRef<Rect>();
+    const tail   = createRef<Line>();
+    const payment = createRef<Txt>();
+    const urgent  = createRef<Txt>();
+
+    const HEADER_Y_REL = -PANEL_H / 2 + 56;
+    const SENDER_Y_REL = HEADER_Y_REL + 36;
+    const PILL_Y_REL   = SENDER_Y_REL + 50;
+    const BUBBLE_Y_REL = +90;
+
+    const BUBBLE_X_REL = -PANEL_W / 2 + 30 + BUBBLE_W / 2;
+    const tailRootX = BUBBLE_X_REL - BUBBLE_W / 2;
+    const tailRootY = BUBBLE_Y_REL + BUBBLE_H / 2 - 22;
+    const TAIL_W    = 14;
+    const TAIL_H    = 18;
+
+    const jsx = (
+        <Rect
+            ref={panel}
+            x={centerX} y={PANEL_Y}
+            width={PANEL_W} height={PANEL_H}
+            radius={PANEL_RADIUS}
+            fill={MSG_SURFACE}
+            stroke={MSG_STROKE} lineWidth={1}
+            shadowColor={MSG_SHADOW} shadowBlur={30} shadowOffset={[-8, 14]}
+            opacity={0}
+        >
+            <Txt ref={header} text="WHATSAPP"
+                fontFamily={F_SERIF} fontSize={15} fontWeight={500}
+                fill={CAPTION_VERY} letterSpacing={4}
+                y={HEADER_Y_REL} />
+
+            {/* sender name — slightly larger, warmer than the WHATSAPP caption */}
+            <Txt ref={sender} text="Acme Notifications"
+                fontFamily={F_SERIF} fontSize={22} fontWeight={500}
+                fill={SERIF_WHITE}
+                y={SENDER_Y_REL} />
+
+            {/* date pill */}
+            <Rect ref={datePill}
+                width={68} height={22} radius={11}
+                fill="rgba(255,255,255,0.06)"
+                stroke="rgba(255,255,255,0.05)" lineWidth={1}
+                y={PILL_Y_REL} />
+            <Txt ref={dateTxt} text="TODAY"
+                fontFamily={F_MONO} fontSize={11} fontWeight={500}
+                fill={CAPTION_MUTE} letterSpacing={2}
+                y={PILL_Y_REL} />
+
+            {/* bubble */}
+            <Rect ref={bubble}
+                width={BUBBLE_W} height={BUBBLE_H} radius={BUBBLE_RADIUS}
+                fill={BUBBLE_FILL} stroke={BUBBLE_STROKE} lineWidth={1}
+                x={BUBBLE_X_REL} y={BUBBLE_Y_REL} />
+
+            <Line ref={tail} closed
+                fill={BUBBLE_FILL}
+                stroke={BUBBLE_STROKE} lineWidth={1}
+                points={[
+                    [tailRootX,           tailRootY - TAIL_H / 2],
+                    [tailRootX - TAIL_W,  tailRootY + TAIL_H / 2],
+                    [tailRootX,           tailRootY + TAIL_H / 2],
+                ]}
+            />
+
+            <Txt ref={payment} text="Payment failed"
+                fontFamily={F_SERIF} fontSize={36} fontWeight={500}
+                fill={SERIF_WHITE}
+                x={BUBBLE_X_REL} y={BUBBLE_Y_REL - 18} />
+            <Txt ref={urgent} text="URGENT"
+                fontFamily={F_MONO} fontSize={20} fontWeight={500}
+                fill={URGENT_AMBER} letterSpacing={4}
+                x={BUBBLE_X_REL} y={BUBBLE_Y_REL + 32} />
+        </Rect>
+    );
+
+    return {jsx, ref: panel};
+}
 
 // ──────────────────────────────────────────────────────────────────────────
 export default makeScene2D(function* (view) {
     applyBackground(view);
 
-    // ── messenger panel (right) ──────────────────────────────────────────
-    const panelRef   = createRef<Rect>();
-    const headerRef  = createRef<Txt>();
-    const todayRef   = createRef<Txt>();
-    const bubbleRef  = createRef<Rect>();
-    const paymentRef = createRef<Txt>();
-    const urgentRef  = createRef<Txt>();
+    const A = variantA(CENTERS_X[0]);
+    const B = variantB(CENTERS_X[1]);
+    const C = variantC(CENTERS_X[2]);
 
-    view.add(
-        <Rect
-            ref={panelRef}
-            x={MSG_X}
-            y={0}
-            width={MSG_W}
-            height={MSG_H}
-            radius={MSG_RADIUS}
-            fill={MSG_SURFACE}
-            stroke={MSG_STROKE}
-            lineWidth={1}
-            shadowColor={MSG_SHADOW}
-            shadowBlur={MSG_SHADOW_BLUR}
-            shadowOffset={MSG_SHADOW_OFFS}
-            opacity={0}
-        >
-            <Txt
-                ref={headerRef}
-                text="WHATSAPP"
-                fontFamily={F_SERIF}
-                fontSize={17}
-                fontWeight={500}
-                fill={CAPTION_DIM}
-                letterSpacing={4}
-                y={HEADER_Y}
-                opacity={0}
-            />
-            <Txt
-                ref={todayRef}
-                text="Today"
-                fontFamily={F_SERIF}
-                fontSize={22}
-                fontStyle="italic"
-                fontWeight={400}
-                fill={CAPTION_VERY}
-                y={TODAY_Y}
-                opacity={0}
-            />
-            <Rect
-                ref={bubbleRef}
-                width={BUBBLE_W}
-                height={BUBBLE_H}
-                radius={BUBBLE_RADIUS}
-                x={BUBBLE_X_INSIDE}
-                y={BUBBLE_Y + 12}
-                fill={BUBBLE_FILL}
-                stroke={BUBBLE_STROKE}
-                lineWidth={1}
-                opacity={0}
-            />
-            <Txt
-                ref={paymentRef}
-                text="Payment failed"
-                fontFamily={F_SERIF}
-                fontSize={42}
-                fontWeight={500}
-                fill={SERIF_WHITE}
-                x={BUBBLE_X_INSIDE}
-                y={BUBBLE_Y - 22 + 12}
-                opacity={0}
-            />
-            <Txt
-                ref={urgentRef}
-                text="URGENT"
-                fontFamily={F_MONO}
-                fontSize={22}
-                fontWeight={500}
-                fill={URGENT_AMBER}
-                letterSpacing={0}
-                x={BUBBLE_X_INSIDE}
-                y={BUBBLE_Y + 36 + 12}
-                opacity={0}
-            />
-        </Rect>,
+    view.add(<>{A.jsx}{B.jsx}{C.jsx}</>);
+
+    // A/B/C tags under each panel.
+    const tagFor = (label: string, x: number) => (
+        <Txt text={label}
+            fontFamily={F_MONO} fontSize={28} fontWeight={500}
+            fill="rgba(244,241,235,0.55)" letterSpacing={6}
+            x={x} y={TAG_Y}
+        />
     );
+    view.add(<>
+        {tagFor('A', CENTERS_X[0])}
+        {tagFor('B', CENTERS_X[1])}
+        {tagFor('C', CENTERS_X[2])}
+    </>);
 
-    // ── code (left) ──────────────────────────────────────────────────────
-    const code = Manticore.create(CODE_PAIR, {
-        x: CODE_CENTER_X,
-        y: 0,
-        width: CODE_W,
-        fontSize: CODE_FONT,
-        lineHeight: CODE_LH,
-        fontFamily: F_MONO,
-        theme: DryFiltersV3CodeTheme,
-        cardStyle: CODE_CARD_STYLE,
-        glowAccent: false,
-        customTypes: ['User', 'Cart', 'LoginCode', 'SendResult'],
-    });
-    code.mount(view);
-    code.colorize(COLOR_RULES);
-
-    yield* code.dimLines(7, 12, 0, 0);
-    code.node.opacity(0);
-
-    // ══════════════════════════════════════════════════════════════════════
-    //  Sequence — panel, header, today, bubble, URGENT, code (cart →
-    //  login). Everything settles inside ~6.5 s setup + 2.6 s hold.
-    // ══════════════════════════════════════════════════════════════════════
-    yield* panelRef().opacity(1, 0.55, easeOutCubic);
-    yield* headerRef().opacity(1, 0.45, easeOutCubic);
-    yield* waitFor(0.12);
-    yield* todayRef().opacity(1, 0.35, easeOutCubic);
-    yield* waitFor(0.25);
-
+    // Reveal — quick stagger so all three settle within ~1 second.
     yield* all(
-        bubbleRef().opacity(1, 0.5, easeOutCubic),
-        bubbleRef().y(BUBBLE_Y, 0.5, easeOutCubic),
-        paymentRef().opacity(1, 0.5, easeOutCubic),
-        paymentRef().y(BUBBLE_Y - 22, 0.5, easeOutCubic),
+        A.ref().opacity(1, 0.5, easeOutCubic),
     );
-    yield* waitFor(0.2);
-
     yield* all(
-        urgentRef().opacity(1, 0.35, easeOutCubic),
-        urgentRef().y(BUBBLE_Y + 36, 0.35, easeOutCubic),
-        urgentRef().letterSpacing(5, 0.45, easeOutCubic),
+        B.ref().opacity(1, 0.5, easeOutCubic),
     );
-    yield* waitFor(0.4);
+    yield* all(
+        C.ref().opacity(1, 0.5, easeOutCubic),
+    );
 
-    yield* code.appear(0.55);
-    yield* waitFor(1.6);
-    yield* code.dimLines(7, 12, 1, 0.55);
-
-    yield* waitFor(2.6);
+    yield* waitFor(6.0);
 });
