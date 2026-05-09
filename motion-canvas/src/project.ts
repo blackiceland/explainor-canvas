@@ -73,6 +73,7 @@ import expTreeLimboV4Scene from "./scenes/expTreeLimboV4Scene?scene";
 import expTreeAssetScene from "./scenes/expTreeAssetScene?scene";
 import expTreeTracedScene from "./scenes/expTreeTracedScene?scene";
 import expTreeRevealScene from "./scenes/expTreeRevealScene?scene";
+import dryConditionsScene from "./scenes/dryConditionsScene?scene";
 
 export default makeProject({
     experimentalFeatures: true,
@@ -97,8 +98,8 @@ export default makeProject({
         //  doItAllComponentTitleSceneRu,
         // trainCodeOverlaySceneRu,
 
-        // chapter1IntroSceneV2, // интро 1
-        //  dryFiltersSceneV3,
+        // chapter1IntroSceneV2,
+        // dryFiltersSceneV3,
         // dryConditionsSceneV3,
         // chapter3IntroScene,
         // paymentInputsSceneV3,

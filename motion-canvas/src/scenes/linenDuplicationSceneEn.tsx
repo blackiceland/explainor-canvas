@@ -111,15 +111,18 @@ const CODE_LOGIN_V1 = `fun sendLoginCode(user: User, code: LoginCode): SendResul
     return result
 }`;
 
+// Body uses short names (msg/res) so the merged code can render at
+// fontSize=30 (mobile-readable) and still fit the longest line inside
+// the card's content area.
 const CODE_MERGED = `fun sendMessage(
     user: User,
     template: String,
     payload: Any,
 ): SendResult {
-    val message = templates.render(template, payload)
-    val result  = whatsapp.send(user.phone, message)
-    deliveries.record(user, message, result)
-    return result
+    val msg = templates.render(template, payload)
+    val res = whatsapp.send(user.phone, msg)
+    deliveries.record(user, msg, res)
+    return res
 }`;
 
 const CODE_CART_V4 = `fun sendCartReminder(user: User, cart: Cart): SendResult {
@@ -166,6 +169,12 @@ function securityHexPoints(): [number, number][] {
         pts.push([Math.cos(a) * r, Math.sin(a) * r * 0.96]);
     }
     return pts;
+}
+
+// Crystal — simple 4-point rhombus (diamond). Sage-green fill, set
+// alongside the highlighted line to mark it.
+function crystalPoints(size = 12): [number, number][] {
+    return [[0, -size], [size, 0], [0, size], [-size, 0]];
 }
 
 // ── Polygon helpers — used to compress bars into a figure silhouette ──
@@ -321,28 +330,27 @@ function buildSkeleton(
     return {handle: {bars, node}, jsx};
 }
 
-// Compression: every bar tweens to its *own* target — a horizontal
-// slice of the future figure. The bar's compressed width matches the
-// figure's horizontal extent at the bar's y position, so when the
-// bars settle they collectively trace a stepped silhouette of the
-// figure they're about to become. NO single-strip merge.
-function compressBarsToSilhouette(
+// Compression: each bar STAYS at its code-line y, keeps its 12-px
+// height, and only its WIDTH animates — to the figure's horizontal
+// extent at the bar's existing y. The bars therefore become like
+// short rules whose ends touch the future figure's silhouette at
+// each line's level. They are NOT thickened, NOT stacked, NOT
+// repositioned. The figure then fades in over the rules and "fills
+// in" the silhouette area the bars don't cover.
+function compressBarsToSilhouetteWidths(
     bars: Reference<Rect>[],
-    methodCenterY: number,
+    barYsRelativeToFigure: number[],
     figurePoints: [number, number][],
     duration: number,
 ): ThreadGenerator[] {
-    const bands = silhouetteBars(figurePoints, bars.length);
     const out: ThreadGenerator[] = [];
     for (let i = 0; i < bars.length; i++) {
         const b = bars[i];
-        const t = bands[i];
-        out.push(b().width(t.w, duration, easeInOutCubic));
-        out.push(b().height(t.h, duration, easeInOutCubic));
-        out.push(b().radius(0, duration, easeInOutCubic));
+        const targetW = widthAtY(figurePoints, barYsRelativeToFigure[i]);
+        out.push(b().width(targetW, duration, easeInOutCubic));
         out.push(b().x(0, duration, easeInOutCubic));
-        out.push(b().y(methodCenterY + t.y, duration, easeInOutCubic));
         out.push(b().fill(MASS, duration, easeInOutCubic));
+        // Height, y, radius stay where they were.
     }
     return out;
 }
@@ -414,14 +422,18 @@ export default makeScene2D(function* (view) {
     //  at scale 0.6 — a quiet preview that the zoom-in will pull
     //  forward.
     // ════════════════════════════════════════════════════════════════
-    // Composition: KUROSHIMA at y=-820 has a ~22 px caps band, so its
-    // bottom edge is around y=-810. Hero's first line at fontSize=100
-    // extends ~50 px above its center, so HERO_TOP=-720 puts the top
-    // edge at y=-770 — a clean ~40 px gap below KUROSHIMA.
+    // Composition refit (graphic-designer pass, no zoom):
+    //   • hero shrinks to fontSize=72, line-height 88 — less dominant
+    //     than 80, leaves more visual weight for the methods
+    //   • HERO_TOP=-680 keeps a clean ~120 px gap below KUROSHIMA so
+    //     the heading sits in the upper third, not jammed at the top
+    //   • methods at fontSize=28 are substantial enough that the
+    //     hero/method weight balance reads as: thesis (hero) → proof
+    //     (methods) → metadata (issue tag), in proportion.
     const hero = createRef<Node>();
-    const HERO_TOP = -720;
-    const HERO_LH  = 120;
-    const HERO_SZ  = 100;
+    const HERO_TOP = -680;
+    const HERO_LH  = 88;
+    const HERO_SZ  = 72;
 
     view.add(<Node ref={hero}>
         <Txt
@@ -442,66 +454,115 @@ export default makeScene2D(function* (view) {
         />
     </Node>);
 
-    // Methods at FINAL y=-220/+220, preview scale 0.85 (was 0.75 — too
-    // small / unanchored against the hero). Y never changes; the zoom
-    // animates *only* the scale.
-    const cart  = makeBlock({code: CODE_CART_V1,  y: -220, fontSize: 26, lineHeight: 42, width: 1040});
-    const login = makeBlock({code: CODE_LOGIN_V1, y: +220, fontSize: 26, lineHeight: 42, width: 1040});
+    // Methods at FINAL size from frame 1 — no zoom. fontSize=28 gives
+    // mobile-readable text, lh=46 keeps the block compact, width=1140
+    // gives the longest signature ("sendLoginCode(user: User, code:
+    // LoginCode): SendResult {", 60 chars × 16.8 = 1008 px) ~30 px of
+    // breathing room inside the content area (1028 px). Symmetric
+    // y=-180/+180 → margins 502 px to KUROSHIMA / ISSUE 02 edges.
+    const cart  = makeBlock({code: CODE_CART_V1,  y: -180, fontSize: 28, lineHeight: 46, width: 1140});
+    const login = makeBlock({code: CODE_LOGIN_V1, y: +180, fontSize: 28, lineHeight: 46, width: 1140});
     cart.mount(view);
     login.mount(view);
     cart.colorize(RULES);
     login.colorize(RULES);
-    cart.node.scale(0.85);
-    login.node.scale(0.85);
 
     yield* all(
         cart.appear(0.55),
         login.appear(0.55),
     );
-    yield* waitFor(2.4);
+    yield* waitFor(2.6);
 
     // ════════════════════════════════════════════════════════════════
-    //  Beat 2 — ZOOM (camera physics)
+    //  Beat 2 — HERO EXIT (no zoom)
     //
-    //  Phase A — parallel zoom:
-    //    • methods scale 0.85 → 1.0 in place (no y move = no sprawl)
-    //    • hero scales 1.0 → 1.6 *with no position change*, so it
-    //      simply gets bigger about its origin. At scale 1.6 the top
-    //      and middle hero lines have rolled off above the frame, but
-    //      the bottom italic ("bad.") line stays inside view: a big
-    //      title fragment hugging the top edge — exactly the post-
-    //      zoom state the feedback called for.
-    //
-    //  Phase B — hold the zoomed-in title for half a second so the
-    //  reader registers the cropped fragment.
-    //
-    //  Phase C — hero fades. Camera has now moved fully past it.
+    //  Hero phrase fades out cleanly — no scale animation, no parallax
+    //  drift. Just opacity → 0 so the audience's eye lands on the
+    //  methods that have been there at full size from frame one.
     // ════════════════════════════════════════════════════════════════
-    yield* all(
-        hero().scale(1.6, 0.95, easeInOutCubic),
-        cart.node.scale(1.0, 0.95, easeInOutCubic),
-        login.node.scale(1.0, 0.95, easeInOutCubic),
-    );
-    yield* waitFor(0.55);
-    yield* hero().opacity(0, 0.6, easeInCubic);
+    yield* hero().opacity(0, 0.7, easeInCubic);
     hero().remove();
-    yield* waitFor(0.4);
+    yield* waitFor(0.5);
 
     // ════════════════════════════════════════════════════════════════
-    //  Beat 3 — SEQUENTIAL HIGHLIGHT (no pre-dim)
-    //  Each call repaints opacities directly: the named line goes
-    //  bright, every other line dims to DIM_OP. No "dim everything
-    //  first" intermediate state.
+    //  Beat 3 — SEQUENTIAL HIGHLIGHT + CRYSTAL
+    //
+    //  Each call repaints opacities directly (no pre-dim). A small
+    //  editorial crystal sits to the LEFT of the highlighted line on
+    //  each method and slides downward as the highlight steps from
+    //  render → send → record.
     // ════════════════════════════════════════════════════════════════
-    yield* highlightOnly([cart, login], 1, 0.5); // val message = templates.render(...)
-    yield* waitFor(0.75);
-    yield* highlightOnly([cart, login], 2, 0.4); // val result  = whatsapp.send(...)
-    yield* waitFor(0.75);
-    yield* highlightOnly([cart, login], 3, 0.4); // deliveries.record(...)
+    const lh_methods = 42;
+    const lineCount_methods = 6;
+    const startRel_methods = -((lineCount_methods - 1) / 2) * lh_methods; // -105
+    const lineYRel = (i: number) => startRel_methods + i * lh_methods;
+    const cartCenterYBeat3 = -220;
+    const loginCenterYBeat3 = +220;
+
+    // Crystals to the left of each method's body text. The body lines
+    // start at x = contentLeft + indent = -464 + 62 = -402, so x=-440
+    // sits just outside the body text, comfortably clear of the line.
+    const cartCrystal = createRef<Line>();
+    const loginCrystal = createRef<Line>();
+    const CRYSTAL_X = -440;
+
+    view.add(<Line
+        ref={cartCrystal}
+        points={crystalPoints(11)} closed
+        fill={MASS}
+        x={CRYSTAL_X}
+        y={cartCenterYBeat3 + lineYRel(1)}
+        opacity={0}
+        scale={0.5}
+    />);
+    view.add(<Line
+        ref={loginCrystal}
+        points={crystalPoints(11)} closed
+        fill={MASS}
+        x={CRYSTAL_X}
+        y={loginCenterYBeat3 + lineYRel(1)}
+        opacity={0}
+        scale={0.5}
+    />);
+
+    // Line 1 — render
+    yield* all(
+        highlightOnly([cart, login], 1, 0.5),
+        cartCrystal().opacity(1, 0.5, easeOutCubic),
+        cartCrystal().scale(1, 0.5, easeOutCubic),
+        loginCrystal().opacity(1, 0.5, easeOutCubic),
+        loginCrystal().scale(1, 0.5, easeOutCubic),
+    );
     yield* waitFor(0.75);
 
-    yield* all(cart.showAllLines(0.4), login.showAllLines(0.4));
-    yield* waitFor(0.4);
+    // Line 2 — send (crystal slides)
+    yield* all(
+        highlightOnly([cart, login], 2, 0.4),
+        cartCrystal().y(cartCenterYBeat3 + lineYRel(2), 0.4, easeInOutCubic),
+        loginCrystal().y(loginCenterYBeat3 + lineYRel(2), 0.4, easeInOutCubic),
+    );
+    yield* waitFor(0.75);
+
+    // Line 3 — record
+    yield* all(
+        highlightOnly([cart, login], 3, 0.4),
+        cartCrystal().y(cartCenterYBeat3 + lineYRel(3), 0.4, easeInOutCubic),
+        loginCrystal().y(loginCenterYBeat3 + lineYRel(3), 0.4, easeInOutCubic),
+    );
+    yield* waitFor(0.75);
+
+    // Restore + crystals fade
+    yield* all(
+        cart.showAllLines(0.4),
+        login.showAllLines(0.4),
+        cartCrystal().opacity(0, 0.4, easeInCubic),
+        cartCrystal().scale(0.5, 0.4, easeInCubic),
+        loginCrystal().opacity(0, 0.4, easeInCubic),
+        loginCrystal().scale(0.5, 0.4, easeInCubic),
+    );
+    cartCrystal().remove();
+    loginCrystal().remove();
+    yield* waitFor(0.3);
 
     // ════════════════════════════════════════════════════════════════
     //  Beat 4 — MERGE MECHANIC: code → bars → mass → SVG shape.
@@ -535,6 +596,13 @@ export default makeScene2D(function* (view) {
     // with the rest of the text.
     const barCount = 5;
 
+    // Bars stay at their code-line y positions during compression.
+    // These are y values *relative to each method's centre*: line 0 is
+    // -2.5 lineHeights up, line 1 is -1.5, ... line 4 is +1.5.
+    const barYsRel = Array.from({length: barCount}, (_, i) =>
+        ((i - (lineCount - 1) / 2) * lh),
+    );
+
     const cartSkel  = buildSkeleton(cartCenterY,  barCount, lh, cartWidths,  indents, contentLeft, lineCount);
     const loginSkel = buildSkeleton(loginCenterY, barCount, lh, loginWidths, indents, contentLeft, lineCount);
 
@@ -553,21 +621,24 @@ export default makeScene2D(function* (view) {
     cart.node.remove();
     login.node.remove();
 
-    // Phase B — bars compress *individually* to slices of their target
-    // figure: each bar tweens to a width equal to the figure's actual
-    // horizontal extent at the bar's destination y. They DO NOT merge
-    // into a single strip — they collectively trace a stepped silhouette
-    // of the figure they're about to become.
+    // Phase B — bars compress widths only. Each bar STAYS at its code-
+    // line y, keeps its 12-px height, and only its width animates so
+    // its left/right edges land on the figure's outline at that y.
+    // No thickening, no stacking. The figure's silhouette area not
+    // covered by bars (above the topmost bar y_rel and below the
+    // bottommost) stays empty — the figure will fill it in next.
     yield* all(
-        ...compressBarsToSilhouette(cartSkel.handle.bars,  cartCenterY,  marketingBlobPoints(), 0.7),
-        ...compressBarsToSilhouette(loginSkel.handle.bars, loginCenterY, securityHexPoints(),    0.7),
+        ...compressBarsToSilhouetteWidths(cartSkel.handle.bars,  barYsRel, marketingBlobPoints(), 0.7),
+        ...compressBarsToSilhouetteWidths(loginSkel.handle.bars, barYsRel, securityHexPoints(),    0.7),
     );
     yield* waitFor(0.18);
 
     // Phase C — match cut: each figure is pre-mounted at *full* scale
-    // and the bar-silhouette overlaps the figure's silhouette exactly.
-    // Cross-fade the steps to the smooth shape — same outline, just
-    // rasterised → vector.
+    // and full opacity 0. It cross-fades in over the bars and *fills
+    // in* the silhouette — the bars' edges already touched the outline
+    // at their y's; the figure now adds the missing top and bottom
+    // bands. Reads as "lines reach the form's edges, then the form
+    // fills in".
     const marketingShape = createRef<Line>();
     const securityShape  = createRef<Line>();
     const labels = createRef<Node>();
@@ -582,28 +653,32 @@ export default makeScene2D(function* (view) {
         points={securityHexPoints()} closed
         fill={MASS} y={loginCenterY} opacity={0}
     />);
+    // Labels: cart's pair sits in the gap between the figures (cart
+    // figure bottom ≈ -55, login figure top ≈ +55, so ±5 lands the
+    // captions in the breathing room). Login's pair anchors below the
+    // bottom figure.
     view.add(<Node ref={labels} opacity={0}>
         <Txt
             text="MARKETING"
             fontFamily={F_SERIF} fontSize={24} fontWeight={500}
             letterSpacing={5} fill={MASS}
-            y={cartCenterY + 165}
+            y={cartCenterY + 155}
         />
         <Txt
             text="consent · quiet hours · cap"
             fontFamily={F_SERIF} fontSize={22} fontStyle="italic"
-            fill={QUIET} y={cartCenterY + 200}
+            fill={QUIET} y={cartCenterY + 190}
         />
         <Txt
             text="SECURITY"
             fontFamily={F_SERIF} fontSize={24} fontWeight={500}
             letterSpacing={5} fill={MASS}
-            y={loginCenterY + 165}
+            y={loginCenterY + 155}
         />
         <Txt
             text="ttl · otp.persist · audit"
             fontFamily={F_SERIF} fontSize={22} fontStyle="italic"
-            fill={QUIET} y={loginCenterY + 200}
+            fill={QUIET} y={loginCenterY + 190}
         />
     </Node>);
 
@@ -627,65 +702,74 @@ export default makeScene2D(function* (view) {
     // ════════════════════════════════════════════════════════════════
     //  Beat 6 — SHAPES CONVERGE
     //
-    //  Both shapes glide to the centre and shrink to scale 0.5 — they
-    //  end up overlapping at y=0, reading as a single dark blob. Labels
-    //  fade alongside.
+    //  Both shapes slide to y=0 at *full* scale and overlap there. No
+    //  scale change — the converged outline stays at the figure's real
+    //  size, so the upcoming reverse bars can match its silhouette.
     // ════════════════════════════════════════════════════════════════
     yield* all(
         marketingShape().position.y(0, 0.7, easeInOutCubic),
         securityShape().position.y(0, 0.7, easeInOutCubic),
-        marketingShape().scale(0.5, 0.7, easeInOutCubic),
-        securityShape().scale(0.5, 0.7, easeInOutCubic),
         labels().opacity(0, 0.45, easeInCubic),
     );
     labels().remove();
     yield* waitFor(0.25);
 
     // ════════════════════════════════════════════════════════════════
-    //  Beat 7 — REVERSE MORPH: figures → silhouette bars → code bars → text
+    //  Beat 7 — REVERSE MORPH (symmetric inverse of forward)
     //
-    //  Symmetric inverse of the forward mechanic. The converged blob
-    //  decays first into a stack of silhouette bars (each band's width
-    //  matches the converged blob's horizontal extent at that y), then
-    //  those bars expand into the merged-code skeleton (line widths,
-    //  line positions, standard 12-px height, paper-band fill), then
-    //  finally cross-fade into the merged-code text.
+    //  Bars are spawned directly at the merged-code line y positions,
+    //  with each bar's INITIAL width equal to the converged figure's
+    //  outline at that y. Bars whose y lies outside the figure's
+    //  vertical extent start at width=0 (invisible). Cross-fade the
+    //  figures into those bars: the visible bars trace the figure's
+    //  outline at the merged-code line levels.
+    //
+    //  Then the bars EXPAND: widths animate to merged-code line
+    //  widths, x slides to the left-aligned text positions, fill
+    //  shifts to the paper-band SKEL color. Bars that started at
+    //  width=0 grow visible — the merged-code skeleton "fills in"
+    //  beyond the figure's outline. Finally the merged-code text
+    //  cross-fades in.
+    //
+    //  Merged code is at fontSize=30 (was 22) so it reads on mobile.
     // ════════════════════════════════════════════════════════════════
-    const MERGED_LH = 36;
-    const MERGED_TOP = -((10 - 1) / 2) * MERGED_LH; // top at -162
-    const mergedWidths  = [211, 198, 277, 224, 185, 700, 686, 581, 224];
-    const mergedIndents = [  0,  53,  53,  53,   0,  53,  53,  53,  53];
-    const mergedContentLeft = -468;
+    const MERGED_LH = 50;
+    const MERGED_TOP = -((10 - 1) / 2) * MERGED_LH; // top line at -225
+    // Line widths at fontSize=30 (charwidth ≈ 18). Closing `}` skipped.
+    const mergedWidths  = [288, 270, 378, 306, 252, 882, 738, 666, 252];
+    const mergedIndents = [  0,  72,  72,  72,   0,  72,  72,  72,  72];
+    const mergedContentLeft = -464;
     const N_REV_BARS = mergedWidths.length;
 
-    // Phase A — spawn N_REV_BARS bars at the converged blob silhouette
-    // (the blob is at scale 0.5, so scale its points to match). Bars
-    // start at MASS fill so they read as continuation of the figure.
-    const scaledBlob = marketingBlobPoints().map(
-        ([x, y]) => [x * 0.5, y * 0.5] as [number, number],
-    );
-    const revBands = silhouetteBars(scaledBlob, N_REV_BARS);
-
+    // Phase A — spawn merged-code bars at line y positions; initial
+    // widths follow the converged blob outline at each bar's y.
+    const blobPts = marketingBlobPoints();
     const revBarsNode = createRef<Node>();
     const revBarRefs: Reference<Rect>[] = [];
 
     view.add(<Node ref={revBarsNode} opacity={0}>
-        {revBands.map(t => {
+        {Array.from({length: N_REV_BARS}, (_, i) => {
             const ref = createRef<Rect>();
             revBarRefs.push(ref);
+            const barY = MERGED_TOP + i * MERGED_LH;
+            const initialW = widthAtY(blobPts, barY);
             return (
                 <Rect
                     ref={ref}
-                    width={t.w} height={t.h} radius={0}
+                    width={initialW}
+                    height={12}
+                    radius={4}
                     fill={MASS}
-                    x={0} y={t.y}
+                    x={0}
+                    y={barY}
                 />
             );
         })}
     </Node>);
 
-    // Phase B — cross-fade: figures dissolve while silhouette bars
-    // appear at the same outline.
+    // Phase B — figures dissolve while bars appear. Bars within the
+    // blob's y range trace the outline; bars outside (top/bottom) are
+    // invisible (width=0).
     yield* all(
         marketingShape().opacity(0, 0.5, easeInOutCubic),
         securityShape().opacity(0, 0.5, easeInOutCubic),
@@ -693,30 +777,27 @@ export default makeScene2D(function* (view) {
     );
     marketingShape().remove();
     securityShape().remove();
+    yield* waitFor(0.3);
 
-    // Phase C — silhouette bars expand to the merged-code skeleton:
-    // each bar tweens its width / y / height / radius / fill to match
-    // the corresponding line of CODE_MERGED.
+    // Phase C — bars expand to merged-code line widths and slide to
+    // their left-aligned x positions. Bars that started at width=0
+    // grow into visible paper bands — the code skeleton "fills in"
+    // beyond the figure's outline.
     const expandOps: ThreadGenerator[] = [];
     for (let i = 0; i < N_REV_BARS; i++) {
         const b = revBarRefs[i];
         const targetX = mergedContentLeft + mergedIndents[i] + mergedWidths[i] / 2;
-        const targetY = MERGED_TOP + i * MERGED_LH;
         expandOps.push(b().width(mergedWidths[i], 0.6, easeInOutCubic));
-        expandOps.push(b().height(12, 0.6, easeInOutCubic));
-        expandOps.push(b().radius(4, 0.6, easeInOutCubic));
         expandOps.push(b().x(targetX, 0.6, easeInOutCubic));
-        expandOps.push(b().y(targetY, 0.6, easeInOutCubic));
         expandOps.push(b().fill(SKEL, 0.6, easeInOutCubic));
     }
     yield* all(...expandOps);
-
     yield* waitFor(0.25);
 
     // Phase D — bars cross-fade into the real merged code text.
     const merged = makeBlock({
         code: CODE_MERGED, y: 0,
-        fontSize: 22, lineHeight: MERGED_LH,
+        fontSize: 30, lineHeight: MERGED_LH,
         width: 1040, noClip: true,
     });
     merged.mount(view);

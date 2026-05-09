@@ -7,6 +7,7 @@ import {
   easeInCubic,
   easeInOutCubic,
   easeOutCubic,
+  linear,
   Vector2,
   waitFor,
 } from '@motion-canvas/core';
@@ -57,6 +58,7 @@ const SIG_FINAL_OFFSET_X = -(MC_LEFT_EDGE + SIG_FINAL_MAX_W / 2);
 // at a smaller scale, leaving the RIGHT half clear for the branch.
 const BEAT1_CODE_SCALE = 0.62;
 const BEAT1_CODE_X     = -250;
+const BEAT1_CODE_Y     = -100;
 
 const CODE_RULES = [
   {match: /^fun$/,      color: DryFiltersV3CodeTheme.keyword},
@@ -126,8 +128,8 @@ const TREE_FILL    = 'rgba(244, 240, 234, 1.0)';
 const HILITE_FILL  = 'rgba(255, 252, 245, 1.0)';
 const DROP_SHADOW  = 'rgba(0, 0, 0, 0.55)';
 const TREE_GLOW    = 'rgba(255, 246, 222, 0.45)';   // soft cream halo
-const LABEL_TRUE_COL  = 'rgba(150, 215, 200, 0.62)';
-const LABEL_FALSE_COL = 'rgba(225, 165, 155, 0.62)';
+const LABEL_TRUE_COL  = 'rgba(150, 215, 200, 0.85)';
+const LABEL_FALSE_COL = 'rgba(225, 165, 155, 0.85)';
 
 // Beat 2 final composition: trunk-base sits low in the frame so its roots
 // can splay along the lower edge; tree leans up-and-right.
@@ -323,33 +325,31 @@ export default makeScene2D(function* (view) {
     // attached to THIS branch (the parent of the fork) so they can be
     // shown/hidden along with their fork's reveal phase.
     if (depth <= 4) {
-      const [left, right] = childRefs;
-      // Anchor each label at the child arm's TIP and push it perpendicular
-      // to the arm so it never sits ON the branch line.
-      const tipNudge = 18;
-      const sideNudge = 60;
-      if (left?.b) {
-        const a = (parentAngleDeg + left.tilt - 90) * Math.PI / 180;
-        const tipX = left.b.end.x + Math.cos(a) * tipNudge;
-        const tipY = left.b.end.y + Math.sin(a) * tipNudge;
+      // Render a label pair if the fork actually has 2+ real children
+      // (KEEP_PROB may have dropped a slot — we still want both labels).
+      const realChildren = childRefs.filter(c => c.b !== null) as {b: Branch; tilt: number}[];
+      if (realChildren.length >= 2) {
+        const leftR = realChildren[0];
+        const rightR = realChildren[realChildren.length - 1];
+        // Place each label NEAR ITS OWN child arm — push along the arm
+        // direction past the fork start, then perpendicular to the arm
+        // (away from the sibling) so the label sits beside the arm and
+        // never crosses any branch line.
+        const along = 38;        // distance along the child arm from fork
+        const perpAway = 48;     // perpendicular from the arm, outward
+        const aL = (parentAngleDeg + leftR.tilt - 90) * Math.PI / 180;
+        const aR = (parentAngleDeg + rightR.tilt - 90) * Math.PI / 180;
+        const lX = end.x + Math.cos(aL) * along - Math.cos(aL + Math.PI / 2) * perpAway;
+        const lY = end.y + Math.sin(aL) * along - Math.sin(aL + Math.PI / 2) * perpAway;
+        const rX = end.x + Math.cos(aR) * along + Math.cos(aR + Math.PI / 2) * perpAway;
+        const rY = end.y + Math.sin(aR) * along + Math.sin(aR + Math.PI / 2) * perpAway;
         branch.forkLabels.push({
-          x: tipX - Math.sin(a) * sideNudge,
-          y: tipY + Math.cos(a) * sideNudge,
-          text: 'true',
-          col: LABEL_TRUE_COL,
-          opacity: createSignal(0),
+          x: lX, y: lY, text: 'true',
+          col: LABEL_TRUE_COL, opacity: createSignal(0),
         });
-      }
-      if (right?.b) {
-        const a = (parentAngleDeg + right.tilt - 90) * Math.PI / 180;
-        const tipX = right.b.end.x + Math.cos(a) * tipNudge;
-        const tipY = right.b.end.y + Math.sin(a) * tipNudge;
         branch.forkLabels.push({
-          x: tipX + Math.sin(a) * sideNudge,
-          y: tipY - Math.cos(a) * sideNudge,
-          text: 'false',
-          col: LABEL_FALSE_COL,
-          opacity: createSignal(0),
+          x: rX, y: rY, text: 'false',
+          col: LABEL_FALSE_COL, opacity: createSignal(0),
         });
       }
     }
@@ -540,6 +540,11 @@ export default makeScene2D(function* (view) {
     const childrenRendered = b.children.length > 0 &&
       b.children.every(c => (target === beat1Group() ? beat1Set.has(c) : true));
     if (childrenRendered) {
+      // Labels in beat-1 sit at scale 1.92 (group transform), big tree
+      // sits at scale 0.5 — so big-tree labels need a bigger native size
+      // to stay readable.
+      const inBeat1 = beat1Set.has(b);
+      const labelSize = inBeat1 ? 22 : 38;
       for (const lbl of b.forkLabels) {
         target.add(
           <Txt
@@ -547,7 +552,7 @@ export default makeScene2D(function* (view) {
             x={lbl.x}
             y={lbl.y}
             fontFamily={Fonts.code}
-            fontSize={20}
+            fontSize={labelSize}
             fill={lbl.col}
             opacity={lbl.opacity}
           />,
@@ -796,6 +801,7 @@ export default makeScene2D(function* (view) {
   yield* all(
     codeRoot().scale(BEAT1_CODE_SCALE, 1.0, easeInOutCubic),
     codeRoot().x(BEAT1_CODE_X, 1.0, easeInOutCubic),
+    codeRoot().y(BEAT1_CODE_Y, 1.0, easeInOutCubic),
     ...stageB2Reveal.map(r => r.opacity(1, 0.9, easeOutCubic)),
   );
   yield* waitFor(0.7);
@@ -811,9 +817,13 @@ export default makeScene2D(function* (view) {
   // Schedule growth only for branches inside the sub-tree.
   type Anim = {startTime: number; branch: Branch; dur: number};
   const anims: Anim[] = [];
+  // Duration scales with branch LENGTH (each level is LEN_SCALE_MAX of
+  // its parent), so the growing tip advances at a constant speed and the
+  // motion reads as one even reveal, not staged jerks.
+  const BEAT1_TIP_SPEED = 1.0;
   const depthDur = (d: number): number => {
     const r = d - beat1Tree.depth;
-    return r === 0 ? 1.0 : Math.max(0.18, 0.55 - r * 0.06);
+    return BEAT1_TIP_SPEED * Math.pow(0.72, r);
   };
   // Forks grow only AFTER the parent reaches the cross-point: each child
   // waits for its parent to finish (handoff = 1.0, not the global 0.6).
@@ -836,9 +846,11 @@ export default makeScene2D(function* (view) {
   }
 
   yield* all(
-    treeGroup().opacity(1, 0.9, easeOutCubic),
+    treeGroup().opacity(1, 0.7, easeOutCubic),
+    // LINEAR easing on each branch + length-proportional dur = uniform
+    // tip speed across every depth handoff, no jerky pulses.
     ...anims.map(({startTime, branch, dur}) =>
-      chain(waitFor(startTime), branch.grow(1, dur, easeOutCubic)),
+      chain(waitFor(startTime), branch.grow(1, dur, linear)),
     ),
     ...beat1Labels.map((l, i) =>
       chain(
@@ -847,7 +859,7 @@ export default makeScene2D(function* (view) {
       ),
     ),
   );
-  yield* waitFor(0.5);
+  yield* waitFor(0.7);
 
   // ═══════════════════════════════════════════════════════════════════════
   // PHASE 2c — single-line code expands to three-line; three new boolean
@@ -855,7 +867,7 @@ export default makeScene2D(function* (view) {
   //            small reveal — comma + name + type + default.
   // ═══════════════════════════════════════════════════════════════════════
   const SIG_FINAL_LINE_COUNT = 3;
-  const codeFinalY = ((SIG_FINAL_LINE_COUNT - 1) / 2) * LH * BEAT1_CODE_SCALE;
+  const codeFinalY = ((SIG_FINAL_LINE_COUNT - 1) / 2) * LH * BEAT1_CODE_SCALE + BEAT1_CODE_Y;
   const codeFinalRoot = createRef<Node>();
   codeGroup().add(
     <Node
