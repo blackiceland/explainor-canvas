@@ -1,5 +1,6 @@
 import {Img, Line, Node, Rect, Txt, makeScene2D} from '@motion-canvas/2d';
 import {
+    Reference,
     ThreadGenerator,
     all,
     createRef,
@@ -12,29 +13,31 @@ import {ColorRule, Manticore} from '../core/code/components/Manticore';
 import {SyntaxTheme} from '../core/code/model/SyntaxTheme';
 
 // ══════════════════════════════════════════════════════════════════════
-// Linen — Don't Fight Duplication (vertical 1080×1920 reels, ~38 s).
+// Linen — Don't Fight Duplication (vertical 1080×1920, ~28 s reel).
 //
-//   1. hero        : KUROSHIMA · "Code duplication / isn't always / bad."
-//                    (mixed case — matches linenHero's editorial cover;
-//                     KUROSHIMA + ISSUE 02 stay on screen forever.)
-//   2. methods     : sendCartReminder + sendLoginCode stacked vertically
-//   3. highlight   : dim everything to ~22%, then bring render → send →
-//                    record back to full opacity in turn (the duplicate
-//                    rhyme reads without any explicit highlight color)
-//   4. → pebbles   : each method dissolves into an identical organic
-//                    pebble at the same y; both pebbles are the SAME
-//                    shape — the visual punchline before the merge
-//   5. → one pebble: the two pebbles slide to centre and become one
-//                    larger pebble (the "merge" itself, geometric)
-//   6. merged code : pebble dissolves into sendMessage(template, payload)
-//                    + "less code." caption
-//   7. frankenstein: morphTo grows the body with kind / payload as / ifs
-//   8. → shapes    : Frankenstein cross-fades into TWO DIFFERENT shapes
-//                    stacked vertically — organic blob (MARKETING) on
-//                    top, angular polygon (SECURITY) below. No skeleton
-//                    bars: the user found the bars muddy. Clean cut.
-//   9. honest split: two domain methods reappear, each carrying its rules
-//  10. mantra      : "Same shape. / Different meaning."
+//   permanent : KUROSHIMA + ISSUE 02 frame stays the entire time.
+//
+//   1. hero+   : "Code duplication / isn't always / bad." on top.
+//      preview   Methods sit BELOW the heading from the start, at scale
+//                0.6 (preview state). Both visible at once.
+//   2. zoom in: hero fades, methods scale 0.6 → 1.0 and recentre — the
+//                viewer's attention is pulled onto the code.
+//   3. read   : methods at full size, full opacity.
+//   4. high-  : sequential rhyme on the duplicate body lines (render →
+//      light     send → record). NO pre-dim step — each line just lights
+//                up directly while everything else dims to 22 %.
+//   5. merge  : code → skeleton → black mass → SVG shape, *exactly* as
+//      mech.     the user spelled out:
+//                  cart  → MARKETING blob  (organic)
+//                  login → SECURITY hex    (angular polygon)
+//                Lines stay in the code's exact y positions, then
+//                compress and darken; at maximum compression each mass
+//                match-cuts to its domain shape, and the label fades in.
+//   6. labels : both shapes + their domain rules hold for 3 s — this is
+//                the punchline of the reel.
+//   7. honest : shapes cross-fade into two domain methods (each carrying
+//                its real rules).
+//   8. mantra : "Same shape. / Different meaning."
 // ══════════════════════════════════════════════════════════════════════
 
 const F_SERIF = 'Newsreader, EB Garamond, serif';
@@ -50,6 +53,7 @@ const GREEN  = '#1A4D2A';
 const BROWN  = '#5B3813';
 const QUIET  = '#7B7160';
 const MASS   = '#1B150A';
+const SKEL   = 'rgba(60, 48, 22, 0.32)';
 const DIM_OP = 0.22;
 
 const THEME: SyntaxTheme = {
@@ -66,27 +70,18 @@ const THEME: SyntaxTheme = {
     plain:       INK,
 };
 
+// Per feedback: only `fun` carries the brown accent (matches the
+// linenHero canon — declaration keyword stands out, body keywords
+// like val/return/if stay neutral so the eye lands on intent, not
+// noise). Types still take green.
 const RULES: ColorRule[] = [
-    {match: /^fun$/,         color: BROWN},
-    {match: /^val$/,         color: BROWN},
-    {match: /^return$/,      color: BROWN},
-    {match: /^if$/,          color: BROWN},
-    {match: /^else$/,        color: BROWN},
-    {match: /^as$/,          color: BROWN},
-    {match: /^User$/,        color: GREEN},
-    {match: /^Cart$/,        color: GREEN},
-    {match: /^LoginCode$/,   color: GREEN},
-    {match: /^SendResult$/,  color: GREEN},
-    {match: /^MessageKind$/, color: GREEN},
-    {match: /^String$/,      color: GREEN},
-    {match: /^Any$/,         color: GREEN},
-    {match: /^Skipped$/,     color: GREEN},
-    {match: /^OtpSent$/,     color: GREEN},
-    {match: /^MARKETING$/,   color: BROWN},
-    {match: /^AUTH$/,        color: BROWN},
-    {match: /^NO_CONSENT$/,  color: BROWN},
-    {match: /^QUIET_HOURS$/, color: BROWN},
-    {match: /^CAP$/,         color: BROWN},
+    {match: /^fun$/,          color: BROWN},
+    {match: /^User$/,         color: GREEN},
+    {match: /^Cart$/,         color: GREEN},
+    {match: /^LoginCode$/,    color: GREEN},
+    {match: /^SendResult$/,   color: GREEN},
+    {match: /^Skipped$/,      color: GREEN},
+    {match: /^OtpSent$/,      color: GREEN},
 ];
 
 const FLAT_CARD = {
@@ -101,7 +96,7 @@ const FLAT_CARD = {
     edge: false,
 } as const;
 
-// ── Code blocks (Kotlin without `suspend` — feedback dropped it) ────
+// ── Code blocks ──────────────────────────────────────────────────────
 const CODE_CART_V1 = `fun sendCartReminder(user: User, cart: Cart): SendResult {
     val message = templates.render("cart_reminder", cart)
     val result  = whatsapp.send(user.phone, message)
@@ -127,27 +122,6 @@ const CODE_MERGED = `fun sendMessage(
     return result
 }`;
 
-const CODE_FRANKENSTEIN = `fun sendMessage(
-    user: User,
-    kind: MessageKind,
-    payload: Any,
-): SendResult {
-    if (kind == MARKETING && !consent.has(user)) return Skipped(NO_CONSENT)
-    if (kind == MARKETING && quietHours.on(user)) return Skipped(QUIET_HOURS)
-    if (kind == MARKETING && cap.exceeded(user)) return Skipped(CAP)
-
-    if (kind == AUTH) otp.persist(user, payload as LoginCode, 5.minutes)
-
-    val template = if (kind == AUTH) "login_code" else "cart_reminder"
-    val message  = templates.render(template, payload)
-    val result   = whatsapp.send(user.phone, message)
-
-    deliveries.record(user, message, result)
-    if (kind == AUTH) audit.log(OtpSent(user, result))
-
-    return result
-}`;
-
 const CODE_CART_V4 = `fun sendCartReminder(user: User, cart: Cart): SendResult {
     if (!consent.hasMarketing(user)) return Skipped(NO_CONSENT)
     if (quietHours.active(user))     return Skipped(QUIET_HOURS)
@@ -169,26 +143,8 @@ const CODE_LOGIN_V4 = `fun sendLoginCode(user: User, code: LoginCode): SendResul
 }`;
 
 // ══════════════════════════════════════════════════════════════════════
-// Shape geometry — paper-cut silhouettes.
+// Shape geometry — paper-cut silhouettes used as the merge destination.
 // ──────────────────────────────────────────────────────────────────────
-
-// Generic pebble: smooth, slightly squashed, gentle 4-lobed wobble.
-// Used twice in Beat 4 (two identical pebbles = "same shape") and once
-// in Beat 5 (one bigger pebble = "merge").
-function pebblePoints(): [number, number][] {
-    const pts: [number, number][] = [];
-    const N = 28;
-    for (let i = 0; i < N; i++) {
-        const a = (i / N) * Math.PI * 2;
-        const wobble = 1 + Math.sin(a * 4 + 0.4) * 0.04;
-        const r = 130 * wobble;
-        pts.push([Math.cos(a) * r * 1.05, Math.sin(a) * r * 0.92]);
-    }
-    return pts;
-}
-
-// MARKETING blob — softer, more asymmetric than the pebble. The waveform
-// (sin*3 + sin*5) gives it character: it does not look like a circle.
 function marketingBlobPoints(): [number, number][] {
     const pts: [number, number][] = [];
     const N = 24;
@@ -201,7 +157,6 @@ function marketingBlobPoints(): [number, number][] {
     return pts;
 }
 
-// SECURITY hexagon — small tilt so it does not look mathematical.
 function securityHexPoints(): [number, number][] {
     const pts: [number, number][] = [];
     const r = 138;
@@ -230,7 +185,7 @@ function makeBlock(o: BlockOpts): Manticore {
     return Manticore.create(o.code, {
         x: o.x ?? 0,
         y: o.y,
-        width: o.width ?? 1020,
+        width: o.width ?? 1040,
         fontSize: o.fontSize ?? 26,
         lineHeight: o.lineHeight ?? 42,
         fontFamily: F_MONO,
@@ -242,36 +197,110 @@ function makeBlock(o: BlockOpts): Manticore {
 }
 
 // ══════════════════════════════════════════════════════════════════════
-// Highlight helpers — used in Beat 3 to rhyme the duplicate body lines.
-// We never recolour: focus is gained by *dimming* everything else, the
-// way an editorial designer would direct attention with paper.
+// Sequential highlight — DIRECT (no pre-dim). One transition does both:
+// the targeted line goes to 1.0, every other line goes to DIM_OP. The
+// next call retransitions in place.
 // ──────────────────────────────────────────────────────────────────────
-function* highlightLine(blocks: Manticore[], idx: number, dur = 0.4): ThreadGenerator {
-    const ops: ThreadGenerator[] = [];
-    for (const b of blocks) {
-        const line = b.getLine(idx);
-        if (line) ops.push(line.setOpacity(1, dur));
-    }
-    if (ops.length) yield* all(...ops);
-}
-
-function* switchHighlight(
-    blocks: Manticore[], fromIdx: number, toIdx: number, dur = 0.4,
+function* highlightOnly(
+    blocks: Manticore[], idx: number, dur = 0.4,
 ): ThreadGenerator {
     const ops: ThreadGenerator[] = [];
     for (const b of blocks) {
-        const f = b.getLine(fromIdx);
-        const t = b.getLine(toIdx);
-        if (f) ops.push(f.setOpacity(DIM_OP, dur));
-        if (t) ops.push(t.setOpacity(1, dur));
+        for (let i = 0; i < b.lineCount; i++) {
+            const line = b.getLine(i);
+            if (line) ops.push(line.setOpacity(i === idx ? 1 : DIM_OP, dur));
+        }
     }
     if (ops.length) yield* all(...ops);
 }
 
 // ══════════════════════════════════════════════════════════════════════
-// Font activation — best-effort. Block on JBM (mono metrics matter for
-// code), let serif quietly fall back to EB Garamond if Newsreader did
-// not register (puppeteer's Google Fonts CDN is flaky in headless).
+// Skeleton-merge mechanic — code → paper-bars → black dot → SVG shape,
+// per method.
+//
+//   Bar design (post-feedback): height=12, radius=4, paper-tone fill —
+//   reads as deliberate paper marks, not pencil dust. Bars cover only
+//   the actual code lines (signature + body); the closing `}` line gets
+//   no bar, just fades with the rest of the text.
+//
+//   Compression: every bar collapses to the *same* point with
+//   width=height=24, radius=12 — i.e., they all stack into a single
+//   round 24-px dot at the method's centre. The dot is the "compressed
+//   black mass" the user described.
+//
+//   Match cut: the dot fades while the SVG shape grows scale 0.1 → 1.0
+//   from the *same* centre, so the read is "dot opened into a shape".
+// ──────────────────────────────────────────────────────────────────────
+type SkeletonHandle = {
+    bars: Reference<Rect>[];
+    node: Reference<Node>;
+};
+
+function buildSkeleton(
+    centerY: number,
+    barCount: number,
+    lh: number,
+    widths: number[],
+    indents: number[],
+    contentLeft: number,
+    totalLines: number,
+): {handle: SkeletonHandle; jsx: any} {
+    const bars: Reference<Rect>[] = [];
+    const node = createRef<Node>();
+    // The visible code occupies `totalLines` rows, but we draw a bar
+    // only for the first `barCount` of them (the closing-bracket row
+    // is left alone per the feedback).
+    const startRel = -((totalLines - 1) / 2) * lh;
+    const jsx = (
+        <Node ref={node} opacity={0}>
+            {widths.slice(0, barCount).map((w, i) => {
+                const ref = createRef<Rect>();
+                bars.push(ref);
+                return (
+                    <Rect
+                        ref={ref}
+                        width={w}
+                        height={12}
+                        radius={4}
+                        fill={SKEL}
+                        x={contentLeft + indents[i] + w / 2}
+                        y={centerY + startRel + i * lh}
+                    />
+                );
+            })}
+        </Node>
+    );
+    return {handle: {bars, node}, jsx};
+}
+
+// Compression: every bar tweens to a *strip* the width of the figure
+// (≈260 px) and a thin height. Every bar lands at the same (x=0,
+// y=centerY), so they overlap into a single dense horizontal slab —
+// the "compressed mass" the user described, sized to match the figure
+// it is about to become.
+const STRIP_W = 260;
+const STRIP_H = 12;
+
+function compressAnims(
+    bars: Reference<Rect>[],
+    centerY: number,
+    duration: number,
+): ThreadGenerator[] {
+    const out: ThreadGenerator[] = [];
+    for (const b of bars) {
+        out.push(b().width(STRIP_W, duration, easeInOutCubic));
+        out.push(b().height(STRIP_H, duration, easeInOutCubic));
+        out.push(b().radius(2, duration, easeInOutCubic));
+        out.push(b().x(0, duration, easeInOutCubic));
+        out.push(b().y(centerY, duration, easeInOutCubic));
+        out.push(b().fill(MASS, duration, easeInOutCubic));
+    }
+    return out;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Font activation — best effort. Newsreader is loaded if the CDN works
+// (and silently falls back to EB Garamond if not).
 // ──────────────────────────────────────────────────────────────────────
 function* awaitFontsReady(): ThreadGenerator {
     if (typeof document === 'undefined') return;
@@ -312,13 +341,11 @@ function* awaitFontsReady(): ThreadGenerator {
 export default makeScene2D(function* (view) {
     yield* awaitFontsReady();
 
-    // ── BG: linen + warm-white wash ─────────────────────────────────
+    // ── BG ──────────────────────────────────────────────────────────
     view.add(<Img src="/linen.jpg" width={VIEW_W} height={VIEW_H} />);
     view.add(<Rect width={VIEW_W} height={VIEW_H} fill="rgba(252, 245, 230, 0.18)" />);
 
-    // ── Permanent editorial frame: KUROSHIMA + ISSUE 02 ─────────────
-    //    These two plates stay on screen the whole reel — they frame
-    //    every beat and never fade.
+    // ── Permanent editorial frame ───────────────────────────────────
     view.add(<Txt
         text="KUROSHIMA"
         fontFamily={F_SERIF} fontSize={22} fontWeight={500}
@@ -331,12 +358,20 @@ export default makeScene2D(function* (view) {
     />);
 
     // ════════════════════════════════════════════════════════════════
-    //  Beat 1 — HERO (mixed case, italic last word)
+    //  Beat 1 — HERO + METHODS PREVIEW
+    //
+    //  Hero phrase sits where linenHero put it (HERO_TOP=-440 area).
+    //  Methods are mounted BELOW the hero from the very first frame,
+    //  at scale 0.6 — a quiet preview that the zoom-in will pull
+    //  forward.
     // ════════════════════════════════════════════════════════════════
+    // Hero pushed higher (HERO_TOP=-680 vs the old -560) so that
+    // methods, which now sit at their *final* y=-220/+220 from frame
+    // one (just smaller), don't collide with the heading in preview.
     const hero = createRef<Node>();
-    const HERO_TOP = -440;
+    const HERO_TOP = -680;
     const HERO_LH  = 130;
-    const HERO_SZ  = 118;
+    const HERO_SZ  = 110;
 
     view.add(<Node ref={hero}>
         <Txt
@@ -357,235 +392,268 @@ export default makeScene2D(function* (view) {
         />
     </Node>);
 
-    yield* waitFor(3.0);
-
-    // ════════════════════════════════════════════════════════════════
-    //  Beat 2 — METHODS appear (vertical stack)
-    // ════════════════════════════════════════════════════════════════
-    const cart  = makeBlock({code: CODE_CART_V1,  y: -240, fontSize: 26, lineHeight: 42, width: 1040});
-    const login = makeBlock({code: CODE_LOGIN_V1, y: +240, fontSize: 26, lineHeight: 42, width: 1040});
+    // Methods in PREVIEW state — already at their FINAL y=-220/+220,
+    // just at scale 0.75. The "zoom" animates only the scale; the
+    // y-positions never change, so methods don't sprawl outwards.
+    const cart  = makeBlock({code: CODE_CART_V1,  y: -220, fontSize: 26, lineHeight: 42, width: 1040});
+    const login = makeBlock({code: CODE_LOGIN_V1, y: +220, fontSize: 26, lineHeight: 42, width: 1040});
     cart.mount(view);
     login.mount(view);
     cart.colorize(RULES);
     login.colorize(RULES);
-
-    yield* hero().opacity(0, 0.55, easeInOutCubic);
-    hero().remove();
+    cart.node.scale(0.75);
+    login.node.scale(0.75);
 
     yield* all(
         cart.appear(0.55),
         login.appear(0.55),
     );
-    yield* waitFor(1.4);
+    yield* waitFor(2.4);
 
     // ════════════════════════════════════════════════════════════════
-    //  Beat 3 — SEQUENTIAL HIGHLIGHT (render → send → record)
-    //    Both methods dim to 22%; only the matching duplicate line in
-    //    each method comes back to full opacity. Sequence reads as a
-    //    triple chant: "render → send → record".
+    //  Beat 2 — ZOOM (a real camera zoom, not a swap)
+    //
+    //  Camera flies forward toward the methods:
+    //    • methods scale 0.75 → 1.0 *in place* — they stay at their
+    //      final y=-220/+220 throughout, so nothing slides outward
+    //    • hero scales UP (1.0 → 1.4), drifts *up* and out of frame,
+    //      and fades. Reads as "the heading was on the way, the camera
+    //      has now moved past it."
     // ════════════════════════════════════════════════════════════════
     yield* all(
-        cart.dimLines(0, 5, DIM_OP, 0.5),
-        login.dimLines(0, 5, DIM_OP, 0.5),
+        hero().scale(1.4, 0.95, easeInOutCubic),
+        hero().position.y(-1500, 0.95, easeInOutCubic),
+        hero().opacity(0, 0.95, easeInOutCubic),
+        cart.node.scale(1.0, 0.95, easeInOutCubic),
+        login.node.scale(1.0, 0.95, easeInOutCubic),
     );
-    yield* waitFor(0.25);
+    hero().remove();
+    yield* waitFor(0.6);
 
-    yield* highlightLine([cart, login], 1, 0.4); // val message = templates.render(...)
+    // ════════════════════════════════════════════════════════════════
+    //  Beat 3 — SEQUENTIAL HIGHLIGHT (no pre-dim)
+    //  Each call repaints opacities directly: the named line goes
+    //  bright, every other line dims to DIM_OP. No "dim everything
+    //  first" intermediate state.
+    // ════════════════════════════════════════════════════════════════
+    yield* highlightOnly([cart, login], 1, 0.5); // val message = templates.render(...)
     yield* waitFor(0.75);
-
-    yield* switchHighlight([cart, login], 1, 2, 0.4); // val result = whatsapp.send(...)
+    yield* highlightOnly([cart, login], 2, 0.4); // val result  = whatsapp.send(...)
     yield* waitFor(0.75);
-
-    yield* switchHighlight([cart, login], 2, 3, 0.4); // deliveries.record(...)
+    yield* highlightOnly([cart, login], 3, 0.4); // deliveries.record(...)
     yield* waitFor(0.75);
 
     yield* all(cart.showAllLines(0.4), login.showAllLines(0.4));
     yield* waitFor(0.4);
 
     // ════════════════════════════════════════════════════════════════
-    //  Beat 4 — METHODS → IDENTICAL PEBBLES (same shape, vertical)
-    //    Each method dissolves into a pebble at the same y. Both
-    //    pebbles are *exactly the same shape* — that is the punchline.
+    //  Beat 4 — MERGE MECHANIC: code → bars → mass → SVG shape.
+    //
+    //  Per method, the text fades to 0 while a row of grey bars takes
+    //  the same y positions; the bars then compress (X shrinks, Y
+    //  collapses, fill darkens to MASS); at maximum compression the
+    //  packed sliver match-cuts to the method's domain shape.
+    //
+    //  cart  → MARKETING blob  (organic, soft)
+    //  login → SECURITY hex    (angular, strict)
     // ════════════════════════════════════════════════════════════════
-    const cartShape  = createRef<Line>();
-    const loginShape = createRef<Line>();
 
-    view.add(<Line
-        ref={cartShape} points={pebblePoints()} closed
-        fill={MASS} y={-240} scale={0.6} opacity={0}
-    />);
-    view.add(<Line
-        ref={loginShape} points={pebblePoints()} closed
-        fill={MASS} y={+240} scale={0.6} opacity={0}
-    />);
+    // Bar widths roughly mirror each code line's actual pixel width at
+    // fontSize=26. Indents reflect the 4-space body indent (62 px).
+    const lineCount = 6;
+    const lh = 42;
+    const indent4 = 62;
+    const indents = [0, indent4, indent4, indent4, indent4, 0];
+    // Manticore card: width 1040, paddingX = max(24, min(56, 26*2+8)) = 56,
+    // so contentLeft = -1040/2 + 56 = -464.
+    const contentLeft = -464;
 
+    const cartWidths  = [880, 800, 740, 680, 260, 16];
+    const loginWidths = [890, 720, 740, 680, 260, 16];
+
+    const cartCenterY  = -220;
+    const loginCenterY =  220;
+    // Per feedback: bars cover only the *code* lines (signature + 4
+    // body rows) — the closing `}` row gets no bar and quietly fades
+    // with the rest of the text.
+    const barCount = 5;
+
+    const cartSkel  = buildSkeleton(cartCenterY,  barCount, lh, cartWidths,  indents, contentLeft, lineCount);
+    const loginSkel = buildSkeleton(loginCenterY, barCount, lh, loginWidths, indents, contentLeft, lineCount);
+
+    view.add(cartSkel.jsx);
+    view.add(loginSkel.jsx);
+
+    // Phase A — code text fades, skeleton bars take its place. Lines
+    // are at the same y, so the read is "letters dropped, structure
+    // stayed".
     yield* all(
-        cart.node.opacity(0, 0.6, easeInOutCubic),
-        login.node.opacity(0, 0.6, easeInOutCubic),
-        cartShape().opacity(1, 0.6, easeOutCubic),
-        cartShape().scale(1, 0.6, easeOutCubic),
-        loginShape().opacity(1, 0.6, easeOutCubic),
-        loginShape().scale(1, 0.6, easeOutCubic),
+        cart.node.opacity(0, 0.45, easeInOutCubic),
+        login.node.opacity(0, 0.45, easeInOutCubic),
+        cartSkel.handle.node().opacity(1, 0.45, easeInOutCubic),
+        loginSkel.handle.node().opacity(1, 0.45, easeInOutCubic),
     );
     cart.node.remove();
     login.node.remove();
-    yield* waitFor(1.0);
 
-    // ════════════════════════════════════════════════════════════════
-    //  Beat 5 — PEBBLES MERGE INTO ONE (the geometric merge)
-    // ════════════════════════════════════════════════════════════════
-    const mergedShape = createRef<Line>();
-    view.add(<Line
-        ref={mergedShape} points={pebblePoints()} closed
-        fill={MASS} y={0} scale={0.4} opacity={0}
-    />);
-
+    // Phase B — bars compress to a *strip* the figure's width:
+    // every bar tweens to (260 × 12) at the method's centre, so they
+    // overlap into a single dense horizontal slab. That slab is the
+    // "compressed mass" and matches the figure's footprint exactly.
     yield* all(
-        cartShape().y(0, 0.7, easeInOutCubic),
-        cartShape().opacity(0, 0.7, easeInOutCubic),
-        loginShape().y(0, 0.7, easeInOutCubic),
-        loginShape().opacity(0, 0.7, easeInOutCubic),
-        mergedShape().opacity(1, 0.7, easeInOutCubic),
-        mergedShape().scale(1.4, 0.7, easeInOutCubic),
+        ...compressAnims(cartSkel.handle.bars,  cartCenterY,  0.7),
+        ...compressAnims(loginSkel.handle.bars, loginCenterY, 0.7),
     );
-    cartShape().remove();
-    loginShape().remove();
-    yield* waitFor(0.7);
+    yield* waitFor(0.15);
 
-    // ════════════════════════════════════════════════════════════════
-    //  Beat 6 — PEBBLE → MERGED CODE
-    // ════════════════════════════════════════════════════════════════
-    const merged = makeBlock({
-        code: CODE_MERGED, y: -100,
-        fontSize: 20, lineHeight: 32,
-        width: 1020, noClip: true,
-    });
-    merged.mount(view);
-    merged.colorize(RULES);
-    merged.node.opacity(0);
-
-    const lessCode = createRef<Txt>();
-    view.add(<Txt
-        ref={lessCode} text="less code."
-        fontFamily={F_SERIF} fontSize={36} fontStyle="italic"
-        fill={HERO} y={300} opacity={0}
-    />);
-
-    yield* all(
-        mergedShape().opacity(0, 0.55, easeInCubic),
-        mergedShape().scale(0.5, 0.55, easeInCubic),
-        merged.appear(0.55),
-    );
-    mergedShape().remove();
-    yield* lessCode().opacity(1, 0.45, easeOutCubic);
-    yield* waitFor(2.4);
-
-    // ════════════════════════════════════════════════════════════════
-    //  Beat 7 — MERGED → FRANKENSTEIN (morphTo)
-    // ════════════════════════════════════════════════════════════════
-    yield* lessCode().opacity(0, 0.4, easeInCubic);
-    lessCode().remove();
-
-    yield* merged.morphTo(CODE_FRANKENSTEIN, {
-        moveDuration: 0.7,
-        removeDuration: 0.4,
-        scrollStrategy: 'block',
-    });
-    merged.colorize(RULES);
-
-    const rules = createRef<Txt>();
-    view.add(<Txt
-        ref={rules} text="business rules arrive."
-        fontFamily={F_SERIF} fontSize={28} fontStyle="italic"
-        fill={QUIET} y={460} opacity={0}
-    />);
-    yield* rules().opacity(1, 0.4, easeOutCubic);
-    yield* waitFor(2.8);
-
-    // ════════════════════════════════════════════════════════════════
-    //  Beat 8 — FRANKENSTEIN → DIFFERENT SHAPES (vertical, no skeleton)
-    //    Code cross-fades straight into two semantic shapes stacked
-    //    vertically: organic blob (MARKETING) above, angular polygon
-    //    (SECURITY) below. The horizontal layout from the previous
-    //    pass and the dark line skeleton are gone.
-    // ════════════════════════════════════════════════════════════════
+    // Phase C — match cut: each figure is *pre-mounted* at the strip's
+    // exact dimensions (scaleY ≈ 12/260 = 0.046, so the figure starts
+    // looking like a flat horizontal slab too). Cross-fade the bar
+    // strips with the figure strips at identical sizes — this is the
+    // user's real "match cut": same silhouette swap.
     const marketingShape = createRef<Line>();
     const securityShape  = createRef<Line>();
     const labels = createRef<Node>();
 
     view.add(<Line
-        ref={marketingShape} points={marketingBlobPoints()} closed
-        fill={MASS} y={-240} scale={0.4} opacity={0}
+        ref={marketingShape}
+        points={marketingBlobPoints()} closed
+        fill={MASS} y={cartCenterY}
+        scale={[1, 0.046]} opacity={0}
     />);
     view.add(<Line
-        ref={securityShape} points={securityHexPoints()} closed
-        fill={MASS} y={+180} scale={0.4} opacity={0}
+        ref={securityShape}
+        points={securityHexPoints()} closed
+        fill={MASS} y={loginCenterY}
+        scale={[1, 0.046]} opacity={0}
     />);
-
     view.add(<Node ref={labels} opacity={0}>
         <Txt
             text="MARKETING"
             fontFamily={F_SERIF} fontSize={24} fontWeight={500}
-            letterSpacing={5} fill={MASS} y={-80}
+            letterSpacing={5} fill={MASS}
+            y={cartCenterY + 165}
         />
         <Txt
             text="consent · quiet hours · cap"
-            fontFamily={F_SERIF} fontSize={24} fontStyle="italic"
-            fill={QUIET} y={-40}
+            fontFamily={F_SERIF} fontSize={22} fontStyle="italic"
+            fill={QUIET} y={cartCenterY + 200}
         />
         <Txt
             text="SECURITY"
             fontFamily={F_SERIF} fontSize={24} fontWeight={500}
-            letterSpacing={5} fill={MASS} y={340}
+            letterSpacing={5} fill={MASS}
+            y={loginCenterY + 165}
         />
         <Txt
             text="ttl · otp.persist · audit"
-            fontFamily={F_SERIF} fontSize={24} fontStyle="italic"
-            fill={QUIET} y={380}
+            fontFamily={F_SERIF} fontSize={22} fontStyle="italic"
+            fill={QUIET} y={loginCenterY + 200}
         />
     </Node>);
 
+    // Step 1 — same-silhouette cross-fade: bar-strip dissolves while
+    // figure-strip appears at the *same* width and height. Identical
+    // bounding boxes → no jump.
     yield* all(
-        merged.node.opacity(0, 0.6, easeInOutCubic),
-        rules().opacity(0, 0.6, easeInOutCubic),
-        marketingShape().opacity(1, 0.7, easeOutCubic),
-        marketingShape().scale(1, 0.7, easeOutCubic),
-        securityShape().opacity(1, 0.7, easeOutCubic),
-        securityShape().scale(1, 0.7, easeOutCubic),
-        labels().opacity(1, 0.7, easeOutCubic),
+        cartSkel.handle.node().opacity(0, 0.4, easeInOutCubic),
+        loginSkel.handle.node().opacity(0, 0.4, easeInOutCubic),
+        marketingShape().opacity(1, 0.4, easeInOutCubic),
+        securityShape().opacity(1, 0.4, easeInOutCubic),
     );
-    merged.node.remove();
-    rules().remove();
-    yield* waitFor(3.2);
+    cartSkel.handle.node().remove();
+    loginSkel.handle.node().remove();
 
-    // ════════════════════════════════════════════════════════════════
-    //  Beat 9 — SHAPES → HONEST SPLIT (two domain methods)
-    // ════════════════════════════════════════════════════════════════
-    const honestCart  = makeBlock({code: CODE_CART_V4,  y: -260, fontSize: 22, lineHeight: 36, width: 1040});
-    const honestLogin = makeBlock({code: CODE_LOGIN_V4, y: +260, fontSize: 22, lineHeight: 36, width: 1040});
-    honestCart.mount(view);
-    honestLogin.mount(view);
-    honestCart.colorize(RULES);
-    honestLogin.colorize(RULES);
-    honestCart.node.opacity(0);
-    honestLogin.node.opacity(0);
-
+    // Step 2 — figure expands vertically to its full silhouette. Width
+    // is already correct (scaleX stayed at 1), so only Y grows.
     yield* all(
-        marketingShape().opacity(0, 0.55, easeInCubic),
-        marketingShape().scale(0.4, 0.55, easeInCubic),
-        securityShape().opacity(0, 0.55, easeInCubic),
-        securityShape().scale(0.4, 0.55, easeInCubic),
-        labels().opacity(0, 0.55, easeInCubic),
-        honestCart.appear(0.6),
-        honestLogin.appear(0.6),
+        marketingShape().scale.y(1, 0.6, easeOutCubic),
+        securityShape().scale.y(1, 0.6, easeOutCubic),
+    );
+
+    // ════════════════════════════════════════════════════════════════
+    //  Beat 5 — labels fade in and the punchline holds.
+    // ════════════════════════════════════════════════════════════════
+    yield* labels().opacity(1, 0.5, easeOutCubic);
+    yield* waitFor(3.0);
+
+    // ════════════════════════════════════════════════════════════════
+    //  Beat 6 — SHAPES CONVERGE
+    //
+    //  Both shapes glide to the centre and shrink to scale 0.5 — they
+    //  end up overlapping at y=0, reading as a single dark blob. Labels
+    //  fade alongside.
+    // ════════════════════════════════════════════════════════════════
+    yield* all(
+        marketingShape().position.y(0, 0.7, easeInOutCubic),
+        securityShape().position.y(0, 0.7, easeInOutCubic),
+        marketingShape().scale(0.5, 0.7, easeInOutCubic),
+        securityShape().scale(0.5, 0.7, easeInOutCubic),
+        labels().opacity(0, 0.45, easeInCubic),
+    );
+    labels().remove();
+    yield* waitFor(0.25);
+
+    // ════════════════════════════════════════════════════════════════
+    //  Beat 7 — REVERSE MORPH: figures → bars → text
+    //
+    //  Per feedback, the figures must NOT cross-fade straight into the
+    //  merged code — they should first decay back into bars. So we
+    //  spawn the merged-code skeleton at its real line positions and
+    //  widths, cross-fade the converged figures into those bars, hold
+    //  briefly, then cross-fade the bars into the actual text.
+    //
+    //  Bar widths approximate each line of CODE_MERGED at fontSize=22
+    //  (charwidth ≈ 13.2): the closing `}` row is skipped, like in
+    //  the forward mechanic.
+    // ════════════════════════════════════════════════════════════════
+    const MERGED_LH = 36;
+    const MERGED_TOP = -((10 - 1) / 2) * MERGED_LH; // 10 lines, top at -162
+    const mergedWidths  = [211, 198, 277, 224, 185, 700, 686, 581, 224];
+    const mergedIndents = [  0,  53,  53,  53,   0,  53,  53,  53,  53];
+    // Manticore card width=1040, paddingX=52 ⇒ contentLeft = -468.
+    const mergedContentLeft = -468;
+
+    const mergedSkel = buildSkeleton(
+        0, mergedWidths.length, MERGED_LH,
+        mergedWidths, mergedIndents, mergedContentLeft,
+        10, // total Manticore line count
+    );
+    // Override the skeleton node's y so its bars sit at the merged code's
+    // absolute y positions (the helper computed them relative to centerY=0).
+    view.add(mergedSkel.jsx);
+
+    // Phase A — figures dissolve while merged-code bars appear.
+    yield* all(
+        marketingShape().opacity(0, 0.45, easeInCubic),
+        securityShape().opacity(0, 0.45, easeInCubic),
+        mergedSkel.handle.node().opacity(1, 0.45, easeOutCubic),
     );
     marketingShape().remove();
     securityShape().remove();
-    labels().remove();
-    yield* waitFor(2.8);
+
+    // Phase B — bars hold briefly so the eye registers the skeleton.
+    yield* waitFor(0.4);
+
+    // Phase C — bars cross-fade into the real merged code text.
+    const merged = makeBlock({
+        code: CODE_MERGED, y: 0,
+        fontSize: 22, lineHeight: MERGED_LH,
+        width: 1040, noClip: true,
+    });
+    merged.mount(view);
+    merged.colorize(RULES);
+    merged.node.opacity(0);
+
+    yield* all(
+        mergedSkel.handle.node().opacity(0, 0.5, easeInOutCubic),
+        merged.appear(0.5),
+    );
+    mergedSkel.handle.node().remove();
+    yield* waitFor(2.4);
 
     // ════════════════════════════════════════════════════════════════
-    //  Beat 10 — MANTRA
+    //  Beat 8 — MANTRA
     // ════════════════════════════════════════════════════════════════
     const mantra = createRef<Node>();
     view.add(<Node ref={mantra} opacity={0}>
@@ -603,11 +671,9 @@ export default makeScene2D(function* (view) {
     </Node>);
 
     yield* all(
-        honestCart.node.opacity(0, 0.55, easeInOutCubic),
-        honestLogin.node.opacity(0, 0.55, easeInOutCubic),
+        merged.node.opacity(0, 0.55, easeInOutCubic),
         mantra().opacity(1, 0.7, easeOutCubic),
     );
-    honestCart.node.remove();
-    honestLogin.node.remove();
+    merged.node.remove();
     yield* waitFor(3.0);
 });

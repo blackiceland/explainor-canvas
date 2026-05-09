@@ -416,25 +416,33 @@ export default makeScene2D(function* (view) {
     spawnRoot(rootBase, rs.angle, rs.length, rs.width, 0);
   }
 
-  // ── Find a sub-tree with EXACTLY 3 forks for BEAT 1 ────────────────────
-  const countForks = (b: Branch): number => {
+  // ── Find a sub-tree with EXACTLY 3 visible forks for BEAT 1 ────────────
+  // Visible forks = forks whose children are within the rendered depth
+  // window. We limit beat-1 rendering to relDepth ≤ BEAT1_REL_DEPTH so
+  // the composition has a clean 3-fork structure (no deeper sub-bushes).
+  const BEAT1_REL_DEPTH = 2;
+  const countForksLimited = (b: Branch, maxRel: number): number => {
     let n = 0;
-    const visit = (x: Branch) => {
-      if (x.children.length >= 2) n++;
-      for (const c of x.children) visit(c);
+    const visit = (x: Branch, rd: number) => {
+      if (rd > maxRel) return;
+      if (x.children.length >= 2 && rd + 1 <= maxRel) n++;
+      for (const c of x.children) visit(c, rd + 1);
     };
-    visit(b);
+    visit(b, 0);
     return n;
   };
-  const subBranches = (b: Branch): Set<Branch> => {
+  const subBranchesLimited = (b: Branch, maxRel: number): Set<Branch> => {
     const set = new Set<Branch>();
-    const visit = (x: Branch) => {
+    const visit = (x: Branch, rd: number) => {
+      if (rd > maxRel) return;
       set.add(x);
-      for (const c of x.children) visit(c);
+      for (const c of x.children) visit(c, rd + 1);
     };
-    visit(b);
+    visit(b, 0);
     return set;
   };
+  const countForks = (b: Branch): number => countForksLimited(b, BEAT1_REL_DEPTH);
+  const subBranches = (b: Branch): Set<Branch> => subBranchesLimited(b, BEAT1_REL_DEPTH);
   const computeBBox = (set: Set<Branch>): {minX: number; minY: number; maxX: number; maxY: number} => {
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (const b of set) {
@@ -448,16 +456,16 @@ export default makeScene2D(function* (view) {
     return {minX, minY, maxX, maxY};
   };
 
-  // Prefer depth-3 sub-trees with exactly 3 forks (with TREE_MAX_DEPTH=6
-  // their tips fall on depth 6 = MAX, giving exactly 3 internal forks).
-  // Widen tolerance progressively if not found.
+  // Prefer depth-2 sub-trees with 4–6 forks for a longer, branchier
+  // beat-1 composition. Sub-trees at depth-2 span more depths (longer
+  // body) and naturally produce multiple visible Y-junctions.
   const candidates: Branch[] = [];
   const collectAt = (b: Branch, predicate: (x: Branch) => boolean) => {
     if (predicate(b)) candidates.push(b);
     for (const c of b.children) collectAt(c, predicate);
   };
-  collectAt(root, b => b.depth === 3 && countForks(b) === 3);
-  if (candidates.length === 0) collectAt(root, b => b.depth === 2 && countForks(b) === 3);
+  collectAt(root, b => b.depth === 2 && countForks(b) === 3);
+  if (candidates.length === 0) collectAt(root, b => b.depth === 3 && countForks(b) === 3);
   if (candidates.length === 0) collectAt(root, b => b.depth >= 2 && countForks(b) === 3);
   if (candidates.length === 0) collectAt(root, b => b.depth >= 2 && countForks(b) >= 2 && countForks(b) <= 4);
   const beat1Tree: Branch = candidates[0] ?? root;
@@ -514,18 +522,25 @@ export default makeScene2D(function* (view) {
         lineWidth={0}
       />,
     );
-    for (const lbl of b.forkLabels) {
-      target.add(
-        <Txt
-          text={lbl.text}
-          x={lbl.x}
-          y={lbl.y}
-          fontFamily={Fonts.code}
-          fontSize={20}
-          fill={lbl.col}
-          opacity={lbl.opacity}
-        />,
-      );
+    // Only show fork-labels when the fork's children are actually rendered
+    // in this group — otherwise we'd see floating true/false next to a
+    // branch tip that has no visible split.
+    const childrenRendered = b.children.length > 0 &&
+      b.children.every(c => (target === beat1Group() ? beat1Set.has(c) : true));
+    if (childrenRendered) {
+      for (const lbl of b.forkLabels) {
+        target.add(
+          <Txt
+            text={lbl.text}
+            x={lbl.x}
+            y={lbl.y}
+            fontFamily={Fonts.code}
+            fontSize={20}
+            fill={lbl.col}
+            opacity={lbl.opacity}
+          />,
+        );
+      }
     }
   }
 
@@ -901,10 +916,13 @@ export default makeScene2D(function* (view) {
       treeGroup().scale(TREE_SCALE_FINAL, INV_DUR - INV_ZOOM_DELAY, easeInOutCubic),
     ),
 
-    // Rest of the tree fades in along with the pull-back.
+    // Big tree fades in IMMEDIATELY (faintly behind the branch) so the
+    // branch never hangs in the air alone — by the time it shrinks away,
+    // the tree is already there. Two-stage curve: faint at first, then
+    // resolves to full opacity as beat-1 fades out.
     chain(
-      waitFor(INV_ZOOM_DELAY * 0.5),
-      restGroup().opacity(1, INV_DUR - INV_ZOOM_DELAY * 0.5, easeInOutCubic),
+      restGroup().opacity(0.35, INV_DUR * 0.45, easeInOutCubic),
+      restGroup().opacity(1.0, INV_DUR * 0.55, easeInOutCubic),
     ),
 
     // The booleans we just made loud now smoothly fade away — they were

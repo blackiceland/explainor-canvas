@@ -4,26 +4,21 @@ import {writeFileSync} from 'fs';
 const URL = process.env.MC_URL || 'http://localhost:5173/src/verticalProject';
 const OUT = process.env.OUT_DIR || './scripts/preview-out';
 
-// linenHero plays first (~9 s), then linenDuplication. Wall-clock
-// timestamps below land inside linenDuplication after the hero exit.
-// Player runs ~0.7× real-time during the morphTo block, so beats after
-// the morph are pushed past where pure player time would put them.
-const SCENE_OFFSET = 9.0; // wall seconds linenHero burns before us
+const SCENE_OFFSET = 9.0;
 const beatTimes = [
-    ['01-hero',         SCENE_OFFSET +  2.0],
-    ['02-methods',      SCENE_OFFSET +  6.0],
-    ['03-dim',          SCENE_OFFSET +  8.5],
-    ['04-render',       SCENE_OFFSET + 10.0],
-    ['05-send',         SCENE_OFFSET + 11.5],
-    ['06-record',       SCENE_OFFSET + 13.0],
-    ['07-pebbles',      SCENE_OFFSET + 16.0],
-    ['08-merge',        SCENE_OFFSET + 18.0],
-    ['09-merged-code',  SCENE_OFFSET + 21.0],
-    ['10-frankenstein', SCENE_OFFSET + 35.0],
-    ['11-rules',        SCENE_OFFSET + 45.0],
-    ['12-shapes',       SCENE_OFFSET + 53.0],
-    ['13-honest',       SCENE_OFFSET + 62.0],
-    ['14-mantra',       SCENE_OFFSET + 70.0],
+    ['01-hero-preview',  SCENE_OFFSET +  2.0],
+    ['02-zoom',          SCENE_OFFSET +  4.5],
+    ['03-zoomed',        SCENE_OFFSET +  6.5],
+    ['04-render',        SCENE_OFFSET +  8.5],
+    ['05-record',        SCENE_OFFSET + 12.5],
+    ['06-strip',         SCENE_OFFSET + 14.5],
+    ['07-shapes',        SCENE_OFFSET + 16.5],
+    ['08-labels',        SCENE_OFFSET + 19.0],
+    ['09-converge',      SCENE_OFFSET + 22.5],
+    ['10-rev-bars',      SCENE_OFFSET + 23.5],
+    ['11-rev-bars-hold', SCENE_OFFSET + 24.0],
+    ['12-merged-text',   SCENE_OFFSET + 25.5],
+    ['13-mantra',        SCENE_OFFSET + 30.0],
 ];
 
 async function ensureDir() {
