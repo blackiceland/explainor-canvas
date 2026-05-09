@@ -11,7 +11,7 @@ import {
   Vector2,
   waitFor,
 } from '@motion-canvas/core';
-import {Fonts} from '../core/theme';
+import {Colors, Fonts} from '../core/theme';
 import {Manticore} from '../core/code/components/Manticore';
 import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
 import {textWidth} from '../core/utils/textMeasure';
@@ -200,12 +200,22 @@ function strokeShape(
 export default makeScene2D(function* (view) {
   view.removeChildren();
 
-  // Flat dark background — no spotlight, no fog, no glow.
+  // Project gradient background (matches Colors.background) without the
+  // warm spotlight from applyBackground — same lifted-graphite tone, no
+  // central glow.
   view.add(
     <Rect
       width={SCREEN_W}
       height={SCREEN_H}
-      fill={'#08090c'}
+      fill={new Gradient({
+        type: 'linear',
+        from: new Vector2(0, -SCREEN_H / 2),
+        to: new Vector2(0, SCREEN_H / 2),
+        stops: [
+          {offset: 0, color: Colors.background.from},
+          {offset: 1, color: Colors.background.to},
+        ],
+      })}
     />,
   );
 
@@ -333,16 +343,17 @@ export default makeScene2D(function* (view) {
         const rightR = realChildren[realChildren.length - 1];
         // Place each label NEAR ITS OWN child arm — push along the arm
         // direction past the fork start, then perpendicular to the arm
-        // (away from the sibling) so the label sits beside the arm and
-        // never crosses any branch line.
-        const along = 38;        // distance along the child arm from fork
-        const perpAway = 48;     // perpendicular from the arm, outward
+        // (away from the sibling). false sits a bit further out so it
+        // doesn't graze the right arm.
+        const along = 38;
+        const truePerpAway  = 50;
+        const falsePerpAway = 78;
         const aL = (parentAngleDeg + leftR.tilt - 90) * Math.PI / 180;
         const aR = (parentAngleDeg + rightR.tilt - 90) * Math.PI / 180;
-        const lX = end.x + Math.cos(aL) * along - Math.cos(aL + Math.PI / 2) * perpAway;
-        const lY = end.y + Math.sin(aL) * along - Math.sin(aL + Math.PI / 2) * perpAway;
-        const rX = end.x + Math.cos(aR) * along + Math.cos(aR + Math.PI / 2) * perpAway;
-        const rY = end.y + Math.sin(aR) * along + Math.sin(aR + Math.PI / 2) * perpAway;
+        const lX = end.x + Math.cos(aL) * along - Math.cos(aL + Math.PI / 2) * truePerpAway;
+        const lY = end.y + Math.sin(aL) * along - Math.sin(aL + Math.PI / 2) * truePerpAway;
+        const rX = end.x + Math.cos(aR) * along + Math.cos(aR + Math.PI / 2) * falsePerpAway;
+        const rY = end.y + Math.sin(aR) * along + Math.sin(aR + Math.PI / 2) * falsePerpAway;
         branch.forkLabels.push({
           x: lX, y: lY, text: 'true',
           col: LABEL_TRUE_COL, opacity: createSignal(0),

@@ -74,6 +74,7 @@ import expTreeAssetScene from "./scenes/expTreeAssetScene?scene";
 import expTreeTracedScene from "./scenes/expTreeTracedScene?scene";
 import expTreeRevealScene from "./scenes/expTreeRevealScene?scene";
 import dryConditionsScene from "./scenes/dryConditionsScene?scene";
+import flowStepIntroScene from "./scenes/flowStepIntroScene?scene";
 
 export default makeProject({
     experimentalFeatures: true,
@@ -171,7 +172,8 @@ export default makeProject({
         //04
 
 
-        chapter1YudanSceneEn,
+        // flowStepIntroScene,
+         chapter1YudanSceneEn,
         // expTreeSumieScene,
         // expTreeProctreeScene,
         // expTreeLimboScene,
