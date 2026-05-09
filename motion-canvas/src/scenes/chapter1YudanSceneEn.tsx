@@ -106,8 +106,8 @@ const TREE_BASE_LENGTH  = 540;
 const TREE_BASE_WIDTH   = 82;
 const WITHIN_TAPER      = 0.78;
 const TIP_RATIO         = 0.55;
-const BRANCH_ANGLE_MIN  = 14;
-const BRANCH_ANGLE_MAX  = 60;
+const BRANCH_ANGLE_MIN  = 26;
+const BRANCH_ANGLE_MAX  = 62;
 const LEN_SCALE_MIN     = 0.55;
 const LEN_SCALE_MAX     = 0.84;
 const CURVE_S_AMOUNT    = 0.42;
@@ -324,12 +324,17 @@ export default makeScene2D(function* (view) {
     // shown/hidden along with their fork's reveal phase.
     if (depth <= 4) {
       const [left, right] = childRefs;
-      const off = 26 + depth * 4;
+      // Anchor each label at the child arm's TIP and push it perpendicular
+      // to the arm so it never sits ON the branch line.
+      const tipNudge = 18;
+      const sideNudge = 60;
       if (left?.b) {
         const a = (parentAngleDeg + left.tilt - 90) * Math.PI / 180;
+        const tipX = left.b.end.x + Math.cos(a) * tipNudge;
+        const tipY = left.b.end.y + Math.sin(a) * tipNudge;
         branch.forkLabels.push({
-          x: end.x + Math.cos(a) * off - 50,
-          y: end.y + Math.sin(a) * off,
+          x: tipX - Math.sin(a) * sideNudge,
+          y: tipY + Math.cos(a) * sideNudge,
           text: 'true',
           col: LABEL_TRUE_COL,
           opacity: createSignal(0),
@@ -337,9 +342,11 @@ export default makeScene2D(function* (view) {
       }
       if (right?.b) {
         const a = (parentAngleDeg + right.tilt - 90) * Math.PI / 180;
+        const tipX = right.b.end.x + Math.cos(a) * tipNudge;
+        const tipY = right.b.end.y + Math.sin(a) * tipNudge;
         branch.forkLabels.push({
-          x: end.x + Math.cos(a) * off + 50,
-          y: end.y + Math.sin(a) * off,
+          x: tipX + Math.sin(a) * sideNudge,
+          y: tipY - Math.cos(a) * sideNudge,
           text: 'false',
           col: LABEL_FALSE_COL,
           opacity: createSignal(0),
@@ -808,11 +815,14 @@ export default makeScene2D(function* (view) {
     const r = d - beat1Tree.depth;
     return r === 0 ? 1.0 : Math.max(0.18, 0.55 - r * 0.06);
   };
+  // Forks grow only AFTER the parent reaches the cross-point: each child
+  // waits for its parent to finish (handoff = 1.0, not the global 0.6).
+  const BEAT1_CHILD_HANDOFF = 1.0;
   const schedule = (branch: Branch, startTime: number) => {
     if (!beat1Set.has(branch)) return;
     const dur = depthDur(branch.depth);
     anims.push({startTime, branch, dur});
-    const childStart = startTime + dur * CHILD_HANDOFF;
+    const childStart = startTime + dur * BEAT1_CHILD_HANDOFF;
     for (const child of branch.children) schedule(child, childStart);
   };
   schedule(beat1Tree, 0);
@@ -905,7 +915,7 @@ export default makeScene2D(function* (view) {
   view.add(
     <Txt
       ref={inscriptionRef}
-      text={'A Boolean Is Never Just a Boolean'}
+      text={'A boolean is never just a boolean'}
       x={350}
       y={-30}
       width={820}
@@ -987,19 +997,23 @@ export default makeScene2D(function* (view) {
         text={'CHAPTER 1'}
         fontFamily={Fonts.primary}
         fontWeight={500}
-        fontSize={40}
-        letterSpacing={18}
+        fontSize={36}
+        letterSpacing={12}
         fill={MUTED}
-        y={-50}
+        textAlign={'center'}
+        x={0}
+        y={-58}
       />
       <Txt
         ref={titleRef}
         text={'YŪDAN'}
         fontFamily={Fonts.primary}
         fontWeight={700}
-        fontSize={72}
-        letterSpacing={14}
+        fontSize={96}
+        letterSpacing={12}
         fill={WARM_CREAM}
+        textAlign={'center'}
+        x={0}
         y={28}
       />
     </Node>,
