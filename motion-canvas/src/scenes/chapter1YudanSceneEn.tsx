@@ -53,6 +53,11 @@ const SIG_FINAL_MAX_W = Math.max(
 );
 const SIG_FINAL_OFFSET_X = -(MC_LEFT_EDGE + SIG_FINAL_MAX_W / 2);
 
+// During TREE-1 + PHASE 2c the code lives in the LEFT half of the frame
+// at a smaller scale, leaving the RIGHT half clear for the branch.
+const BEAT1_CODE_SCALE = 0.62;
+const BEAT1_CODE_X     = -250;
+
 const CODE_RULES = [
   {match: /^fun$/,      color: DryFiltersV3CodeTheme.keyword},
   {match: /^false$/,    color: DryFiltersV3CodeTheme.keyword},
@@ -544,21 +549,24 @@ export default makeScene2D(function* (view) {
     }
   }
 
-  // Beat-1 framing: sub-tree fills as much of the frame as possible, with
-  // sub-tree's start anchored to the VERY BOTTOM EDGE of the frame so the
-  // branch enters from outside, not floating in the air.
+  // Beat-1 framing: sub-tree fills the RIGHT HALF of the frame so the
+  // code (centered) lives in the left+center region without competing
+  // visually with the branch. Sub-tree's start anchors at the bottom
+  // edge — branch enters from outside, not floating in the air.
+  const BEAT1_CENTER_X = SCREEN_W * 0.27;       // sub-tree centered in right half
+  const BEAT1_AVAILABLE_W = SCREEN_W * 0.5;     // fit inside right half
   const bbox1 = computeBBox(beat1Set);
   const w1 = bbox1.maxX - bbox1.minX;
   const h1 = bbox1.maxY - bbox1.minY;
   const cx1 = (bbox1.minX + bbox1.maxX) / 2;
   const startY1 = beat1Tree.start.y;
   const beat1Scale = Math.min(
-    SCREEN_W * 0.92 / Math.max(1, w1),
+    BEAT1_AVAILABLE_W / Math.max(1, w1),
     SCREEN_H * 0.94 / Math.max(1, h1),
     4.0,
   );
-  const targetStartWorldY = SCREEN_H / 2;   // sub-tree start at frame bottom
-  const beat1X = -beat1Scale * cx1;
+  const targetStartWorldY = SCREEN_H / 2;       // sub-tree start at frame bottom
+  const beat1X = BEAT1_CENTER_X - beat1Scale * cx1;
   const beat1Y = targetStartWorldY - beat1Scale * startY1;
 
   treeGroup().x(beat1X);
@@ -775,11 +783,12 @@ export default makeScene2D(function* (view) {
   yield* waitFor(1.1);
 
   // ═══════════════════════════════════════════════════════════════════════
-  // PHASE 2b2 — full sig_one.
+  // PHASE 2b2 — full sig_one. The code scales DOWN and slides LEFT to
+  //             clear the right half of the frame for the upcoming branch.
   // ═══════════════════════════════════════════════════════════════════════
   yield* all(
-    codeRoot().scale(1, 1.0, easeInOutCubic),
-    codeRoot().x(SIG_FINAL_OFFSET_X, 1.0, easeInOutCubic),
+    codeRoot().scale(BEAT1_CODE_SCALE, 1.0, easeInOutCubic),
+    codeRoot().x(BEAT1_CODE_X, 1.0, easeInOutCubic),
     ...stageB2Reveal.map(r => r.opacity(1, 0.9, easeOutCubic)),
   );
   yield* waitFor(0.7);
@@ -836,10 +845,16 @@ export default makeScene2D(function* (view) {
   //            small reveal — comma + name + type + default.
   // ═══════════════════════════════════════════════════════════════════════
   const SIG_FINAL_LINE_COUNT = 3;
-  const codeFinalY = ((SIG_FINAL_LINE_COUNT - 1) / 2) * LH;
+  const codeFinalY = ((SIG_FINAL_LINE_COUNT - 1) / 2) * LH * BEAT1_CODE_SCALE;
   const codeFinalRoot = createRef<Node>();
   codeGroup().add(
-    <Node ref={codeFinalRoot} opacity={0} x={SIG_FINAL_OFFSET_X} y={codeFinalY} />,
+    <Node
+      ref={codeFinalRoot}
+      opacity={0}
+      x={BEAT1_CODE_X}
+      y={codeFinalY}
+      scale={BEAT1_CODE_SCALE}
+    />,
   );
   const codeFinal = Manticore.create(SIG_FINAL, {x: 0, y: 0, ...CODE_OPTS_BASE});
   codeFinal.mount(codeFinalRoot());

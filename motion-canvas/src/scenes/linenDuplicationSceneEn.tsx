@@ -168,6 +168,54 @@ function securityHexPoints(): [number, number][] {
     return pts;
 }
 
+// ── Polygon helpers — used to compress bars into a figure silhouette ──
+function figureYExtent(points: [number, number][]): {minY: number; maxY: number} {
+    let minY = Infinity, maxY = -Infinity;
+    for (const [, y] of points) {
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+    }
+    return {minY, maxY};
+}
+
+// Horizontal width of the polygon at the given y (scan-line intersection).
+function widthAtY(points: [number, number][], y: number): number {
+    let leftX = Infinity, rightX = -Infinity;
+    for (let i = 0; i < points.length; i++) {
+        const [x1, y1] = points[i];
+        const [x2, y2] = points[(i + 1) % points.length];
+        const minSegY = Math.min(y1, y2);
+        const maxSegY = Math.max(y1, y2);
+        if (y < minSegY || y > maxSegY) continue;
+        if (Math.abs(y2 - y1) < 0.0001) continue;
+        const t = (y - y1) / (y2 - y1);
+        const x = x1 + t * (x2 - x1);
+        if (x < leftX) leftX = x;
+        if (x > rightX) rightX = x;
+    }
+    return Math.max(0, rightX - leftX);
+}
+
+// For a target figure, return (w, y, h) per band so that nBars stacked
+// at those positions tile the figure's bounding box. Each bar's width
+// matches the figure's actual horizontal extent at its band — i.e. the
+// stacked bars trace out a stepped silhouette of the figure.
+type SilhouetteBand = {w: number; y: number; h: number};
+function silhouetteBars(
+    points: [number, number][],
+    nBars: number,
+): SilhouetteBand[] {
+    const {minY, maxY} = figureYExtent(points);
+    const figH = maxY - minY;
+    const barH = figH / nBars;
+    const bands: SilhouetteBand[] = [];
+    for (let i = 0; i < nBars; i++) {
+        const yCenter = minY + (i + 0.5) * barH;
+        bands.push({w: widthAtY(points, yCenter), y: yCenter, h: barH});
+    }
+    return bands;
+}
+
 // ══════════════════════════════════════════════════════════════════════
 // Manticore factory.
 // ──────────────────────────────────────────────────────────────────────
@@ -273,26 +321,27 @@ function buildSkeleton(
     return {handle: {bars, node}, jsx};
 }
 
-// Compression: every bar tweens to a *strip* the width of the figure
-// (≈260 px) and a thin height. Every bar lands at the same (x=0,
-// y=centerY), so they overlap into a single dense horizontal slab —
-// the "compressed mass" the user described, sized to match the figure
-// it is about to become.
-const STRIP_W = 260;
-const STRIP_H = 12;
-
-function compressAnims(
+// Compression: every bar tweens to its *own* target — a horizontal
+// slice of the future figure. The bar's compressed width matches the
+// figure's horizontal extent at the bar's y position, so when the
+// bars settle they collectively trace a stepped silhouette of the
+// figure they're about to become. NO single-strip merge.
+function compressBarsToSilhouette(
     bars: Reference<Rect>[],
-    centerY: number,
+    methodCenterY: number,
+    figurePoints: [number, number][],
     duration: number,
 ): ThreadGenerator[] {
+    const bands = silhouetteBars(figurePoints, bars.length);
     const out: ThreadGenerator[] = [];
-    for (const b of bars) {
-        out.push(b().width(STRIP_W, duration, easeInOutCubic));
-        out.push(b().height(STRIP_H, duration, easeInOutCubic));
-        out.push(b().radius(2, duration, easeInOutCubic));
+    for (let i = 0; i < bars.length; i++) {
+        const b = bars[i];
+        const t = bands[i];
+        out.push(b().width(t.w, duration, easeInOutCubic));
+        out.push(b().height(t.h, duration, easeInOutCubic));
+        out.push(b().radius(0, duration, easeInOutCubic));
         out.push(b().x(0, duration, easeInOutCubic));
-        out.push(b().y(centerY, duration, easeInOutCubic));
+        out.push(b().y(methodCenterY + t.y, duration, easeInOutCubic));
         out.push(b().fill(MASS, duration, easeInOutCubic));
     }
     return out;
@@ -365,13 +414,14 @@ export default makeScene2D(function* (view) {
     //  at scale 0.6 — a quiet preview that the zoom-in will pull
     //  forward.
     // ════════════════════════════════════════════════════════════════
-    // Hero pushed higher (HERO_TOP=-680 vs the old -560) so that
-    // methods, which now sit at their *final* y=-220/+220 from frame
-    // one (just smaller), don't collide with the heading in preview.
+    // Composition: KUROSHIMA at y=-820 has a ~22 px caps band, so its
+    // bottom edge is around y=-810. Hero's first line at fontSize=100
+    // extends ~50 px above its center, so HERO_TOP=-720 puts the top
+    // edge at y=-770 — a clean ~40 px gap below KUROSHIMA.
     const hero = createRef<Node>();
-    const HERO_TOP = -680;
-    const HERO_LH  = 130;
-    const HERO_SZ  = 110;
+    const HERO_TOP = -720;
+    const HERO_LH  = 120;
+    const HERO_SZ  = 100;
 
     view.add(<Node ref={hero}>
         <Txt
@@ -392,17 +442,17 @@ export default makeScene2D(function* (view) {
         />
     </Node>);
 
-    // Methods in PREVIEW state — already at their FINAL y=-220/+220,
-    // just at scale 0.75. The "zoom" animates only the scale; the
-    // y-positions never change, so methods don't sprawl outwards.
+    // Methods at FINAL y=-220/+220, preview scale 0.85 (was 0.75 — too
+    // small / unanchored against the hero). Y never changes; the zoom
+    // animates *only* the scale.
     const cart  = makeBlock({code: CODE_CART_V1,  y: -220, fontSize: 26, lineHeight: 42, width: 1040});
     const login = makeBlock({code: CODE_LOGIN_V1, y: +220, fontSize: 26, lineHeight: 42, width: 1040});
     cart.mount(view);
     login.mount(view);
     cart.colorize(RULES);
     login.colorize(RULES);
-    cart.node.scale(0.75);
-    login.node.scale(0.75);
+    cart.node.scale(0.85);
+    login.node.scale(0.85);
 
     yield* all(
         cart.appear(0.55),
@@ -411,24 +461,31 @@ export default makeScene2D(function* (view) {
     yield* waitFor(2.4);
 
     // ════════════════════════════════════════════════════════════════
-    //  Beat 2 — ZOOM (a real camera zoom, not a swap)
+    //  Beat 2 — ZOOM (camera physics)
     //
-    //  Camera flies forward toward the methods:
-    //    • methods scale 0.75 → 1.0 *in place* — they stay at their
-    //      final y=-220/+220 throughout, so nothing slides outward
-    //    • hero scales UP (1.0 → 1.4), drifts *up* and out of frame,
-    //      and fades. Reads as "the heading was on the way, the camera
-    //      has now moved past it."
+    //  Phase A — parallel zoom:
+    //    • methods scale 0.85 → 1.0 in place (no y move = no sprawl)
+    //    • hero scales 1.0 → 1.6 *with no position change*, so it
+    //      simply gets bigger about its origin. At scale 1.6 the top
+    //      and middle hero lines have rolled off above the frame, but
+    //      the bottom italic ("bad.") line stays inside view: a big
+    //      title fragment hugging the top edge — exactly the post-
+    //      zoom state the feedback called for.
+    //
+    //  Phase B — hold the zoomed-in title for half a second so the
+    //  reader registers the cropped fragment.
+    //
+    //  Phase C — hero fades. Camera has now moved fully past it.
     // ════════════════════════════════════════════════════════════════
     yield* all(
-        hero().scale(1.4, 0.95, easeInOutCubic),
-        hero().position.y(-1500, 0.95, easeInOutCubic),
-        hero().opacity(0, 0.95, easeInOutCubic),
+        hero().scale(1.6, 0.95, easeInOutCubic),
         cart.node.scale(1.0, 0.95, easeInOutCubic),
         login.node.scale(1.0, 0.95, easeInOutCubic),
     );
+    yield* waitFor(0.55);
+    yield* hero().opacity(0, 0.6, easeInCubic);
     hero().remove();
-    yield* waitFor(0.6);
+    yield* waitFor(0.4);
 
     // ════════════════════════════════════════════════════════════════
     //  Beat 3 — SEQUENTIAL HIGHLIGHT (no pre-dim)
@@ -496,21 +553,21 @@ export default makeScene2D(function* (view) {
     cart.node.remove();
     login.node.remove();
 
-    // Phase B — bars compress to a *strip* the figure's width:
-    // every bar tweens to (260 × 12) at the method's centre, so they
-    // overlap into a single dense horizontal slab. That slab is the
-    // "compressed mass" and matches the figure's footprint exactly.
+    // Phase B — bars compress *individually* to slices of their target
+    // figure: each bar tweens to a width equal to the figure's actual
+    // horizontal extent at the bar's destination y. They DO NOT merge
+    // into a single strip — they collectively trace a stepped silhouette
+    // of the figure they're about to become.
     yield* all(
-        ...compressAnims(cartSkel.handle.bars,  cartCenterY,  0.7),
-        ...compressAnims(loginSkel.handle.bars, loginCenterY, 0.7),
+        ...compressBarsToSilhouette(cartSkel.handle.bars,  cartCenterY,  marketingBlobPoints(), 0.7),
+        ...compressBarsToSilhouette(loginSkel.handle.bars, loginCenterY, securityHexPoints(),    0.7),
     );
-    yield* waitFor(0.15);
+    yield* waitFor(0.18);
 
-    // Phase C — match cut: each figure is *pre-mounted* at the strip's
-    // exact dimensions (scaleY ≈ 12/260 = 0.046, so the figure starts
-    // looking like a flat horizontal slab too). Cross-fade the bar
-    // strips with the figure strips at identical sizes — this is the
-    // user's real "match cut": same silhouette swap.
+    // Phase C — match cut: each figure is pre-mounted at *full* scale
+    // and the bar-silhouette overlaps the figure's silhouette exactly.
+    // Cross-fade the steps to the smooth shape — same outline, just
+    // rasterised → vector.
     const marketingShape = createRef<Line>();
     const securityShape  = createRef<Line>();
     const labels = createRef<Node>();
@@ -518,14 +575,12 @@ export default makeScene2D(function* (view) {
     view.add(<Line
         ref={marketingShape}
         points={marketingBlobPoints()} closed
-        fill={MASS} y={cartCenterY}
-        scale={[1, 0.046]} opacity={0}
+        fill={MASS} y={cartCenterY} opacity={0}
     />);
     view.add(<Line
         ref={securityShape}
         points={securityHexPoints()} closed
-        fill={MASS} y={loginCenterY}
-        scale={[1, 0.046]} opacity={0}
+        fill={MASS} y={loginCenterY} opacity={0}
     />);
     view.add(<Node ref={labels} opacity={0}>
         <Txt
@@ -552,24 +607,16 @@ export default makeScene2D(function* (view) {
         />
     </Node>);
 
-    // Step 1 — same-silhouette cross-fade: bar-strip dissolves while
-    // figure-strip appears at the *same* width and height. Identical
-    // bounding boxes → no jump.
+    // Single-step cross-fade: bar silhouette and figure silhouette
+    // share the same outline, so swapping is a clean dissolve.
     yield* all(
-        cartSkel.handle.node().opacity(0, 0.4, easeInOutCubic),
-        loginSkel.handle.node().opacity(0, 0.4, easeInOutCubic),
-        marketingShape().opacity(1, 0.4, easeInOutCubic),
-        securityShape().opacity(1, 0.4, easeInOutCubic),
+        cartSkel.handle.node().opacity(0, 0.5, easeInOutCubic),
+        loginSkel.handle.node().opacity(0, 0.5, easeInOutCubic),
+        marketingShape().opacity(1, 0.5, easeInOutCubic),
+        securityShape().opacity(1, 0.5, easeInOutCubic),
     );
     cartSkel.handle.node().remove();
     loginSkel.handle.node().remove();
-
-    // Step 2 — figure expands vertically to its full silhouette. Width
-    // is already correct (scaleX stayed at 1), so only Y grows.
-    yield* all(
-        marketingShape().scale.y(1, 0.6, easeOutCubic),
-        securityShape().scale.y(1, 0.6, easeOutCubic),
-    );
 
     // ════════════════════════════════════════════════════════════════
     //  Beat 5 — labels fade in and the punchline holds.
@@ -595,47 +642,78 @@ export default makeScene2D(function* (view) {
     yield* waitFor(0.25);
 
     // ════════════════════════════════════════════════════════════════
-    //  Beat 7 — REVERSE MORPH: figures → bars → text
+    //  Beat 7 — REVERSE MORPH: figures → silhouette bars → code bars → text
     //
-    //  Per feedback, the figures must NOT cross-fade straight into the
-    //  merged code — they should first decay back into bars. So we
-    //  spawn the merged-code skeleton at its real line positions and
-    //  widths, cross-fade the converged figures into those bars, hold
-    //  briefly, then cross-fade the bars into the actual text.
-    //
-    //  Bar widths approximate each line of CODE_MERGED at fontSize=22
-    //  (charwidth ≈ 13.2): the closing `}` row is skipped, like in
-    //  the forward mechanic.
+    //  Symmetric inverse of the forward mechanic. The converged blob
+    //  decays first into a stack of silhouette bars (each band's width
+    //  matches the converged blob's horizontal extent at that y), then
+    //  those bars expand into the merged-code skeleton (line widths,
+    //  line positions, standard 12-px height, paper-band fill), then
+    //  finally cross-fade into the merged-code text.
     // ════════════════════════════════════════════════════════════════
     const MERGED_LH = 36;
-    const MERGED_TOP = -((10 - 1) / 2) * MERGED_LH; // 10 lines, top at -162
+    const MERGED_TOP = -((10 - 1) / 2) * MERGED_LH; // top at -162
     const mergedWidths  = [211, 198, 277, 224, 185, 700, 686, 581, 224];
     const mergedIndents = [  0,  53,  53,  53,   0,  53,  53,  53,  53];
-    // Manticore card width=1040, paddingX=52 ⇒ contentLeft = -468.
     const mergedContentLeft = -468;
+    const N_REV_BARS = mergedWidths.length;
 
-    const mergedSkel = buildSkeleton(
-        0, mergedWidths.length, MERGED_LH,
-        mergedWidths, mergedIndents, mergedContentLeft,
-        10, // total Manticore line count
+    // Phase A — spawn N_REV_BARS bars at the converged blob silhouette
+    // (the blob is at scale 0.5, so scale its points to match). Bars
+    // start at MASS fill so they read as continuation of the figure.
+    const scaledBlob = marketingBlobPoints().map(
+        ([x, y]) => [x * 0.5, y * 0.5] as [number, number],
     );
-    // Override the skeleton node's y so its bars sit at the merged code's
-    // absolute y positions (the helper computed them relative to centerY=0).
-    view.add(mergedSkel.jsx);
+    const revBands = silhouetteBars(scaledBlob, N_REV_BARS);
 
-    // Phase A — figures dissolve while merged-code bars appear.
+    const revBarsNode = createRef<Node>();
+    const revBarRefs: Reference<Rect>[] = [];
+
+    view.add(<Node ref={revBarsNode} opacity={0}>
+        {revBands.map(t => {
+            const ref = createRef<Rect>();
+            revBarRefs.push(ref);
+            return (
+                <Rect
+                    ref={ref}
+                    width={t.w} height={t.h} radius={0}
+                    fill={MASS}
+                    x={0} y={t.y}
+                />
+            );
+        })}
+    </Node>);
+
+    // Phase B — cross-fade: figures dissolve while silhouette bars
+    // appear at the same outline.
     yield* all(
-        marketingShape().opacity(0, 0.45, easeInCubic),
-        securityShape().opacity(0, 0.45, easeInCubic),
-        mergedSkel.handle.node().opacity(1, 0.45, easeOutCubic),
+        marketingShape().opacity(0, 0.5, easeInOutCubic),
+        securityShape().opacity(0, 0.5, easeInOutCubic),
+        revBarsNode().opacity(1, 0.5, easeInOutCubic),
     );
     marketingShape().remove();
     securityShape().remove();
 
-    // Phase B — bars hold briefly so the eye registers the skeleton.
-    yield* waitFor(0.4);
+    // Phase C — silhouette bars expand to the merged-code skeleton:
+    // each bar tweens its width / y / height / radius / fill to match
+    // the corresponding line of CODE_MERGED.
+    const expandOps: ThreadGenerator[] = [];
+    for (let i = 0; i < N_REV_BARS; i++) {
+        const b = revBarRefs[i];
+        const targetX = mergedContentLeft + mergedIndents[i] + mergedWidths[i] / 2;
+        const targetY = MERGED_TOP + i * MERGED_LH;
+        expandOps.push(b().width(mergedWidths[i], 0.6, easeInOutCubic));
+        expandOps.push(b().height(12, 0.6, easeInOutCubic));
+        expandOps.push(b().radius(4, 0.6, easeInOutCubic));
+        expandOps.push(b().x(targetX, 0.6, easeInOutCubic));
+        expandOps.push(b().y(targetY, 0.6, easeInOutCubic));
+        expandOps.push(b().fill(SKEL, 0.6, easeInOutCubic));
+    }
+    yield* all(...expandOps);
 
-    // Phase C — bars cross-fade into the real merged code text.
+    yield* waitFor(0.25);
+
+    // Phase D — bars cross-fade into the real merged code text.
     const merged = makeBlock({
         code: CODE_MERGED, y: 0,
         fontSize: 22, lineHeight: MERGED_LH,
@@ -646,10 +724,10 @@ export default makeScene2D(function* (view) {
     merged.node.opacity(0);
 
     yield* all(
-        mergedSkel.handle.node().opacity(0, 0.5, easeInOutCubic),
-        merged.appear(0.5),
+        revBarsNode().opacity(0, 0.55, easeInOutCubic),
+        merged.appear(0.55),
     );
-    mergedSkel.handle.node().remove();
+    revBarsNode().remove();
     yield* waitFor(2.4);
 
     // ════════════════════════════════════════════════════════════════
