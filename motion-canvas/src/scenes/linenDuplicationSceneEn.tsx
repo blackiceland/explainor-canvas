@@ -618,17 +618,20 @@ export default makeScene2D(function* (view) {
     const lineCount = 7;
     const lh = 46;
     const indent4 = 67; // 4 × charwidth(28) ≈ 67
-    // Bars at code rows: L0 (signature), L1 (render), L2 (send),
-    // L3 (record), L5 (return). Skip empty L4, closing L6.
-    const cartLineIndices = [0, 1, 2, 3, 5];
-    const indents = [0, indent4, indent4, indent4, indent4];
+    // Bars at body operation rows only: L1 (render), L2 (send),
+    // L3 (record), L5 (return). Signature L0 dropped — it's a header,
+    // not a body operation, and its bar was poking above the figure's
+    // top edge before the merge. Empty L4 and closing brace L6 also
+    // skipped, as before.
+    const cartLineIndices = [1, 2, 3, 5];
+    const indents = [indent4, indent4, indent4, indent4];
     // Manticore card: width 1100, paddingX = max(24, min(56, 28*2+8)) = 56,
     // so contentLeft = -1100/2 + 56 = -494.
     const contentLeft = -494;
 
     // Approximate code-line widths at fontSize=28 (charwidth ≈ 16.8).
-    const cartWidths  = [974, 958, 857, 740, 286];
-    const loginWidths = [941, 907, 857, 740, 286];
+    const cartWidths  = [958, 857, 740, 286];
+    const loginWidths = [907, 857, 740, 286];
 
     const cartCenterY  = -200;
     const loginCenterY =  200;

@@ -49,14 +49,32 @@ const BUBBLE_H      = 184;
 const BUBBLE_RADIUS = 30;
 const BUBBLE_X_REL  = -PANEL_W / 2 + 36 + BUBBLE_W / 2;
 
-// Tail — soft 5-point shape on the bubble's left edge near the bottom.
-// Points are local to the panel; the upper and lower attach points
-// overlap the bubble by 2 px so the bubble's stroke is hidden where
-// they meet. Smoothing comes from the Line's radius.
-const TAIL_ATTACH_X = BUBBLE_X_REL - BUBBLE_W / 2 + 2;
-const TAIL_TOP_Y    = BUBBLE_Y_REL + BUBBLE_H / 2 - 36;
-const TAIL_BOT_Y    = BUBBLE_Y_REL + BUBBLE_H / 2 - 4;
-const TAIL_W        = 16;
+// Bubble + tail are drawn as ONE path so there's no seam between them.
+// Coords are local to the path's own origin (ax, ay = top-left of bubble).
+// The bottom-left corner is intentionally NOT rounded — the tail eats
+// it. Tail comes out of the lower portion of the left edge as a
+// straight-edged triangle, which is the canonical chat-tail silhouette.
+const BUBBLE_AX = -BUBBLE_W / 2;
+const BUBBLE_AY = -BUBBLE_H / 2;
+const TAIL_BOTTOM = BUBBLE_AY + BUBBLE_H - 10;
+const TAIL_TOP    = TAIL_BOTTOM - 26;
+const TAIL_TIP_Y  = (TAIL_TOP + TAIL_BOTTOM) / 2 - 4;
+const TAIL_TIP_X  = BUBBLE_AX - 14;
+
+const BUBBLE_PATH = [
+    `M ${BUBBLE_AX + BUBBLE_RADIUS} ${BUBBLE_AY}`,
+    `H ${BUBBLE_AX + BUBBLE_W - BUBBLE_RADIUS}`,
+    `Q ${BUBBLE_AX + BUBBLE_W} ${BUBBLE_AY} ${BUBBLE_AX + BUBBLE_W} ${BUBBLE_AY + BUBBLE_RADIUS}`,
+    `V ${BUBBLE_AY + BUBBLE_H - BUBBLE_RADIUS}`,
+    `Q ${BUBBLE_AX + BUBBLE_W} ${BUBBLE_AY + BUBBLE_H} ${BUBBLE_AX + BUBBLE_W - BUBBLE_RADIUS} ${BUBBLE_AY + BUBBLE_H}`,
+    `H ${BUBBLE_AX}`,
+    `V ${TAIL_BOTTOM}`,
+    `L ${TAIL_TIP_X} ${TAIL_TIP_Y}`,
+    `L ${BUBBLE_AX} ${TAIL_TOP}`,
+    `V ${BUBBLE_AY + BUBBLE_RADIUS}`,
+    `Q ${BUBBLE_AX} ${BUBBLE_AY} ${BUBBLE_AX + BUBBLE_RADIUS} ${BUBBLE_AY}`,
+    `Z`,
+].join(' ');
 
 // Input field at the bottom of the panel.
 const INPUT_W       = PANEL_W - 60;
@@ -97,8 +115,7 @@ export default makeScene2D(function* (view) {
     const headerRef   = createRef<Txt>();
     const datePillRef = createRef<Rect>();
     const dateTxtRef  = createRef<Txt>();
-    const bubbleRef   = createRef<Rect>();
-    const tailRef     = createRef<Line>();
+    const bubbleRef   = createRef<Path>();
     const paymentRef  = createRef<Txt>();
     const urgentRef   = createRef<Txt>();
     const inputRef    = createRef<Rect>();
@@ -146,30 +163,14 @@ export default makeScene2D(function* (view) {
                 opacity={0}
             />
 
-            {/* bubble */}
-            <Rect
+            {/* bubble + tail as one path — no seam */}
+            <Path
                 ref={bubbleRef}
-                width={BUBBLE_W} height={BUBBLE_H} radius={BUBBLE_RADIUS}
-                fill={BUBBLE_FILL} stroke={BUBBLE_STROKE} lineWidth={1}
-                x={BUBBLE_X_REL} y={BUBBLE_Y_REL + 12}
-                opacity={0}
-            />
-
-            {/* soft tail — fill only, slightly overlapping the bubble's
-                left stroke so the seam disappears. radius={6} smooths the
-                three outer corners. */}
-            <Line
-                ref={tailRef}
-                closed
+                data={BUBBLE_PATH}
                 fill={BUBBLE_FILL}
-                radius={6}
-                points={[
-                    [TAIL_ATTACH_X,            TAIL_TOP_Y],
-                    [TAIL_ATTACH_X - 6,        TAIL_TOP_Y + 8],
-                    [TAIL_ATTACH_X - TAIL_W,   TAIL_TOP_Y + 18],
-                    [TAIL_ATTACH_X - 4,        TAIL_BOT_Y],
-                    [TAIL_ATTACH_X,            TAIL_BOT_Y],
-                ]}
+                stroke={BUBBLE_STROKE}
+                lineWidth={1}
+                x={BUBBLE_X_REL} y={BUBBLE_Y_REL + 12}
                 opacity={0}
             />
 
@@ -225,7 +226,6 @@ export default makeScene2D(function* (view) {
     yield* all(
         bubbleRef().opacity(1, 0.5, easeOutCubic),
         bubbleRef().y(BUBBLE_Y_REL, 0.5, easeOutCubic),
-        tailRef().opacity(1, 0.5, easeOutCubic),
         paymentRef().opacity(1, 0.5, easeOutCubic),
         paymentRef().y(BUBBLE_Y_REL - 22, 0.5, easeOutCubic),
     );
