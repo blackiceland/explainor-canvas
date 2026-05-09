@@ -51,22 +51,32 @@ const INK    = '#2A2418';
 const HERO   = '#39593F';
 const GREEN  = '#1A4D2A';
 const BROWN  = '#5B3813';
+// Third color in the editorial 4-tone code system: muted olive-brown
+// for scenario LITERALS — string values like "cart_reminder" and any
+// uppercase domain constants (URGENT, MARKETING). Distinct from BROWN
+// (keywords) and GREEN (types).
+const LITERAL = '#7A5828';
 const QUIET  = '#7B7160';
 const MASS   = '#1B150A';
 const SKEL   = 'rgba(60, 48, 22, 0.32)';
 const DIM_OP = 0.22;
 
+// Editorial 4-tone code coloring per design spec:
+//   • INK     — default (method names, calls, variables, punctuation)
+//   • BROWN   — language grammar keywords (via RULES: fun, val, return)
+//   • GREEN   — types and domain entities (User, Cart, …)
+//   • LITERAL — string literals + uppercase scenario constants
 const THEME: SyntaxTheme = {
     keyword:     INK,
     type:        GREEN,
-    string:      INK,
+    string:      LITERAL,
     number:      INK,
     operator:    INK,
     punctuation: INK,
     method:      INK,
     comment:     QUIET,
     annotation:  INK,
-    constant:    BROWN,
+    constant:    LITERAL,
     plain:       INK,
 };
 
@@ -74,16 +84,20 @@ const THEME: SyntaxTheme = {
 // linenHero canon — declaration keyword stands out, body keywords
 // like val/return/if stay neutral so the eye lands on intent, not
 // noise). Types still take green.
-// Minimal coloring per design pass: fun + return get the brown accent
-// (declaration / return pivots), types take green, everything else
-// stays neutral INK so the code reads as editorial specimen, not IDE.
+// Editorial coloring: language keywords → BROWN (fun/val are Kotlin-
+// only so the Java tokenizer needs explicit rules; return is also
+// pinned for safety). Built-in and domain types → GREEN. Everything
+// else inherits the THEME defaults (INK / LITERAL / QUIET).
 const RULES: ColorRule[] = [
     {match: /^fun$/,          color: BROWN},
+    {match: /^val$/,          color: BROWN},
     {match: /^return$/,       color: BROWN},
     {match: /^User$/,         color: GREEN},
     {match: /^Cart$/,         color: GREEN},
     {match: /^LoginCode$/,    color: GREEN},
     {match: /^SendResult$/,   color: GREEN},
+    {match: /^Any$/,          color: GREEN},
+    {match: /^String$/,       color: GREEN},
 ];
 
 const FLAT_CARD = {
