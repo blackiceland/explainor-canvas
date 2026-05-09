@@ -72,6 +72,7 @@ import expTreeLimboV3Scene from "./scenes/expTreeLimboV3Scene?scene";
 import expTreeLimboV4Scene from "./scenes/expTreeLimboV4Scene?scene";
 import expTreeAssetScene from "./scenes/expTreeAssetScene?scene";
 import expTreeTracedScene from "./scenes/expTreeTracedScene?scene";
+import expTreeRevealScene from "./scenes/expTreeRevealScene?scene";
 
 export default makeProject({
     experimentalFeatures: true,
@@ -177,7 +178,8 @@ export default makeProject({
         // expTreeLimboV3Scene,
         // expTreeLimboV4Scene,
         // expTreeTracedScene,
-        expTreeAssetScene,
+        // expTreeAssetScene,
+        expTreeRevealScene,
 
     ]
 })
