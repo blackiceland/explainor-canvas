@@ -249,6 +249,7 @@ export default makeScene2D(function* (view) {
     yield* waitFor(0.4);
     yield* question().opacity(1, 0.6);
 
-    // Hold so preview captures land on the post-morph beat.
-    yield* waitFor(30);
+    // Hold briefly so the post-morph beat is readable, then yield the
+    // playhead to the next scene in the project.
+    yield* waitFor(0.6);
 });

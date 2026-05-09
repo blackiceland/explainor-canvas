@@ -170,7 +170,7 @@ export default makeProject({
         //04
 
 
-        // chapter1YudanSceneEn,
+        chapter1YudanSceneEn,
         // expTreeSumieScene,
         // expTreeProctreeScene,
         // expTreeLimboScene,
@@ -179,7 +179,7 @@ export default makeProject({
         // expTreeLimboV4Scene,
         // expTreeTracedScene,
         // expTreeAssetScene,
-        expTreeRevealScene,
+        // expTreeRevealScene,
 
     ]
 })
