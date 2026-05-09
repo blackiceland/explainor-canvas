@@ -174,8 +174,8 @@ export default makeProject({
 
 
         // flowStepIntroScene,
-         whatsappCodePairSceneEn,
-         chapter1YudanSceneEn,
+        whatsappCodePairSceneEn,
+        chapter1YudanSceneEn,
         // expTreeSumieScene,
         // expTreeProctreeScene,
         // expTreeLimboScene,

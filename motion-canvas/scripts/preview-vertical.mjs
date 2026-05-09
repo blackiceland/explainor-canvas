@@ -14,12 +14,12 @@ const beatTimes = [
     ['06-bars-init',     SCENE_OFFSET + 14.0],
     ['07-silhouette',    SCENE_OFFSET + 15.5],
     ['08-figures',       SCENE_OFFSET + 18.0],
-    ['09-labels',        SCENE_OFFSET + 21.0],
-    ['10-converge',      SCENE_OFFSET + 24.0],
-    ['11-rev-silh',      SCENE_OFFSET + 25.5],
-    ['12-rev-bars',      SCENE_OFFSET + 27.0],
-    ['13-merged-text',   SCENE_OFFSET + 30.0],
-    ['14-mantra',        SCENE_OFFSET + 35.0],
+    ['09-labels-hold',   SCENE_OFFSET + 21.0],
+    ['10-converge',      SCENE_OFFSET + 23.0],
+    ['11-rev-silh',      SCENE_OFFSET + 24.0],
+    ['12-rev-expand',    SCENE_OFFSET + 24.5],
+    ['13-merged-text',   SCENE_OFFSET + 26.0],
+    ['14-mantra',        SCENE_OFFSET + 32.0],
 ];
 
 async function ensureDir() {

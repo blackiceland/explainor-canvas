@@ -177,7 +177,7 @@ function strokeShape(
     const tlen = Math.max(0.0001, Math.sqrt(tx*tx + ty*ty));
     const nx = -ty / tlen;
     const ny =  tx / tlen;
-    const tipFactor = isTip ? 0.0 : 0.40;
+    const tipFactor = isTip ? 0.0 : 0.88;
     let pressure;
     if (t < 0.10) {
       const u_ = t / 0.10;
@@ -808,7 +808,11 @@ export default makeScene2D(function* (view) {
   // ═══════════════════════════════════════════════════════════════════════
   const SCALE_2A = 2.4;
   codeRoot().scale(SCALE_2A);
-  codeRoot().x(-BOOLEAN_CENTER * SCALE_2A);
+  // Empirical nudge — textWidth slightly under-estimates JetBrains Mono's
+  // rendered glyph spacing, so Boolean drifts ~70 world-px right of center
+  // without this correction.
+  codeRoot().x(-BOOLEAN_CENTER * SCALE_2A - 70);
+  codeRoot().y(0);
 
   yield* codeRoot().opacity(1, 0.7, easeOutCubic);
   yield* waitFor(1.0);
@@ -925,10 +929,12 @@ export default makeScene2D(function* (view) {
     treeGroup().y(TREE_Y_FINAL, INV_DUR, easeInOutCubic),
     treeGroup().scale(TREE_SCALE_FINAL, INV_DUR, easeInOutCubic),
 
-    // Big tree fades in throughout the move — never hanging in the air.
+    // Backdrop branches start drawing IMMEDIATELY with the camera move
+    // so the beat-1 sub-tree never floats alone — it stays attached to
+    // the trunk that's already faintly there, then resolves to full.
     chain(
-      restGroup().opacity(0.35, INV_DUR * 0.5, easeInOutCubic),
-      restGroup().opacity(1.0, INV_DUR * 0.5, easeInOutCubic),
+      restGroup().opacity(0.45, INV_DUR * 0.35, easeInOutCubic),
+      restGroup().opacity(1.0, INV_DUR * 0.65, easeInOutCubic),
     ),
 
     // fun save fades out smoothly across the move — no new booleans, no
@@ -955,9 +961,9 @@ export default makeScene2D(function* (view) {
     ),
   );
 
-  // Brief breath, then straight into the chapter title — no held
-  // freeze-frame with motionless snow.
-  yield* waitFor(0.4);
+  // Hold the wide composition for a couple of seconds before the
+  // chapter title takes over.
+  yield* waitFor(2.4);
 
   // ═══════════════════════════════════════════════════════════════════════
   // PHASE 3 — chapter title YŪDAN.

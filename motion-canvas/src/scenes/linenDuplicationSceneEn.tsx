@@ -744,17 +744,24 @@ export default makeScene2D(function* (view) {
     yield* waitFor(0.3);
 
     // ════════════════════════════════════════════════════════════════
-    //  Beat 7 — FIGURE → BARS → CODE (3-step reverse)
+    //  Beat 7 — FIGURE → BARS → CODE (4-step morph with silhouette)
     //
-    //  Phase A — spawn paper-band bars at the merged-code's real line
-    //  positions and widths (skeleton of the upcoming text).
+    //  Phase A — spawn bars at the merged-code's row y positions but
+    //  with INITIAL widths = the figure's outline at each bar's y.
+    //  Bars are centred at x=0 (the figure's centre). Bars whose y
+    //  lies outside the figure start at width=0.
     //
-    //  Phase B — cross-fade: figures dissolve while the bar skeleton
-    //  appears in their place. Bars at full code-line widths from the
-    //  start, so the read is "the merged form unfolds into rows".
+    //  Phase B — cross-fade figures → bars at silhouette widths. The
+    //  visible bars trace the figure's outline at the merged-code's
+    //  line levels. Reads as "the figure decomposed into rows".
     //
-    //  Phase C — bar skeleton cross-fades into the actual merged code
-    //  text. Bars and text share the same y rhythm → seamless swap.
+    //  Phase C — bars EXPAND: widths animate to the merged-code's
+    //  real line widths, x slides to the left-aligned text positions,
+    //  fill shifts from MASS to SKEL paper-band. Bars outside the
+    //  figure outline grow from 0 to their target — the code skeleton
+    //  "fills in" beyond the figure.
+    //
+    //  Phase D — bars cross-fade into the actual merged code text.
     // ════════════════════════════════════════════════════════════════
     const MERGED_LH = 50;
     const MERGED_TOTAL_LINES = 11;
@@ -769,8 +776,9 @@ export default makeScene2D(function* (view) {
     const mergedContentLeft = -464;
     const N_REV_BARS = mergedWidths.length;
 
-    // Phase A — spawn the bar skeleton at full widths and final
-    // positions, opacity 0.
+    // Phase A — spawn bars at silhouette widths (centred at x=0). Use
+    // marketingBlob outline as the converged-figure silhouette.
+    const blobPts = marketingBlobPoints();
     const revBarsNode = createRef<Node>();
     const revBarRefs: Reference<Rect>[] = [];
 
@@ -779,22 +787,23 @@ export default makeScene2D(function* (view) {
             const ref = createRef<Rect>();
             revBarRefs.push(ref);
             const barY = MERGED_TOP + mergedLineIndices[i] * MERGED_LH;
-            const targetX = mergedContentLeft + mergedIndents[i] + mergedWidths[i] / 2;
+            const initialW = widthAtY(blobPts, barY);
             return (
                 <Rect
                     ref={ref}
-                    width={mergedWidths[i]}
+                    width={initialW}
                     height={12}
                     radius={4}
-                    fill={SKEL}
-                    x={targetX}
+                    fill={MASS}
+                    x={0}
                     y={barY}
                 />
             );
         })}
     </Node>);
 
-    // Phase B — cross-fade figures → bars at full size (no shrink).
+    // Phase B — figures dissolve while silhouette bars appear at the
+    // figure's outline at the code-row levels.
     yield* all(
         marketingShape().opacity(0, 0.55, easeInCubic),
         securityShape().opacity(0, 0.55, easeInCubic),
@@ -802,9 +811,21 @@ export default makeScene2D(function* (view) {
     );
     marketingShape().remove();
     securityShape().remove();
-    yield* waitFor(0.4);
+    yield* waitFor(0.3);
 
-    // Phase C — bar skeleton cross-fades into the merged code text.
+    // Phase C — bars expand into the full merged-code skeleton.
+    const expandOps: ThreadGenerator[] = [];
+    for (let i = 0; i < N_REV_BARS; i++) {
+        const b = revBarRefs[i];
+        const targetX = mergedContentLeft + mergedIndents[i] + mergedWidths[i] / 2;
+        expandOps.push(b().width(mergedWidths[i], 0.6, easeInOutCubic));
+        expandOps.push(b().x(targetX, 0.6, easeInOutCubic));
+        expandOps.push(b().fill(SKEL, 0.6, easeInOutCubic));
+    }
+    yield* all(...expandOps);
+    yield* waitFor(0.25);
+
+    // Phase D — bars cross-fade into the merged code text.
     const merged = makeBlock({
         code: CODE_MERGED, y: 0,
         fontSize: 30, lineHeight: MERGED_LH,
