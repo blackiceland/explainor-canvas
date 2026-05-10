@@ -1,0 +1,150 @@
+Да. Тогда делай **простую универсальную систему из 3 ролей**. Без ручной семантики под каждый кадр.
+
+### Финальное правило покраски
+
+**1. Всё по умолчанию — ink**
+
+```text
+#2A2418
+```
+
+Имена переменных, вызовы методов, операторы, скобки, точки, запятые.
+
+То есть:
+
+```ts
+render
+send
+track
+user
+cart
+message
+delivery
+```
+
+обычно **не красим**.
+
+---
+
+**2. Keywords — тёмно-коричневый**
+
+```text
+#6B3F24
+```
+
+Только язык:
+
+```ts
+function
+const
+return
+if
+else
+await
+async
+```
+
+Это даёт коду структуру, но не превращает его в IDE.
+
+---
+
+**3. Domain tokens — тёмно-зелёный**
+
+```text
+#2F5A3E
+```
+
+Только смысловые имена:
+
+```ts
+sendCartReminder
+sendLoginCode
+"cart.reminder"
+"login.code"
+User
+Cart
+LoginCode
+SendResult
+```
+
+То есть зелёный = **домен / сценарий / сущность**.
+
+---
+
+### Главное ограничение
+
+**Вызовы методов не красить.**
+
+```ts
+render(...)
+send(...)
+track(...)
+```
+
+Они остаются ink, потому что это общая механика. Иначе код снова станет IDE-пёстрым.
+
+Красить можно:
+
+```ts
+function sendCartReminder(...)
+```
+
+но только имя в определении функции, не каждый вызов.
+
+---
+
+### Как будет выглядеть логика
+
+```ts
+function sendCartReminder(user, cart) {
+    const message = render("cart.reminder", cart)
+    const delivery = send(user.phone, message)
+
+    track(user, message, delivery)
+
+    return delivery
+}
+```
+
+Коричневый:
+
+```ts
+function
+const
+return
+```
+
+Зелёный:
+
+```ts
+sendCartReminder
+"cart.reminder"
+```
+
+Ink:
+
+```ts
+user
+cart
+message
+delivery
+render
+send
+track
+```
+
+---
+
+### Правило для производства
+
+Никакой сложной ручной покраски. Всего три класса:
+
+```text
+keyword → brown
+domain → green
+default → ink
+```
+
+Если токен неочевидно доменный — не красить.
+
+Лучше недокрасить, чем получить IDE-радугу.

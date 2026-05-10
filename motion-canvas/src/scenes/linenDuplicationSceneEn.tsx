@@ -48,15 +48,13 @@ const VIEW_W = 1080;
 const VIEW_H = 1920;
 
 // ── Linen palette ────────────────────────────────────────────────────
-const INK    = '#2A2418';
+// Three roles, three colours. INK is ~9 % darker than the canonical
+// #2A2418 and tokens are rendered at fontWeight 500 (medium) — the
+// pair gives the body enough weight on linen without going semibold.
+const INK    = '#251F14'; // default — variables, calls, punctuation
+const BROWN  = '#6B3F24'; // keywords (function/const/return/if/else/…)
+const GREEN  = '#2F5A3E'; // domain — function defs, string keys, types
 const HERO   = '#39593F';
-const GREEN  = '#1A4D2A';
-const BROWN  = '#5B3813';
-// Third color in the editorial 4-tone code system: muted olive-brown
-// for scenario LITERALS — string values like "cart_reminder" and any
-// uppercase domain constants (URGENT, MARKETING). Distinct from BROWN
-// (keywords) and GREEN (types).
-const LITERAL = '#7A5828';
 const QUIET  = '#7B7160';
 const MASS   = '#1B150A';
 const SKEL   = 'rgba(60, 48, 22, 0.32)';
@@ -67,37 +65,35 @@ const DIM_OP = 0.22;
 // committing to a wider card or losing the optical centre.
 const CODE_X = 20;
 
-// Editorial 4-tone code coloring:
-//   • INK     — default (variables, punctuation, operators)
-//   • BROWN   — language grammar keywords (function/const/return)
-//   • GREEN   — method/function names (definitions and calls)
-//   • LITERAL — string literals + uppercase scenario constants
-// Method-typed tokens (anything followed by `(`) all take GREEN, so
-// both `sendCartReminder` (definition) and `render`, `send`, `record`
-// (calls) read as the meaningful actions. The 4-tone system stays
-// quiet — three subtle deviations from INK, never garish.
+// Three-role code system. Strict rule:
+//   • Default    → INK   (variables, calls like render/send/track,
+//                          punctuation, operators, brackets, dots).
+//   • Keywords   → BROWN (function/const/return/if/else/await/async/…).
+//   • Domain     → GREEN (function DEFINITION names, string keys,
+//                          domain types: sendCartReminder,
+//                          "cart.reminder", User, Cart, …).
+//
+// Method CALLS stay INK. Only the function in `function X(...)` gets
+// the green domain accent — call sites of generic ops do not.
+// "If a token isn't obviously domain — don't paint it. Better
+// undercolour than IDE-rainbow."
 const THEME: SyntaxTheme = {
     keyword:     INK,
     type:        GREEN,
-    string:      LITERAL,
+    string:      GREEN,
     number:      INK,
     operator:    INK,
     punctuation: INK,
-    method:      GREEN,
+    method:      INK,
     comment:     QUIET,
     annotation:  INK,
-    constant:    LITERAL,
+    constant:    GREEN,
     plain:       INK,
 };
 
-// Editorial coloring for TypeScript: language keywords → BROWN
-// (`function`, `const`, `return` aren't in the Java tokenizer's
-// keyword set, so they need explicit rules). Method-name tokens
-// (definitions + calls) pick up GREEN via THEME.method.
 const RULES: ColorRule[] = [
-    {match: /^function$/, color: BROWN},
-    {match: /^const$/,    color: BROWN},
-    {match: /^return$/,   color: BROWN},
+    {match: /^(function|const|let|var|return|if|else|await|async|throw|new|export|import|class|interface|enum)$/, color: BROWN},
+    {match: /^(sendCartReminder|sendLoginCode|sendMessage)$/, color: GREEN},
 ];
 
 const FLAT_CARD = {
@@ -113,38 +109,31 @@ const FLAT_CARD = {
 } as const;
 
 // ── Code blocks ──────────────────────────────────────────────────────
-// TypeScript variants — no type annotations, no namespaced services
-// (render / send / record are flat free functions). Tighter signatures
-// keep the composition airy at a larger fontSize. Body has empty rows
-// around `record(...)` so the eye reads each operation as a discrete
-// step. 8 rows total per method (signature + 5 body rows + closing).
+// TypeScript specimens — no type annotations, no namespaced services.
+// Three statements run as one tight body block, then a single empty
+// row separates body from `return`. 7 rows total per method — same
+// line layout for cart/login/merged so the reverse-bar mechanic uses
+// the same indices and the structural rhyme reads instantly.
 const CODE_CART_V1 = `function sendCartReminder(user, cart) {
     const message = render("cart.reminder", cart)
     const delivery = send(user.phone, message)
-
-    record(user, message, delivery)
+    track(user, message, delivery)
 
     return delivery
 }`;
 
 const CODE_LOGIN_V1 = `function sendLoginCode(user, code) {
-    const message = render("auth.loginCode", code)
+    const message = render("login.code", code)
     const delivery = send(user.phone, message)
-
-    record(user, message, delivery)
+    track(user, message, delivery)
 
     return delivery
 }`;
 
-// Merged code: single-line signature (TS makes that fit in ~47 ch),
-// same body shape as the duplicated methods so the structural rhyme
-// reads instantly. 8 rows total — same line layout as cart/login,
-// which lets the reverse-bar mechanic share line indices.
 const CODE_MERGED = `function sendMessage(user, template, payload) {
     const message = render(template, payload)
     const delivery = send(user.phone, message)
-
-    record(user, message, delivery)
+    track(user, message, delivery)
 
     return delivery
 }`;
@@ -284,46 +273,26 @@ function silhouetteBars(
     return bands;
 }
 
-// ══════════════════════════════════════════════════════════════════════
-// Ink Resolve — the canon code-reveal animation for this reel.
-//
-//   Phase 1  resolve    every line fades 0 → 100% in one slow wave;
-//                       container slides y +6 → 0 alongside.
-//   Phase 2  ink in     BROWN/GREEN syntax colors fade over the
-//                       now-readable code via colorizeAnimated.
-//
-// No per-line stagger, no ghost layer — the whole block resolves
-// like a paper impression coming into focus, then the meaningful
-// colors settle. Reads as "a thought becoming legible", not as
-// typewriter or staggered group reveal.
-// ──────────────────────────────────────────────────────────────────────
-function* inkResolve(
-    block: Manticore,
-    rules: ColorRule[],
-): ThreadGenerator {
-    const node = block.node;
-    const startY = node.y();
-
-    node.opacity(1);
-    node.y(startY + 6);
+// JetBrains Mono is true monospace, so advance widths are identical
+// across weights — bumping every token's fontWeight to 500 (medium)
+// after layout doesn't shift any glyph's x position. The result is
+// thicker strokes that hold their weight on the linen ground.
+function bumpWeight(block: Manticore, weight: number): void {
     for (let i = 0; i < block.lineCount; i++) {
         const line = block.getLine(i);
-        if (line) line.node.opacity(0);
+        if (!line) continue;
+        for (const tokenData of line.tokens) {
+            tokenData.ref().fontWeight(weight);
+        }
     }
-
-    // Phase 1 — every line fades 0 → 100% together, container slides
-    // y +6 → 0. Single smooth wave, slow ease-out for a soft landing.
-    const resolveAnims: ThreadGenerator[] = [];
-    for (let i = 0; i < block.lineCount; i++) {
-        const line = block.getLine(i);
-        if (line) resolveAnims.push(line.node.opacity(1, 0.85, easeOutCubic));
-    }
-    resolveAnims.push(node.y(startY, 0.85, easeOutCubic));
-    yield* all(...resolveAnims);
-
-    // Phase 2 — syntax colors fade in over the now-readable code.
-    yield* block.colorizeAnimated(0, block.lineCount - 1, 0.32, rules);
 }
+
+// ══════════════════════════════════════════════════════════════════════
+// Code reveal — quick parallel fade. This is a reel format; the
+// appearance must land in <½ s, not in a multi-phase morph.
+// Manticore.appear() animates container opacity 0 → 1; both blocks
+// are colorized BEFORE the call so they fade in already inked.
+// ──────────────────────────────────────────────────────────────────────
 
 // ══════════════════════════════════════════════════════════════════════
 // Manticore factory.
@@ -467,8 +436,12 @@ function* awaitFontsReady(): ThreadGenerator {
     if (typeof document === 'undefined') return;
     try {
         document.fonts.load(`400 28px "JetBrains Mono"`);
+        document.fonts.load(`500 28px "JetBrains Mono"`);
+        document.fonts.load(`600 28px "JetBrains Mono"`);
         document.fonts.load(`700 28px "JetBrains Mono"`);
         document.fonts.load(`400 30px "JetBrains Mono"`);
+        document.fonts.load(`500 30px "JetBrains Mono"`);
+        document.fonts.load(`600 30px "JetBrains Mono"`);
         document.fonts.load(`700 30px "JetBrains Mono"`);
         document.fonts.load(`400 26px "JetBrains Mono"`);
         document.fonts.load(`400 120px "Newsreader"`);
@@ -536,63 +509,82 @@ export default makeScene2D(function* (view) {
     const HERO_LH  = 88;
     const HERO_SZ  = 72;
 
+    const heroL1 = createRef<Txt>();
+    const heroL2 = createRef<Txt>();
+    const heroL3 = createRef<Txt>();
     view.add(<Node ref={hero}>
         <Txt
+            ref={heroL1}
             text="Code duplication"
             fontFamily={F_SERIF} fontSize={HERO_SZ} fontWeight={400}
             fill={HERO} y={HERO_TOP} textAlign="center"
+            opacity={0}
         />
         <Txt
+            ref={heroL2}
             text="isn't always"
             fontFamily={F_SERIF} fontSize={HERO_SZ} fontWeight={400}
             fill={HERO} y={HERO_TOP + HERO_LH} textAlign="center"
+            opacity={0}
         />
         <Txt
+            ref={heroL3}
             text="bad."
-            fontFamily={F_SERIF} fontSize={HERO_SZ} fontWeight={400}
+            fontFamily={F_SERIF} fontSize={108} fontWeight={400}
             fontStyle="italic" fill={HERO}
-            y={HERO_TOP + HERO_LH * 2} textAlign="center"
+            y={HERO_TOP + HERO_LH * 2 + 14} textAlign="center"
+            opacity={0}
         />
     </Node>);
 
-    // TS variants are shorter than the Kotlin originals — the
-    // composition can carry a bigger fontSize without crowding.
-    // fontSize=30 lh=50 width=1100. Layout: cart at y=-190, login at
-    // y=+275 → ~115 px gap between blocks (was 90), and code drops
-    // ~30 px below the hero so the heading has more breathing room.
-    // x=CODE_X (=20) lifts the leftmost char off the linen edge.
-    const cart  = makeBlock({code: CODE_CART_V1,  x: CODE_X, y: -190, fontSize: 30, lineHeight: 50, width: 1100});
-    const login = makeBlock({code: CODE_LOGIN_V1, x: CODE_X, y: +275, fontSize: 30, lineHeight: 50, width: 1100});
+    // 7-row TS specimens. Layout: cart at y=-140, login at y=+280.
+    // Gap from hero italic bottom (≈ -456) to cart's first visible
+    // glyph (≈ -305) lands around ~150 px — substantial breathing
+    // room from the heading. Inter-block gap ~110 px.
+    const cart  = makeBlock({code: CODE_CART_V1,  x: CODE_X, y: -140, fontSize: 30, lineHeight: 50, width: 1100});
+    const login = makeBlock({code: CODE_LOGIN_V1, x: CODE_X, y: +280, fontSize: 30, lineHeight: 50, width: 1100});
     cart.mount(view);
     login.mount(view);
-    // NB: no colorize(RULES) here — Ink Resolve's Phase 2 fades the
-    // BROWN/GREEN tones in *after* the lines have resolved on paper.
+    bumpWeight(cart, 500);
+    bumpWeight(login, 500);
+    // Colors applied immediately so the bar→code morph reveals the
+    // already-inked text in one move (no all-black intermediate).
+    cart.colorize(RULES);
+    login.colorize(RULES);
 
-    // Editorial subtitle — green italic serif sitting below the code
-    // block. Text changes per highlight beat (placeholder copy for
-    // now). y=620 keeps it ~170 px below login's bottom edge and
-    // ~200 px above ISSUE 02. Mirrors the hero's italic accent so it
-    // reads as the same editorial voice, just smaller.
+    // Voiceover-mode subtitle — neutral mono, not italic serif, so
+    // it reads as a supportive caption next to narration rather than
+    // as a competing editorial line. fontSize 32 keeps it legible
+    // below the code without crowding ISSUE 02.
     const subtitle = createRef<Txt>();
     view.add(<Txt
         ref={subtitle}
         text=""
-        fontFamily={F_SERIF} fontSize={36}
-        fontStyle="italic" fontWeight={400}
+        fontFamily={F_MONO} fontSize={32} fontWeight={400}
         fill={HERO}
-        x={CODE_X} y={620}
+        x={CODE_X} y={680}
         textAlign="center"
         opacity={0}
     />);
 
-    // Ink Resolve sequential reveal — cart first, short pause, login
-    // as a rhythmic echo. Same cadence both times so the read is
-    // "same shape, different meaning" structurally.
-    yield* inkResolve(cart, RULES);
-    yield* waitFor(0.25);
-    yield* inkResolve(login, RULES);
+    // Hero appears one line at a time — sets up the editorial cadence
+    // before the code lands. "bad." gets a beat of breathing room
+    // because it's the punch.
+    yield* heroL1().opacity(1, 0.32, easeOutCubic);
+    yield* waitFor(0.16);
+    yield* heroL2().opacity(1, 0.32, easeOutCubic);
+    yield* waitFor(0.22);
+    yield* heroL3().opacity(1, 0.45, easeOutCubic);
+    yield* waitFor(0.4);
 
-    // First subtitle line fades in once both blocks have resolved.
+    // Code reveal — both methods fade in together. Quick reel-format
+    // appearance, no multi-phase morph. Already inked via colorize().
+    yield* all(
+        cart.appear(0.4),
+        login.appear(0.4),
+    );
+
+    // First subtitle line fades in once both specimens have resolved.
     subtitle().text('two functions');
     yield* subtitle().opacity(1, 0.5, easeOutCubic);
     yield* waitFor(1.4);
@@ -614,11 +606,11 @@ export default makeScene2D(function* (view) {
     //  render → send → record.
     // ════════════════════════════════════════════════════════════════
     const lh_methods = 50;
-    const lineCount_methods = 8;
-    const startRel_methods = -((lineCount_methods - 1) / 2) * lh_methods; // -175
+    const lineCount_methods = 7;
+    const startRel_methods = -((lineCount_methods - 1) / 2) * lh_methods; // -150
     const lineYRel = (i: number) => startRel_methods + i * lh_methods;
-    const cartCenterYBeat3 = -190;
-    const loginCenterYBeat3 = +275;
+    const cartCenterYBeat3 = -140;
+    const loginCenterYBeat3 = +280;
 
     // Crystal — vertically elongated rhombus, solid HERO fill. Sits
     // to the LEFT of the highlighted body line. With CODE_X=20, body
@@ -628,14 +620,12 @@ export default makeScene2D(function* (view) {
     const loginCrystal = createRef<Line>();
     const CRYSTAL_X = -465;
 
-    // Highlights walk through every duplicate body operation, including
-    // the return statement. 8-row layout: L0 sig, L1 message=render,
-    // L2 delivery=send, L3 empty, L4 record(...), L5 empty, L6 return
-    // delivery, L7 closing brace.
+    // 7-row layout: L0 sig, L1 message=render, L2 delivery=send,
+    // L3 track, L4 empty, L5 return delivery, L6 closing brace.
     const RENDER_LINE = 1;
-    const SEND_LINE = 2;
-    const RECORD_LINE = 4;
-    const RETURN_LINE = 6;
+    const SEND_LINE   = 2;
+    const TRACK_LINE  = 3;
+    const RETURN_LINE = 5;
 
     view.add(<Line
         ref={cartCrystal}
@@ -688,12 +678,12 @@ export default makeScene2D(function* (view) {
     );
     yield* waitFor(0.7);
 
-    // RECORD highlight.
+    // TRACK highlight.
     yield* all(
-        highlightOnly([cart, login], RECORD_LINE, 0.4),
-        cartCrystal().y(cartCenterYBeat3 + lineYRel(RECORD_LINE), 0.4, easeInOutCubic),
-        loginCrystal().y(loginCenterYBeat3 + lineYRel(RECORD_LINE), 0.4, easeInOutCubic),
-        swapSubtitle('record the delivery'),
+        highlightOnly([cart, login], TRACK_LINE, 0.4),
+        cartCrystal().y(cartCenterYBeat3 + lineYRel(TRACK_LINE), 0.4, easeInOutCubic),
+        loginCrystal().y(loginCenterYBeat3 + lineYRel(TRACK_LINE), 0.4, easeInOutCubic),
+        swapSubtitle('track the delivery'),
     );
     yield* waitFor(0.7);
 
@@ -707,6 +697,8 @@ export default makeScene2D(function* (view) {
     yield* waitFor(0.75);
 
     // Restore + crystals fade + subtitle exits before the merge mech.
+    // All editorial scaffolding leaves the stage so the bars→figure
+    // morph plays in clean linen.
     yield* all(
         cart.showAllLines(0.4),
         login.showAllLines(0.4),
@@ -732,12 +724,12 @@ export default makeScene2D(function* (view) {
     //  login → SECURITY hex    (angular, strict)
     // ════════════════════════════════════════════════════════════════
 
-    const lineCount = 8;
+    const lineCount = 7;
     const lh = 50;
-    // Bars at body operation rows: L1 (render), L2 (send), L4
-    // (record), L6 (return). L0 signature, empty L3/L5 and L7 closing
+    // Bars at body operation rows: L1 (render), L2 (send), L3
+    // (track), L5 (return). L0 signature, empty L4 and L6 closing
     // brace are skipped — bars mark body operations only.
-    const cartLineIndices = [1, 2, 4, 6];
+    const cartLineIndices = [1, 2, 3, 5];
     // Manticore card: width 1100, paddingX = 56, x-shifted by CODE_X.
     // contentLeft = -1100/2 + 56 + CODE_X = -474.
     const contentLeft = -1100 / 2 + 56 + CODE_X;
@@ -754,8 +746,8 @@ export default makeScene2D(function* (view) {
     const cartIndents = cartRowSpec.map(r => r.indentPx);
     const loginIndents = loginRowSpec.map(r => r.indentPx);
 
-    const cartCenterY  = -190;
-    const loginCenterY =  275;
+    const cartCenterY  = -140;
+    const loginCenterY =  280;
     const barCount = cartLineIndices.length;
 
     // Bar y positions relative to each method's centre. With 6 rows
@@ -895,11 +887,11 @@ export default makeScene2D(function* (view) {
     //  Phase D — bars cross-fade into the actual merged code text.
     // ════════════════════════════════════════════════════════════════
     const MERGED_LH = 50;
-    const MERGED_TOTAL_LINES = 8;
-    const MERGED_TOP = -((MERGED_TOTAL_LINES - 1) / 2) * MERGED_LH; // -175
-    // Code rows: signature + message=render + delivery=send + record
-    // + return. Skip empty L3, L5 and closing-brace L7.
-    const mergedLineIndices = [0, 1, 2, 4, 6];
+    const MERGED_TOTAL_LINES = 7;
+    const MERGED_TOP = -((MERGED_TOTAL_LINES - 1) / 2) * MERGED_LH; // -150
+    // Code rows: signature + message=render + delivery=send + track
+    // + return. Skip empty L4 and closing-brace L6.
+    const mergedLineIndices = [0, 1, 2, 3, 5];
     // Card width=1100, paddingX=56, x-shifted by CODE_X.
     const mergedContentLeft = -1100 / 2 + 56 + CODE_X;
     // Measure each row through canvas measureText to match Manticore's
@@ -967,6 +959,7 @@ export default makeScene2D(function* (view) {
         width: 1100, noClip: true,
     });
     merged.mount(view);
+    bumpWeight(merged, 500);
     merged.colorize(RULES);
     merged.node.opacity(0);
 
