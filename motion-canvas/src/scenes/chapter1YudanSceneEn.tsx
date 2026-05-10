@@ -8,6 +8,7 @@ import {
   easeInOutCubic,
   easeOutCubic,
   linear,
+  spawn as runConcurrent,
   Vector2,
   waitFor,
 } from '@motion-canvas/core';
@@ -648,8 +649,11 @@ export default makeScene2D(function* (view) {
   // Stays at opacity 0 during BEAT 1; fades in during the camera move on
   // INVERSION so the world goes from clean dark void to LIMBO mood as the
   // tree's true scale is revealed.
+  // limboGroup is visible from scene t=0. Snow's motion AND visibility are
+  // both constant from the very first frame — there's no "field arriving"
+  // moment that the eye can mistake for snow accelerating.
   const limboGroup = createRef<Node>();
-  view.add(<Node ref={limboGroup} opacity={0} />);
+  view.add(<Node ref={limboGroup} opacity={1} />);
 
   for (const fog of [
     {x: -200, y: 200, r: 720, op: 0.10},
@@ -708,26 +712,39 @@ export default makeScene2D(function* (view) {
   const snowRand = mulberry32(137);
   for (let i = 0; i < 80; i++) {
     const startX = (snowRand() - 0.5) * SCREEN_W * 1.2;
-    const startY = SCREEN_H / 2 + 80 + snowRand() * 220;
-    const riseDist = -(SCREEN_H + 220 + snowRand() * 320);   // negative = upward
+    // Both endpoints CLEAR of the frame so the modulo wrap is invisible:
+    //   start at +740..+940 (well below)
+    //   end   at -740..-1100 (well above, since |riseDist| ≥ SCREEN_H + 740)
+    const startY = SCREEN_H / 2 + 200 + snowRand() * 200;
+    const riseDist = -(SCREEN_H + 740 + snowRand() * 360);
     const swayAmp = 18 + snowRand() * 36;
     const swayFreq = 1.2 + snowRand() * 1.8;
     const phase = snowRand() * Math.PI * 2;
-    const offset = snowRand();
+    // Per-flake delay before motion begins. Until snowTime crosses this
+    // threshold, the flake sits at startY (below frame, invisible). After
+    // that, it rises at constant speed, wrapping mod 1. This makes the
+    // snow population grow ORGANICALLY — flakes drift up from below the
+    // frame at staggered times — instead of the whole field popping into
+    // view at once at INVERSION start.
+    const startDelay = snowRand();
     const radius = 0.7 + snowRand() * 1.4;
     const op = 0.30 + snowRand() * 0.45;
     limboGroup().add(
       <Circle
         x={() => startX + Math.sin(phase + snowTime() * swayFreq * Math.PI * 2) * swayAmp}
-        // Looping rise: each flake's local progress wraps mod 1, so it
-        // teleports from off-frame top back to off-frame bottom unseen.
-        // Result — every flake keeps moving at the same constant speed,
-        // forever, regardless of how high snowTime gets.
-        y={() => startY + riseDist * (((snowTime() + offset) % 1 + 1) % 1)}
+        // Looping rise with delay: progress is clamped to 0 before
+        // startDelay, so the flake stays off-frame until its turn. After
+        // that, modulo wrap makes it teleport from off-frame top back to
+        // off-frame bottom unseen, cycling forever.
+        y={() => {
+          const eff = Math.max(0, snowTime() - startDelay);
+          const progress = ((eff % 1) + 1) % 1;
+          return startY + riseDist * progress;
+        }}
         width={radius * 2}
         height={radius * 2}
         fill={'rgba(244, 244, 250, 1.0)'}
-        opacity={() => op * Math.min(1, snowTime() * 1.6)}
+        opacity={op}
       />,
     );
   }
@@ -755,6 +772,16 @@ export default makeScene2D(function* (view) {
   // ── Code group ─────────────────────────────────────────────────────────
   const codeGroup = createRef<Node>();
   view.add(<Node ref={codeGroup} />);
+
+  // Snow advances at ONE constant rate from the very first frame of the
+  // scene, regardless of which narrative phase is on screen. limboGroup
+  // is invisible during BEAT 1, so the snow circulates off-stage; by the
+  // time the camera pulls back at INVERSION the field is ALREADY in
+  // steady state, so the user sees full snow motion appear with the
+  // visibility ramp — not snow that "wakes up" at the scene change. No
+  // velocity discontinuity, no density build-up coinciding with phase
+  // boundaries.
+  runConcurrent(snowTime(0.115 * 30, 30, linear));
 
   // ═══════════════════════════════════════════════════════════════════════
   // PHASE 1 — opening line in two beats, each centered.
@@ -975,15 +1002,11 @@ export default makeScene2D(function* (view) {
       inscriptionRef().opacity(1, INV_DUR * 0.32, easeInOutCubic),
     ),
 
-    // LIMBO atmosphere. Snow runs as ONE continuous animation across
-    // the move + hold (no two-stage hand-off, so no freeze on the
-    // boundary between the all() block and the subsequent yield).
-    limboGroup().opacity(1, INV_DUR, easeInOutCubic),
+    // LIMBO atmospherics — limboGroup is already at full opacity since
+    // scene start, so nothing ramps here. Only motes evolve their drift
+    // over the move; snow continues at the constant rate set by the
+    // master spawn().
     moteTime(1, INV_DUR, easeInOutCubic),
-    // Snow advances 0 → 0.78 over the move + hold; the remaining 0.22
-    // unfolds at the same speed during the chapter title for a couple
-    // of extra seconds of continuous flake motion.
-    snowTime(0.78, INV_DUR + 1.4, linear),
 
     // All big-tree labels appear together with the tree — no cascade,
     // no extra "branching" effect during the camera pull-back.
@@ -993,21 +1016,17 @@ export default makeScene2D(function* (view) {
     ),
   );
 
-  // Snow has already advanced through the +1.4s tail of the all() block
-  // — we go straight into PHASE 3 with no extra hold and no freeze.
-
   // ═══════════════════════════════════════════════════════════════════════
-  // PHASE 3 — chapter title YŪDAN. Snow keeps drifting at one constant
-  //           linear speed across every phase until limbo is fully gone
-  //           — no stop, no acceleration.
+  // PHASE 3 — chapter title YŪDAN. Snow keeps drifting at the same
+  //           constant rate set by the master spawn() — every phase
+  //           boundary here is a no-op for snow motion.
   // ═══════════════════════════════════════════════════════════════════════
   yield* all(
     treeGroup().opacity(0, 1.4, easeInOutCubic),
     inscriptionRef().opacity(0, 1.4, easeInOutCubic),
-    snowTime(0.94, 1.4, linear),
   );
-  // Brief gap before the title — snow keeps moving.
-  yield* snowTime(0.985, 0.4, linear);
+  // Brief gap before the title.
+  yield* waitFor(0.4);
 
   const chapterContainer = createRef<Node>();
   const chapterRef = createRef<Txt>();
@@ -1042,17 +1061,11 @@ export default makeScene2D(function* (view) {
     </Node>,
   );
 
-  yield* all(
-    chapterContainer().opacity(1, 1.0, easeInOutCubic),
-    snowTime(1.10, 1.0, linear),
-  );
-  // Title held — snow keeps drifting at the same speed, and limbo fades
-  // out simultaneously so motion + atmosphere die TOGETHER, not in two
-  // separate steps.
-  yield* all(
-    snowTime(1.40, 2.6, linear),
-    limboGroup().opacity(0, 2.6, easeInOutCubic),
-  );
+  yield* chapterContainer().opacity(1, 1.0, easeInOutCubic);
+  // Title held — snow keeps drifting at the same constant rate (driven
+  // by the master spawn), and limbo fades out simultaneously so motion +
+  // atmosphere die TOGETHER, not in two separate steps.
+  yield* limboGroup().opacity(0, 2.6, easeInOutCubic);
 
   yield* chapterContainer().opacity(0, 1.2, easeInOutCubic);
   yield* waitFor(0.3);

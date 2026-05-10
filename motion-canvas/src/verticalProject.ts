@@ -7,7 +7,7 @@ import linenDuplicationSceneEn from './scenes/linenDuplicationSceneEn?scene';
 export default makeProject({
     experimentalFeatures: true,
     scenes: [
-        // linenHeroTestSceneEn,
+        linenHeroTestSceneEn,
         linenDuplicationSceneEn,
     ],
 });

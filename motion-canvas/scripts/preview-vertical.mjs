@@ -4,22 +4,21 @@ import {writeFileSync} from 'fs';
 const URL = process.env.MC_URL || 'http://localhost:5173/src/verticalProject';
 const OUT = process.env.OUT_DIR || './scripts/preview-out';
 
-const SCENE_OFFSET = 9.0;
+const SCENE_OFFSET = 14.0;
 const beatTimes = [
-    ['01-hero-preview',  SCENE_OFFSET +  2.0],
-    ['02-zoom',          SCENE_OFFSET +  4.5],
-    ['03-zoomed',        SCENE_OFFSET +  6.5],
-    ['04-render',        SCENE_OFFSET +  9.0],
-    ['05-record',        SCENE_OFFSET + 12.5],
-    ['06-bars-init',     SCENE_OFFSET + 14.0],
-    ['07-silhouette',    SCENE_OFFSET + 15.5],
-    ['08-figures',       SCENE_OFFSET + 18.0],
-    ['09-labels-hold',   SCENE_OFFSET + 21.0],
-    ['10-converge',      SCENE_OFFSET + 23.0],
-    ['11-rev-silh',      SCENE_OFFSET + 24.0],
-    ['12-rev-expand',    SCENE_OFFSET + 24.5],
-    ['13-merged-text',   SCENE_OFFSET + 26.0],
-    ['14-mantra',        SCENE_OFFSET + 32.0],
+    ['01-cart-resolve',  SCENE_OFFSET +  0.4],
+    ['02-cart-done',     SCENE_OFFSET +  1.2],
+    ['03-both-static',   SCENE_OFFSET +  2.5],
+    ['04-render',        SCENE_OFFSET +  4.5],
+    ['05-send',          SCENE_OFFSET +  5.6],
+    ['06-record',        SCENE_OFFSET +  6.8],
+    ['07-return',        SCENE_OFFSET +  8.0],
+    ['08-bars-init',     SCENE_OFFSET +  9.5],
+    ['09-figures',       SCENE_OFFSET + 12.0],
+    ['10-labels',        SCENE_OFFSET + 14.5],
+    ['11-rev-expand',    SCENE_OFFSET + 18.5],
+    ['12-merged-text',   SCENE_OFFSET + 20.5],
+    ['13-mantra',        SCENE_OFFSET + 25.0],
 ];
 
 async function ensureDir() {
