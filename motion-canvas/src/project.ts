@@ -1,5 +1,7 @@
 import {makeProject} from '@motion-canvas/core';
+import booleanLeversSceneEn from "./scenes/booleanLeversSceneEn?scene";
 import chapter1YudanSceneEn from "./scenes/chapter1YudanSceneEn?scene";
+import messageDeliveryCodeSceneEn from "./scenes/messageDeliveryCodeSceneEn?scene";
 import whatsappCodePairSceneEn from "./scenes/whatsappCodePairSceneEn?scene";
 
 export default makeProject({
@@ -97,19 +99,9 @@ export default makeProject({
 
         //04
 
-
-        // flowStepIntroScene,
-        whatsappCodePairSceneEn,
-        chapter1YudanSceneEn,
-        // expTreeSumieScene,
-        // expTreeProctreeScene,
-        // expTreeLimboScene,
-        // expTreeLimboV2Scene,
-        // expTreeLimboV3Scene,
-        // expTreeLimboV4Scene,
-        // expTreeTracedScene,
-        // expTreeAssetScene,
-        // expTreeRevealScene,
+        // chapter1YudanSceneEn,
+         messageDeliveryCodeSceneEn,
+         whatsappCodePairSceneEn,
 
     ]
 })
