@@ -2,6 +2,12 @@ import {makeProject} from '@motion-canvas/core';
 import booleanLeversSceneEn from "./scenes/booleanLeversSceneEn?scene";
 import chapter1YudanSceneEn from "./scenes/chapter1YudanSceneEn?scene";
 import messageDeliveryCodeSceneEn from "./scenes/messageDeliveryCodeSceneEn?scene";
+import messageDeliveryOutcomesSceneEn from "./scenes/messageDeliveryOutcomesSceneEn?scene";
+import messageDeliverySelectionSceneEn from "./scenes/messageDeliverySelectionSceneEn?scene";
+import messageDeliverySkylineSceneEn from "./scenes/messageDeliverySkylineSceneEn?scene";
+import messageDeliveryTracesSceneEn from "./scenes/messageDeliveryTracesSceneEn?scene";
+import messageDeliveryTreeSceneEn from "./scenes/messageDeliveryTreeSceneEn?scene";
+import messageDeliveryTruthTableSceneEn from "./scenes/messageDeliveryTruthTableSceneEn?scene";
 import whatsappCodePairSceneEn from "./scenes/whatsappCodePairSceneEn?scene";
 
 export default makeProject({
@@ -100,6 +106,7 @@ export default makeProject({
         //04
 
         // chapter1YudanSceneEn,
+         messageDeliverySelectionSceneEn,
          messageDeliveryCodeSceneEn,
          whatsappCodePairSceneEn,
 
