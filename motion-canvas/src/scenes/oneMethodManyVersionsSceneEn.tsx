@@ -47,7 +47,6 @@ const COUNTER_X = 540;
 const COUNTER_Y = -200;
 const PARAM_LIST_X = 540;
 const PARAM_LIST_Y = 60;
-const FINAL_LABEL_Y = 340;
 
 const LABEL_BELOW_Y = CHILD_R + 30;  // labels sit strictly under each child circle
 
@@ -91,7 +90,6 @@ export default makeScene2D(function* (view) {
     createRef<Node>(),
     createRef<Node>(),
   ];
-  const finalLineRef = createRef<Node>();
 
   view.add(
     <Node x={COUNTER_X} y={COUNTER_Y}>
@@ -146,22 +144,6 @@ export default makeScene2D(function* (view) {
     );
   }
 
-  view.add(
-    <Node ref={finalLineRef} x={COUNTER_X} y={FINAL_LABEL_Y} opacity={0}>
-      <Txt
-        y={-22}
-        text={'3 boolean parameters'}
-        fontFamily={Fonts.primary}
-        fontSize={26}
-        fontWeight={400}
-        fill={TEXT_DIM}
-      />
-      <Txt y={22} fontFamily={Fonts.code} fontSize={36} fontWeight={600} fill={ACCENT}>
-        <Txt text={'2³ = 8'} />
-        <Txt text={'  hidden versions'} fontFamily={Fonts.primary} fontWeight={500} fontSize={28} fill={TEXT_DIM} />
-      </Txt>
-    </Node>,
-  );
 
   // ─────────────────────────────────────────────────────────────────────
   // RADAR — three rotating layers stacked in one Node:
@@ -174,16 +156,16 @@ export default makeScene2D(function* (view) {
   const radarNode    = createRef<Node>();
   const radarOpacity = createSignal(0);
 
-  const BEAM_LEN = RING_R + CHILD_R + 20;  // reaches past the outer edge of slot circles
+  const BEAM_LEN = RING_R + CHILD_R + 20;  // tip dissolves past the slot orbit
   const TAIL     = 56;                      // angular spread at the tip (pixels)
 
-  // Stack of overlapping Rays of decreasing length — each adds a thin
-  // sliver of alpha near the center, so the line is brightest at the
-  // root and quietly dissolves toward the tip without a defined end.
+  // Stack of overlapping Rays of decreasing length — every layer adds a
+  // sliver of alpha near the root, so the leading line is bright at the
+  // center and quietly dissolves toward the tip with no visible end.
   const RAY_LAYERS = 10;
   const rayStack: any[] = [];
   for (let i = 0; i < RAY_LAYERS; i++) {
-    const t = (i + 1) / RAY_LAYERS;       // 1/N … 1
+    const t = (i + 1) / RAY_LAYERS;
     rayStack.push(
       <Ray
         fromX={0}
@@ -205,20 +187,20 @@ export default makeScene2D(function* (view) {
       rotation={-90}
       opacity={radarOpacity}
     >
-      {/* Fading tail wedge — very faint cream */}
+      {/* Very faint cream wedge — ambient tail */}
       <Line
         points={[[0, 0], [BEAM_LEN, -TAIL], [BEAM_LEN, 0]]}
         closed
         fill={'rgba(244, 241, 235, 0.07)'}
       />
-      {/* Soft glow halo — narrower, blurred */}
+      {/* Soft blurred halo — narrower, glowy */}
       <Line
         points={[[0, 0], [BEAM_LEN, -TAIL * 0.55], [BEAM_LEN, 0]]}
         closed
         fill={'rgba(244, 241, 235, 0.18)'}
         filters={[blur(14)]}
       />
-      {/* Layered Rays — brightest at root, dissolving toward the tip */}
+      {/* Stacked Rays — bright at root, dissolving toward the tip */}
       {rayStack}
     </Node>,
   );
@@ -229,7 +211,7 @@ export default makeScene2D(function* (view) {
   // ─────────────────────────────────────────────────────────────────────
   const centerNode = createRef<Node>();
   view.add(
-    <Node ref={centerNode} x={RING_CX} y={RING_CY} scale={0} opacity={0}>
+    <Node ref={centerNode} x={RING_CX} y={RING_CY} opacity={0}>
       <Circle
         width={CENTER_R * 2}
         height={CENTER_R * 2}
@@ -332,11 +314,8 @@ export default makeScene2D(function* (view) {
   // TIMELINE — measured, slow reveals. Total ≈ 10s.
   // ─────────────────────────────────────────────────────────────────────
 
-  // 0.0 – 0.85s: center disk fades in. Counter sits at "0".
-  yield* all(
-    centerNode().scale(1, 0.85, easeInOutCubic),
-    centerNode().opacity(1, 0.85, easeInOutCubic),
-  );
+  // 0.0 – 1.0s: center disk quietly fades in. Counter sits at "0".
+  yield* centerNode().opacity(1, 1.0, easeInOutCubic);
 
   // 0.85 – 1.3s: radar comes alive at 12 o'clock.
   yield* radarOpacity(1, 0.45, easeInOutCubic);
@@ -360,9 +339,6 @@ export default makeScene2D(function* (view) {
   // 8.0 – 8.7s: radar quietly dissolves.
   yield* radarOpacity(0, 0.7, easeInOutCubic);
 
-  // 8.7 – 9.4s: final formula resolves.
-  yield* finalLineRef().opacity(1, 0.7, easeInOutCubic);
-
-  // 9.4 – 10s: hold.
-  yield* waitFor(0.6);
+  // 8.7 – 10s: hold on the constellation.
+  yield* waitFor(1.3);
 });
