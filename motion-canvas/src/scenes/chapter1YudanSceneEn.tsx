@@ -791,10 +791,11 @@ export default makeScene2D(function* (view) {
   const QUOTE_FONT = 60;
 
   const t1 = new Txt({
-    text: "Bad code isn't complex",
-    fontFamily: F,
-    fontSize: QUOTE_FONT,
-    fill: QUOTE_BEIGE,
+    text: "Bad code isn't complex.",
+    fontFamily: Fonts.primary,
+    fontSize: 72,
+    fontWeight: 600,
+    fill: 'rgba(255, 170, 185, 0.86)',
     textAlign: 'center',
     x: 0,
     y: 0,
@@ -802,26 +803,28 @@ export default makeScene2D(function* (view) {
   });
   view.add(t1);
 
-  yield* t1.opacity(1, 0.35, easeInOutCubic);
-  yield* waitFor(0.85);
-  yield* t1.opacity(0, 0.35, easeInOutCubic);
-  yield* waitFor(0.05);
+  yield* t1.opacity(1, 0.6, easeInOutCubic);
+  yield* waitFor(1.6);
+  yield* t1.opacity(0, 0.5, easeInOutCubic);
+  yield* waitFor(0.2);
 
   const t2 = new Txt({
-    text: "It's code that pretends to be simple.",
-    fontFamily: F,
-    fontSize: QUOTE_FONT,
-    fill: QUOTE_BEIGE,
+    text: "It's code that pretends\nto be simple.",
+    fontFamily: Fonts.primary,
+    fontSize: 72,
+    fontWeight: 600,
+    fill: 'rgba(255, 170, 185, 0.86)',
     textAlign: 'center',
+    lineHeight: 96,
     x: 0,
     y: 0,
     opacity: 0,
   });
   view.add(t2);
 
-  yield* t2.opacity(1, 0.35, easeInOutCubic);
-  yield* waitFor(1.4);
-  yield* t2.opacity(0, 0.45, easeInOutCubic);
+  yield* t2.opacity(1, 0.6, easeInOutCubic);
+  yield* waitFor(2.2);
+  yield* t2.opacity(0, 0.6, easeInOutCubic);
   yield* waitFor(0.05);
 
   // ═══════════════════════════════════════════════════════════════════════

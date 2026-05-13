@@ -107,7 +107,8 @@ export const LINE = {
   sigDryRun:    3,
   sigForceSend: 4,
   sigIsRetry:   5,
-  // Influence zones (inclusive).
+  // Influence zones (inclusive). Zone midpoints land at lines 10/16/22 —
+  // equal six-line spacing, so toggles on the right form an even column.
   zoneDryRun:    [9, 11]  as const,
   zoneForceSend: [13, 19] as const,
   zoneIsRetry:   [21, 23] as const,
