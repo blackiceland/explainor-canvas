@@ -44,9 +44,11 @@ const CENTER_R = 235;
 const CHILD_R  = 95;
 const RING_R   = 380;
 
-const COUNTER_X = 540;
-const COUNTER_Y = -200;
-const PARAM_LIST_X = 540;
+const COUNTER_X = 490;
+// Counter Node origin sits at the top edge of the center disk so the
+// top of the digit lines up with the top of the main circle.
+const COUNTER_Y = RING_CY - CENTER_R;
+const PARAM_LIST_X = 490;
 const PARAM_LIST_Y = 60;
 
 const LABEL_BELOW_Y = CHILD_R + 30;  // labels sit strictly under each child circle
@@ -86,6 +88,7 @@ export default makeScene2D(function* (view) {
   // ─────────────────────────────────────────────────────────────────────
   const counter = createSignal(0);
   const counterRef = createRef<Txt>();
+  const counterNode = createRef<Node>();
   const paramLineRefs: ReturnType<typeof createRef<Node>>[] = [
     createRef<Node>(),
     createRef<Node>(),
@@ -93,9 +96,11 @@ export default makeScene2D(function* (view) {
   ];
 
   view.add(
-    <Node x={COUNTER_X} y={COUNTER_Y}>
+    <Node ref={counterNode} x={COUNTER_X} y={COUNTER_Y} opacity={0}>
       <Txt
         ref={counterRef}
+        offsetY={-1}
+        y={0}
         text={() => `${Math.floor(counter())}`}
         fontFamily={Fonts.code}
         fontSize={170}
@@ -103,7 +108,7 @@ export default makeScene2D(function* (view) {
         fill={TEXT_PRIMARY}
       />
       <Txt
-        y={125}
+        y={210}
         text={'HIDDEN VERSIONS OF FUNCTION'}
         fontFamily={Fonts.primary}
         fontSize={22}
@@ -307,8 +312,11 @@ export default makeScene2D(function* (view) {
   // TIMELINE — measured, slow reveals. Total ≈ 10s.
   // ─────────────────────────────────────────────────────────────────────
 
-  // 0.0 – 1.0s: center disk quietly fades in. Counter sits at "0".
-  yield* centerNode().opacity(1, 1.0, easeInOutCubic);
+  // 0.0 – 1.0s: center disk and the right counter quietly fade in together.
+  yield* all(
+    centerNode().opacity(1, 1.0, easeInOutCubic),
+    counterNode().opacity(1, 1.0, easeInOutCubic),
+  );
 
   // 0.85 – 1.3s: radar comes alive at 12 o'clock.
   yield* radarOpacity(1, 0.45, easeInOutCubic);
@@ -332,6 +340,13 @@ export default makeScene2D(function* (view) {
   // 8.0 – 8.7s: radar quietly dissolves.
   yield* radarOpacity(0, 0.7, easeInOutCubic);
 
-  // 8.7 – 10s: hold on the constellation.
-  yield* waitFor(1.3);
+  // 8.7 – 10.3s: brief hold, then every content node fades while the
+  // background gradient stays in place.
+  yield* waitFor(0.5);
+  yield* all(
+    centerNode().opacity(0, 1.6, easeInOutCubic),
+    counterNode().opacity(0, 1.6, easeInOutCubic),
+    ...childRefs.map(r => r().opacity(0, 1.6, easeInOutCubic)),
+    ...paramLineRefs.map(r => r().opacity(0, 1.6, easeInOutCubic)),
+  );
 });

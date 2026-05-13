@@ -3,11 +3,36 @@ import booleanLeversSceneEn from "./scenes/booleanLeversSceneEn?scene";
 import chapter1YudanSceneEn from "./scenes/chapter1YudanSceneEn?scene";
 import flagsWeightTakeSceneEn from "./scenes/flagsWeightTakeSceneEn?scene";
 import oneMethodManyVersionsSceneEn from "./scenes/oneMethodManyVersionsSceneEn?scene";
+import fiveFacesBooleanSceneRu from "./scenes/fiveFacesBooleanSceneRu?scene";
 import messageDeliverySelectionSceneEn from "./scenes/messageDeliverySelectionSceneEn?scene";
 import whatsappCodePairSceneEn from "./scenes/whatsappCodePairSceneEn?scene";
 import smallMethodsProblemsSubtitlesSceneRu from "./scenes/smallMethodsProblemsSubtitlesSceneRu?scene";
 import notifyPassThroughSceneRu from './scenes/notifyPassThroughSceneRu?scene';
 import dryFiltersScene from "./scenes/dryFiltersScene?scene";
+import fromTheStartSceneEn from "./scenes/fromTheStartSceneEn?scene";
+import foreignResponsibilityShapesSceneEn from './scenes/foreignResponsibilityShapesSceneEn?scene';
+import foreignResponsibilityInvasionSceneEn from "./scenes/foreignResponsibilityInvasionSceneEn?scene";
+import separationOfConcernsQuoteSceneRu from "./scenes/separationOfConcernsQuoteSceneRu?scene";
+import whyItIsAProblemSceneEn from "./scenes/whyItIsAProblemSceneEn?scene";
+import prematureAbstractionTakeSceneEn from "./scenes/prematureAbstractionTakeSceneEn?scene";
+import prematureAbstractionQuoteSceneEn from "./scenes/prematureAbstractionQuoteSceneEn?scene";
+import prematureAbstractionResolutionSceneEn from "./scenes/prematureAbstractionResolutionSceneEn?scene";
+import robotArmDarkScene from "./scenes/robotArmDarkScene?scene";
+import predictingFutureTakeSceneEn from "./scenes/predictingFutureTakeSceneEn?scene";
+import earnedAbstractionSceneEn from "./scenes/earnedAbstractionSceneEn?scene";
+import chapter2ReversibilitySceneEn from "./scenes/chapter2ReversibilitySceneEn?scene";
+import problemsYouDontHaveCarefulArmSceneEn from "./scenes/problemsYouDontHaveCarefulArmSceneEn?scene";
+import problemsYouDontHaveOrientationAnySceneEn from "./scenes/problemsYouDontHaveOrientationAnySceneEn?scene";
+import problemsYouDontHaveWrongShelfSceneEn from "./scenes/problemsYouDontHaveWrongShelfSceneEn?scene";
+import wrongCenterCollapseSceneEn from "./scenes/wrongCenterCollapseSceneEn?scene";
+import robotArmTestScene from "./scenes/robotArmTestScene?scene";
+import problemsYouDontHaveSubtitlesSceneEn from "./scenes/problemsYouDontHaveSubtitlesSceneEn?scene";
+import robotArmCodeScene from "./scenes/robotArmCodeScene?scene";
+import problemsYouDontHaveLieIntroSceneEn from "./scenes/problemsYouDontHaveLieIntroSceneEn?scene";
+import problemsYouDontHaveStrategySceneEn from "./scenes/problemsYouDontHaveStrategySceneEn?scene";
+import pipelineGrabGrowthSceneEn from "./scenes/pipelineGrabGrowthSceneEn?scene";
+import grabStrategyOrbitSceneEn from "./scenes/grabStrategyOrbitSceneEn?scene";
+import problemsYouDontHaveCostSceneEn from "./scenes/problemsYouDontHaveCostSceneEn?scene";
 
 export default makeProject({
     experimentalFeatures: true,
@@ -106,7 +131,8 @@ export default makeProject({
 
         // chapter1YudanSceneEn,
         // flagsWeightTakeSceneEn,
-        oneMethodManyVersionsSceneEn,
+         oneMethodManyVersionsSceneEn,
+        fiveFacesBooleanSceneRu,
         // messageDeliverySelectionSceneEn,
         // whatsappCodePairSceneEn,
 
