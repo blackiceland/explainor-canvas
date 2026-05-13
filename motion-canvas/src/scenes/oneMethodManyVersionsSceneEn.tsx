@@ -36,12 +36,13 @@ const CHILD_FILL   = '#1B1D21';
 const CHILD_STROKE = 'rgba(244,241,235,0.42)';
 const CENTER_FILL  = '#1B1D21';
 
-// ── Geometry — bigger center disk, ring fits left half ───────────────
+// ── Geometry — bigger center disk so the inline signature fits at ~20pt,
+// ring slightly larger to keep clearance from the disk.
 const RING_CX = -440;
-const RING_CY = -10;
-const CENTER_R = 210;
-const CHILD_R  = 100;
-const RING_R   = 360;
+const RING_CY = -20;
+const CENTER_R = 235;
+const CHILD_R  = 95;
+const RING_R   = 380;
 
 const COUNTER_X = 540;
 const COUNTER_Y = -200;
@@ -97,18 +98,18 @@ export default makeScene2D(function* (view) {
         ref={counterRef}
         text={() => `${Math.floor(counter())}`}
         fontFamily={Fonts.code}
-        fontSize={220}
+        fontSize={170}
         fontWeight={500}
         fill={TEXT_PRIMARY}
       />
       <Txt
-        y={155}
-        text={'HIDDEN VERSIONS'}
+        y={125}
+        text={'HIDDEN VERSIONS OF FUNCTION'}
         fontFamily={Fonts.primary}
-        fontSize={26}
+        fontSize={22}
         fontWeight={400}
         fill={TEXT_DIM}
-        letterSpacing={6}
+        letterSpacing={5}
       />
     </Node>,
   );
@@ -221,16 +222,8 @@ export default makeScene2D(function* (view) {
         shadowColor={ACCENT_SOFT}
         shadowBlur={48}
       />
-      <Txt
-        y={-28}
-        text={'deliverCampaignMessage'}
-        fontFamily={Fonts.code}
-        fontSize={24}
-        fontWeight={500}
-        fill={TEXT_PRIMARY}
-      />
-      <Txt y={28} fontFamily={Fonts.code} fontSize={18} fontWeight={500} fill={PUNCT_FILL}>
-        <Txt text={'('} />
+      <Txt fontFamily={Fonts.code} fontSize={20} fontWeight={500} fill={PUNCT_FILL}>
+        <Txt text={'deliver('} fontWeight={500} fill={TEXT_PRIMARY} />
         <Txt text={'dryRun'}    fontWeight={600} fill={COLOR_DRYRUN} />
         <Txt text={', '} />
         <Txt text={'forceSend'} fontWeight={600} fill={COLOR_FORCESEND} />
