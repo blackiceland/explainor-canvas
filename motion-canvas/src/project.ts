@@ -119,7 +119,6 @@ export default makeProject({
         // foreignResponsibilityInvasionSceneEn,
         // separationOfConcernsQuoteSceneRu,
         // whyItIsAProblemSceneEn,
-        // prematureAbstractionTakeSceneEn,
         // prematureAbstractionQuoteSceneEn,
         // prematureAbstractionResolutionSceneEn,
         // robotArmDarkScene,
@@ -131,7 +130,7 @@ export default makeProject({
 
         // chapter1YudanSceneEn,
         // flagsWeightTakeSceneEn,
-         oneMethodManyVersionsSceneEn,
+        // oneMethodManyVersionsSceneEn,
         fiveFacesBooleanSceneRu,
         // messageDeliverySelectionSceneEn,
         // whatsappCodePairSceneEn,
