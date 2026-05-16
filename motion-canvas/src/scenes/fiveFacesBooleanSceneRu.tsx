@@ -250,9 +250,12 @@ const IMPL_SHORTCUT = `fun process(
         validator.requireValid(order)
     }
 
-    val normalized = normalizer.normalize(order, source)
-    val reserved = inventory.reserve(normalized.items)
-    val payment = payments.authorize(normalized)
+    val normalized = normalizer
+        .normalize(order, source)
+    val reserved = inventory
+        .reserve(normalized)
+    val payment = payments
+        .authorize(normalized)
 
     return ProcessingResult.Accepted(
         orderId = normalized.id,
@@ -511,8 +514,10 @@ export default makeScene2D(function* (view) {
   };
 
   // Drawn under the names so its glow reads behind the type.
+  const mainSpot = createRef<Circle>();
   view.add(
     <Circle
+      ref={mainSpot}
       x={() => lightX()}
       y={() => lightY()}
       width={SPOT_R * 2}
@@ -534,7 +539,47 @@ export default makeScene2D(function* (view) {
     />,
   );
 
+  // ── Finale spotlights — one per name, stationary. Hidden until the
+  //    summary moment when all five names should light up at once.
+  const finaleSpots: ReturnType<typeof createRef<Circle>>[] = [];
+  for (let i = 0; i < NAME_XS.length; i++) {
+    const spotRef = createRef<Circle>();
+    finaleSpots.push(spotRef);
+    view.add(
+      <Circle
+        ref={spotRef}
+        x={NAME_XS[i]}
+        y={NAMES_Y - 6}
+        width={SPOT_R * 2}
+        height={SPOT_R * 2}
+        compositeOperation={'screen'}
+        opacity={0}
+        fill={new Gradient({
+          type: 'radial',
+          from: new Vector2(0, 0),
+          to: new Vector2(0, 0),
+          fromRadius: 0,
+          toRadius: SPOT_R,
+          stops: [
+            {offset: 0.00, color: 'rgba(244, 241, 235, 0.55)'},
+            {offset: 0.28, color: 'rgba(244, 241, 235, 0.22)'},
+            {offset: 0.62, color: 'rgba(244, 241, 235, 0.05)'},
+            {offset: 1.00, color: 'rgba(0, 0, 0, 0)'},
+          ],
+        })}
+      />,
+    );
+  }
+
   // ── Five names — invisible until the spotlight reaches them ────────
+  // Finale override — when this signal tweens to 1, every name lights
+  // up regardless of where the spotlight is. Used for the summary
+  // moment at the very end of the scene.
+  const finaleMix  = createSignal(0);
+  // Global scene-alpha — multiplied into every name's opacity so the
+  // final fade-out can dim all five names regardless of brightness.
+  const sceneAlpha = createSignal(1);
+
   const nameRefs: ReturnType<typeof createRef<Txt>>[] = [];
   for (let i = 0; i < FACES.length; i++) {
     const x = NAME_XS[i];
@@ -552,7 +597,7 @@ export default makeScene2D(function* (view) {
         fontWeight={500}
         letterSpacing={NAME_LETTER_SP}
         fill={TEXT_PRIMARY}
-        opacity={() => brightnessAt(x)}
+        opacity={() => Math.max(brightnessAt(x), finaleMix()) * sceneAlpha()}
         shadowColor={() => `rgba(0, 0, 0, ${brightnessAt(x) * 0.9})`}
         shadowBlur={() => 6 + (1 - brightnessAt(x)) * 10}
         shadowOffset={() => {
@@ -665,14 +710,15 @@ export default makeScene2D(function* (view) {
   // they live on the same shelf, regardless of how many lines each one
   // has.  The boolean parameter is highlighted in BOTH halves: in the
   // call site it looks small, in the implementation it does its work.
-  const CODE_FONT_SIZE = 18;
-  const CODE_LH        = 27;
-  const IMPL_FONT_SIZE = 19;     // slightly bigger than the call class
+  const CODE_FONT_SIZE = 17;
+  const CODE_LH        = 25;
+  const IMPL_FONT_SIZE = 19;     // crisper, more readable on the right
   const IMPL_LH        = 28;
-  const CALL_W         = 860;    // production class card (fits SAFETY inline sig)
-  const IMPL_W         = 960;    // implementation card — wider for inline save sig
-  const CALL_X         = -510;   // call card centre  → spans [-940, -80]
-  const IMPL_X         = 460;    // impl card centre  → spans [-20, +940]
+  const CALL_W         = 780;    // production class card
+  const IMPL_W         = 580;    // implementation card
+  const CALL_X         = -540;   // call card centre  → spans [-930, -150]
+  const IMPL_X         = 180;    // impl card centre  → spans [-110, +470] (nudged left)
+  const VIZ_X          = 700;    // right-side viz centre  → table no longer touches edge
   const TOP_Y          = -310;   // first call-code line top — gap from names ≈ 95px
 
   // Manticore vertically centres its content; this returns the
@@ -680,6 +726,18 @@ export default makeScene2D(function* (view) {
   const yForCode = (src: string): number => {
     const lines = src.split('\n').length;
     return TOP_Y + ((lines - 1) * CODE_LH) / 2;
+  };
+
+  // Identify the lines that hold a boolean. Used to position a backlit
+  // highlight strip BEHIND the line — much cleaner than per-token text
+  // shadows, which wash the glyphs into a milky blur.
+  const BOOL_LINE_RE = /\b(true|false)\b|:\s*Boolean\b/;
+  const findBoolLines = (src: string): number[] => {
+    const out: number[] = [];
+    src.split('\n').forEach((line, i) => {
+      if (BOOL_LINE_RE.test(line)) out.push(i);
+    });
+    return out;
   };
 
   // Paint call-site named parameters slate. Detects the pattern
@@ -756,6 +814,66 @@ export default makeScene2D(function* (view) {
     return code;
   });
 
+  // Backlit highlight strip behind every boolean line. Builds a thin
+  // rounded plate sized to the actual code line and binds its opacity
+  // to the code's opacity so it fades together. Renders BEHIND the
+  // code (zIndex=-1) so glyphs stay sharp.
+  const addBoolBacklight = (
+    src: string,
+    containerY: number,
+    cardCenterX: number,
+    cardWidth: number,
+    fontSize: number,
+    lineHeight: number,
+    codeOpacity: () => number,
+  ): void => {
+    const lines = src.split('\n');
+    const totalLines = lines.length;
+    const charW = fontSize * 0.6;
+    const textLeft = cardCenterX - cardWidth / 2 + 56;     // matches Manticore paddingX
+    for (const lineIdx of findBoolLines(src)) {
+      const raw = lines[lineIdx];
+      const leading = raw.length - raw.trimStart().length;
+      const trimmed = raw.trim();
+      const sceneY = containerY + (lineIdx - (totalLines - 1) / 2) * lineHeight;
+      const lineX0 = textLeft + leading * charW;
+      const lineWidth = trimmed.length * charW;
+      view.add(
+        <Rect
+          x={lineX0 + lineWidth / 2}
+          y={sceneY}
+          width={lineWidth + 22}
+          height={lineHeight + 2}
+          fill={'rgba(168, 205, 255, 0.10)'}
+          stroke={'rgba(168, 205, 255, 0.40)'}
+          lineWidth={1.2}
+          radius={4}
+          shadowColor={'rgba(168, 205, 255, 0.65)'}
+          shadowBlur={28}
+          shadowOffsetX={0}
+          shadowOffsetY={0}
+          zIndex={-1}
+          opacity={() => codeOpacity() * 0.95}
+        />,
+      );
+    }
+  };
+
+  FACES.forEach((face, i) => {
+    addBoolBacklight(
+      face.callCode,
+      yForCode(face.callCode),
+      CALL_X, CALL_W, CODE_FONT_SIZE, CODE_LH,
+      () => callCodes[i].node.opacity(),
+    );
+    addBoolBacklight(
+      face.implCode,
+      0,                              // impl is vertically centred (y=0)
+      IMPL_X, IMPL_W, IMPL_FONT_SIZE, IMPL_LH,
+      () => implCodes[i].node.opacity(),
+    );
+  });
+
   // Every code card carries a tweenable blur — PERMISSION uses it for
   // the bloom ritual at the start; SAFETY and POOR MODEL use it to
   // soften the impl when their right-side visualisations take over.
@@ -775,6 +893,183 @@ export default makeScene2D(function* (view) {
     return sig;
   });
 
+  // ── PERMISSION viz — VERTICAL: request circle hits a barrier ──────
+  // Style: foreignResponsibilityShapesSceneEn — solid filled shapes,
+  // bright saturated palette.  Circle starts at top, drops toward a
+  // red barrier; when the boolean fires the barrier shatters and the
+  // circle continues into a green target square at the bottom.
+  const permissionViz   = createRef<Node>();
+  const permRequest     = createRef<Circle>();
+  const permBarrier     = createRef<Rect>();
+  const permTarget      = createRef<Rect>();
+  {
+    view.add(
+      <Node ref={permissionViz} x={VIZ_X} y={0} opacity={0}>
+        {/* Request token — top */}
+        <Circle
+          ref={permRequest}
+          x={0}
+          y={-180}
+          width={56}
+          height={56}
+          fill={'rgba(100, 180, 255, 0.85)'}
+        />
+        <Txt
+          x={0}
+          y={-180 + 56}
+          text={'request'}
+          fontFamily={Fonts.code}
+          fontSize={18}
+          fill={'rgba(244, 241, 235, 0.70)'}
+          letterSpacing={1}
+        />
+        {/* Barrier — thin rose line, blocks the path by default */}
+        <Rect
+          ref={permBarrier}
+          x={0}
+          y={0}
+          width={240}
+          height={10}
+          fill={'#FF8CA3'}
+          radius={1}
+        />
+        {/* Target — bottom (green; starts grey-tinted, ignites on pass) */}
+        <Rect
+          ref={permTarget}
+          x={0}
+          y={180}
+          width={80}
+          height={80}
+          fill={'rgba(244, 241, 235, 0.10)'}
+          radius={4}
+        />
+        <Txt
+          x={0}
+          y={180 + 60}
+          text={'save'}
+          fontFamily={Fonts.code}
+          fontSize={18}
+          fill={'rgba(244, 241, 235, 0.70)'}
+          letterSpacing={1}
+        />
+      </Node>,
+    );
+  }
+
+  // ── MODE viz — minimalist: two stacked circles, active state swaps
+  // Top circle filled orange = default mode (active). Bottom circle
+  // outlined lilac = silent (inactive). When the flag fires, fills
+  // swap: top empties to outline, bottom fills lilac. Labels follow.
+  const modeViz       = createRef<Node>();
+  const modeTopCircle = createRef<Circle>();
+  const modeBotCircle = createRef<Circle>();
+  const modeLoudTxt   = createRef<Txt>();
+  const modeSilentTxt = createRef<Txt>();
+  {
+    view.add(
+      <Node ref={modeViz} x={VIZ_X} y={0} opacity={0}>
+        {/* Left — active by default (orange filled) */}
+        <Circle
+          ref={modeTopCircle}
+          x={-100}
+          y={0}
+          width={120}
+          height={120}
+          fill={'#FF9F43'}
+        />
+        <Txt
+          ref={modeLoudTxt}
+          x={-100}
+          y={92}
+          text={'default'}
+          fontFamily={Fonts.code}
+          fontSize={22}
+          letterSpacing={3}
+          fill={'#FF9F43'}
+        />
+
+        {/* Right — inactive by default (lilac outline) */}
+        <Circle
+          ref={modeBotCircle}
+          x={100}
+          y={0}
+          width={120}
+          height={120}
+          fill={'rgba(201, 176, 232, 0)'}
+          stroke={'rgba(201, 176, 232, 0.45)'}
+          lineWidth={4}
+        />
+        <Txt
+          ref={modeSilentTxt}
+          x={100}
+          y={92}
+          text={'silent'}
+          fontFamily={Fonts.code}
+          fontSize={22}
+          letterSpacing={3}
+          fill={'rgba(201, 176, 232, 0.45)'}
+        />
+      </Node>,
+    );
+  }
+
+  // ── SHORTCUT viz — VERTICAL stack, one cell falls out ─────────────
+  // Style: solid filled chips, foreign-shapes vocabulary. Four stages
+  // stacked top → bottom. When the flag fires the "validate" cell
+  // drops out of the column (translates off-screen + fades) and the
+  // remaining cells collapse upward to close the void.
+  const shortcutViz = createRef<Node>();
+  const scCells: Rect[] = [];
+  const scTexts: Txt[]  = [];
+  const SC_STEP_W = 240;
+  const SC_STEP_H = 70;
+  const SC_GAP    = 20;
+  const STEPS     = ['input', 'validate', 'process', 'finalize'];
+  // Less-bright, slightly desaturated stage colours.
+  const SC_COLOURS = ['#7AA8D4', '#D67373', '#D9A574', '#8FA887'];
+  const SC_FILLS   = [
+    'rgba(122, 168, 212, 0.16)',
+    'rgba(214, 115, 115, 0.16)',
+    'rgba(217, 165, 116, 0.16)',
+    'rgba(143, 168, 135, 0.18)',
+  ];
+  const SC_TOTAL  = STEPS.length * SC_STEP_H + (STEPS.length - 1) * SC_GAP;
+  const cellY     = (i: number): number => -SC_TOTAL / 2 + SC_STEP_H / 2 + i * (SC_STEP_H + SC_GAP);
+  {
+    view.add(
+      <Node ref={shortcutViz} x={VIZ_X} y={0} opacity={0}>
+        {/* Stage cards — outlined "stations" with subtle tinted fill,
+            chunky coloured stroke, label in the stage colour. */}
+        {STEPS.map((s, i) => (
+          <Rect
+            ref={makeRef(scCells, i)}
+            x={0}
+            y={cellY(i)}
+            width={SC_STEP_W}
+            height={SC_STEP_H}
+            fill={SC_FILLS[i]}
+            stroke={SC_COLOURS[i]}
+            lineWidth={3}
+            radius={8}
+          />
+        ))}
+        {STEPS.map((s, i) => (
+          <Txt
+            ref={makeRef(scTexts, i)}
+            x={0}
+            y={cellY(i)}
+            text={s}
+            fontFamily={Fonts.code}
+            fontSize={22}
+            letterSpacing={2}
+            fill={SC_COLOURS[i]}
+            fontWeight={600}
+          />
+        ))}
+      </Node>,
+    );
+  }
+
   // ── SAFETY viz — bordered DB table, two-phase reveal ───────────────
   // Header label above (`soft = true` / `soft = false`) shows which
   // branch is active.  Phase 1: soft=true — Bob's deleted_at fills,
@@ -786,18 +1081,18 @@ export default makeScene2D(function* (view) {
   const sBobRow     = createRef<Node>();
   const sBobDate    = createRef<Txt>();
   {
-    const HDR_Y   = -100;
-    const ROW_GAP = 56;
-    const COL_X   = [-240, -80, 140];
-    const TABLE_W = 600;
-    const TABLE_H = 320;
-    const ROW_W   = TABLE_W - 20;
-    const ROW_H   = 46;
-    const FONT_SZ = 24;
+    const HDR_Y   = -90;
+    const ROW_GAP = 48;
+    const COL_X   = [-160, -50, 100];
+    const TABLE_W = 420;
+    const TABLE_H = 280;
+    const ROW_W   = TABLE_W - 16;
+    const ROW_H   = 40;
+    const FONT_SZ = 20;
     const INK     = '#F4F1EB';
     const SUBTLE  = 'rgba(244, 241, 235, 0.50)';
     view.add(
-      <Node ref={safetyViz} x={IMPL_X} y={0} opacity={0}>
+      <Node ref={safetyViz} x={VIZ_X - 30} y={0} opacity={0}>
         {/* Argument label above the table — `soft = true` etc. */}
         <Txt
           ref={safetyArgTxt}
@@ -861,15 +1156,15 @@ export default makeScene2D(function* (view) {
   const poorNodes:  Rect[] = [];
   const poorLabels: Txt[]  = [];
   const poorLinks:  Line[] = [];
-  const POOR_NODE_R = 40;
+  const POOR_NODE_R = 30;
   // (x, y, colour, labelPlacement)
   const poorPositions: [number, number, string, 'right' | 'below'][] = [
-    [   0, -200, '#C9B0E8', 'right'],   // 0
+    [   0, -180, '#C9B0E8', 'right'],   // 0
     [   0,  -80, '#C9B0E8', 'right'],   // 1
-    [   0,   40, '#A8CDE8', 'right'],   // 2
-    [-180,  200, '#86B07A', 'below'],   // 3
-    [   0,  200, '#FFB562', 'below'],   // 4
-    [ 180,  200, '#FF7373', 'below'],   // 5
+    [   0,   20, '#A8CDE8', 'right'],   // 2
+    [-130,  150, '#86B07A', 'below'],   // 3
+    [   0,  150, '#FFB562', 'below'],   // 4
+    [ 130,  150, '#FF7373', 'below'],   // 5
   ];
   const poorEdges: [number, number][] = [
     [0, 1], [1, 2], [2, 3], [2, 4], [2, 5],
@@ -890,7 +1185,7 @@ export default makeScene2D(function* (view) {
     const labelOffset = (p: [number, number, string, string]): [number, number] =>
       p[3] === 'below' ? [0, 0] : [-1, 0];
     view.add(
-      <Node ref={poorViz} x={IMPL_X} y={0} opacity={0}>
+      <Node ref={poorViz} x={VIZ_X} y={0} opacity={0}>
         {poorEdges.map(([a, b], i) => (
           <Line
             ref={makeRef(poorLinks, i)}
@@ -925,7 +1220,7 @@ export default makeScene2D(function* (view) {
             offset={labelOffset(p)}
             text={poorStateLabels[i]}
             fontFamily={Fonts.code}
-            fontSize={22}
+            fontSize={18}
             letterSpacing={1}
             fill={p[2]}
             opacity={0}
@@ -987,12 +1282,119 @@ export default makeScene2D(function* (view) {
     yield* all(...anims);
   }
 
-  // Per-face beat (faces 1..4 — i.e. not PERMISSION, not POOR MODEL):
+  // ── Per-face viz drivers — each plays the animation that explains
+  //    its role: opens (Permission), modifies (Mode), persists (Safety),
+  //    skips (Shortcut), reveals hidden states (Poor Model).
+  function* permissionDriver(): ThreadGenerator {
+    yield* waitFor(0.3);
+    // Ball drops and stops dead against the barrier.
+    yield* permRequest().position.y(-32, 0.5, easeInOutCubic);
+    // Ball turns RED — request was blocked.
+    yield* permRequest().fill('#E63946', 0.32, easeInOutSine);
+    // Hold the blocked state so the viewer reads "denied by default".
+    yield* waitFor(0.8);
+    // Flag fires — barrier collapses.
+    yield* all(
+      permBarrier().scale.x(0, 0.4, easeInOutCubic),
+      permBarrier().opacity(0, 0.4),
+    );
+    // Ball returns to blue — exception granted, it's allowed through.
+    yield* permRequest().fill('rgba(100, 180, 255, 0.85)', 0.25, easeInOutSine);
+    // Continues falling into target.
+    yield* permRequest().position.y(180, 0.55, easeInOutCubic);
+    // Target ignites green — action permitted.
+    yield* all(
+      permTarget().fill('rgba(134, 176, 122, 0.92)', 0.35, easeInOutSine),
+      permRequest().opacity(0, 0.35, easeInOutSine),
+    );
+  }
+
+  function* modeDriver(): ThreadGenerator {
+    yield* waitFor(0.4);
+    // Active state swaps. Top empties; bottom fills.
+    yield* all(
+      modeTopCircle().fill('rgba(255, 159, 67, 0)', 0.5, easeInOutSine),
+      modeTopCircle().stroke('rgba(255, 159, 67, 0.45)', 0.5, easeInOutSine),
+      modeTopCircle().lineWidth(4, 0.5, easeInOutSine),
+      modeBotCircle().fill('#C9B0E8', 0.5, easeInOutSine),
+      modeBotCircle().stroke('rgba(201, 176, 232, 0)', 0.5, easeInOutSine),
+      modeLoudTxt().fill('rgba(255, 159, 67, 0.45)', 0.5, easeInOutSine),
+      modeSilentTxt().fill('#C9B0E8', 0.5, easeInOutSine),
+    );
+  }
+
+  function* shortcutDriver(): ThreadGenerator {
+    yield* waitFor(0.35);
+    // The `validate` cell (index 1) falls out of the column.
+    yield* all(
+      scCells[1].position.x(220, 0.45, easeInOutCubic),
+      scCells[1].opacity(0, 0.45, easeInOutSine),
+      scTexts[1].position.x(220, 0.45, easeInOutCubic),
+      scTexts[1].opacity(0, 0.45, easeInOutSine),
+    );
+    // The cells below collapse upward to close the gap.
+    const collapseDist = SC_STEP_H + SC_GAP;
+    yield* all(
+      scCells[2].position.y(cellY(2) - collapseDist, 0.55, easeInOutCubic),
+      scTexts[2].position.y(cellY(2) - collapseDist, 0.55, easeInOutCubic),
+      scCells[3].position.y(cellY(3) - collapseDist, 0.55, easeInOutCubic),
+      scTexts[3].position.y(cellY(3) - collapseDist, 0.55, easeInOutCubic),
+    );
+  }
+
+  function* safetyDriver(): ThreadGenerator {
+    // Phase 1 — soft = true → Bob's deleted_at fills, row dims, stays.
+    yield* waitFor(0.35);
+    yield* sRowFill().fill('rgba(255, 140, 163, 0.22)', 0.3, easeInOutSine);
+    yield* waitFor(0.3);
+    yield* sBobDate().text('2026-05-16', 0.55);
+    yield* sBobDate().fill('#86B07A', 0.001);
+    yield* waitFor(0.25);
+    yield* all(
+      sRowFill().fill('rgba(244, 241, 235, 0.05)', 0.5, easeInOutSine),
+      sBobRow().opacity(0.45, 0.5, easeInOutSine),
+    );
+    // Phase 2 — soft = false → row disappears.
+    yield* waitFor(1.5);
+    yield* safetyArgTxt().text('soft = false', 0.5);
+    yield* waitFor(0.35);
+    yield* sBobRow().opacity(0, 0.55, easeInOutSine);
+  }
+
+  function* poorDriver(): ThreadGenerator {
+    yield* waitFor(0.25);
+    yield* all(
+      poorNodes[0].opacity(1, 0.32, easeInOutSine),
+      poorLabels[0].opacity(0.95, 0.32, easeInOutSine),
+    );
+    for (let k = 0; k < poorEdges.length; k++) {
+      const child = poorEdges[k][1];
+      yield* all(
+        poorLinks[k].opacity(1, 0.14),
+        poorLinks[k].end(1, 0.24, easeOutCubic),
+      );
+      yield* all(
+        poorNodes[child].opacity(1, 0.24, easeInOutSine),
+        poorLabels[child].opacity(0.95, 0.26, easeInOutSine),
+      );
+    }
+  }
+
+  const vizRefs    = [permissionViz, modeViz, safetyViz, shortcutViz, poorViz];
+  const vizDrivers = [permissionDriver, modeDriver, safetyDriver, shortcutDriver, poorDriver];
+
+  function* showViz(i: number, dur = 0.55): ThreadGenerator {
+    yield* vizRefs[i]().opacity(1, dur, easeInOutSine);
+  }
+  function* hideViz(i: number, dur = 0.5): ThreadGenerator {
+    yield* vizRefs[i]().opacity(0, dur, easeInOutSine);
+  }
+
+  // Per-face beat — same shape for every face:
   //   1. light slides to name (auto-lights)
   //   2. call site lands on the left, sharp
-  //   3. after a beat, dim everything except the boolean line on the
-  //      left, and SIMULTANEOUSLY the implementation arrives on right
-  //   4. settle for voice-over
+  //   3. after a beat, dim non-bool lines + show impl AND viz at once
+  //   4. play the viz driver (face-specific animation)
   //   5. small scale dots fade in under the name (closes the step)
   //   6. fade everything for the next face
   function* runFace(
@@ -1000,24 +1402,29 @@ export default makeScene2D(function* (view) {
     slideDur: number,
     callHold: number,
     implHold: number,
+    vizHold: number,
     closeHold: number,
   ): ThreadGenerator {
     yield* baseX(NAME_XS[i], slideDur, easeInOutSine);
-    arrivalTime(view.globalTime());          // start the 5 s hand-wobble
+    arrivalTime(view.globalTime());
     yield* waitFor(0.18);
     yield* showCallCode(i);
     yield* waitFor(callHold);
     yield* all(
       spotlightLines(callCodes[i], blockLines(FACES[i].callBlock), 0.32, 0.55),
       showImplCode(i),
+      showViz(i),
     );
     yield* waitFor(implHold);
+    yield* vizDrivers[i]();
+    yield* waitFor(vizHold);
     yield* showSmallScale(i);
     yield* waitFor(closeHold);
     yield* all(
       restoreLines(callCodes[i], 0.4),
       hideCallCode(i, 0.5),
       hideImplCode(i, 0.5),
+      hideViz(i, 0.5),
       hideSmallScale(i, 0.4),
     );
   }
@@ -1030,44 +1437,45 @@ export default makeScene2D(function* (view) {
   yield* waitFor(0.45);
 
   // ─── PERMISSION ─────────────────────────────────────────────────────
-  // Long initial slide brings the light into the frame; call site
-  // appears, then dim → impl appears; then the BIG rating gauge blooms
-  // in the middle on top of softened code, holds, and finally migrates
-  // up into PERMISSION's small-scale slot (this teaches the audience
-  // that the dots under every name are the same rating system).
+  // Long initial slide brings the light into the frame. Call site,
+  // impl and gate viz all arrive together; the gate viz plays. Then
+  // the big rating gauge blooms centre-frame and migrates up under
+  // PERMISSION's name as the persistent rating indicator.
   yield* baseX(NAME_XS[0], 1.9, easeInOutSine);
   arrivalTime(view.globalTime());
   yield* waitFor(0.2);
   yield* showCallCode(0);
-  yield* waitFor(3.6);
+  yield* waitFor(3.0);
   yield* all(
     spotlightLines(callCodes[0], blockLines(FACES[0].callBlock), 0.32, 0.55),
     showImplCode(0),
+    showViz(0),
   );
-  yield* waitFor(4.0);
+  yield* waitFor(0.8);
+  yield* permissionDriver();
+  yield* waitFor(2.4);
 
-  // Big rating bloom — frame centre, on top of the (now blurred) code.
+  // Big rating bloom — frame centre, on top of HEAVY-blurred code+viz.
   bigScale().position([0, 0]);
   bigScale().scale(1);
   yield* all(
-    callBlurs[0](BLUR_HEAVY, 0.7, easeInOutSine),
-    implBlurs[0](BLUR_HEAVY, 0.7, easeInOutSine),
-    callCodes[0].node.opacity(0.40, 0.7, easeInOutSine),
-    implCodes[0].node.opacity(0.40, 0.7, easeInOutSine),
-    bigScale().opacity(1, 0.7, easeInOutSine),
+    callBlurs[0](BLUR_HEAVY, 0.6, easeInOutSine),
+    implBlurs[0](BLUR_HEAVY, 0.6, easeInOutSine),
+    callCodes[0].node.opacity(0.40, 0.6, easeInOutSine),
+    implCodes[0].node.opacity(0.40, 0.6, easeInOutSine),
+    permissionViz().opacity(0.30, 0.6, easeInOutSine),
+    bigScale().opacity(1, 0.6, easeInOutSine),
   );
-  yield* waitFor(2.4);
+  yield* waitFor(2.2);
 
-  // Before the gauge migrates, the "safe / risky" gradation labels
-  // fade out — they only make sense while the scale is the focal point.
+  // Labels fade before migration.
   yield* all(
-    bigSafeLabel().opacity(0, 0.45, easeInOutSine),
-    bigRiskyLabel().opacity(0, 0.45, easeInOutSine),
+    bigSafeLabel().opacity(0, 0.4, easeInOutSine),
+    bigRiskyLabel().opacity(0, 0.4, easeInOutSine),
   );
 
-  // Migration: gauge slides up under PERMISSION's name and shrinks;
-  // the persistent small-scale node takes its place and the code
-  // returns to focus.
+  // Migration: gauge → small slot under PERMISSION; everything else
+  // comes back to focus.
   const SMALL_TARGET_SCALE = (DOT_R * 2) / (BIG_R * 2);
   yield* all(
     bigScale().position([NAME_XS[0], DOTS_Y], 1.0, easeInOutSine),
@@ -1076,126 +1484,50 @@ export default makeScene2D(function* (view) {
     implBlurs[0](0, 1.0, easeInOutSine),
     callCodes[0].node.opacity(1, 1.0, easeInOutSine),
     implCodes[0].node.opacity(1, 1.0, easeInOutSine),
+    permissionViz().opacity(1, 1.0, easeInOutSine),
   );
-  // Keep the migrated big-gauge node — it's now sized exactly like the
-  // small under-name dots (BIG_GAP/BIG_R ratio matches), so no handover
-  // and no visible flicker.
-  yield* waitFor(3.0);
+  yield* waitFor(2.0);
 
-  // PERMISSION close — fade code and the migrated gauge; light moves on.
+  // PERMISSION close.
   yield* all(
     restoreLines(callCodes[0], 0.45),
     hideCallCode(0, 0.55),
     hideImplCode(0, 0.55),
+    hideViz(0, 0.55),
     bigScale().opacity(0, 0.45, easeInOutSine),
   );
 
-  // ─── MODE ───────────────────────────────────────────────────────────
-  yield* runFace(1, 0.9, 3.5, 4.2, 2.2);
+  // ─── MODE / SAFETY / SHORTCUT / POOR MODEL — same shape ─────────────
+  yield* runFace(1, 0.9, 3.0, 0.7, 3.0, 1.6);
+  yield* runFace(2, 0.9, 3.0, 0.7, 4.5, 1.6);
+  yield* runFace(3, 0.9, 3.0, 0.7, 3.0, 1.6);
+  yield* runFace(4, 0.9, 3.0, 0.7, 3.8, 1.6);
 
-  // ─── SAFETY  (impl reveal → DB-table punchline) ─────────────────────
-  yield* baseX(NAME_XS[2], 0.9, easeInOutSine);
-  arrivalTime(view.globalTime());
-  yield* waitFor(0.18);
-  yield* showCallCode(2);
-  yield* waitFor(3.0);
+  // ─── FINALE — moving lamp stays on POOR MODEL, four new lamps
+  //    flick on over the other names. All five gauges fade in.
   yield* all(
-    spotlightLines(callCodes[2], blockLines(FACES[2].callBlock), 0.32, 0.55),
-    showImplCode(2),
-  );
-  yield* waitFor(3.4);
-
-  // Blur impl + bloom DB table on top.
-  yield* all(
-    implBlurs[2](BLUR_HEAVY, 0.55, easeInOutSine),
-    implCodes[2].node.opacity(0.35, 0.55, easeInOutSine),
-    safetyViz().opacity(1, 0.55, easeInOutSine),
+    finaleMix(1, 1.0, easeInOutSine),
+    finaleSpots[0]().opacity(1, 1.0, easeInOutSine),
+    finaleSpots[1]().opacity(1, 1.0, easeInOutSine),
+    finaleSpots[2]().opacity(1, 1.0, easeInOutSine),
+    finaleSpots[3]().opacity(1, 1.0, easeInOutSine),
+    ...smallScaleNodes.map(s => s().opacity(1, 1.0, easeInOutSine)),
   );
 
-  // Phase 1 — soft = true → Bob's deleted_at fills, row dims, row stays.
-  yield* waitFor(0.4);
-  yield* sRowFill().fill('rgba(255, 140, 163, 0.22)', 0.32, easeInOutSine);
-  yield* waitFor(0.3);
-  yield* sBobDate().text('2026-05-16', 0.6);
-  yield* sBobDate().fill('#86B07A', 0.001);
-  yield* waitFor(0.25);
+  // Reminder hold.
+  yield* waitFor(4.0);
+
+  // Final fade-out — everything dims in place; the lamp stays on
+  // POOR MODEL, just dims out with the rest of the scene.
   yield* all(
-    sRowFill().fill('rgba(244, 241, 235, 0.05)', 0.55, easeInOutSine),
-    sBobRow().opacity(0.45, 0.55, easeInOutSine),
+    sceneAlpha(0, 1.4, easeInOutSine),
+    finaleMix(0, 1.4, easeInOutSine),
+    mainSpot().opacity(0, 1.4, easeInOutSine),
+    finaleSpots[0]().opacity(0, 1.4, easeInOutSine),
+    finaleSpots[1]().opacity(0, 1.4, easeInOutSine),
+    finaleSpots[2]().opacity(0, 1.4, easeInOutSine),
+    finaleSpots[3]().opacity(0, 1.4, easeInOutSine),
+    ...smallScaleNodes.map(s => s().opacity(0, 1.4, easeInOutSine)),
   );
-  yield* waitFor(1.8);
-
-  // Phase 2 — soft = false → header switches, Bob's row is removed.
-  yield* safetyArgTxt().text('soft = false', 0.5);
-  yield* waitFor(0.4);
-  yield* sBobRow().opacity(0, 0.6, easeInOutSine);
-
-  yield* showSmallScale(2);
-  yield* waitFor(2.2);
-
-  yield* all(
-    restoreLines(callCodes[2], 0.4),
-    hideCallCode(2, 0.5),
-    hideImplCode(2, 0.5),
-    implBlurs[2](0, 0.5, easeInOutSine),
-    safetyViz().opacity(0, 0.5, easeInOutSine),
-    hideSmallScale(2, 0.4),
-  );
-
-  // ─── SHORTCUT ───────────────────────────────────────────────────────
-  yield* runFace(3, 0.9, 3.4, 4.3, 2.2);
-
-  // ─── POOR MODEL  (impl reveal → state-graph punchline) ──────────────
-  yield* baseX(NAME_XS[4], 0.9, easeInOutSine);
-  arrivalTime(view.globalTime());
-  yield* waitFor(0.18);
-  yield* showCallCode(4);
-  yield* waitFor(3.0);
-  yield* all(
-    spotlightLines(callCodes[4], blockLines(FACES[4].callBlock), 0.32, 0.55),
-    showImplCode(4),
-  );
-  yield* waitFor(3.4);
-
-  // Blur impl + animate the tree in. No lone-square prelude — the
-  // first node arrives at its final slot just like the others, but
-  // the build still cascades node-by-node so the structure reads as
-  // it grows.
-  yield* all(
-    implBlurs[4](BLUR_HEAVY, 0.55, easeInOutSine),
-    implCodes[4].node.opacity(0.35, 0.55, easeInOutSine),
-    poorViz().opacity(1, 0.55, easeInOutSine),
-  );
-  // Node 0 (draft) appears first, in place.
-  yield* all(
-    poorNodes[0].opacity(1, 0.32, easeInOutSine),
-    poorLabels[0].opacity(0.95, 0.32, easeInOutSine),
-  );
-  // Then each edge draws and its child bloom in turn.
-  for (let k = 0; k < poorEdges.length; k++) {
-    const child = poorEdges[k][1];
-    yield* all(
-      poorLinks[k].opacity(1, 0.16),
-      poorLinks[k].end(1, 0.26, easeOutCubic),
-    );
-    yield* all(
-      poorNodes[child].opacity(1, 0.26, easeInOutSine),
-      poorLabels[child].opacity(0.95, 0.28, easeInOutSine),
-    );
-  }
-
-  yield* showSmallScale(4);
-  yield* waitFor(3.2);
-
-  // POOR MODEL close + outro.
-  yield* all(
-    restoreLines(callCodes[4], 0.45),
-    hideCallCode(4, 0.55),
-    hideImplCode(4, 0.55),
-    implBlurs[4](0, 0.55, easeInOutSine),
-    poorViz().opacity(0, 0.55, easeInOutSine),
-    hideSmallScale(4, 0.45),
-  );
-  yield* baseX(NAME_XS[4] + 820, 1.2, easeInOutSine);
-  yield* waitFor(0.8);
+  yield* waitFor(0.6);
 });

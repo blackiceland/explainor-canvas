@@ -1,8 +1,70 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Manrope:wght@400;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500;1,6..72,600&display=block');
+@import url('https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Geist+Mono:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Manrope:wght@400;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500;1,6..72,600&family=Recursive:CASL,MONO,wght@0..1,1,400..700&display=block');
+
+/* Locally-hosted fonts that aren't on Google Fonts. */
+@font-face {
+  font-family: 'Commit Mono';
+  src: url('/fonts/CommitMono-Regular.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Monaspace Argon';
+  src: url('/fonts/MonaspaceArgon-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+@font-face {
+  font-family: 'Monaspace Argon';
+  src: url('/fonts/MonaspaceArgon-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Monaspace Neon';
+  src: url('/fonts/MonaspaceNeon-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Monaspace Xenon';
+  src: url('/fonts/MonaspaceXenon-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+@font-face {
+  font-family: 'Monaspace Xenon';
+  src: url('/fonts/MonaspaceXenon-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Monaspace Krypton';
+  src: url('/fonts/MonaspaceKrypton-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Monaspace Radon';
+  src: url('/fonts/MonaspaceRadon-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
 
 :root {
   --font-manrope: 'Manrope', sans-serif;
   --font-jetbrains: 'JetBrains Mono', monospace;
   --font-newsreader: 'Newsreader', serif;
 }
-

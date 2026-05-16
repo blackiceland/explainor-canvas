@@ -6,19 +6,10 @@ const OUT = process.env.OUT_DIR || './scripts/preview-out';
 
 const SCENE_OFFSET = 14.0;
 const beatTimes = [
-    ['01-cart-resolve',  SCENE_OFFSET +  0.4],
-    ['02-cart-done',     SCENE_OFFSET +  1.2],
-    ['03-both-static',   SCENE_OFFSET +  2.5],
-    ['04-render',        SCENE_OFFSET +  4.5],
-    ['05-send',          SCENE_OFFSET +  5.6],
-    ['06-record',        SCENE_OFFSET +  6.8],
-    ['07-return',        SCENE_OFFSET +  8.0],
-    ['08-bars-init',     SCENE_OFFSET +  9.5],
-    ['09-figures',       SCENE_OFFSET + 12.0],
-    ['10-labels',        SCENE_OFFSET + 14.5],
-    ['11-rev-expand',    SCENE_OFFSET + 18.5],
-    ['12-merged-text',   SCENE_OFFSET + 20.5],
-    ['13-mantra',        SCENE_OFFSET + 25.0],
+    ['font-sampler-1', SCENE_OFFSET + 0.5],
+    ['font-sampler-2', SCENE_OFFSET + 2.0],
+    ['font-sampler-3', SCENE_OFFSET + 4.0],
+    ['font-sampler-4', SCENE_OFFSET + 6.0],
 ];
 
 async function ensureDir() {
