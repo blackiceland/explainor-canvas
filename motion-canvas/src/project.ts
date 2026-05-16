@@ -129,7 +129,6 @@ export default makeProject({
         //04
 
         // chapter1YudanSceneEn,
-        // flagsWeightTakeSceneEn,
         // oneMethodManyVersionsSceneEn,
         fiveFacesBooleanSceneRu,
         // messageDeliverySelectionSceneEn,
