@@ -4,12 +4,16 @@ import {writeFileSync} from 'fs';
 const URL = process.env.MC_URL || 'http://localhost:5173/src/verticalProject';
 const OUT = process.env.OUT_DIR || './scripts/preview-out';
 
-const SCENE_OFFSET = 14.0;
+// linen ~28 s, then 4×8 cobalt variants (28→60), then 3×8 graphite
+// variants (60→84). Sample each variant near its midpoint.
 const beatTimes = [
-    ['font-sampler-1', SCENE_OFFSET + 0.5],
-    ['font-sampler-2', SCENE_OFFSET + 2.0],
-    ['font-sampler-3', SCENE_OFFSET + 4.0],
-    ['font-sampler-4', SCENE_OFFSET + 6.0],
+    ['01-cobalt',          32.0],
+    ['02-cobalt-grey',     40.0],
+    ['03-cobalt-gold',     48.0],
+    ['04-cobalt-rose',     56.0],
+    ['05-graphite-amber',  64.0],
+    ['06-graphite-jade',   72.0],
+    ['07-graphite-orchid', 80.0],
 ];
 
 async function ensureDir() {

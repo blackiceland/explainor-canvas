@@ -710,15 +710,15 @@ export default makeScene2D(function* (view) {
   // they live on the same shelf, regardless of how many lines each one
   // has.  The boolean parameter is highlighted in BOTH halves: in the
   // call site it looks small, in the implementation it does its work.
-  const CODE_FONT_SIZE = 17;
-  const CODE_LH        = 25;
-  const IMPL_FONT_SIZE = 19;     // crisper, more readable on the right
+  const CODE_FONT_SIZE = 19;
+  const CODE_LH        = 28;
+  const IMPL_FONT_SIZE = 19;     // same size as the call code
   const IMPL_LH        = 28;
-  const CALL_W         = 780;    // production class card
-  const IMPL_W         = 580;    // implementation card
-  const CALL_X         = -540;   // call card centre  → spans [-930, -150]
-  const IMPL_X         = 180;    // impl card centre  → spans [-110, +470] (nudged left)
-  const VIZ_X          = 700;    // right-side viz centre  → table no longer touches edge
+  const CALL_W         = 820;    // production class card
+  const IMPL_W         = 620;    // implementation card
+  const CALL_X         = -530;   // call card centre  → spans [-940, -120]
+  const IMPL_X         = 220;    // impl card centre  → spans [-90, +530]
+  const VIZ_X          = 740;    // right-side viz centre
   const TOP_Y          = -310;   // first call-code line top — gap from names ≈ 95px
 
   // Manticore vertically centres its content; this returns the
@@ -728,9 +728,7 @@ export default makeScene2D(function* (view) {
     return TOP_Y + ((lines - 1) * CODE_LH) / 2;
   };
 
-  // Identify the lines that hold a boolean. Used to position a backlit
-  // highlight strip BEHIND the line — much cleaner than per-token text
-  // shadows, which wash the glyphs into a milky blur.
+  // Identify the lines that hold a boolean.
   const BOOL_LINE_RE = /\b(true|false)\b|:\s*Boolean\b/;
   const findBoolLines = (src: string): number[] => {
     const out: number[] = [];
@@ -738,6 +736,56 @@ export default makeScene2D(function* (view) {
       if (BOOL_LINE_RE.test(line)) out.push(i);
     });
     return out;
+  };
+
+  // The identifiers that ARE booleans in our snippets — these get the
+  // halo wherever they appear (parameter list, call argument, or `if`
+  // condition). Together with the literal values and the type, they
+  // form the "boolean cluster".
+  const BOOL_NAMES = new Set([
+    'overwrite', 'silent', 'soft', 'skipValidation', 'active',
+  ]);
+  const BOOL_LITERALS = new Set(['true', 'false', 'Boolean']);
+  const BOOL_SIGNS    = new Set([':', '=', '!']);
+  const isBoolToken   = (text: string): boolean =>
+    BOOL_NAMES.has(text) || BOOL_LITERALS.has(text);
+
+  // Per-token halo. We mark just the boolean-cluster tokens (name +
+  // type + signs + value), not the whole line, and give each token a
+  // shadow in its own fill colour. Works at call sites, in impl
+  // signatures, and inside `if (…)` checks alike.
+  const glowBooleanLines = (code: Manticore): void => {
+    for (let lineIdx = 0; lineIdx < code.lineCount; lineIdx++) {
+      const line = code.getLine(lineIdx);
+      if (!line) continue;
+      const toks = line.tokens;
+
+      // First pass — identifiers + literals.
+      const glow = new Set<number>();
+      for (let i = 0; i < toks.length; i++) {
+        if (isBoolToken(toks[i].text.trim())) glow.add(i);
+      }
+      if (glow.size === 0) continue;
+
+      // Second pass — pull in adjacent signs ( `:` `=` `!` ) sitting
+      // immediately around a marked token. Skip whitespace tokens.
+      for (let i = 0; i < toks.length; i++) {
+        if (!glow.has(i)) continue;
+        let p = i - 1;
+        while (p >= 0 && toks[p].text.trim() === '') p--;
+        if (p >= 0 && BOOL_SIGNS.has(toks[p].text.trim())) glow.add(p);
+        let n = i + 1;
+        while (n < toks.length && toks[n].text.trim() === '') n++;
+        if (n < toks.length && BOOL_SIGNS.has(toks[n].text.trim())) glow.add(n);
+      }
+
+      // Apply the halo — shadow in each token's own fill colour.
+      for (const idx of glow) {
+        const ref = toks[idx].ref();
+        ref.shadowColor(ref.fill());
+        ref.shadowBlur(16);
+      }
+    }
   };
 
   // Paint call-site named parameters slate. Detects the pattern
@@ -789,6 +837,7 @@ export default makeScene2D(function* (view) {
     code.mount(view);
     code.colorize(CODE_RULES);
     paintNamedParams(code);
+    glowBooleanLines(code);
     code.node.opacity(0);
     return code;
   });
@@ -810,6 +859,7 @@ export default makeScene2D(function* (view) {
     code.mount(view);
     code.colorize(CODE_RULES);
     paintNamedParams(code);
+    glowBooleanLines(code);
     code.node.opacity(0);
     return code;
   });
@@ -844,35 +894,19 @@ export default makeScene2D(function* (view) {
           y={sceneY}
           width={lineWidth + 22}
           height={lineHeight + 2}
-          fill={'rgba(168, 205, 255, 0.10)'}
-          stroke={'rgba(168, 205, 255, 0.40)'}
-          lineWidth={1.2}
+          fill={'rgba(244, 241, 235, 0.04)'}
+          stroke={'rgba(244, 241, 235, 0.22)'}
+          lineWidth={1}
           radius={4}
-          shadowColor={'rgba(168, 205, 255, 0.65)'}
-          shadowBlur={28}
-          shadowOffsetX={0}
-          shadowOffsetY={0}
           zIndex={-1}
-          opacity={() => codeOpacity() * 0.95}
+          opacity={() => codeOpacity() * 0.9}
         />,
       );
     }
   };
 
-  FACES.forEach((face, i) => {
-    addBoolBacklight(
-      face.callCode,
-      yForCode(face.callCode),
-      CALL_X, CALL_W, CODE_FONT_SIZE, CODE_LH,
-      () => callCodes[i].node.opacity(),
-    );
-    addBoolBacklight(
-      face.implCode,
-      0,                              // impl is vertically centred (y=0)
-      IMPL_X, IMPL_W, IMPL_FONT_SIZE, IMPL_LH,
-      () => implCodes[i].node.opacity(),
-    );
-  });
+  // Backlight strips removed — the per-token coloured halo is the only
+  // glow now, exactly matching the boolean cluster.
 
   // Every code card carries a tweenable blur — PERMISSION uses it for
   // the bloom ritual at the start; SAFETY and POOR MODEL use it to
@@ -1445,17 +1479,24 @@ export default makeScene2D(function* (view) {
   arrivalTime(view.globalTime());
   yield* waitFor(0.2);
   yield* showCallCode(0);
-  yield* waitFor(3.0);
+  // Let the viewer actually read the call site before anything dims.
+  yield* waitFor(4.5);
   yield* all(
     spotlightLines(callCodes[0], blockLines(FACES[0].callBlock), 0.32, 0.55),
     showImplCode(0),
     showViz(0),
   );
-  yield* waitFor(0.8);
+  // Time to read the impl before the gate animation starts.
+  yield* waitFor(2.0);
   yield* permissionDriver();
-  yield* waitFor(2.4);
+  // Hold the post-driver state long enough to read again.
+  yield* waitFor(2.5);
 
-  // Big rating bloom — frame centre, on top of HEAVY-blurred code+viz.
+  // Hide the viz BEFORE the rating bloom — clean stage for the scale.
+  yield* hideViz(0, 0.45);
+  yield* waitFor(0.6);
+
+  // Big rating bloom — frame centre, on top of HEAVY-blurred code.
   bigScale().position([0, 0]);
   bigScale().scale(1);
   yield* all(
@@ -1463,7 +1504,6 @@ export default makeScene2D(function* (view) {
     implBlurs[0](BLUR_HEAVY, 0.6, easeInOutSine),
     callCodes[0].node.opacity(0.40, 0.6, easeInOutSine),
     implCodes[0].node.opacity(0.40, 0.6, easeInOutSine),
-    permissionViz().opacity(0.30, 0.6, easeInOutSine),
     bigScale().opacity(1, 0.6, easeInOutSine),
   );
   yield* waitFor(2.2);
@@ -1484,7 +1524,6 @@ export default makeScene2D(function* (view) {
     implBlurs[0](0, 1.0, easeInOutSine),
     callCodes[0].node.opacity(1, 1.0, easeInOutSine),
     implCodes[0].node.opacity(1, 1.0, easeInOutSine),
-    permissionViz().opacity(1, 1.0, easeInOutSine),
   );
   yield* waitFor(2.0);
 
@@ -1498,10 +1537,13 @@ export default makeScene2D(function* (view) {
   );
 
   // ─── MODE / SAFETY / SHORTCUT / POOR MODEL — same shape ─────────────
-  yield* runFace(1, 0.9, 3.0, 0.7, 3.0, 1.6);
-  yield* runFace(2, 0.9, 3.0, 0.7, 4.5, 1.6);
-  yield* runFace(3, 0.9, 3.0, 0.7, 3.0, 1.6);
-  yield* runFace(4, 0.9, 3.0, 0.7, 3.8, 1.6);
+  // Per-face holds: slide / callHold(read call) / implHold(read impl
+  // before viz drives) / vizHold / closeHold. Each waitFor leaves at
+  // least ~2 s for the viewer before the next opacity change.
+  yield* runFace(1, 0.9, 4.5, 2.0, 3.0, 2.2);
+  yield* runFace(2, 0.9, 4.5, 2.0, 4.5, 2.2);
+  yield* runFace(3, 0.9, 4.5, 2.0, 3.0, 2.2);
+  yield* runFace(4, 0.9, 4.5, 2.0, 3.8, 2.2);
 
   // ─── FINALE — moving lamp stays on POOR MODEL, four new lamps
   //    flick on over the other names. All five gauges fade in.

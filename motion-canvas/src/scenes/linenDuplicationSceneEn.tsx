@@ -42,16 +42,20 @@ import {textWidth} from '../core/utils/textMeasure';
 // ══════════════════════════════════════════════════════════════════════
 
 const F_SERIF = 'Newsreader, EB Garamond, serif';
-const F_MONO  = 'JetBrains Mono, IBM Plex Mono, monospace';
+// Monaspace Krypton is the geometric / architectural cut — heavier
+// glyph dispersion than JetBrains Mono at the same nominal weight,
+// reads denser on linen. JetBrains Mono is the safety fallback.
+const F_MONO  = '"Monaspace Krypton", "JetBrains Mono", monospace';
 
 const VIEW_W = 1080;
 const VIEW_H = 1920;
 
 // ── Linen palette ────────────────────────────────────────────────────
-// Three roles, three colours. INK is ~9 % darker than the canonical
-// #2A2418 and tokens are rendered at fontWeight 500 (medium) — the
-// pair gives the body enough weight on linen without going semibold.
-const INK    = '#251F14'; // default — variables, calls, punctuation
+// Three roles, three colours. INK is ~14 % darker than the canonical
+// #2A2418 and tokens are rendered at fontWeight 550 (between medium
+// and semibold) — the pair gives the body real presence on linen
+// without crossing into shouty bold.
+const INK    = '#1F1A10'; // default — variables, calls, punctuation
 const BROWN  = '#6B3F24'; // keywords (function/const/return/if/else/…)
 const GREEN  = '#2F5A3E'; // domain — function defs, string keys, types
 const HERO   = '#39593F';
@@ -435,22 +439,23 @@ function compressBarsToSilhouetteWidths(
 function* awaitFontsReady(): ThreadGenerator {
     if (typeof document === 'undefined') return;
     try {
-        document.fonts.load(`400 28px "JetBrains Mono"`);
-        document.fonts.load(`500 28px "JetBrains Mono"`);
-        document.fonts.load(`600 28px "JetBrains Mono"`);
-        document.fonts.load(`700 28px "JetBrains Mono"`);
+        // Code font — Monaspace Krypton primary, JetBrains Mono fallback.
+        document.fonts.load(`400 32px "Monaspace Krypton"`);
+        document.fonts.load(`500 32px "Monaspace Krypton"`);
+        document.fonts.load(`600 32px "Monaspace Krypton"`);
+        document.fonts.load(`400 30px "Monaspace Krypton"`);
+        document.fonts.load(`400 32px "JetBrains Mono"`);
+        document.fonts.load(`500 32px "JetBrains Mono"`);
         document.fonts.load(`400 30px "JetBrains Mono"`);
-        document.fonts.load(`500 30px "JetBrains Mono"`);
-        document.fonts.load(`600 30px "JetBrains Mono"`);
-        document.fonts.load(`700 30px "JetBrains Mono"`);
-        document.fonts.load(`400 26px "JetBrains Mono"`);
+        // Subtitle / labels.
+        document.fonts.load(`400 32px "JetBrains Mono"`);
         document.fonts.load(`400 120px "Newsreader"`);
         document.fonts.load(`italic 400 120px "Newsreader"`);
         document.fonts.load(`500 22px "Newsreader"`);
     } catch {}
 
     const span = document.createElement('span');
-    span.style.cssText = `position:fixed;left:-9999px;top:0;font:400 30px "JetBrains Mono",monospace;visibility:hidden;`;
+    span.style.cssText = `position:fixed;left:-9999px;top:0;font:400 32px "Monaspace Krypton","JetBrains Mono",monospace;visibility:hidden;`;
     span.textContent = 'iiiiiiiiii MMMMMMMMMM';
     document.body.appendChild(span);
     void span.offsetWidth;
@@ -458,13 +463,13 @@ function* awaitFontsReady(): ThreadGenerator {
     const c = document.createElement('canvas');
     const ctx = c.getContext('2d');
     if (!ctx) { document.body.removeChild(span); return; }
-    for (let i = 0; i < 60; i++) {
-        if (document.fonts.check(`400 28px "JetBrains Mono"`) &&
-            document.fonts.check(`400 30px "JetBrains Mono"`)) {
-            ctx.font = `400 30px "JetBrains Mono", monospace`;
+    for (let i = 0; i < 80; i++) {
+        if (document.fonts.check(`400 32px "Monaspace Krypton"`) &&
+            document.fonts.check(`400 32px "JetBrains Mono"`)) {
+            ctx.font = `400 32px "Monaspace Krypton", "JetBrains Mono", monospace`;
             const wI = ctx.measureText('iiiiiiiiii').width;
             const wM = ctx.measureText('MMMMMMMMMM').width;
-            if (Math.abs(wI - wM) < 0.5 && wI > 30 * 5) {
+            if (Math.abs(wI - wM) < 0.5 && wI > 32 * 5) {
                 document.body.removeChild(span);
                 return;
             }
@@ -541,12 +546,12 @@ export default makeScene2D(function* (view) {
     // Gap from hero italic bottom (≈ -456) to cart's first visible
     // glyph (≈ -305) lands around ~150 px — substantial breathing
     // room from the heading. Inter-block gap ~110 px.
-    const cart  = makeBlock({code: CODE_CART_V1,  x: CODE_X, y: -140, fontSize: 30, lineHeight: 50, width: 1100});
-    const login = makeBlock({code: CODE_LOGIN_V1, x: CODE_X, y: +280, fontSize: 30, lineHeight: 50, width: 1100});
+    const cart  = makeBlock({code: CODE_CART_V1,  x: CODE_X, y: -125, fontSize: 32, lineHeight: 46, width: 1100});
+    const login = makeBlock({code: CODE_LOGIN_V1, x: CODE_X, y: +260, fontSize: 32, lineHeight: 46, width: 1100});
     cart.mount(view);
     login.mount(view);
-    bumpWeight(cart, 500);
-    bumpWeight(login, 500);
+    bumpWeight(cart, 530);
+    bumpWeight(login, 530);
     // Colors applied immediately so the bar→code morph reveals the
     // already-inked text in one move (no all-black intermediate).
     cart.colorize(RULES);
@@ -605,12 +610,12 @@ export default makeScene2D(function* (view) {
     //  each method and slides downward as the highlight steps from
     //  render → send → record.
     // ════════════════════════════════════════════════════════════════
-    const lh_methods = 50;
+    const lh_methods = 46;
     const lineCount_methods = 7;
-    const startRel_methods = -((lineCount_methods - 1) / 2) * lh_methods; // -150
+    const startRel_methods = -((lineCount_methods - 1) / 2) * lh_methods; // -138
     const lineYRel = (i: number) => startRel_methods + i * lh_methods;
-    const cartCenterYBeat3 = -140;
-    const loginCenterYBeat3 = +280;
+    const cartCenterYBeat3 = -125;
+    const loginCenterYBeat3 = +260;
 
     // Crystal — vertically elongated rhombus, solid HERO fill. Sits
     // to the LEFT of the highlighted body line. With CODE_X=20, body
@@ -725,7 +730,7 @@ export default makeScene2D(function* (view) {
     // ════════════════════════════════════════════════════════════════
 
     const lineCount = 7;
-    const lh = 50;
+    const lh = 46;
     // Bars at body operation rows: L1 (render), L2 (send), L3
     // (track), L5 (return). L0 signature, empty L4 and L6 closing
     // brace are skipped — bars mark body operations only.
@@ -739,15 +744,15 @@ export default makeScene2D(function* (view) {
     // out tokens. Pixel-perfect against the rendered text.
     const cartLines = CODE_CART_V1.split('\n');
     const loginLines = CODE_LOGIN_V1.split('\n');
-    const cartRowSpec = cartLineIndices.map(idx => measureRow(cartLines[idx], F_MONO, 30));
-    const loginRowSpec = cartLineIndices.map(idx => measureRow(loginLines[idx], F_MONO, 30));
+    const cartRowSpec = cartLineIndices.map(idx => measureRow(cartLines[idx], F_MONO, 32));
+    const loginRowSpec = cartLineIndices.map(idx => measureRow(loginLines[idx], F_MONO, 32));
     const cartWidths  = cartRowSpec.map(r => r.widthPx);
     const loginWidths = loginRowSpec.map(r => r.widthPx);
     const cartIndents = cartRowSpec.map(r => r.indentPx);
     const loginIndents = loginRowSpec.map(r => r.indentPx);
 
-    const cartCenterY  = -140;
-    const loginCenterY =  280;
+    const cartCenterY  = -125;
+    const loginCenterY =  260;
     const barCount = cartLineIndices.length;
 
     // Bar y positions relative to each method's centre. With 6 rows
@@ -886,9 +891,9 @@ export default makeScene2D(function* (view) {
     //
     //  Phase D — bars cross-fade into the actual merged code text.
     // ════════════════════════════════════════════════════════════════
-    const MERGED_LH = 50;
+    const MERGED_LH = 46;
     const MERGED_TOTAL_LINES = 7;
-    const MERGED_TOP = -((MERGED_TOTAL_LINES - 1) / 2) * MERGED_LH; // -150
+    const MERGED_TOP = -((MERGED_TOTAL_LINES - 1) / 2) * MERGED_LH; // -138
     // Code rows: signature + message=render + delivery=send + track
     // + return. Skip empty L4 and closing-brace L6.
     const mergedLineIndices = [0, 1, 2, 3, 5];
@@ -897,7 +902,7 @@ export default makeScene2D(function* (view) {
     // Measure each row through canvas measureText to match Manticore's
     // own token positioning — pixel-perfect against the rendered text.
     const mergedLines = CODE_MERGED.split('\n');
-    const mergedRowSpec = mergedLineIndices.map(idx => measureRow(mergedLines[idx], F_MONO, 30));
+    const mergedRowSpec = mergedLineIndices.map(idx => measureRow(mergedLines[idx], F_MONO, 32));
     const mergedWidths  = mergedRowSpec.map(r => r.widthPx);
     const mergedIndents = mergedRowSpec.map(r => r.indentPx);
     const N_REV_BARS = mergedWidths.length;
@@ -955,11 +960,11 @@ export default makeScene2D(function* (view) {
     // Phase D — bars cross-fade into the merged code text.
     const merged = makeBlock({
         code: CODE_MERGED, x: CODE_X, y: 0,
-        fontSize: 30, lineHeight: MERGED_LH,
+        fontSize: 32, lineHeight: MERGED_LH,
         width: 1100, noClip: true,
     });
     merged.mount(view);
-    bumpWeight(merged, 500);
+    bumpWeight(merged, 530);
     merged.colorize(RULES);
     merged.node.opacity(0);
 
