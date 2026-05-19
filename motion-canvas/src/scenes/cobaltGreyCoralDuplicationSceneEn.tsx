@@ -1,34 +1,34 @@
 import {buildDuplicationScene} from './_duplicationShared';
 
-// Cobalt-grey base — EXPERIMENT 3, v2.
-// Restrained + tender after feedback: red was too loud, string should
-// be green. Kept the chapter1 opacity-driven cream hierarchy on body
-// (PARAM 92 %, PUNCT 58 %) and the veiled cobalt KEY at 82 %, since
-// those landed. Method coral pulled down to dusty rose, string moved
-// from cream-72 % to a tender sage, prop shifted from saturated
-// lavender to a pale periwinkle, punch returned to warm sand.
+// Cobalt-grey base — EXPERIMENT 3, v4 (second review pass).
+// Headline blue and code keyword blue split into one family, two ranks:
+// headline cleaner and lighter, code keyword tighter and greyer, so
+// they relate without speaking in unison. Method rose nudged a hair
+// dustier. "bad." accent pulled out of bright peach into a dustier
+// champagne so it stops living in its own temperature class.
 //
-//   KEY     cobalt sky 82 %  — keywords (kept)
-//   METHOD  dusty rose        — function defs AND call sites
-//   STRING  tender sage       — string literals (green now)
-//   PROP    pale periwinkle   — object field access (.phone)
-//   PARAM   cream  92 %       — user / cart / message / delivery / code (kept)
-//   PUNC    cream  58 %       — brackets / commas / operators (kept)
-//   PUNCH   warm sand         — italic "bad."
-const ROSE = '#C89098';
+//   HEADLINE clean cobalt    — editorial title (top of frame)
+//   KEY      grey-ice blue   — code keywords (related to HEADLINE, tighter)
+//   METHOD   dusty rose      — function defs AND call sites
+//   STRING   olive bone      — string literals
+//   BODY     warm off-white  — INK / PARAM (lifted ~6 %)
+//   PROP     quiet grey-blue — .phone, near-neutral, NOT an accent
+//   PUNC     cool grey       — brackets / commas / operators
+//   PUNCH    champagne       — italic "bad." (dustier than peach)
+const ROSE = '#C58993';
 
 export default buildDuplicationScene({
     BG:     '#1B1B1F',
-    INK:    'rgba(244, 241, 235, 0.92)',
-    KEY:    'rgba(156, 194, 232, 0.82)', // cobalt sky veiled (kept)
+    INK:    '#E2DDD3',                    // warm off-white base — lifted ~6 %
+    KEY:    '#8FAAC3',                    // code keyword — tighter, greyer
     DOMAIN: ROSE,
     CALL:   ROSE,
-    STRING: '#A8C0A0',                    // tender sage
-    PROP:   '#B88878',                    // terracotta light — .phone
-    PARAM:  '#D8B8A0',                    // warm peach — user / cart / …
-    PUNC:   'rgba(244, 241, 235, 0.58)',  // (kept)
-    OPERATOR: 'rgba(244, 241, 235, 0.58)',
-    PUNCH:  '#F0BE8E',                    // warm sand — italic "bad."
-    HERO:   '#9CC2E8',
-    QUIET:  'rgba(244, 241, 235, 0.45)',
+    STRING: '#A7B59A',                    // olive bone
+    PROP:   '#A0AAB2',                    // very quiet grey-blue — almost neutral
+    PARAM:  '#E2DDD3',                    // base lifted — user / cart / …
+    PUNC:   '#A7A29A',                    // cool grey
+    OPERATOR: '#A7A29A',
+    PUNCH:  '#D6A06F',                    // champagne — italic "bad."
+    HERO:   '#A9C6E8',                    // headline cobalt — cleaner than code KEY
+    QUIET:  'rgba(215, 209, 200, 0.45)',
 });
