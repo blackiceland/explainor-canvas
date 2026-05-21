@@ -191,7 +191,7 @@ export function buildDuplicationScene(palette: Palette) {
         view.add(<Txt
             text="ISSUE 02"
             fontFamily={F_SERIF} fontSize={17} fontWeight={500}
-            letterSpacing={6} fill={QUIET} y={820}
+            letterSpacing={6} fill="rgba(237, 238, 232, 0.50)" y={820}
         />);
 
         // Hero — three lines, italic "bad." in its own PUNCH colour
@@ -218,18 +218,18 @@ export function buildDuplicationScene(palette: Palette) {
 
         // Two TS specimens.
         const cart = Manticore.create(CODE_CART, {
-            x: CODE_X, y: -130,
-            width: 900,
-            fontSize: 34, lineHeight: 40,
+            x: CODE_X, y: -125,
+            width: 1000,
+            fontSize: 32, lineHeight: 38,
             fontFamily: codeFont,
             theme: THEME,
             cardStyle: FLAT_CARD,
             glowAccent: false,
         });
         const login = Manticore.create(CODE_LOGIN, {
-            x: CODE_X, y: +205,
-            width: 900,
-            fontSize: 34, lineHeight: 40,
+            x: CODE_X, y: +200,
+            width: 1000,
+            fontSize: 32, lineHeight: 38,
             fontFamily: codeFont,
             theme: THEME,
             cardStyle: FLAT_CARD,
@@ -252,7 +252,7 @@ export function buildDuplicationScene(palette: Palette) {
             text="two functions"
             fontFamily={codeFont} fontSize={34} fontWeight={400}
             fill="#E2E6EE"
-            x={CODE_X} y={620}
+            x={CODE_X} y={600}
             textAlign="center"
         />);
 

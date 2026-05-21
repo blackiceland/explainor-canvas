@@ -16,17 +16,17 @@ import {buildDuplicationScene} from './_duplicationShared';
 //   BODY     light bone      — INK / PARAM (neutral mass)
 //   PROP     quiet grey-blue — .phone, near-neutral
 //   PUNC     warm grey       — brackets / commas / operators
-const ROSE = '#ECA7B3';
+const ROSE = '#EDA3AF';
 
 export default buildDuplicationScene({
     BG:     '#17181D',
-    INK:    '#EDE8E1',
-    KEY:    '#B8D2FF',
+    INK:    '#FBF6EF',
+    KEY:    '#C0DAFF',
     DOMAIN: ROSE,
     CALL:   ROSE,
     STRING: '#A8BAA0',
     PROP:   '#ACB6BC',
-    PARAM:  '#EDE8E1',
+    PARAM:  '#FBF6EF',
     PUNC:   '#AAA59D',
     OPERATOR: '#AAA59D',
     PUNCH:  '#D6A06F',
