@@ -64,22 +64,22 @@ const F_MONO  = '"Monaspace Argon", "JetBrains Mono", monospace';
 
 const VIEW_W = 1080;
 const VIEW_H = 1920;
-const CODE_X = 20;
+const CODE_X = -20;
 
 const CODE_CART = `function sendCartReminder(user, cart) {
-    const message = render("cart.reminder", cart)
-    const delivery = send(user.phone, message)
-    track(user, message, delivery)
+  const message = render("cart.due", cart)
+  const delivery = send(user.phone, message)
+  track(user, message, delivery)
 
-    return delivery
+  return delivery
 }`;
 
 const CODE_LOGIN = `function sendLoginCode(user, code) {
-    const message = render("login.code", code)
-    const delivery = send(user.phone, message)
-    track(user, message, delivery)
+  const message = render("login.code", code)
+  const delivery = send(user.phone, message)
+  track(user, message, delivery)
 
-    return delivery
+  return delivery
 }`;
 
 const FLAT_CARD = {
@@ -130,7 +130,7 @@ function* awaitFontsReady(): ThreadGenerator {
 export function buildDuplicationScene(palette: Palette) {
     const {BG, INK, KEY, DOMAIN, PUNCH, HERO, QUIET} = palette;
     const codeFont = palette.font ?? F_MONO;
-    const codeWeight = palette.weight ?? 530;
+    const codeWeight = palette.weight ?? 575;
     const STRING_COLOR = palette.STRING ?? DOMAIN;
     const CALL_COLOR  = palette.CALL  ?? INK;
     const PARAM_COLOR = palette.PARAM ?? INK;
@@ -190,8 +190,8 @@ export function buildDuplicationScene(palette: Palette) {
         />);
         view.add(<Txt
             text="ISSUE 02"
-            fontFamily={F_SERIF} fontSize={20} fontWeight={500}
-            letterSpacing={4} fill={HERO} y={820}
+            fontFamily={F_SERIF} fontSize={17} fontWeight={500}
+            letterSpacing={6} fill={QUIET} y={820}
         />);
 
         // Hero — three lines, italic "bad." in its own PUNCH colour
@@ -218,18 +218,18 @@ export function buildDuplicationScene(palette: Palette) {
 
         // Two TS specimens.
         const cart = Manticore.create(CODE_CART, {
-            x: CODE_X, y: -125,
-            width: 1100,
-            fontSize: 32, lineHeight: 46,
+            x: CODE_X, y: -160,
+            width: 1000,
+            fontSize: 36, lineHeight: 47,
             fontFamily: codeFont,
             theme: THEME,
             cardStyle: FLAT_CARD,
             glowAccent: false,
         });
         const login = Manticore.create(CODE_LOGIN, {
-            x: CODE_X, y: +260,
-            width: 1100,
-            fontSize: 32, lineHeight: 46,
+            x: CODE_X, y: +235,
+            width: 1000,
+            fontSize: 36, lineHeight: 47,
             fontFamily: codeFont,
             theme: THEME,
             cardStyle: FLAT_CARD,
@@ -244,13 +244,15 @@ export function buildDuplicationScene(palette: Palette) {
         cart.node.opacity(1);
         login.node.opacity(1);
 
-        // Braced subtitle — typographic echo of the code structure,
-        // straight from the s4 reference.
+        // Bottom anchor — a refined supporting caption echoing the
+        // code structure. Painted in code-keyword blue so it visually
+        // pairs with the `function` keyword above, tying the caption
+        // to the syntax it summarises.
         view.add(<Txt
-            text="{ two functions }"
-            fontFamily={codeFont} fontSize={32} fontWeight={400}
-            fill={HERO}
-            x={CODE_X} y={680}
+            text="two functions"
+            fontFamily={codeFont} fontSize={30} fontWeight={400}
+            fill="#C2D5E4"
+            x={CODE_X} y={620}
             textAlign="center"
         />);
 
