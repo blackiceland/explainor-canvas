@@ -130,7 +130,7 @@ function* awaitFontsReady(): ThreadGenerator {
 export function buildDuplicationScene(palette: Palette) {
     const {BG, INK, KEY, DOMAIN, PUNCH, HERO, QUIET} = palette;
     const codeFont = palette.font ?? F_MONO;
-    const codeWeight = palette.weight ?? 575;
+    const codeWeight = palette.weight ?? 695;
     const STRING_COLOR = palette.STRING ?? DOMAIN;
     const CALL_COLOR  = palette.CALL  ?? INK;
     const PARAM_COLOR = palette.PARAM ?? INK;
@@ -191,7 +191,7 @@ export function buildDuplicationScene(palette: Palette) {
         view.add(<Txt
             text="ISSUE 02"
             fontFamily={F_SERIF} fontSize={17} fontWeight={500}
-            letterSpacing={6} fill="rgba(237, 238, 232, 0.50)" y={820}
+            letterSpacing={6} fill="rgba(237, 238, 232, 0.56)" y={820}
         />);
 
         // Hero — three lines, italic "bad." in its own PUNCH colour
@@ -219,8 +219,8 @@ export function buildDuplicationScene(palette: Palette) {
         // Two TS specimens.
         const cart = Manticore.create(CODE_CART, {
             x: CODE_X, y: -125,
-            width: 1000,
-            fontSize: 32, lineHeight: 38,
+            width: 984,
+            fontSize: 33, lineHeight: 39,
             fontFamily: codeFont,
             theme: THEME,
             cardStyle: FLAT_CARD,
@@ -228,8 +228,8 @@ export function buildDuplicationScene(palette: Palette) {
         });
         const login = Manticore.create(CODE_LOGIN, {
             x: CODE_X, y: +200,
-            width: 1000,
-            fontSize: 32, lineHeight: 38,
+            width: 984,
+            fontSize: 33, lineHeight: 39,
             fontFamily: codeFont,
             theme: THEME,
             cardStyle: FLAT_CARD,
@@ -252,7 +252,7 @@ export function buildDuplicationScene(palette: Palette) {
             text="two functions"
             fontFamily={codeFont} fontSize={34} fontWeight={400}
             fill="#E2E6EE"
-            x={CODE_X} y={600}
+            x={CODE_X} y={575}
             textAlign="center"
         />);
 
