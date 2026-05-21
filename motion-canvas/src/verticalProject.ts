@@ -8,12 +8,23 @@ import slateAmberSageCodeFirstSceneEn from './scenes/slateAmberSageCodeFirstScen
 import deepTealSandRoseCodeFirstSceneEn from './scenes/deepTealSandRoseCodeFirstSceneEn?scene';
 import aubergineIceApricotCodeFirstSceneEn from './scenes/aubergineIceApricotCodeFirstSceneEn?scene';
 import graphiteGoldOliveCodeFirstSceneEn from './scenes/graphiteGoldOliveCodeFirstSceneEn?scene';
+import petrolNightOrchidMintCodeFirstSceneEn from './scenes/petrolNightOrchidMintCodeFirstSceneEn?scene';
+import blackCherryIceBlueApricotCodeFirstSceneEn from './scenes/blackCherryIceBlueApricotCodeFirstSceneEn?scene';
+import deepCobaltBoneCopperCodeFirstSceneEn from './scenes/deepCobaltBoneCopperCodeFirstSceneEn?scene';
+import indigoSoftGoldCodeFirstSceneEn from './scenes/indigoSoftGoldCodeFirstSceneEn?scene';
+import paperInkCodeFirstSceneEn from './scenes/paperInkCodeFirstSceneEn?scene';
 
 export default makeProject({
     experimentalFeatures: true,
     scenes: [
 
-        slateAmberSageCodeFirstSceneEn,
+        deepCobaltBoneCopperCodeFirstSceneEn,
+
+        // paperInkCodeFirstSceneEn,
+        // slateAmberSageCodeFirstSceneEn,
+        // petrolNightOrchidMintCodeFirstSceneEn,
+        // blackCherryIceBlueApricotCodeFirstSceneEn,
+        //indigoSoftGoldCodeFirstSceneEn,
 
         // cobaltGreyCoralDuplicationSceneEn,
         // slateAmberSageDuplicationSceneEn,

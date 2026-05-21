@@ -14,13 +14,13 @@ import {buildCodeFirstScene} from './_codeFirstShared';
 
 export default buildCodeFirstScene({
     BG:       '#121827',
-    INK:      '#D9DFEA',
+    INK:      '#DCE2EC',
     KEY:      '#C8A8F0',
     METHOD:   '#8FB2E6',
     STRING:   '#A8CC95',
     PROP:     '#D8A4B0',
-    PARAM:    '#D9DFEA',
+    PARAM:    '#DCE2EC',
     PUNC:     '#C9D0DE',
     OPERATOR: '#91A4BA',
-    QUIET:    'rgba(217, 223, 234, 0.50)',
+    QUIET:    'rgba(220, 226, 236, 0.50)',
 });

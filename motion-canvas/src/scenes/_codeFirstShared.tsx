@@ -83,15 +83,15 @@ function bumpWeight(block: Manticore, weight: number): void {
 function* awaitFontsReady(): ThreadGenerator {
     if (typeof document === 'undefined') return;
     try {
-        document.fonts.load(`400 36px "JetBrains Mono"`);
-        document.fonts.load(`550 36px "JetBrains Mono"`);
-        document.fonts.load(`400 36px "Monaspace Argon"`);
-        document.fonts.load(`550 36px "Monaspace Argon"`);
+        document.fonts.load(`400 38px "JetBrains Mono"`);
+        document.fonts.load(`550 38px "JetBrains Mono"`);
+        document.fonts.load(`400 38px "Monaspace Argon"`);
+        document.fonts.load(`550 38px "Monaspace Argon"`);
         document.fonts.load(`700 72px Inter`);
     } catch {}
 
     for (let i = 0; i < 60; i++) {
-        if (document.fonts.check(`400 36px "JetBrains Mono"`)) {
+        if (document.fonts.check(`400 38px "JetBrains Mono"`)) {
             return;
         }
         yield* waitFor(0.05);
@@ -99,7 +99,8 @@ function* awaitFontsReady(): ThreadGenerator {
 }
 
 export function buildCodeFirstScene(palette: CodeFirstPalette) {
-    const {BG, INK, KEY, METHOD, STRING, PROP, PARAM, PUNC, OPERATOR, QUIET} = palette;
+    const {BG, INK, KEY, METHOD, STRING, PROP, PARAM, PUNC, OPERATOR, QUIET, ACCENT} = palette;
+    const captionAccent = ACCENT ?? KEY;
 
     const THEME: SyntaxTheme = {
         keyword:     INK,
@@ -128,31 +129,32 @@ export function buildCodeFirstScene(palette: CodeFirstPalette) {
         view.add(<Rect width={VIEW_W} height={VIEW_H} fill={BG} />);
 
         // The code — nested if-else pyramid. 16 lines, longest 43.
-        // fontSize 36 forced down from 38 by longer lines; lineHeight
-        // 40 (ratio 1.11) keeps the block tight so the caption can sit
-        // close without overlap. Card width = frame width (1080) to
-        // fit the longest line (43 × 21.6 = 929) with internal padding
-        // 56 giving visible text margin ~56 px from each frame edge.
-        // y=-210 puts top edge at y=-530 ≈ 22 % from top of canvas.
+        // fontSize 38 (+5.5 % from 36 — closing on the ТЗ target of
+        // +8 % without overflowing the clip). lineHeight 42 (ratio
+        // 1.105 — still tight). Card width = frame width 1080. x=+30
+        // shifts the block ~30 px right so the left edge breathes,
+        // matching the ТЗ's "+25-35 px right" ask. y=-200 keeps the
+        // top edge of the code visible inside the frame.
         const code = Manticore.create(CODE, {
-            x: 0, y: -210,
+            x: 30, y: -200,
             width: 1080,
-            fontSize: 36, lineHeight: 40,
+            fontSize: 38, lineHeight: 42,
             fontFamily: F_MONO,
             theme: THEME,
             cardStyle: FLAT_CARD,
             glowAccent: false,
         });
         code.mount(view);
-        bumpWeight(code, 550);
+        bumpWeight(code, 500);
         code.colorize(RULES);
         code.node.opacity(1);
 
         // Bottom caption — second anchor, lowercased per ТЗ (more
         // natural social-voice, less corporate Title Case). Accent
         // word "decisions" in KEY (lavender) echoes the code keyword.
-        // y=+220 — up 20 px from previous, code+caption read as one.
-        const CAP_Y = 220;
+        // y=+290 — moved 70 px down so a proper pause sits between
+        // the closing brace and "One function." (per ТЗ).
+        const CAP_Y = 290;
         const CAP_SIZE = 72;
         const CAP_LH = 76;
         const line1Y = CAP_Y - CAP_LH / 2;
@@ -184,7 +186,7 @@ export function buildCodeFirstScene(palette: CodeFirstPalette) {
         view.add(<Txt
             text={l2Accent}
             fontFamily={F_SANS} fontSize={CAP_SIZE} fontWeight={700}
-            fill={KEY} letterSpacing={-0.5}
+            fill={captionAccent} letterSpacing={-0.5}
             offset={[-1, 0]} x={l2StartX + l2pW} y={line2Y}
         />);
         view.add(<Txt
