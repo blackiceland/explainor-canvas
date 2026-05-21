@@ -84,9 +84,9 @@ function* awaitFontsReady(): ThreadGenerator {
     if (typeof document === 'undefined') return;
     try {
         document.fonts.load(`400 36px "JetBrains Mono"`);
-        document.fonts.load(`700 36px "JetBrains Mono"`);
+        document.fonts.load(`550 36px "JetBrains Mono"`);
         document.fonts.load(`400 36px "Monaspace Argon"`);
-        document.fonts.load(`700 36px "Monaspace Argon"`);
+        document.fonts.load(`550 36px "Monaspace Argon"`);
         document.fonts.load(`700 72px Inter`);
     } catch {}
 
@@ -144,7 +144,7 @@ export function buildCodeFirstScene(palette: CodeFirstPalette) {
             glowAccent: false,
         });
         code.mount(view);
-        bumpWeight(code, 700);
+        bumpWeight(code, 550);
         code.colorize(RULES);
         code.node.opacity(1);
 
