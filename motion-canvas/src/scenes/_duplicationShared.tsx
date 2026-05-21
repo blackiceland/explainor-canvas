@@ -64,22 +64,22 @@ const F_MONO  = '"Monaspace Argon", "JetBrains Mono", monospace';
 
 const VIEW_W = 1080;
 const VIEW_H = 1920;
-const CODE_X = -20;
+const CODE_X = 0;
 
-const CODE_CART = `function sendCartReminder(user, cart) {
+const CODE_CART = `function sendCartReminder(phone, cart) {
   const message = render("cart.due", cart)
-  const delivery = send(user.phone, message)
-  track(user, message, delivery)
+  const sent = send(phone, message)
+  track(phone, message, sent)
 
-  return delivery
+  return sent
 }`;
 
-const CODE_LOGIN = `function sendLoginCode(user, code) {
+const CODE_LOGIN = `function sendLoginCode(phone, code) {
   const message = render("login.code", code)
-  const delivery = send(user.phone, message)
-  track(user, message, delivery)
+  const sent = send(phone, message)
+  track(phone, message, sent)
 
-  return delivery
+  return sent
 }`;
 
 const FLAT_CARD = {
@@ -163,9 +163,9 @@ export function buildDuplicationScene(palette: Palette) {
         // Method CALLS — the verbs invoked from inside the body.
         {match: /^(render|send|track|log)$/, color: CALL_COLOR},
         // Parameter + local-binding identifiers — the body's nouns.
-        {match: /^(user|cart|code|message|delivery|payload|context)$/, color: PARAM_COLOR},
-        // Property access (e.g. `user.phone` → `phone`).
-        {match: /^(phone|email|id|name)$/, color: PROP_COLOR},
+        {match: /^(phone|cart|code|message|sent|user|delivery|payload|context)$/, color: PARAM_COLOR},
+        // Property access (e.g. `obj.email` → `email`).
+        {match: /^(email|id|name)$/, color: PROP_COLOR},
     ];
 
     return makeScene2D(function* (view) {
@@ -218,18 +218,18 @@ export function buildDuplicationScene(palette: Palette) {
 
         // Two TS specimens.
         const cart = Manticore.create(CODE_CART, {
-            x: CODE_X, y: -160,
-            width: 1000,
-            fontSize: 36, lineHeight: 47,
+            x: CODE_X, y: -130,
+            width: 900,
+            fontSize: 34, lineHeight: 40,
             fontFamily: codeFont,
             theme: THEME,
             cardStyle: FLAT_CARD,
             glowAccent: false,
         });
         const login = Manticore.create(CODE_LOGIN, {
-            x: CODE_X, y: +235,
-            width: 1000,
-            fontSize: 36, lineHeight: 47,
+            x: CODE_X, y: +205,
+            width: 900,
+            fontSize: 34, lineHeight: 40,
             fontFamily: codeFont,
             theme: THEME,
             cardStyle: FLAT_CARD,
@@ -250,8 +250,8 @@ export function buildDuplicationScene(palette: Palette) {
         // to the syntax it summarises.
         view.add(<Txt
             text="two functions"
-            fontFamily={codeFont} fontSize={30} fontWeight={400}
-            fill="#C2D5E4"
+            fontFamily={codeFont} fontSize={34} fontWeight={400}
+            fill="#E2E6EE"
             x={CODE_X} y={620}
             textAlign="center"
         />);
