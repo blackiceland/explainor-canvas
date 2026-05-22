@@ -149,51 +149,40 @@ export function buildCodeFirstScene(palette: CodeFirstPalette) {
         code.colorize(RULES);
         code.node.opacity(1);
 
-        // Bottom caption — second anchor, lowercased per ТЗ (more
-        // natural social-voice, less corporate Title Case). Accent
-        // word "decisions" in KEY (lavender) echoes the code keyword.
-        // y=+290 — moved 70 px down so a proper pause sits between
-        // the closing brace and "One function." (per ТЗ).
-        const CAP_Y = 290;
-        const CAP_SIZE = 72;
-        const CAP_LH = 76;
-        const line1Y = CAP_Y - CAP_LH / 2;
-        const line2Y = CAP_Y + CAP_LH / 2;
+        // Subtitle — left-aligned editorial note, NOT centered hook.
+        // Two-level: small uppercase mono label above, sans caption
+        // below. Thin vertical gold line marks the left edge — block
+        // reads as an author's remark, not a social-media slogan.
+        const BLOCK_X = -440;     // text column left edge
+        const LINE_X  = -464;     // vertical accent line position
+        const LABEL_Y = 300;
+        const CAPTION_Y = 380;
+
+        view.add(<Rect
+            width={2} height={150}
+            fill={captionAccent}
+            opacity={0.8}
+            x={LINE_X} y={335}
+        />);
 
         view.add(<Txt
-            text={'One function.'}
-            fontFamily={F_SANS} fontSize={CAP_SIZE} fontWeight={700}
+            text={'TOO MANY DECISIONS'}
+            fontFamily={F_MONO} fontSize={22} fontWeight={500}
+            fill={captionAccent}
+            letterSpacing={3}
+            offset={[-1, 0]}
+            x={BLOCK_X} y={LABEL_Y}
+        />);
+
+        view.add(<Txt
+            text={'Looks simple on the outside.\nBut the function decides everything.'}
+            fontFamily={F_SANS} fontSize={48} fontWeight={600}
             fill={INK}
-            letterSpacing={-0.5}
-            textAlign="center"
-            y={line1Y}
-        />);
-
-        const l2Prefix = 'Five ';
-        const l2Accent = 'decisions';
-        const l2Suffix = '.';
-        const l2pW = textWidth(l2Prefix, F_SANS, CAP_SIZE, 700);
-        const l2aW = textWidth(l2Accent, F_SANS, CAP_SIZE, 700);
-        const l2TotalW = l2pW + l2aW + textWidth(l2Suffix, F_SANS, CAP_SIZE, 700);
-        const l2StartX = -l2TotalW / 2;
-
-        view.add(<Txt
-            text={l2Prefix}
-            fontFamily={F_SANS} fontSize={CAP_SIZE} fontWeight={700}
-            fill={INK} letterSpacing={-0.5}
-            offset={[-1, 0]} x={l2StartX} y={line2Y}
-        />);
-        view.add(<Txt
-            text={l2Accent}
-            fontFamily={F_SANS} fontSize={CAP_SIZE} fontWeight={700}
-            fill={captionAccent} letterSpacing={-0.5}
-            offset={[-1, 0]} x={l2StartX + l2pW} y={line2Y}
-        />);
-        view.add(<Txt
-            text={l2Suffix}
-            fontFamily={F_SANS} fontSize={CAP_SIZE} fontWeight={700}
-            fill={INK} letterSpacing={-0.5}
-            offset={[-1, 0]} x={l2StartX + l2pW + l2aW} y={line2Y}
+            lineHeight={56}
+            letterSpacing={-0.3}
+            textAlign="left"
+            offset={[-1, 0]}
+            x={BLOCK_X} y={CAPTION_Y}
         />);
 
         yield* waitFor(8);

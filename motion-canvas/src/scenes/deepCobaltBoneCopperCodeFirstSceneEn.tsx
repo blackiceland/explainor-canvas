@@ -17,14 +17,14 @@ import {buildCodeFirstScene} from './_codeFirstShared';
 
 export default buildCodeFirstScene({
     BG:       '#111722',
-    INK:      '#E2E6EE',
+    INK:      '#E7E1D6',
     KEY:      '#C7A4EE',
-    METHOD:   '#80B6DE',
+    METHOD:   '#86C0EA',
     STRING:   '#A7C992',
     PROP:     '#D9A88F',
-    PARAM:    '#E2E6EE',
+    PARAM:    '#E7E1D6',
     PUNC:     '#CBD1DC',
     OPERATOR: '#8F9AAA',
-    QUIET:    'rgba(226, 230, 238, 0.50)',
-    ACCENT:   '#D6A064',
+    QUIET:    'rgba(231, 225, 214, 0.50)',
+    ACCENT:   '#D2A05E',
 });
