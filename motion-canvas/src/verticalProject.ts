@@ -19,18 +19,24 @@ import blackOpalCodeFirstSceneEn from './scenes/blackOpalCodeFirstSceneEn?scene'
 import jewelBeetleCodeFirstSceneEn from './scenes/jewelBeetleCodeFirstSceneEn?scene';
 import stainedGlassCodeFirstSceneEn from './scenes/stainedGlassCodeFirstSceneEn?scene';
 import coralReefCodeFirstSceneEn from './scenes/coralReefCodeFirstSceneEn?scene';
+import deepCobaltSageStringCodeFirstSceneEn from './scenes/deepCobaltSageStringCodeFirstSceneEn?scene';
+import deepCobaltMustardStringCodeFirstSceneEn from './scenes/deepCobaltMustardStringCodeFirstSceneEn?scene';
+import deepCobaltQuietFieldsCodeFirstSceneEn from './scenes/deepCobaltQuietFieldsCodeFirstSceneEn?scene';
 
 export default makeProject({
     experimentalFeatures: true,
     scenes: [
 
-        deepCobaltBoneCopperCodeFirstSceneEn,
-        peacockFeatherCodeFirstSceneEn,
+        // deepCobaltBoneCopperCodeFirstSceneEn,
+        deepCobaltQuietFieldsCodeFirstSceneEn,
+        // deepCobaltSageStringCodeFirstSceneEn,
+        // deepCobaltMustardStringCodeFirstSceneEn,
+        // peacockFeatherCodeFirstSceneEn,
         // hummingbirdGorgetCodeFirstSceneEn,
         // blackOpalCodeFirstSceneEn,
         // jewelBeetleCodeFirstSceneEn,
         // stainedGlassCodeFirstSceneEn,
-        coralReefCodeFirstSceneEn,
+        // coralReefCodeFirstSceneEn,
 
         // paperInkCodeFirstSceneEn,
         // slateAmberSageCodeFirstSceneEn,

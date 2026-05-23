@@ -28,11 +28,9 @@ export interface CodeFirstPalette {
 
 // JetBrains Mono first — geometric, rigid letterforms match the s4
 // reference. Monaspace Argon (humanist, rounder) only as fallback.
+// Один шрифт на весь кадр: код И субтитр в mono — субтитр читается
+// как кодовый комментарий, а не как отдельная типография.
 const F_MONO = '"JetBrains Mono", "Monaspace Argon", monospace';
-// Caption is sans-serif bold (Inter / Geist) for a punchy, social-first
-// reading — explicitly NOT serif. Falls back to system sans if Inter is
-// not installed.
-const F_SANS = 'Inter, "Helvetica Neue", "Segoe UI", system-ui, sans-serif';
 
 const VIEW_W = 1080;
 const VIEW_H = 1920;
@@ -149,40 +147,22 @@ export function buildCodeFirstScene(palette: CodeFirstPalette) {
         code.colorize(RULES);
         code.node.opacity(1);
 
-        // Subtitle — left-aligned editorial note, NOT centered hook.
-        // Two-level: small uppercase mono label above, sans caption
-        // below. Thin vertical gold line marks the left edge — block
-        // reads as an author's remark, not a social-media slogan.
-        const BLOCK_X = -440;     // text column left edge
-        const LINE_X  = -464;     // vertical accent line position
-        const LABEL_Y = 300;
-        const CAPTION_Y = 380;
-
-        view.add(<Rect
-            width={2} height={150}
-            fill={captionAccent}
-            opacity={0.8}
-            x={LINE_X} y={335}
-        />);
-
+        // Subtitle — single mono line styled as a code comment.
+        // Один шрифт со всем кадром (mono), ACCENT-золото, lowercase.
+        // Читается как авторская приписка к коду, а не как
+        // типографический плакат рядом с кодом. Старая мебель
+        // (gold-линия + uppercase mono метка + 2 строки sans bold)
+        // убрана — она конкурировала с кодом за внимание.
+        // Позиция: x=-465 — сдвинут вправо от левой кромки card
+        // (которая ~-510), чтобы `//` комментария встали в одну
+        // колонку с `f` от `function` (Manticore рендерит код с
+        // внутренним padding). y=520 — чуть ниже закрывающей `}`.
         view.add(<Txt
-            text={'TOO MANY DECISIONS'}
-            fontFamily={F_MONO} fontSize={22} fontWeight={500}
+            text={'// too many decisions'}
+            fontFamily={F_MONO} fontSize={42} fontWeight={500}
             fill={captionAccent}
-            letterSpacing={3}
             offset={[-1, 0]}
-            x={BLOCK_X} y={LABEL_Y}
-        />);
-
-        view.add(<Txt
-            text={'Looks simple on the outside.\nBut the function decides everything.'}
-            fontFamily={F_SANS} fontSize={48} fontWeight={600}
-            fill={INK}
-            lineHeight={56}
-            letterSpacing={-0.3}
-            textAlign="left"
-            offset={[-1, 0]}
-            x={BLOCK_X} y={CAPTION_Y}
+            x={-465} y={520}
         />);
 
         yield* waitFor(8);
