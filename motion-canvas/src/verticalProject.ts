@@ -22,35 +22,23 @@ import coralReefCodeFirstSceneEn from './scenes/coralReefCodeFirstSceneEn?scene'
 import deepCobaltSageStringCodeFirstSceneEn from './scenes/deepCobaltSageStringCodeFirstSceneEn?scene';
 import deepCobaltMustardStringCodeFirstSceneEn from './scenes/deepCobaltMustardStringCodeFirstSceneEn?scene';
 import deepCobaltQuietFieldsCodeFirstSceneEn from './scenes/deepCobaltQuietFieldsCodeFirstSceneEn?scene';
+import deepCobaltQuietFieldsCoolCodeFirstSceneEn from './scenes/deepCobaltQuietFieldsCoolCodeFirstSceneEn?scene';
+import deepCobaltQuietFieldsWarmCodeFirstSceneEn from './scenes/deepCobaltQuietFieldsWarmCodeFirstSceneEn?scene';
+import deepCobaltQuietFieldsPunchedCodeFirstSceneEn from './scenes/deepCobaltQuietFieldsPunchedCodeFirstSceneEn?scene';
+import deepCobaltQuietFieldsDustedCodeFirstSceneEn from './scenes/deepCobaltQuietFieldsDustedCodeFirstSceneEn?scene';
+import deepCobaltQuietFieldsJewelCodeFirstSceneEn from './scenes/deepCobaltQuietFieldsJewelCodeFirstSceneEn?scene';
+import deepCobaltQuietFieldsHighContrastCodeFirstSceneEn from './scenes/deepCobaltQuietFieldsHighContrastCodeFirstSceneEn?scene';
+import deepCobaltQuietFieldsIndigoCodeFirstSceneEn from './scenes/deepCobaltQuietFieldsIndigoCodeFirstSceneEn?scene';
+import deepCobaltQuietFieldsForestCodeFirstSceneEn from './scenes/deepCobaltQuietFieldsForestCodeFirstSceneEn?scene';
+import deepCobaltQuietFieldsNeonCodeFirstSceneEn from './scenes/deepCobaltQuietFieldsNeonCodeFirstSceneEn?scene';
+import deepCobaltQuietFieldsMonoBluesCodeFirstSceneEn from './scenes/deepCobaltQuietFieldsMonoBluesCodeFirstSceneEn?scene';
+import deepCobaltQuietFieldsAmethystSapphireCodeFirstSceneEn from './scenes/deepCobaltQuietFieldsAmethystSapphireCodeFirstSceneEn?scene';
+import deepCobaltQuietFieldsSmokyCodeFirstSceneEn from './scenes/deepCobaltQuietFieldsSmokyCodeFirstSceneEn?scene';
+import deepCobaltQuietFieldsVelvetCodeFirstSceneEn from './scenes/deepCobaltQuietFieldsVelvetCodeFirstSceneEn?scene';
 
 export default makeProject({
     experimentalFeatures: true,
     scenes: [
-
-        // deepCobaltBoneCopperCodeFirstSceneEn,
-        deepCobaltQuietFieldsCodeFirstSceneEn,
-        // deepCobaltSageStringCodeFirstSceneEn,
-        // deepCobaltMustardStringCodeFirstSceneEn,
-        // peacockFeatherCodeFirstSceneEn,
-        // hummingbirdGorgetCodeFirstSceneEn,
-        // blackOpalCodeFirstSceneEn,
-        // jewelBeetleCodeFirstSceneEn,
-        // stainedGlassCodeFirstSceneEn,
-        // coralReefCodeFirstSceneEn,
-
-        // paperInkCodeFirstSceneEn,
-        // slateAmberSageCodeFirstSceneEn,
-        // petrolNightOrchidMintCodeFirstSceneEn,
-        // blackCherryIceBlueApricotCodeFirstSceneEn,
-        //indigoSoftGoldCodeFirstSceneEn,
-
-        // cobaltGreyCoralDuplicationSceneEn,
-        // slateAmberSageDuplicationSceneEn,
-        // deepTealSandRoseDuplicationSceneEn,
-        // aubergineIceApricotDuplicationSceneEn,
-        // graphiteGoldOliveDuplicationSceneEn,
-        // deepTealSandRoseCodeFirstSceneEn,
-        // aubergineIceApricotCodeFirstSceneEn,
-        // graphiteGoldOliveCodeFirstSceneEn,
+        deepCobaltQuietFieldsVelvetCodeFirstSceneEn,
     ],
 });
