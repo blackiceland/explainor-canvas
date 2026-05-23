@@ -29,7 +29,7 @@ export default buildCodeFirstScene({
     INK:      '#E7E1D6',
     KEY:      '#BFADE1',
     METHOD:   '#83BCE2',
-    STRING:   '#A7C992',
+    STRING:   '#9CC4A0',
     PROP:     '#E7E1D6',
     PARAM:    '#E7E1D6',
     PUNC:     '#CBD1DC',

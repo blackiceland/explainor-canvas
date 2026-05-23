@@ -51,11 +51,14 @@ export default buildUniversalCodeScene(
         KEY:      '#BFADE1',  // ВСЕ keywords — фиолетовый, +5% lightness
         METHOD:   '#83BCE2',  // function defs + calls, +5% lightness
         TYPE:     '#D8CEEC',  // types — нежный лавандовый (расширение)
-        STRING:   '#A7C992',  // string literals — Velvet sage
-                              // (синхронизировано с scene 1)
-        LITERAL:  '#A7C992',  // numbers + true/false/null — тот же sage
-                              // (расширение Velvet: там числа = INK,
-                              // здесь объединены с строками в один зелёный)
+        STRING:   '#9CC4A0',  // string literals — jade/celadon
+                              // (5% сдвиг от Velvet sage в cool-сторону,
+                              // также применён в scene 1)
+        LITERAL:  '#8BA1C1',  // numbers + true/false/null — steel-blue
+                              // #7892B8 + 5% lightness (HSL). Тот же
+                              // hue и saturation, чуть светлее — чтобы
+                              // не терялся, но сохранил «midnight ink»
+                              // характер (низкая хрома).
         PROP:     '#E7E1D6',  // = INK (как в Velvet)
         PUNC:     '#CBD1DC',  // brackets, commas (Velvet)
         OPERATOR: '#8F9AAA',  // operators (Velvet)
