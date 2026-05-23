@@ -14,10 +14,11 @@ import deepCobaltBoneCopperCodeFirstSceneEn from './scenes/deepCobaltBoneCopperC
 import indigoSoftGoldCodeFirstSceneEn from './scenes/indigoSoftGoldCodeFirstSceneEn?scene';
 import paperInkCodeFirstSceneEn from './scenes/paperInkCodeFirstSceneEn?scene';
 import peacockFeatherCodeFirstSceneEn from './scenes/peacockFeatherCodeFirstSceneEn?scene';
-import autumnMapleCodeFirstSceneEn from './scenes/autumnMapleCodeFirstSceneEn?scene';
-import auroraBorealisCodeFirstSceneEn from './scenes/auroraBorealisCodeFirstSceneEn?scene';
-import stormSeaCodeFirstSceneEn from './scenes/stormSeaCodeFirstSceneEn?scene';
-import volcanicObsidianCodeFirstSceneEn from './scenes/volcanicObsidianCodeFirstSceneEn?scene';
+import hummingbirdGorgetCodeFirstSceneEn from './scenes/hummingbirdGorgetCodeFirstSceneEn?scene';
+import blackOpalCodeFirstSceneEn from './scenes/blackOpalCodeFirstSceneEn?scene';
+import jewelBeetleCodeFirstSceneEn from './scenes/jewelBeetleCodeFirstSceneEn?scene';
+import stainedGlassCodeFirstSceneEn from './scenes/stainedGlassCodeFirstSceneEn?scene';
+import coralReefCodeFirstSceneEn from './scenes/coralReefCodeFirstSceneEn?scene';
 
 export default makeProject({
     experimentalFeatures: true,
@@ -25,10 +26,11 @@ export default makeProject({
 
         deepCobaltBoneCopperCodeFirstSceneEn,
         peacockFeatherCodeFirstSceneEn,
-        autumnMapleCodeFirstSceneEn,
-        auroraBorealisCodeFirstSceneEn,
-        stormSeaCodeFirstSceneEn,
-        volcanicObsidianCodeFirstSceneEn,
+        // hummingbirdGorgetCodeFirstSceneEn,
+        // blackOpalCodeFirstSceneEn,
+        // jewelBeetleCodeFirstSceneEn,
+        // stainedGlassCodeFirstSceneEn,
+        coralReefCodeFirstSceneEn,
 
         // paperInkCodeFirstSceneEn,
         // slateAmberSageCodeFirstSceneEn,
