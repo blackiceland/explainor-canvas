@@ -134,7 +134,7 @@ export function buildCodeFirstScene(palette: CodeFirstPalette) {
         // matching the ТЗ's "+25-35 px right" ask. y=-200 keeps the
         // top edge of the code visible inside the frame.
         const code = Manticore.create(CODE, {
-            x: 30, y: -200,
+            x: 15, y: -180,
             width: 1080,
             fontSize: 38, lineHeight: 42,
             fontFamily: F_MONO,
@@ -162,7 +162,7 @@ export function buildCodeFirstScene(palette: CodeFirstPalette) {
             fontFamily={F_MONO} fontSize={42} fontWeight={500}
             fill={captionAccent}
             offset={[-1, 0]}
-            x={-465} y={520}
+            x={-480} y={540}
         />);
 
         yield* waitFor(8);
