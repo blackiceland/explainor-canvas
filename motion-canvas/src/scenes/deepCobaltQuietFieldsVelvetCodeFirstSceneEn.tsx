@@ -27,10 +27,10 @@ import {buildCodeFirstScene} from './_codeFirstShared';
 export default buildCodeFirstScene({
     BG:       '#111722',
     INK:      '#E7E1D6',
-    KEY:      '#B19BDA',
-    METHOD:   '#6CB0DD',
+    KEY:      '#BFADE1',
+    METHOD:   '#83BCE2',
     STRING:   '#A7C992',
-    PROP:     '#D3BD9C',
+    PROP:     '#E7E1D6',
     PARAM:    '#E7E1D6',
     PUNC:     '#CBD1DC',
     OPERATOR: '#8F9AAA',

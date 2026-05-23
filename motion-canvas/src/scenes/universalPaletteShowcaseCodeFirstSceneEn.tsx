@@ -35,23 +35,32 @@ function load(env: string): Settings {
 
 export default buildUniversalCodeScene(
     {
+        // Палитра выровнена под deepCobaltQuietFieldsVelvet (scene 1):
+        // те же hex для BG/INK/KEY/METHOD/STRING/PUNC/OPERATOR/ACCENT.
+        // Universal расширяет Velvet ДВУМЯ новыми слотами:
+        //   TYPE     — лавандовый (Velvet не имел отдельного цвета типов)
+        //   LITERAL  — тот же sage что STRING (Velvet не имел отдельного
+        //              цвета для чисел, они там попадали в INK; здесь
+        //              для согласованности «значений» 3/5000/false идут
+        //              в один зелёный со строками)
+        // PARAM и PROP оба = INK, как в Velvet (params/locals/fields
+        // сливаются в один «идентификатор пользователя» цвет).
         BG:       '#111722',
         INK:      '#E7E1D6',  // body text / locals
-        PARAM:    '#D8CCB8',  // function params — INK с лёгким champagne-крен
-        KEY:      '#B6A1DD',  // ВСЕ keywords — фиолетовый, чуть светлее
-                              // прежнего #B19BDA (на «дец» lighter)
-        METHOD:   '#6CB0DD',  // function defs + calls (Velvet sky-indigo)
-        TYPE:     '#D8CEEC',  // types — нежный лавандовый (lum↑, chroma↓
-                              // от #D4C5EC; та же violet-семья что и KEY)
-        STRING:   '#7FB89E',  // string literals — ТОТ ЖЕ зелёный что LITERAL
-                              // (значения едины: "prod" и 3, 5000 — одного цвета)
-        LITERAL:  '#7FB89E',  // numbers + true/false/null
-        PROP:     '#D9C8AE',  // .property access — нежнее champagne, меньше
-                              // золотого крена, больше cream
-        PUNC:     '#CBD1DC',  // brackets, commas
-        OPERATOR: '#8F9AAA',  // =, ===, =>, etc.
+        PARAM:    '#E7E1D6',  // = INK (как в Velvet)
+        KEY:      '#BFADE1',  // ВСЕ keywords — фиолетовый, +5% lightness
+        METHOD:   '#83BCE2',  // function defs + calls, +5% lightness
+        TYPE:     '#D8CEEC',  // types — нежный лавандовый (расширение)
+        STRING:   '#A7C992',  // string literals — Velvet sage
+                              // (синхронизировано с scene 1)
+        LITERAL:  '#A7C992',  // numbers + true/false/null — тот же sage
+                              // (расширение Velvet: там числа = INK,
+                              // здесь объединены с строками в один зелёный)
+        PROP:     '#E7E1D6',  // = INK (как в Velvet)
+        PUNC:     '#CBD1DC',  // brackets, commas (Velvet)
+        OPERATOR: '#8F9AAA',  // operators (Velvet)
         QUIET:    'rgba(231, 225, 214, 0.50)',
-        ACCENT:   '#E8C656',  // subtitle mustard
+        ACCENT:   '#E8C656',  // subtitle mustard (Velvet)
     },
     {
         code: CODE,
