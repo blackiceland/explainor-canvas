@@ -41,10 +41,13 @@ const VIEW_H = 1920;
 // 16 lines, longest 43 chars (`        broadcast(channel, sender, content)`).
 const CODE = `function sendMessage(msg) {
   const sender = verifySession(msg.token)
+
   if (sender !== null) {
     const channel = resolveChannel(msg.to)
+
     if (channel.active) {
       const content = moderate(msg.text)
+
       if (content.ok) {
         broadcast(channel, sender, content)
         return "sent"
@@ -136,7 +139,7 @@ export function buildCodeFirstScene(palette: CodeFirstPalette) {
         const code = Manticore.create(CODE, {
             x: 15, y: -180,
             width: 1080,
-            fontSize: 38, lineHeight: 42,
+            fontSize: 35, lineHeight: 39,
             fontFamily: F_MONO,
             theme: THEME,
             cardStyle: FLAT_CARD,
