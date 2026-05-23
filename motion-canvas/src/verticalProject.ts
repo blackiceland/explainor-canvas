@@ -35,10 +35,12 @@ import deepCobaltQuietFieldsMonoBluesCodeFirstSceneEn from './scenes/deepCobaltQ
 import deepCobaltQuietFieldsAmethystSapphireCodeFirstSceneEn from './scenes/deepCobaltQuietFieldsAmethystSapphireCodeFirstSceneEn?scene';
 import deepCobaltQuietFieldsSmokyCodeFirstSceneEn from './scenes/deepCobaltQuietFieldsSmokyCodeFirstSceneEn?scene';
 import deepCobaltQuietFieldsVelvetCodeFirstSceneEn from './scenes/deepCobaltQuietFieldsVelvetCodeFirstSceneEn?scene';
+import universalPaletteShowcaseCodeFirstSceneEn from './scenes/universalPaletteShowcaseCodeFirstSceneEn?scene';
 
 export default makeProject({
     experimentalFeatures: true,
     scenes: [
         deepCobaltQuietFieldsVelvetCodeFirstSceneEn,
+        universalPaletteShowcaseCodeFirstSceneEn,
     ],
 });

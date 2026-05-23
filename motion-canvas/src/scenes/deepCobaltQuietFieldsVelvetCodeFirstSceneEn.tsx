@@ -13,7 +13,10 @@ import {buildCodeFirstScene} from './_codeFirstShared';
 //   Velvet (this)      KEY #B294E0 / METHOD #6CB0DD   richer base
 //   BG       #111722  unchanged
 //   INK      #E7E1D6  warm bone (unchanged)
-//   KEY      #B294E0  velvet violet — глубже base, не jewel
+//   KEY      #B19BDA  velvet violet (de-toxic) — глубже base, не
+//                     jewel, но без электрического неонового
+//                     крена (B↓4, G↑7 от #B294E0 — снимает ту
+//                     самую «ядовитость» лавандового)
 //   METHOD   #6CB0DD  velvet sky-indigo — глубже base, не sapphire
 //   STRING   #A7C992  sage (unchanged)
 //   PROP     #D3BD9C  champagne (unchanged)
@@ -24,7 +27,7 @@ import {buildCodeFirstScene} from './_codeFirstShared';
 export default buildCodeFirstScene({
     BG:       '#111722',
     INK:      '#E7E1D6',
-    KEY:      '#B294E0',
+    KEY:      '#B19BDA',
     METHOD:   '#6CB0DD',
     STRING:   '#A7C992',
     PROP:     '#D3BD9C',
