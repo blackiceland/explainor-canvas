@@ -19,12 +19,12 @@ const F_MONO  = '"JetBrains Mono", "Monaspace Argon", monospace';
 const VIEW_W = 1080;
 const VIEW_H = 1920;
 
-const BG       = '#111722';
+const BG       = '#151A28';
 const INK      = '#E7E1D6';
-const KEY      = '#BFADE1';
-const DOMAIN   = '#83BCE2';
-const STRING   = '#9CC4A0';
-const PUNC     = '#CBD1DC';
+const KEY      = '#CAB4EA';
+const DOMAIN   = '#8AC7EF';
+const STRING   = '#A8CF98';
+const PUNC     = '#D2D8E2';
 const OPERATOR = '#8F9AAA';
 const HERO     = '#E7E1D6';
 const ACCENT   = '#E8C656';
@@ -184,6 +184,32 @@ function compressBarsToSilhouetteWidths(
     return out;
 }
 
+function applyGlow(block: Manticore): void {
+    const glowMap: Record<string, {color: string; blur: number}> = {
+        [KEY]:    {color: 'rgba(202, 180, 234, 0.16)', blur: 10},
+        [DOMAIN]: {color: 'rgba(138, 199, 239, 0.18)', blur: 10},
+        [STRING]: {color: 'rgba(168, 207, 152, 0.14)', blur: 8},
+    };
+    for (let i = 0; i < block.lineCount; i++) {
+        const line = block.getLine(i);
+        if (!line) continue;
+        for (const tokenData of line.tokens) {
+            const node = tokenData.ref();
+            const fill = String(node.fill());
+            const glow = glowMap[fill];
+            if (glow) {
+                node.shadowColor(glow.color);
+                node.shadowBlur(glow.blur);
+                node.shadowOffset([0, 0]);
+            } else {
+                node.shadowColor('rgba(0, 0, 0, 0.35)');
+                node.shadowBlur(8);
+                node.shadowOffset([0, 2]);
+            }
+        }
+    }
+}
+
 function bumpWeight(block: Manticore, weight: number): void {
     for (let i = 0; i < block.lineCount; i++) {
         const line = block.getLine(i);
@@ -287,6 +313,8 @@ export default makeScene2D(function* (view) {
     bumpWeight(login, 500);
     cart.colorize(RULES);
     login.colorize(RULES);
+    applyGlow(cart);
+    applyGlow(login);
     cart.node.opacity(1);
     login.node.opacity(1);
 
@@ -570,6 +598,7 @@ export default makeScene2D(function* (view) {
     merged.mount(view);
     bumpWeight(merged, 500);
     merged.colorize(RULES);
+    applyGlow(merged);
     merged.node.opacity(0);
 
     yield* all(

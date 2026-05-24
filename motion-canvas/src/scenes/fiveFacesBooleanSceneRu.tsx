@@ -107,7 +107,9 @@ const COMPLEX_SAVE_CODE = `class FileStorageService(
     private val storage: ObjectStorage,
     private val metadata: MetadataExtractor,
     private val validator: ContentValidator,
+    private val antivirus: AntivirusScanner,
     private val quotas: QuotaService,
+    private val rateLimiter: RateLimiter,
     private val locks: DistributedLockProvider,
     private val events: DomainEventPublisher,
     private val audit: AuditLog,
@@ -116,188 +118,136 @@ const COMPLEX_SAVE_CODE = `class FileStorageService(
     private val cdn: CdnInvalidator,
     private val versions: VersionRepository,
     private val searchIndex: SearchIndex,
+    private val subscriptions: FileSubscriptionRepository,
+    private val notifications: NotificationService,
+    private val backupStorage: BackupStorage,
+    private val backupPolicy: BackupPolicy,
+    private val metrics: StorageMetrics,
     private val clock: Clock,
 ) {
 
-    fun save(
-        path: String,
-        content: Bytes,
-        contentType: String,
-        overwrite: Boolean = false,
-    ): StoredFile {
+    fun save(path: String, content: Bytes, contentType: String, overwrite: Boolean = false): StoredFile {
         require(path.isNotBlank()) { "Path must not be blank" }
         require(content.size > 0) { "Content must not be empty" }
+        val startTime = clock.instant()
 
         val normalizedPath = normalizePath(path)
         val sizeBytes = content.size.toLong()
-
         validator.requireValidMimeType(contentType)
         validator.requireSafeContent(content, contentType)
 
         if (sizeBytes > MAX_FILE_SIZE) {
-            throw FileTooLargeException(
-                normalizedPath, sizeBytes, MAX_FILE_SIZE,
-            )
+            throw FileTooLargeException(normalizedPath, sizeBytes, MAX_FILE_SIZE)
+        }
+
+        val scanResult = antivirus.scan(content, contentType)
+        if (!scanResult.clean) {
+            audit.record(currentUserId(), "malware_detected", normalizedPath,
+                mapOf("threat" to scanResult.threatName, "engine" to scanResult.engineVersion))
+            throw MalwareDetectedException(normalizedPath, scanResult.threatName)
         }
 
         val usage = quotas.currentUsage(tenantId())
         if (usage.bytes + sizeBytes > usage.limit) {
-            throw QuotaExceededException(
-                tenantId = tenantId(),
-                requested = sizeBytes,
-                remaining = usage.limit - usage.bytes,
-            )
+            throw QuotaExceededException(tenantId(), sizeBytes, usage.limit - usage.bytes)
         }
 
-        val lockKey = "file:\${normalizedPath}"
-        val lock = locks.tryAcquire(
-            lockKey, timeout = Duration.ofSeconds(5),
-        ) ?: throw FileLockedException(normalizedPath)
+        rateLimiter.check(currentUserId(), "file.save")
+
+        val lock = locks.tryAcquire("file:\${normalizedPath}", Duration.ofSeconds(5))
+            ?: throw FileLockedException(normalizedPath)
 
         try {
             val existing = storage.find(normalizedPath)
 
             if (existing != null && !overwrite) {
-                throw FileAlreadyExistsException(
-                    normalizedPath,
-                )
+                throw FileAlreadyExistsException(normalizedPath)
             }
 
-            val version = if (existing != null) {
-                existing.version + 1
-            } else {
-                1
-            }
+            val version = if (existing != null) existing.version + 1 else 1
 
             val encryptionKey = encryption.generateKey()
-            val encrypted = encryption.encrypt(
-                content, encryptionKey,
-            )
+            val encrypted = encryption.encrypt(content, encryptionKey)
             val checksum = computeChecksum(encrypted)
+            val meta = metadata.extract(content, contentType)
 
-            val meta = metadata.extract(
-                content, contentType,
-            )
-
-            val parentDir = normalizedPath
-                .substringBeforeLast('/')
-            if (parentDir.isNotEmpty()) {
-                storage.ensureDirectory(parentDir)
-            }
+            val parentDir = normalizedPath.substringBeforeLast('/')
+            if (parentDir.isNotEmpty()) storage.ensureDirectory(parentDir)
 
             val storageKey = storage.put(
-                path = normalizedPath,
-                content = encrypted,
-                contentType = contentType,
+                path = normalizedPath, content = encrypted, contentType = contentType,
                 metadata = mapOf(
-                    "version" to version.toString(),
-                    "checksum" to checksum,
-                    "original-size" to sizeBytes.toString(),
-                    "encryption-key-id" to encryptionKey.id,
-                    "uploaded-at" to clock.instant().toString(),
-                    "uploaded-by" to currentUserId().value,
+                    "version" to version.toString(), "checksum" to checksum,
+                    "original-size" to sizeBytes.toString(), "encryption-key-id" to encryptionKey.id,
+                    "uploaded-at" to clock.instant().toString(), "uploaded-by" to currentUserId().value,
                 ),
             )
 
             val thumbKeys = if (isImageType(contentType)) {
                 THUMBNAIL_SIZES.map { size ->
-                    val thumb = thumbnails.generate(
-                        source = content,
-                        width = size.width,
-                        height = size.height,
-                        format = "webp",
-                    )
-                    val thumbPath = thumbnailPath(
-                        normalizedPath, size.label,
-                    )
-                    storage.put(
-                        path = thumbPath,
-                        content = thumb,
-                        contentType = "image/webp",
-                    )
+                    val thumb = thumbnails.generate(content, size.width, size.height, "webp")
+                    val thumbPath = thumbnailPath(normalizedPath, size.label)
+                    storage.put(path = thumbPath, content = thumb, contentType = "image/webp")
                     size.label to thumbPath
                 }.toMap()
-            } else {
-                emptyMap()
-            }
+            } else emptyMap()
 
             if (existing != null) {
-                versions.archive(
-                    path = normalizedPath,
-                    version = existing.version,
-                    archivedBy = currentUserId(),
-                )
+                versions.archive(normalizedPath, existing.version, currentUserId())
             }
 
-            searchIndex.index(
-                StorageDocument(
-                    path = normalizedPath,
-                    contentType = contentType,
-                    sizeBytes = sizeBytes,
-                    version = version,
-                    dimensions = meta.dimensions,
-                    createdAt = existing?.createdAt
-                        ?: clock.instant(),
-                    updatedAt = clock.instant(),
-                    createdBy = existing?.createdBy
-                        ?: currentUserId(),
-                    updatedBy = currentUserId(),
-                )
-            )
+            searchIndex.index(StorageDocument(
+                path = normalizedPath, contentType = contentType, sizeBytes = sizeBytes,
+                version = version, dimensions = meta.dimensions,
+                createdAt = existing?.createdAt ?: clock.instant(), updatedAt = clock.instant(),
+                createdBy = existing?.createdBy ?: currentUserId(), updatedBy = currentUserId(),
+            ))
 
             if (existing != null) {
                 cdn.invalidate(normalizedPath)
-                thumbKeys.values.forEach {
-                    cdn.invalidate(it)
-                }
+                thumbKeys.values.forEach { cdn.invalidate(it) }
+            }
+
+            if (backupPolicy.requiresBackup(normalizedPath, contentType)) {
+                backupStorage.replicate(
+                    source = storageKey, destination = backupPolicy.targetBucket(normalizedPath),
+                    encryption = BackupEncryption.AES256, retentionDays = backupPolicy.retention(contentType),
+                )
             }
 
             val storedFile = StoredFile(
-                key = storageKey,
-                path = normalizedPath,
-                contentType = contentType,
-                sizeBytes = sizeBytes,
-                version = version,
-                checksum = checksum,
-                thumbnails = thumbKeys,
-                dimensions = meta.dimensions,
-                createdAt = existing?.createdAt
-                    ?: clock.instant(),
-                updatedAt = clock.instant(),
+                key = storageKey, path = normalizedPath, contentType = contentType,
+                sizeBytes = sizeBytes, version = version, checksum = checksum,
+                thumbnails = thumbKeys, dimensions = meta.dimensions,
+                createdAt = existing?.createdAt ?: clock.instant(), updatedAt = clock.instant(),
             )
 
-            val action = if (existing != null) {
-                "file_overwritten"
-            } else {
-                "file_created"
+            val action = if (existing != null) "file_overwritten" else "file_created"
+
+            audit.record(currentUserId(), action, storageKey, mapOf(
+                "path" to normalizedPath, "version" to version,
+                "size" to sizeBytes, "contentType" to contentType,
+            ))
+
+            events.publish(FileStoredEvent(
+                path = normalizedPath, key = storageKey, action = action,
+                version = version, storedAt = clock.instant(), storedBy = currentUserId(),
+            ))
+
+            val watchers = subscriptions.findWatchers(normalizedPath)
+            if (watchers.isNotEmpty()) {
+                notifications.send(watchers, FileChangedNotification(
+                    path = normalizedPath, action = action, changedBy = currentUserId(),
+                    changedAt = clock.instant(), version = version,
+                ))
             }
 
-            audit.record(
-                actorId = currentUserId(),
-                action = action,
-                resourceId = storageKey,
-                details = mapOf(
-                    "path" to normalizedPath,
-                    "version" to version,
-                    "size" to sizeBytes,
-                    "contentType" to contentType,
-                ),
-            )
+            quotas.recordUsage(tenantId(), sizeBytes - (existing?.sizeBytes ?: 0))
 
-            events.publish(
-                FileStoredEvent(
-                    path = normalizedPath,
-                    key = storageKey,
-                    action = action,
-                    version = version,
-                    storedAt = clock.instant(),
-                    storedBy = currentUserId(),
-                )
-            )
-
-            quotas.recordUsage(
-                tenantId(),
-                sizeBytes - (existing?.sizeBytes ?: 0),
+            metrics.recordUpload(
+                tenantId = tenantId(), sizeBytes = sizeBytes, contentType = contentType,
+                duration = Duration.between(startTime, clock.instant()),
+                version = version, overwritten = existing != null,
             )
 
             return storedFile
@@ -575,6 +525,9 @@ const CUSTOM_TYPES = [
   'CdnInvalidator', 'VersionRepository', 'SearchIndex', 'Duration',
   'FileTooLargeException', 'QuotaExceededException', 'FileLockedException',
   'FileAlreadyExistsException', 'StorageDocument', 'FileStoredEvent',
+  'AntivirusScanner', 'RateLimiter', 'FileSubscriptionRepository', 'NotificationService',
+  'BackupStorage', 'BackupPolicy', 'StorageMetrics', 'BackupEncryption',
+  'MalwareDetectedException', 'FileChangedNotification',
   // MODE
   'ShipmentNotificationService', 'MessageTemplateRepository', 'CustomerNotifier',
   'DeliveryRepository', 'Order', 'DeliveryResult', 'Sent',
@@ -607,6 +560,8 @@ const METHOD_NAMES = [
   'normalizePath', 'computeChecksum', 'isImageType', 'thumbnailPath',
   'currentUserId', 'tenantId', 'substringBeforeLast', 'isNotBlank',
   'isNotEmpty', 'toMap', 'ofSeconds', 'toLong', 'toString',
+  'scan', 'check', 'replicate', 'requiresBackup', 'targetBucket',
+  'retention', 'recordUpload', 'findWatchers', 'between',
   'requireById', 'markDeleted', 'deleteByUser',
   'requireValid', 'reserve', 'authorize', 'normalize',
   'copy', 'instant',
@@ -1118,9 +1073,9 @@ export default makeScene2D(function* (view) {
   // Complex save code — full-class view for PERMISSION trade-off section.
   const complexSaveCode = Manticore.create(COMPLEX_SAVE_CODE, {
     x: 0,
-    y: -60,
+    y: 115,
     width: 1000,
-    height: 860,
+    height: 850,
     fontSize: 17,
     lineHeight: 23,
     fontFamily: Fonts.code,
@@ -1838,7 +1793,7 @@ export default makeScene2D(function* (view) {
     flashRemovedColor: METHOD_COLOR,
     flashRemovedDuration: 0.2,
     addStyle: 'typewriter',
-    scrollStrategy: 'blockWithTail',
+    scrollStrategy: 'auto',
     blockOrder: 'parallel',
     lineOrder: 'parallel',
   });
@@ -1854,11 +1809,11 @@ export default makeScene2D(function* (view) {
   );
   yield* complexSaveCode.node.opacity(1, 0.6, easeInOutSine);
   yield* waitFor(1.0);
-  // Scroll to the single `!overwrite` check (line ~54), pause.
-  yield* complexSaveCode.scrollTo(54, 5, easeInOutSine);
+  // Scroll to the single `!overwrite` check (line ~56), pause.
+  yield* complexSaveCode.scrollTo(56, 5, easeInOutSine);
   yield* waitFor(2.5);
-  // Scroll through the rest — encryption, thumbnails, CDN, audit, events...
-  yield* complexSaveCode.scrollTo(170, 6, easeInOutSine);
+  // Scroll through the rest — encryption, thumbnails, CDN, audit, events, backup, metrics...
+  yield* complexSaveCode.scrollTo(140, 6, easeInOutSine);
   yield* waitFor(1.5);
 
   // PERMISSION close.
