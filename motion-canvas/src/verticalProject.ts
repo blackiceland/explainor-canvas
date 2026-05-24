@@ -38,13 +38,23 @@ import deepCobaltQuietFieldsVelvetCodeFirstSceneEn from './scenes/deepCobaltQuie
 import universalPaletteShowcaseCodeFirstSceneEn from './scenes/universalPaletteShowcaseCodeFirstSceneEn?scene';
 import velvetCartReminderCodeFirstSceneEn from './scenes/velvetCartReminderCodeFirstSceneEn?scene';
 import linenDuplicationSceneEn from "./scenes/linenDuplicationSceneEn?scene";
+import velvetBlackenedPetrolCodeFirstSceneEn from './scenes/velvetBlackenedPetrolCodeFirstSceneEn?scene';
+import velvetInkBlackCodeFirstSceneEn from './scenes/velvetInkBlackCodeFirstSceneEn?scene';
+import velvetDeepForestCodeFirstSceneEn from './scenes/velvetDeepForestCodeFirstSceneEn?scene';
+import velvetObsidianCodeFirstSceneEn from './scenes/velvetObsidianCodeFirstSceneEn?scene';
+import velvetTarBlackCodeFirstSceneEn from './scenes/velvetTarBlackCodeFirstSceneEn?scene';
+import velvetDeepMidnightCodeFirstSceneEn from './scenes/velvetDeepMidnightCodeFirstSceneEn?scene';
+import velvetVioletInkCodeFirstSceneEn from './scenes/velvetVioletInkCodeFirstSceneEn?scene';
+import velvetRichIndigoCodeFirstSceneEn from './scenes/velvetRichIndigoCodeFirstSceneEn?scene';
 
 export default makeProject({
     experimentalFeatures: true,
     scenes: [
-        // deepCobaltQuietFieldsVelvetCodeFirstSceneEn,
+        deepCobaltQuietFieldsVelvetCodeFirstSceneEn,
+        velvetDeepMidnightCodeFirstSceneEn,
+        // velvetVioletInkCodeFirstSceneEn,
+        // velvetRichIndigoCodeFirstSceneEn,
         // universalPaletteShowcaseCodeFirstSceneEn,
-        velvetCartReminderCodeFirstSceneEn,
-        // linenDuplicationSceneEn,
+
     ],
 });

@@ -185,10 +185,10 @@ function compressBarsToSilhouetteWidths(
 }
 
 function applyGlow(block: Manticore): void {
-    const glowMap: Record<string, {color: string; blur: number}> = {
-        [KEY]:    {color: 'rgba(202, 180, 234, 0.16)', blur: 10},
-        [DOMAIN]: {color: 'rgba(138, 199, 239, 0.18)', blur: 10},
-        [STRING]: {color: 'rgba(168, 207, 152, 0.14)', blur: 8},
+    const glowMap: Record<string, string> = {
+        [KEY]:    'rgba(202, 180, 234, 0.13)',
+        [DOMAIN]: 'rgba(138, 199, 239, 0.13)',
+        [STRING]: 'rgba(168, 207, 152, 0.13)',
     };
     for (let i = 0; i < block.lineCount; i++) {
         const line = block.getLine(i);
@@ -198,13 +198,13 @@ function applyGlow(block: Manticore): void {
             const fill = String(node.fill());
             const glow = glowMap[fill];
             if (glow) {
-                node.shadowColor(glow.color);
-                node.shadowBlur(glow.blur);
+                node.shadowColor(glow);
+                node.shadowBlur(8);
                 node.shadowOffset([0, 0]);
             } else {
-                node.shadowColor('rgba(0, 0, 0, 0.35)');
-                node.shadowBlur(8);
-                node.shadowOffset([0, 2]);
+                node.shadowColor('rgba(0, 0, 0, 0.30)');
+                node.shadowBlur(6);
+                node.shadowOffset([0, 1]);
             }
         }
     }
@@ -302,7 +302,7 @@ export default makeScene2D(function* (view) {
         letterSpacing={4} fill={HERO} y={820}
     />);
 
-    // ════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
     //  Beat 1 — CODE FIRST, then HERO on top
     // ════════════════════════════════════════════════════════════════
     const cart  = makeBlock({code: CODE_CART,  x: CODE_X, y: -170, fontSize: 32, lineHeight: 46, width: 1100});
@@ -372,18 +372,19 @@ export default makeScene2D(function* (view) {
     // x=-175 centres the group visually for average subtitle length.
     const SUB_Y = 680;
     const SUB_X = -175;
-    const SLASH_W = 58; // "// " = 3 chars × ~19.3px at JBM 32px
+    const SUB_FS = 37;
+    const SLASH_W = 67; // "// " = 3 chars × ~22.2px at JBM 37px
     const subSlashes = createRef<Txt>();
     const subBody = createRef<Txt>();
     view.add(<Txt
         ref={subSlashes} text="// "
-        fontFamily={F_MONO} fontSize={32} fontWeight={500}
+        fontFamily={F_MONO} fontSize={SUB_FS} fontWeight={500}
         fill={ACCENT} offset={[-1, 0]}
         x={SUB_X} y={SUB_Y} opacity={0}
     />);
     view.add(<Txt
         ref={subBody} text=""
-        fontFamily={F_MONO} fontSize={32} fontWeight={500}
+        fontFamily={F_MONO} fontSize={SUB_FS} fontWeight={500}
         fill={ACCENT} offset={[-1, 0]}
         x={SUB_X + SLASH_W} y={SUB_Y} opacity={0}
     />);

@@ -71,6 +71,30 @@ const FLAT_CARD = {
     edge: false,
 } as const;
 
+function applyGlow(block: Manticore, glowColors: string[]): void {
+    const glowSet = new Set(glowColors);
+    for (let i = 0; i < block.lineCount; i++) {
+        const line = block.getLine(i);
+        if (!line) continue;
+        for (const tokenData of line.tokens) {
+            const node = tokenData.ref();
+            const fill = String(node.fill());
+            if (glowSet.has(fill)) {
+                const r = parseInt(fill.slice(1, 3), 16);
+                const g = parseInt(fill.slice(3, 5), 16);
+                const b = parseInt(fill.slice(5, 7), 16);
+                node.shadowColor(`rgba(${r}, ${g}, ${b}, 0.13)`);
+                node.shadowBlur(8);
+                node.shadowOffset([0, 0]);
+            } else {
+                node.shadowColor('rgba(0, 0, 0, 0.30)');
+                node.shadowBlur(6);
+                node.shadowOffset([0, 1]);
+            }
+        }
+    }
+}
+
 function bumpWeight(block: Manticore, weight: number): void {
     for (let i = 0; i < block.lineCount; i++) {
         const line = block.getLine(i);
@@ -148,6 +172,7 @@ export function buildCodeFirstScene(palette: CodeFirstPalette) {
         code.mount(view);
         bumpWeight(code, 500);
         code.colorize(RULES);
+        applyGlow(code, [KEY, METHOD, STRING]);
         code.node.opacity(1);
 
         // Subtitle — single mono line styled as a code comment.

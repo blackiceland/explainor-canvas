@@ -45,25 +45,19 @@ export default buildUniversalCodeScene(
         //              в один зелёный со строками)
         // PARAM и PROP оба = INK, как в Velvet (params/locals/fields
         // сливаются в один «идентификатор пользователя» цвет).
-        BG:       '#111722',
-        INK:      '#E7E1D6',  // body text / locals
-        PARAM:    '#E7E1D6',  // = INK (как в Velvet)
-        KEY:      '#BFADE1',  // ВСЕ keywords — фиолетовый, +5% lightness
-        METHOD:   '#83BCE2',  // function defs + calls, +5% lightness
-        TYPE:     '#D8CEEC',  // types — нежный лавандовый (расширение)
-        STRING:   '#9CC4A0',  // string literals — jade/celadon
-                              // (5% сдвиг от Velvet sage в cool-сторону,
-                              // также применён в scene 1)
-        LITERAL:  '#8BA1C1',  // numbers + true/false/null — steel-blue
-                              // #7892B8 + 5% lightness (HSL). Тот же
-                              // hue и saturation, чуть светлее — чтобы
-                              // не терялся, но сохранил «midnight ink»
-                              // характер (низкая хрома).
-        PROP:     '#E7E1D6',  // = INK (как в Velvet)
-        PUNC:     '#CBD1DC',  // brackets, commas (Velvet)
-        OPERATOR: '#8F9AAA',  // operators (Velvet)
+        BG:       '#151A28',
+        INK:      '#E7E1D6',
+        PARAM:    '#E7E1D6',
+        KEY:      '#CAB4EA',
+        METHOD:   '#8AC7EF',
+        TYPE:     '#D8CEEC',
+        STRING:   '#A8CF98',
+        LITERAL:  '#8BA1C1',
+        PROP:     '#E7E1D6',
+        PUNC:     '#D2D8E2',
+        OPERATOR: '#8F9AAA',
         QUIET:    'rgba(231, 225, 214, 0.50)',
-        ACCENT:   '#E8C656',  // subtitle mustard (Velvet)
+        ACCENT:   '#E8C656',
     },
     {
         code: CODE,

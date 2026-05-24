@@ -25,14 +25,14 @@ import {buildCodeFirstScene} from './_codeFirstShared';
 //   ACCENT   #E8C656  mustard (unchanged)
 
 export default buildCodeFirstScene({
-    BG:       '#111722',
+    BG:       '#151A28',
     INK:      '#E7E1D6',
-    KEY:      '#BFADE1',
-    METHOD:   '#83BCE2',
-    STRING:   '#9CC4A0',
+    KEY:      '#CAB4EA',
+    METHOD:   '#8AC7EF',
+    STRING:   '#A8CF98',
     PROP:     '#E7E1D6',
     PARAM:    '#E7E1D6',
-    PUNC:     '#CBD1DC',
+    PUNC:     '#D2D8E2',
     OPERATOR: '#8F9AAA',
     QUIET:    'rgba(231, 225, 214, 0.50)',
     ACCENT:   '#E8C656',
