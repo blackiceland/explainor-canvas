@@ -103,6 +103,28 @@ class MonthlyReportPublisher(
     }
 }`;
 
+const IMPL_PERMISSION_REFACTORED = `fun save(path: String, content: Bytes, contentType: String): StoredFile {
+    if (storage.exists(path)) {
+        throw FileAlreadyExists(path)
+    }
+
+    return write(path, content, contentType)
+}
+
+fun saveOrReplace(path: String, content: Bytes, contentType: String): StoredFile {
+    return write(path, content, contentType)
+}
+
+private fun write(path: String, content: Bytes, contentType: String): StoredFile {
+    val key = storage.put(
+        path = path,
+        content = content,
+        contentType = contentType,
+    )
+
+    return StoredFile(key)
+}`;
+
 const IMPL_PERMISSION = `fun save(path: String, content: Bytes, contentType: String,
     overwrite: Boolean = false): StoredFile {
     if (storage.exists(path) && !overwrite) {
@@ -1564,6 +1586,29 @@ export default makeScene2D(function* (view) {
     implCodes[0].node.opacity(1, 1.0, easeInOutSine),
   );
   yield* waitFor(2.0);
+
+  // ── MORPH: boolean → two explicit methods ──────────────────────────
+  {
+    const sigLine = implCodes[0].getLine(1);
+    const ifLine = implCodes[0].getLine(2);
+    if (sigLine) yield* sigLine.colorizeByRuleAnimated('overwrite', METHOD_COLOR, 0.4);
+    if (ifLine) yield* ifLine.colorizeByRuleAnimated('overwrite', METHOD_COLOR, 0.4);
+  }
+  yield* waitFor(1.5);
+  yield* implCodes[0].morphTo(IMPL_PERMISSION_REFACTORED, {
+    removeDuration: 0.3,
+    moveDuration: 0.4,
+    charDelay: 0.015,
+    flashRemovedColor: METHOD_COLOR,
+    flashRemovedDuration: 0.2,
+    addStyle: 'typewriter',
+    scrollStrategy: 'blockWithTail',
+    blockOrder: 'parallel',
+    lineOrder: 'parallel',
+  });
+  implCodes[0].colorize(CODE_RULES);
+  paintNamedParams(implCodes[0]);
+  yield* waitFor(3.0);
 
   // PERMISSION close.
   yield* all(
