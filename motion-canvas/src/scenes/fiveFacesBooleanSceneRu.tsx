@@ -77,6 +77,7 @@ interface Face {
 
 const CALL_PERMISSION = `@Service
 class MonthlyReportPublisher(
+
     private val renderer: ReportRenderer,
     private val fileStorage: FileStorage,
     private val auditLog: AuditLog,
@@ -103,7 +104,7 @@ class MonthlyReportPublisher(
 }`;
 
 const IMPL_PERMISSION = `fun save(path: String, content: Bytes, contentType: String,
-         overwrite: Boolean = false): StoredFile {
+    overwrite: Boolean = false): StoredFile {
     if (storage.exists(path) && !overwrite) {
         throw FileAlreadyExists(path)
     }
@@ -119,6 +120,7 @@ const IMPL_PERMISSION = `fun save(path: String, content: Bytes, contentType: Str
 
 const CALL_MODE = `@Service
 class ShipmentNotificationService(
+
     private val templates: MessageTemplateRepository,
     private val notifier: CustomerNotifier,
     private val deliveries: DeliveryRepository,
@@ -161,6 +163,7 @@ const IMPL_MODE = `fun send(user: User, message: Message, silent: Boolean): Deli
 
 const CALL_SAFETY = `@Service
 class AccountDeletionService(
+
     private val users: UserRepository,
     private val sessions: UserSessionRepository,
     private val auditLog: AuditLog,
@@ -189,7 +192,8 @@ class AccountDeletionService(
     }
 }`;
 
-const IMPL_SAFETY = `fun delete(userId: UserId, soft: Boolean = true, deletedAt: Instant, deletedBy: UserId): DeletedUser {
+const IMPL_SAFETY = `fun delete(userId: UserId, soft: Boolean = true, deletedAt: Instant,
+    deletedBy: UserId): DeletedUser {
     val user = users.requireById(userId)
 
     if (soft) {
@@ -209,6 +213,7 @@ const IMPL_SAFETY = `fun delete(userId: UserId, soft: Boolean = true, deletedAt:
 
 const CALL_SHORTCUT = `@Service
 class ErpOrderImportJob(
+
     private val parser: ErpOrderParser,
     private val orderProcessor: OrderProcessor,
     private val imports: ImportRunRepository,
@@ -232,7 +237,8 @@ class ErpOrderImportJob(
     }
 }`;
 
-const IMPL_SHORTCUT = `fun process(order: Order, source: OrderSource, skipValidation: Boolean = false): ProcessingResult {
+const IMPL_SHORTCUT = `fun process(order: Order, source: OrderSource,
+    skipValidation: Boolean = false): ProcessingResult {
     if (!skipValidation) {
         validator.requireValid(order)
     }
@@ -253,6 +259,7 @@ const IMPL_SHORTCUT = `fun process(order: Order, source: OrderSource, skipValida
 
 const CALL_POOR = `@Service
 class CampaignLauncher(
+
     private val campaigns: CampaignRepository,
     private val scheduler: CampaignScheduler,
     private val events: DomainEventPublisher,
@@ -281,7 +288,8 @@ class CampaignLauncher(
     }
 }`;
 
-const IMPL_POOR = `fun update(campaignId: CampaignId, active: Boolean, startedAt: Instant): Campaign {
+const IMPL_POOR = `fun update(campaignId: CampaignId, active: Boolean, startedAt: Instant
+): Campaign {
     val campaign = requireById(campaignId)
 
     val updated = campaign.copy(
@@ -299,19 +307,19 @@ const IMPL_POOR = `fun update(campaignId: CampaignId, active: Boolean, startedAt
 const FACES: Face[] = [
   {name: 'PERMISSION', scale: 2,
    callCode: CALL_PERMISSION, implCode: IMPL_PERMISSION,
-   callBlock: [10, 15]},
+   callBlock: [11, 16]},
   {name: 'MODE',       scale: 3,
    callCode: CALL_MODE,       implCode: IMPL_MODE,
-   callBlock: [16, 20]},
+   callBlock: [17, 21]},
   {name: 'SAFETY',     scale: 3,
    callCode: CALL_SAFETY,     implCode: IMPL_SAFETY,
-   callBlock: [13, 18]},
+   callBlock: [14, 19]},
   {name: 'SHORTCUT',   scale: 4,
    callCode: CALL_SHORTCUT,   implCode: IMPL_SHORTCUT,
-   callBlock: [12, 16]},
+   callBlock: [13, 17]},
   {name: 'POOR MODEL', scale: 5,
    callCode: CALL_POOR,       implCode: IMPL_POOR,
-   callBlock: [11, 15]},
+   callBlock: [12, 16]},
 ];
 
 const STATE_LIST = 'draft  /  scheduled  /  running  /  paused  /  completed  /  archived';
@@ -938,9 +946,10 @@ export default makeScene2D(function* (view) {
   // red barrier; when the boolean fires the barrier shatters and the
   // circle continues into a green target square at the bottom.
   const permissionViz   = createRef<Node>();
-  const permRequest     = createRef<Circle>();
-  const permBarrier     = createRef<Rect>();
-  const permTarget      = createRef<Rect>();
+  const permRequest      = createRef<Circle>();
+  const permRequestLabel = createRef<Txt>();
+  const permBarrier      = createRef<Rect>();
+  const permTarget       = createRef<Rect>();
   {
     view.add(
       <Node ref={permissionViz} x={VIZ_X} y={VIZ_Y} opacity={0}>
@@ -948,14 +957,15 @@ export default makeScene2D(function* (view) {
         <Circle
           ref={permRequest}
           x={0}
-          y={-180}
+          y={-200}
           width={56}
           height={56}
           fill={'rgba(100, 180, 255, 0.85)'}
         />
         <Txt
+          ref={permRequestLabel}
           x={0}
-          y={-180 + 56}
+          y={-200 + 56}
           text={'request'}
           fontFamily={Fonts.code}
           fontSize={20}
@@ -966,7 +976,7 @@ export default makeScene2D(function* (view) {
         <Rect
           ref={permBarrier}
           x={0}
-          y={0}
+          y={-50}
           width={240}
           height={10}
           fill={'#FF8CA3'}
@@ -976,7 +986,7 @@ export default makeScene2D(function* (view) {
         <Rect
           ref={permTarget}
           x={0}
-          y={180}
+          y={100}
           width={80}
           height={80}
           fill={'rgba(244, 241, 235, 0.10)'}
@@ -984,7 +994,7 @@ export default makeScene2D(function* (view) {
         />
         <Txt
           x={0}
-          y={180 + 60}
+          y={100 + 60}
           text={'save'}
           fontFamily={Fonts.code}
           fontSize={20}
@@ -1015,16 +1025,16 @@ export default makeScene2D(function* (view) {
         {/* Left — active by default (orange filled) */}
         <Circle
           ref={modeTopCircle}
-          x={-100}
-          y={0}
+          x={-130}
+          y={-70}
           width={120}
           height={120}
           fill={'#FF9F43'}
         />
         <Txt
           ref={modeLoudTxt}
-          x={-100}
-          y={92}
+          x={-130}
+          y={22}
           text={'default'}
           fontFamily={Fonts.code}
           fontSize={20}
@@ -1035,8 +1045,8 @@ export default makeScene2D(function* (view) {
         {/* Right — inactive by default (lilac outline) */}
         <Circle
           ref={modeBotCircle}
-          x={100}
-          y={0}
+          x={70}
+          y={-70}
           width={120}
           height={120}
           fill={'rgba(201, 176, 232, 0)'}
@@ -1045,8 +1055,8 @@ export default makeScene2D(function* (view) {
         />
         <Txt
           ref={modeSilentTxt}
-          x={100}
-          y={92}
+          x={70}
+          y={22}
           text={'silent'}
           fontFamily={Fonts.code}
           fontSize={20}
@@ -1121,6 +1131,7 @@ export default makeScene2D(function* (view) {
   // removed entirely (the literal "hard delete" outcome).
   const safetyViz   = createRef<Node>();
   const safetyArgTxt = createRef<Txt>();
+  const safetyValTxt = createRef<Txt>();
   const sRowFill    = createRef<Rect>();
   const sBobRow     = createRef<Node>();
   const sBobDate    = createRef<Txt>();
@@ -1134,7 +1145,7 @@ export default makeScene2D(function* (view) {
     const ROW_H   = 40;
     const FONT_SZ = 20;
     const INK     = '#F4F1EB';
-    const SUBTLE  = 'rgba(244, 241, 235, 0.50)';
+    const SUBTLE  = 'rgba(244, 241, 235, 0.65)';
     view.add(
       <Node ref={safetyViz} x={VIZ_X} y={VIZ_Y} opacity={0}>
         {/* Argument label above the table — `soft = true` etc. */}
@@ -1143,7 +1154,18 @@ export default makeScene2D(function* (view) {
           x={-TABLE_W / 2 + 18}
           y={-TABLE_H / 2 - 36}
           offset={[-1, 0]}
-          text={'soft = true'}
+          text={'soft = '}
+          fontFamily={Fonts.code}
+          fontSize={22}
+          letterSpacing={1}
+          fill={PARAM_DARK}
+        />
+        <Txt
+          ref={safetyValTxt}
+          x={-TABLE_W / 2 + 18 + 100}
+          y={-TABLE_H / 2 - 36}
+          offset={[-1, 0]}
+          text={'true'}
           fontFamily={Fonts.code}
           fontSize={22}
           letterSpacing={1}
@@ -1153,10 +1175,10 @@ export default makeScene2D(function* (view) {
         <Rect
           width={TABLE_W}
           height={TABLE_H}
-          stroke={'rgba(244, 241, 235, 0.55)'}
-          lineWidth={2}
+          stroke={'rgba(244, 241, 235, 0.75)'}
+          lineWidth={3}
           radius={6}
-          fill={'rgba(244, 241, 235, 0.03)'}
+          fill={'rgba(244, 241, 235, 0.06)'}
         />
         {/* Header row */}
         <Txt x={COL_X[0]} y={HDR_Y} text={'id'}         fontFamily={Fonts.code} fontSize={FONT_SZ} fill={SUBTLE} fontWeight={600} letterSpacing={1} />
@@ -1164,8 +1186,8 @@ export default makeScene2D(function* (view) {
         <Txt x={COL_X[2]} y={HDR_Y} text={'deleted_at'} fontFamily={Fonts.code} fontSize={FONT_SZ} fill={SUBTLE} fontWeight={600} letterSpacing={1} />
         <Line
           points={[[-ROW_W / 2, HDR_Y + 26], [ROW_W / 2, HDR_Y + 26]]}
-          stroke={'rgba(244, 241, 235, 0.40)'}
-          lineWidth={1.2}
+          stroke={'rgba(244, 241, 235, 0.55)'}
+          lineWidth={2}
         />
 
         {/* Row 1 — Alice */}
@@ -1331,8 +1353,9 @@ export default makeScene2D(function* (view) {
   //    skips (Shortcut), reveals hidden states (Poor Model).
   function* permissionDriver(): ThreadGenerator {
     yield* waitFor(0.3);
+    yield* permRequestLabel().opacity(0, 0.25, easeInOutSine);
     // Ball drops and stops dead against the barrier.
-    yield* permRequest().position.y(-32, 0.5, easeInOutCubic);
+    yield* permRequest().position.y(-82, 0.5, easeInOutCubic);
     // Ball turns RED — request was blocked.
     yield* permRequest().fill('#E63946', 0.32, easeInOutSine);
     // Hold the blocked state so the viewer reads "denied by default".
@@ -1345,7 +1368,7 @@ export default makeScene2D(function* (view) {
     // Ball returns to blue — exception granted, it's allowed through.
     yield* permRequest().fill('rgba(100, 180, 255, 0.85)', 0.25, easeInOutSine);
     // Continues falling into target.
-    yield* permRequest().position.y(180, 0.55, easeInOutCubic);
+    yield* permRequest().position.y(100, 0.55, easeInOutCubic);
     // Target ignites green — action permitted.
     yield* all(
       permTarget().fill('rgba(134, 176, 122, 0.92)', 0.35, easeInOutSine),
@@ -1400,7 +1423,10 @@ export default makeScene2D(function* (view) {
     );
     // Phase 2 — soft = false → row disappears.
     yield* waitFor(1.5);
-    yield* safetyArgTxt().text('soft = false', 0.5);
+    yield* all(
+      safetyValTxt().text('false', 0.5),
+      safetyValTxt().fill(METHOD_COLOR, 0.5, easeInOutSine),
+    );
     yield* waitFor(0.35);
     yield* sBobRow().opacity(0, 0.55, easeInOutSine);
   }
@@ -1462,13 +1488,14 @@ export default makeScene2D(function* (view) {
     yield* waitFor(implHold);
     yield* vizDrivers[i]();
     yield* restoreLines(callCodes[i], 0.8);
-    yield* waitFor(vizHold);
+    yield* waitFor(1.2);
+    yield* hideViz(i, 0.5);
+    yield* waitFor(vizHold - 1.7);
     yield* showSmallScale(i);
     yield* waitFor(closeHold);
     yield* all(
       hideCallCode(i, 0.5),
       hideImplCode(i, 0.5),
-      hideViz(i, 0.5),
       hideSmallScale(i, 0.4),
     );
   }
@@ -1503,7 +1530,9 @@ export default makeScene2D(function* (view) {
   yield* waitFor(2.0);
   yield* permissionDriver();
   yield* restoreLines(callCodes[0], 0.8);
-  yield* waitFor(2.5);
+  yield* waitFor(1.2);
+  yield* hideViz(0, 0.5);
+  yield* waitFor(0.8);
 
   // Big rating bloom — frame centre, on top of HEAVY-blurred code.
   bigScale().position([0, 0]);
@@ -1511,10 +1540,8 @@ export default makeScene2D(function* (view) {
   yield* all(
     callBlurs[0](BLUR_HEAVY, 0.6, easeInOutSine),
     implBlurs[0](BLUR_HEAVY, 0.6, easeInOutSine),
-    vizBlur(BLUR_HEAVY, 0.6, easeInOutSine),
     callCodes[0].node.opacity(0.40, 0.6, easeInOutSine),
     implCodes[0].node.opacity(0.40, 0.6, easeInOutSine),
-    permissionViz().opacity(0.40, 0.6, easeInOutSine),
     bigScale().opacity(1, 0.6, easeInOutSine),
   );
   yield* waitFor(2.2);
@@ -1533,10 +1560,8 @@ export default makeScene2D(function* (view) {
     bigScale().scale(SMALL_TARGET_SCALE, 1.0, easeInOutSine),
     callBlurs[0](0, 1.0, easeInOutSine),
     implBlurs[0](0, 1.0, easeInOutSine),
-    vizBlur(0, 1.0, easeInOutSine),
     callCodes[0].node.opacity(1, 1.0, easeInOutSine),
     implCodes[0].node.opacity(1, 1.0, easeInOutSine),
-    permissionViz().opacity(1, 1.0, easeInOutSine),
   );
   yield* waitFor(2.0);
 
@@ -1544,7 +1569,6 @@ export default makeScene2D(function* (view) {
   yield* all(
     hideCallCode(0, 0.55),
     hideImplCode(0, 0.55),
-    hideViz(0, 0.55),
     bigScale().opacity(0, 0.45, easeInOutSine),
   );
 

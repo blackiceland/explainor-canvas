@@ -1,5 +1,6 @@
-import {Rect, Txt, makeScene2D} from '@motion-canvas/2d';
+import {Line, Node, Rect, Txt, makeScene2D} from '@motion-canvas/2d';
 import {
+    Reference,
     ThreadGenerator,
     all,
     createRef,
@@ -10,62 +11,47 @@ import {
 } from '@motion-canvas/core';
 import {ColorRule, Manticore} from '../core/code/components/Manticore';
 import {SyntaxTheme} from '../core/code/model/SyntaxTheme';
+import {textWidth} from '../core/utils/textMeasure';
 
-const F_MONO = '"JetBrains Mono", "Monaspace Argon", monospace';
+const F_SERIF = 'Newsreader, EB Garamond, serif';
+const F_MONO  = '"JetBrains Mono", "Monaspace Argon", monospace';
+
 const VIEW_W = 1080;
 const VIEW_H = 1920;
 
 const BG       = '#111722';
 const INK      = '#E7E1D6';
 const KEY      = '#BFADE1';
-const METHOD   = '#83BCE2';
-const TYPE     = '#D8CEEC';
+const DOMAIN   = '#83BCE2';
 const STRING   = '#9CC4A0';
-const LITERAL  = '#8BA1C1';
 const PUNC     = '#CBD1DC';
 const OPERATOR = '#8F9AAA';
-const QUIET    = 'rgba(231, 225, 214, 0.50)';
+const HERO     = '#E7E1D6';
 const ACCENT   = '#E8C656';
+const QUIET    = 'rgba(231, 225, 214, 0.50)';
+const MASS     = '#E7E1D6';
+const SKEL     = 'rgba(231, 225, 214, 0.25)';
 const DIM_OP   = 0.22;
+
+const CODE_X = 20;
 
 const THEME: SyntaxTheme = {
     keyword:     INK,
-    type:        TYPE,
+    type:        DOMAIN,
     string:      STRING,
-    number:      LITERAL,
+    number:      INK,
     operator:    OPERATOR,
     punctuation: PUNC,
-    method:      METHOD,
+    method:      INK,
     comment:     QUIET,
     annotation:  INK,
-    constant:    LITERAL,
+    constant:    DOMAIN,
     plain:       INK,
 };
 
-const ALL_KEYWORDS = [
-    'function', 'const', 'let', 'var', 'class', 'interface', 'type', 'enum',
-    'async', 'await', 'new', 'extends', 'implements',
-    'public', 'private', 'protected', 'static', 'readonly',
-    'export', 'import', 'from', 'default', 'as',
-    'if', 'else', 'return', 'throw', 'for', 'while', 'switch', 'case',
-    'break', 'continue', 'do', 'try', 'catch', 'finally',
-    'in', 'of', 'instanceof', 'typeof',
-    'fun', 'val', 'suspend', 'when', 'is', 'data', 'sealed', 'object',
-    'override', 'open', 'internal', 'companion', 'lateinit', 'abstract',
-    'this', 'super', 'void', 'yield',
-];
-
-function namedRegex(names: string[]): RegExp {
-    return new RegExp(`^(${names.map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})$`);
-}
-
 const RULES: ColorRule[] = [
-    {match: namedRegex(ALL_KEYWORDS), color: KEY},
-    {match: namedRegex(['true', 'false', 'null', 'undefined']), color: LITERAL},
-    {match: namedRegex(['User', 'Cart', 'SendResult']), color: TYPE},
-    {match: namedRegex(['sendCartReminder', 'render', 'send', 'record']), color: METHOD},
-    {match: namedRegex(['user', 'cart']), color: INK},
-    {match: namedRegex(['phone']), color: INK},
+    {match: /^(function|const|let|var|return|if|else|await|async|throw|new|export|import|class|interface|enum)$/, color: KEY},
+    {match: /^(sendCartReminder|sendLoginCode|sendMessage|render|send|track)$/, color: DOMAIN},
 ];
 
 const FLAT_CARD = {
@@ -80,12 +66,123 @@ const FLAT_CARD = {
     edge: false,
 } as const;
 
-const CODE = `suspend fun sendCartReminder(user: User, cart: Cart): SendResult {
-    val message = templates.render("cart_reminder", cart)
-    val result = whatsapp.send(user.phone, message)
-    deliveries.record(user, message, result)
-    return result
+const CODE_CART = `function sendCartReminder(user, cart) {
+    const message = render("cart.reminder", cart)
+    const delivery = send(user.phone, message)
+    track(user, message, delivery)
+
+    return delivery
 }`;
+
+const CODE_LOGIN = `function sendLoginCode(user, code) {
+    const message = render("login.code", code)
+    const delivery = send(user.phone, message)
+    track(user, message, delivery)
+
+    return delivery
+}`;
+
+const CODE_MERGED = `function sendMessage(user, template, payload) {
+    const message = render(template, payload)
+    const delivery = send(user.phone, message)
+    track(user, message, delivery)
+
+    return delivery
+}`;
+
+// ── Shape geometry ───────────────────────────────────────────────────
+function marketingBlobPoints(): [number, number][] {
+    const pts: [number, number][] = [];
+    const N = 24;
+    for (let i = 0; i < N; i++) {
+        const a = (i / N) * Math.PI * 2;
+        const wobble = 1 + Math.sin(a * 3) * 0.06 + Math.sin(a * 5 + 0.7) * 0.04;
+        const r = 130 * wobble;
+        pts.push([Math.cos(a) * r * 1.05, Math.sin(a) * r * 0.95]);
+    }
+    return pts;
+}
+
+function securityHexPoints(): [number, number][] {
+    const pts: [number, number][] = [];
+    const r = 138;
+    const tilt = 0.12;
+    for (let i = 0; i < 6; i++) {
+        const a = tilt + (i / 6) * Math.PI * 2;
+        pts.push([Math.cos(a) * r, Math.sin(a) * r * 0.96]);
+    }
+    return pts;
+}
+
+function measureRow(line: string, fontFamily: string, fontSize: number): {indentPx: number; widthPx: number} {
+    const lead = line.match(/^\s*/)?.[0] ?? '';
+    const trimmed = line.slice(lead.length);
+    return {
+        indentPx: textWidth(lead, fontFamily, fontSize),
+        widthPx: textWidth(trimmed, fontFamily, fontSize),
+    };
+}
+
+function widthAtY(points: [number, number][], y: number): number {
+    let leftX = Infinity, rightX = -Infinity;
+    for (let i = 0; i < points.length; i++) {
+        const [x1, y1] = points[i];
+        const [x2, y2] = points[(i + 1) % points.length];
+        if (y < Math.min(y1, y2) || y > Math.max(y1, y2)) continue;
+        if (Math.abs(y2 - y1) < 0.0001) continue;
+        const t = (y - y1) / (y2 - y1);
+        const x = x1 + t * (x2 - x1);
+        if (x < leftX) leftX = x;
+        if (x > rightX) rightX = x;
+    }
+    return Math.max(0, rightX - leftX);
+}
+
+type SkeletonHandle = { bars: Reference<Rect>[]; node: Reference<Node> };
+
+function buildSkeleton(
+    centerY: number, barCount: number, lh: number,
+    widths: number[], indents: number[],
+    contentLeft: number, totalLines: number,
+    lineIndices?: number[],
+): {handle: SkeletonHandle; jsx: any} {
+    const bars: Reference<Rect>[] = [];
+    const node = createRef<Node>();
+    const startRel = -((totalLines - 1) / 2) * lh;
+    const indices = lineIndices ?? Array.from({length: barCount}, (_, i) => i);
+    const jsx = (
+        <Node ref={node} opacity={0}>
+            {indices.slice(0, barCount).map((lineIdx, i) => {
+                const ref = createRef<Rect>();
+                bars.push(ref);
+                return (
+                    <Rect
+                        ref={ref}
+                        width={widths[i]} height={12} radius={4}
+                        fill={SKEL}
+                        x={contentLeft + indents[i] + widths[i] / 2}
+                        y={centerY + startRel + lineIdx * lh}
+                    />
+                );
+            })}
+        </Node>
+    );
+    return {handle: {bars, node}, jsx};
+}
+
+function compressBarsToSilhouetteWidths(
+    bars: Reference<Rect>[], barYsRelativeToFigure: number[],
+    figurePoints: [number, number][], duration: number, figureX = 0,
+): ThreadGenerator[] {
+    const out: ThreadGenerator[] = [];
+    for (let i = 0; i < bars.length; i++) {
+        const targetW = widthAtY(figurePoints, barYsRelativeToFigure[i]);
+        out.push(bars[i]().width(targetW, duration, easeInOutCubic));
+        out.push(bars[i]().x(figureX, duration, easeInOutCubic));
+        out.push(bars[i]().fill(MASS, duration, easeInOutCubic));
+    }
+    return out;
+}
 
 function bumpWeight(block: Manticore, weight: number): void {
     for (let i = 0; i < block.lineCount; i++) {
@@ -97,117 +194,410 @@ function bumpWeight(block: Manticore, weight: number): void {
     }
 }
 
-function* highlightOnly(
-    block: Manticore, idx: number, dur = 0.4,
-): ThreadGenerator {
+function* highlightOnly(blocks: Manticore[], idx: number, dur = 0.4): ThreadGenerator {
     const ops: ThreadGenerator[] = [];
-    for (let i = 0; i < block.lineCount; i++) {
-        const line = block.getLine(i);
-        if (line) ops.push(line.setOpacity(i === idx ? 1 : DIM_OP, dur));
+    for (const b of blocks) {
+        for (let i = 0; i < b.lineCount; i++) {
+            const line = b.getLine(i);
+            if (line) ops.push(line.setOpacity(i === idx ? 1 : DIM_OP, dur));
+        }
     }
     if (ops.length) yield* all(...ops);
 }
 
-function* restoreAll(block: Manticore, dur = 0.4): ThreadGenerator {
-    const ops: ThreadGenerator[] = [];
-    for (let i = 0; i < block.lineCount; i++) {
-        const line = block.getLine(i);
-        if (line) ops.push(line.setOpacity(1, dur));
-    }
-    if (ops.length) yield* all(...ops);
+type BlockOpts = {
+    code: string; x?: number; y: number;
+    width?: number; fontSize?: number; lineHeight?: number; noClip?: boolean;
+};
+
+function makeBlock(o: BlockOpts): Manticore {
+    return Manticore.create(o.code, {
+        x: o.x ?? 0, y: o.y,
+        width: o.width ?? 1040,
+        fontSize: o.fontSize ?? 32,
+        lineHeight: o.lineHeight ?? 46,
+        fontFamily: F_MONO,
+        theme: THEME,
+        cardStyle: FLAT_CARD,
+        glowAccent: false,
+        noClip: o.noClip ?? false,
+    });
 }
 
 function* awaitFontsReady(): ThreadGenerator {
     if (typeof document === 'undefined') return;
     try {
-        document.fonts.load(`400 38px "JetBrains Mono"`);
-        document.fonts.load(`500 38px "JetBrains Mono"`);
-        document.fonts.load(`400 38px "Monaspace Argon"`);
+        document.fonts.load(`400 32px "JetBrains Mono"`);
+        document.fonts.load(`500 32px "JetBrains Mono"`);
+        document.fonts.load(`400 120px "Newsreader"`);
+        document.fonts.load(`italic 400 120px "Newsreader"`);
     } catch {}
     for (let i = 0; i < 60; i++) {
-        if (document.fonts.check(`400 38px "JetBrains Mono"`)) return;
+        if (document.fonts.check(`400 32px "JetBrains Mono"`)) return;
         yield* waitFor(0.05);
     }
 }
 
-function* swapSubtitle(sub: ReturnType<typeof createRef<Txt>>, text: string): ThreadGenerator {
-    yield* sub().opacity(0, 0.18, easeInCubic);
-    sub().text(text);
-    yield* sub().opacity(1, 0.32, easeOutCubic);
+// ── Typing animation for comment-style subtitles ─────────────────────
+function* typeBody(
+    ref: ReturnType<typeof createRef<Txt>>, body: string, charDelay = 0.03,
+): ThreadGenerator {
+    ref().text('');
+    for (let i = 1; i <= body.length; i++) {
+        ref().text(body.substring(0, i));
+        yield* waitFor(charDelay);
+    }
 }
 
-// Line indices in the 6-line code block:
-//   0: suspend fun sendCartReminder(...)
-//   1: val message = templates.render(...)
-//   2: val result = whatsapp.send(...)
-//   3: deliveries.record(...)
-//   4: return result
-//   5: }
 
+function* swapSub(
+    ref: ReturnType<typeof createRef<Txt>>, body: string,
+): ThreadGenerator {
+    ref().text('');
+    yield* waitFor(0.08);
+    yield* typeBody(ref, body);
+}
+
+// ══════════════════════════════════════════════════════════════════════
 export default makeScene2D(function* (view) {
     yield* awaitFontsReady();
 
     view.add(<Rect width={VIEW_W} height={VIEW_H} fill={BG} />);
 
-    const code = Manticore.create(CODE, {
-        x: 15, y: -180,
-        width: 1080,
-        fontSize: 35, lineHeight: 39,
-        fontFamily: F_MONO,
-        theme: THEME,
-        cardStyle: FLAT_CARD,
-        glowAccent: false,
-    });
-    code.mount(view);
-    bumpWeight(code, 500);
-    code.colorize(RULES);
-    code.node.opacity(0);
-
-    const subtitle = createRef<Txt>();
+    // ── Editorial frame ─────────────────────────────────────────────
     view.add(<Txt
-        ref={subtitle}
-        text=""
-        fontFamily={F_MONO} fontSize={42} fontWeight={500}
-        fill={ACCENT}
-        offset={[-1, 0]}
-        x={-480} y={540}
-        opacity={0}
+        text="KUROSHIMA"
+        fontFamily={F_SERIF} fontSize={22} fontWeight={500}
+        letterSpacing={5} fill={HERO} y={-820}
+    />);
+    view.add(<Txt
+        text="ISSUE 02"
+        fontFamily={F_SERIF} fontSize={20} fontWeight={500}
+        letterSpacing={4} fill={HERO} y={820}
     />);
 
-    // Beat 1 — code appears
-    yield* code.node.opacity(1, 0.5, easeOutCubic);
-    yield* waitFor(1.0);
+    // ════════════════════════════════════════════════════════════════
+    //  Beat 1 — CODE FIRST, then HERO on top
+    // ════════════════════════════════════════════════════════════════
+    const cart  = makeBlock({code: CODE_CART,  x: CODE_X, y: -170, fontSize: 32, lineHeight: 46, width: 1100});
+    const login = makeBlock({code: CODE_LOGIN, x: CODE_X, y: +310, fontSize: 32, lineHeight: 46, width: 1100});
+    cart.mount(view);
+    login.mount(view);
+    bumpWeight(cart, 500);
+    bumpWeight(login, 500);
+    cart.colorize(RULES);
+    login.colorize(RULES);
+    cart.node.opacity(1);
+    login.node.opacity(1);
 
-    // Beat 2 — sequential highlight: render → send → record → return
-    subtitle().text('// render');
-    yield* all(
-        highlightOnly(code, 1, 0.5),
-        subtitle().opacity(1, 0.4, easeOutCubic),
-    );
+    // Hide all tokens, then typewriter reveal all lines simultaneously
+    for (const block of [cart, login]) {
+        for (let i = 0; i < block.lineCount; i++) {
+            const line = block.getLine(i);
+            if (line) line.hideTokensInstantly();
+        }
+    }
+
+    const typeOps: ThreadGenerator[] = [];
+    for (const block of [cart, login]) {
+        for (let i = 0; i < block.lineCount; i++) {
+            const line = block.getLine(i);
+            if (line) typeOps.push(line.typewriter(0.015));
+        }
+    }
+    yield* all(...typeOps);
+    yield* waitFor(0.3);
+
+    // Hero appears on top, one line at a time
+    const hero = createRef<Node>();
+    const HERO_TOP = -700;
+    const HERO_LH  = 88;
+    const HERO_SZ  = 72;
+
+    const heroL1 = createRef<Txt>();
+    const heroL2 = createRef<Txt>();
+    const heroL3 = createRef<Txt>();
+    view.add(<Node ref={hero}>
+        <Txt ref={heroL1} text="Code duplication"
+            fontFamily={F_SERIF} fontSize={HERO_SZ} fontWeight={400}
+            fill={HERO} y={HERO_TOP} textAlign="center" opacity={0}
+        />
+        <Txt ref={heroL2} text="isn't always"
+            fontFamily={F_SERIF} fontSize={HERO_SZ} fontWeight={400}
+            fill={HERO} y={HERO_TOP + HERO_LH} textAlign="center" opacity={0}
+        />
+        <Txt ref={heroL3} text="bad."
+            fontFamily={F_SERIF} fontSize={108} fontWeight={400}
+            fontStyle="italic" fill={ACCENT}
+            y={HERO_TOP + HERO_LH * 2 + 14} textAlign="center" opacity={0}
+        />
+    </Node>);
+
+    yield* heroL1().opacity(1, 0.32, easeOutCubic);
+    yield* waitFor(0.16);
+    yield* heroL2().opacity(1, 0.32, easeOutCubic);
+    yield* waitFor(0.22);
+    yield* heroL3().opacity(1, 0.45, easeOutCubic);
+    yield* waitFor(0.4);
+
+    // Subtitle: static `//` + typed body, both left-aligned at fixed x.
+    // x=-175 centres the group visually for average subtitle length.
+    const SUB_Y = 680;
+    const SUB_X = -175;
+    const SLASH_W = 58; // "// " = 3 chars × ~19.3px at JBM 32px
+    const subSlashes = createRef<Txt>();
+    const subBody = createRef<Txt>();
+    view.add(<Txt
+        ref={subSlashes} text="// "
+        fontFamily={F_MONO} fontSize={32} fontWeight={500}
+        fill={ACCENT} offset={[-1, 0]}
+        x={SUB_X} y={SUB_Y} opacity={0}
+    />);
+    view.add(<Txt
+        ref={subBody} text=""
+        fontFamily={F_MONO} fontSize={32} fontWeight={500}
+        fill={ACCENT} offset={[-1, 0]}
+        x={SUB_X + SLASH_W} y={SUB_Y} opacity={0}
+    />);
+
+    subSlashes().opacity(1);
+    subBody().opacity(1);
+    yield* typeBody(subBody, 'two functions');
     yield* waitFor(1.2);
 
+    // ════════════════════════════════════════════════════════════════
+    //  Beat 2 — SEQUENTIAL HIGHLIGHT (no crystal)
+    // ════════════════════════════════════════════════════════════════
+    const RENDER_LINE = 1;
+    const SEND_LINE   = 2;
+    const TRACK_LINE  = 3;
+    const RETURN_LINE = 5;
+
+    // RENDER — hero fades in parallel
     yield* all(
-        highlightOnly(code, 2, 0.4),
-        swapSubtitle(subtitle, '// send'),
+        hero().opacity(0, 0.6, easeInCubic),
+        highlightOnly([cart, login], RENDER_LINE, 0.5),
+        swapSub(subBody, 'render the message'),
     );
-    yield* waitFor(1.2);
+    hero().remove();
+    yield* waitFor(0.7);
+
+    // SEND
+    yield* all(
+        highlightOnly([cart, login], SEND_LINE, 0.4),
+        swapSub(subBody, 'send to the user'),
+    );
+    yield* waitFor(0.7);
+
+    // TRACK
+    yield* all(
+        highlightOnly([cart, login], TRACK_LINE, 0.4),
+        swapSub(subBody, 'track the delivery'),
+    );
+    yield* waitFor(0.7);
+
+    // RETURN
+    yield* all(
+        highlightOnly([cart, login], RETURN_LINE, 0.4),
+        swapSub(subBody, 'return the result'),
+    );
+    yield* waitFor(0.75);
+
+    // Restore all lines, subtitle fades
+    yield* all(
+        cart.showAllLines(0.4),
+        login.showAllLines(0.4),
+        subSlashes().opacity(0, 0.4, easeInCubic),
+        subBody().opacity(0, 0.4, easeInCubic),
+    );
+    yield* waitFor(0.3);
+
+    // ════════════════════════════════════════════════════════════════
+    //  Beat 3 — MERGE: code → bars → shapes
+    // ════════════════════════════════════════════════════════════════
+    const lineCount = 7;
+    const lh = 46;
+    const cartLineIndices = [1, 2, 3, 5];
+    const contentLeft = -1100 / 2 + 56 + CODE_X;
+
+    const cartLines = CODE_CART.split('\n');
+    const loginLines = CODE_LOGIN.split('\n');
+    const cartRowSpec  = cartLineIndices.map(idx => measureRow(cartLines[idx], F_MONO, 32));
+    const loginRowSpec = cartLineIndices.map(idx => measureRow(loginLines[idx], F_MONO, 32));
+    const cartWidths   = cartRowSpec.map(r => r.widthPx);
+    const loginWidths  = loginRowSpec.map(r => r.widthPx);
+    const cartIndents  = cartRowSpec.map(r => r.indentPx);
+    const loginIndents = loginRowSpec.map(r => r.indentPx);
+
+    const cartCenterY  = -170;
+    const loginCenterY =  310;
+    const barCount = cartLineIndices.length;
+
+    const barYsRel = cartLineIndices.map(idx =>
+        idx * lh + (-((lineCount - 1) / 2) * lh),
+    );
+
+    const cartSkel  = buildSkeleton(cartCenterY,  barCount, lh, cartWidths,  cartIndents,  contentLeft, lineCount, cartLineIndices);
+    const loginSkel = buildSkeleton(loginCenterY, barCount, lh, loginWidths, loginIndents, contentLeft, lineCount, cartLineIndices);
+    view.add(cartSkel.jsx);
+    view.add(loginSkel.jsx);
 
     yield* all(
-        highlightOnly(code, 3, 0.4),
-        swapSubtitle(subtitle, '// record'),
+        cart.node.opacity(0, 0.45, easeInOutCubic),
+        login.node.opacity(0, 0.45, easeInOutCubic),
+        cartSkel.handle.node().opacity(1, 0.45, easeInOutCubic),
+        loginSkel.handle.node().opacity(1, 0.45, easeInOutCubic),
     );
-    yield* waitFor(1.2);
+    cart.node.remove();
+    login.node.remove();
 
     yield* all(
-        highlightOnly(code, 4, 0.4),
-        swapSubtitle(subtitle, '// return result'),
+        ...compressBarsToSilhouetteWidths(cartSkel.handle.bars,  barYsRel, marketingBlobPoints(), 0.7, CODE_X),
+        ...compressBarsToSilhouetteWidths(loginSkel.handle.bars, barYsRel, securityHexPoints(),   0.7, CODE_X),
     );
-    yield* waitFor(1.2);
+    yield* waitFor(0.18);
 
-    // Beat 3 — restore all lines, subtitle stays
+    // Shapes cross-fade in
+    const marketingShape = createRef<Line>();
+    const securityShape  = createRef<Line>();
+    const labels = createRef<Node>();
+
+    view.add(<Line
+        ref={marketingShape} points={marketingBlobPoints()} closed
+        fill={MASS} x={CODE_X} y={cartCenterY} opacity={0}
+    />);
+    view.add(<Line
+        ref={securityShape} points={securityHexPoints()} closed
+        fill={MASS} x={CODE_X} y={loginCenterY} opacity={0}
+    />);
+    view.add(<Node ref={labels} x={CODE_X} opacity={0}>
+        <Txt text="MARKETING"
+            fontFamily={F_SERIF} fontSize={24} fontWeight={500}
+            letterSpacing={5} fill={MASS} y={cartCenterY + 155}
+        />
+        <Txt text="SECURITY"
+            fontFamily={F_SERIF} fontSize={24} fontWeight={500}
+            letterSpacing={5} fill={MASS} y={loginCenterY + 155}
+        />
+    </Node>);
+
     yield* all(
-        restoreAll(code, 0.5),
-        swapSubtitle(subtitle, '// render, send, record'),
+        cartSkel.handle.node().opacity(0, 0.5, easeInOutCubic),
+        loginSkel.handle.node().opacity(0, 0.5, easeInOutCubic),
+        marketingShape().opacity(1, 0.5, easeInOutCubic),
+        securityShape().opacity(1, 0.5, easeInOutCubic),
     );
+    cartSkel.handle.node().remove();
+    loginSkel.handle.node().remove();
+
+    // ════════════════════════════════════════════════════════════════
+    //  Beat 4 — labels
+    // ════════════════════════════════════════════════════════════════
+    yield* labels().opacity(1, 0.5, easeOutCubic);
+    yield* waitFor(3.0);
+
+    // ════════════════════════════════════════════════════════════════
+    //  Beat 5 — shapes merge to center
+    // ════════════════════════════════════════════════════════════════
+    yield* all(
+        marketingShape().position.y(0, 0.7, easeInOutCubic),
+        securityShape().position.y(0, 0.7, easeInOutCubic),
+        labels().opacity(0, 0.45, easeInCubic),
+    );
+    labels().remove();
+
+    yield* securityShape().scale(0.82, 0.1, easeInCubic);
+
+    yield* all(
+        marketingShape().opacity(0, 0.45, easeInCubic),
+        securityShape().opacity(0, 0.45, easeInCubic),
+    );
+    marketingShape().remove();
+    securityShape().remove();
+
+    // ════════════════════════════════════════════════════════════════
+    //  Beat 6 — reverse: figure → bars → merged code
+    // ════════════════════════════════════════════════════════════════
+    const MERGED_LH = 46;
+    const MERGED_TOTAL_LINES = 7;
+    const MERGED_TOP = -((MERGED_TOTAL_LINES - 1) / 2) * MERGED_LH;
+    const mergedLineIndices = [0, 1, 2, 3, 5];
+    const mergedContentLeft = -1100 / 2 + 56 + CODE_X;
+    const mergedLines = CODE_MERGED.split('\n');
+    const mergedRowSpec = mergedLineIndices.map(idx => measureRow(mergedLines[idx], F_MONO, 32));
+    const mergedWidths  = mergedRowSpec.map(r => r.widthPx);
+    const mergedIndents = mergedRowSpec.map(r => r.indentPx);
+    const N_REV_BARS = mergedWidths.length;
+
+    const blobPts = marketingBlobPoints();
+    const revBarsNode = createRef<Node>();
+    const revBarRefs: Reference<Rect>[] = [];
+
+    view.add(<Node ref={revBarsNode} opacity={0}>
+        {Array.from({length: N_REV_BARS}, (_, i) => {
+            const ref = createRef<Rect>();
+            revBarRefs.push(ref);
+            const barY = MERGED_TOP + mergedLineIndices[i] * MERGED_LH;
+            const initialW = widthAtY(blobPts, barY);
+            return (
+                <Rect ref={ref}
+                    width={initialW} height={12} radius={4}
+                    fill={MASS} x={CODE_X} y={barY}
+                />
+            );
+        })}
+    </Node>);
+
+    yield* revBarsNode().opacity(1, 0.45, easeOutCubic);
+    yield* waitFor(0.3);
+
+    const expandOps: ThreadGenerator[] = [];
+    for (let i = 0; i < N_REV_BARS; i++) {
+        const targetX = mergedContentLeft + mergedIndents[i] + mergedWidths[i] / 2;
+        expandOps.push(revBarRefs[i]().width(mergedWidths[i], 0.6, easeInOutCubic));
+        expandOps.push(revBarRefs[i]().x(targetX, 0.6, easeInOutCubic));
+        expandOps.push(revBarRefs[i]().fill(SKEL, 0.6, easeInOutCubic));
+    }
+    yield* all(...expandOps);
+    yield* waitFor(0.25);
+
+    const merged = makeBlock({
+        code: CODE_MERGED, x: CODE_X, y: 0,
+        fontSize: 32, lineHeight: MERGED_LH,
+        width: 1100, noClip: true,
+    });
+    merged.mount(view);
+    bumpWeight(merged, 500);
+    merged.colorize(RULES);
+    merged.node.opacity(0);
+
+    yield* all(
+        revBarsNode().opacity(0, 0.55, easeInOutCubic),
+        merged.appear(0.55),
+    );
+    revBarsNode().remove();
+    yield* waitFor(2.4);
+
+    // ════════════════════════════════════════════════════════════════
+    //  Beat 7 — MANTRA
+    // ════════════════════════════════════════════════════════════════
+    const mantra = createRef<Node>();
+    view.add(<Node ref={mantra} opacity={0}>
+        <Txt text="Same shape."
+            fontFamily={F_SERIF} fontSize={92} fontWeight={400}
+            fill={HERO} y={-60} textAlign="center"
+        />
+        <Txt text="Different meaning."
+            fontFamily={F_SERIF} fontSize={92} fontWeight={400}
+            fontStyle="italic" fill={ACCENT}
+            y={60} textAlign="center"
+        />
+    </Node>);
+
+    yield* all(
+        merged.node.opacity(0, 0.55, easeInOutCubic),
+        mantra().opacity(1, 0.7, easeOutCubic),
+    );
+    merged.node.remove();
     yield* waitFor(3.0);
 });
