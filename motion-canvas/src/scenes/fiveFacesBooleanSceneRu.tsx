@@ -103,6 +103,210 @@ class MonthlyReportPublisher(
     }
 }`;
 
+const COMPLEX_SAVE_CODE = `class FileStorageService(
+    private val storage: ObjectStorage,
+    private val metadata: MetadataExtractor,
+    private val validator: ContentValidator,
+    private val quotas: QuotaService,
+    private val locks: DistributedLockProvider,
+    private val events: DomainEventPublisher,
+    private val audit: AuditLog,
+    private val thumbnails: ThumbnailGenerator,
+    private val encryption: EncryptionService,
+    private val cdn: CdnInvalidator,
+    private val versions: VersionRepository,
+    private val searchIndex: SearchIndex,
+    private val clock: Clock,
+) {
+
+    fun save(
+        path: String,
+        content: Bytes,
+        contentType: String,
+        overwrite: Boolean = false,
+    ): StoredFile {
+        require(path.isNotBlank()) { "Path must not be blank" }
+        require(content.size > 0) { "Content must not be empty" }
+
+        val normalizedPath = normalizePath(path)
+        val sizeBytes = content.size.toLong()
+
+        validator.requireValidMimeType(contentType)
+        validator.requireSafeContent(content, contentType)
+
+        if (sizeBytes > MAX_FILE_SIZE) {
+            throw FileTooLargeException(
+                normalizedPath, sizeBytes, MAX_FILE_SIZE,
+            )
+        }
+
+        val usage = quotas.currentUsage(tenantId())
+        if (usage.bytes + sizeBytes > usage.limit) {
+            throw QuotaExceededException(
+                tenantId = tenantId(),
+                requested = sizeBytes,
+                remaining = usage.limit - usage.bytes,
+            )
+        }
+
+        val lockKey = "file:\${normalizedPath}"
+        val lock = locks.tryAcquire(
+            lockKey, timeout = Duration.ofSeconds(5),
+        ) ?: throw FileLockedException(normalizedPath)
+
+        try {
+            val existing = storage.find(normalizedPath)
+
+            if (existing != null && !overwrite) {
+                throw FileAlreadyExistsException(
+                    normalizedPath,
+                )
+            }
+
+            val version = if (existing != null) {
+                existing.version + 1
+            } else {
+                1
+            }
+
+            val encryptionKey = encryption.generateKey()
+            val encrypted = encryption.encrypt(
+                content, encryptionKey,
+            )
+            val checksum = computeChecksum(encrypted)
+
+            val meta = metadata.extract(
+                content, contentType,
+            )
+
+            val parentDir = normalizedPath
+                .substringBeforeLast('/')
+            if (parentDir.isNotEmpty()) {
+                storage.ensureDirectory(parentDir)
+            }
+
+            val storageKey = storage.put(
+                path = normalizedPath,
+                content = encrypted,
+                contentType = contentType,
+                metadata = mapOf(
+                    "version" to version.toString(),
+                    "checksum" to checksum,
+                    "original-size" to sizeBytes.toString(),
+                    "encryption-key-id" to encryptionKey.id,
+                    "uploaded-at" to clock.instant().toString(),
+                    "uploaded-by" to currentUserId().value,
+                ),
+            )
+
+            val thumbKeys = if (isImageType(contentType)) {
+                THUMBNAIL_SIZES.map { size ->
+                    val thumb = thumbnails.generate(
+                        source = content,
+                        width = size.width,
+                        height = size.height,
+                        format = "webp",
+                    )
+                    val thumbPath = thumbnailPath(
+                        normalizedPath, size.label,
+                    )
+                    storage.put(
+                        path = thumbPath,
+                        content = thumb,
+                        contentType = "image/webp",
+                    )
+                    size.label to thumbPath
+                }.toMap()
+            } else {
+                emptyMap()
+            }
+
+            if (existing != null) {
+                versions.archive(
+                    path = normalizedPath,
+                    version = existing.version,
+                    archivedBy = currentUserId(),
+                )
+            }
+
+            searchIndex.index(
+                StorageDocument(
+                    path = normalizedPath,
+                    contentType = contentType,
+                    sizeBytes = sizeBytes,
+                    version = version,
+                    dimensions = meta.dimensions,
+                    createdAt = existing?.createdAt
+                        ?: clock.instant(),
+                    updatedAt = clock.instant(),
+                    createdBy = existing?.createdBy
+                        ?: currentUserId(),
+                    updatedBy = currentUserId(),
+                )
+            )
+
+            if (existing != null) {
+                cdn.invalidate(normalizedPath)
+                thumbKeys.values.forEach {
+                    cdn.invalidate(it)
+                }
+            }
+
+            val storedFile = StoredFile(
+                key = storageKey,
+                path = normalizedPath,
+                contentType = contentType,
+                sizeBytes = sizeBytes,
+                version = version,
+                checksum = checksum,
+                thumbnails = thumbKeys,
+                dimensions = meta.dimensions,
+                createdAt = existing?.createdAt
+                    ?: clock.instant(),
+                updatedAt = clock.instant(),
+            )
+
+            val action = if (existing != null) {
+                "file_overwritten"
+            } else {
+                "file_created"
+            }
+
+            audit.record(
+                actorId = currentUserId(),
+                action = action,
+                resourceId = storageKey,
+                details = mapOf(
+                    "path" to normalizedPath,
+                    "version" to version,
+                    "size" to sizeBytes,
+                    "contentType" to contentType,
+                ),
+            )
+
+            events.publish(
+                FileStoredEvent(
+                    path = normalizedPath,
+                    key = storageKey,
+                    action = action,
+                    version = version,
+                    storedAt = clock.instant(),
+                    storedBy = currentUserId(),
+                )
+            )
+
+            quotas.recordUsage(
+                tenantId(),
+                sizeBytes - (existing?.sizeBytes ?: 0),
+            )
+
+            return storedFile
+        } finally {
+            lock.release()
+        }
+    }
+}`;
+
 const IMPL_PERMISSION_REFACTORED = `fun save(path: String, content: Bytes, contentType: String): StoredFile {
     if (storage.exists(path)) {
         throw FileAlreadyExists(path)
@@ -365,6 +569,12 @@ const CUSTOM_TYPES = [
   'Service', 'MonthlyReportPublisher', 'ReportRenderer', 'FileStorage', 'AuditLog',
   'YearMonth', 'UserId', 'StorageKey',
   'FileRef', 'ByteArray', 'Bytes', 'Boolean', 'StoredFile', 'FileAlreadyExists',
+  // COMPLEX SAVE
+  'FileStorageService', 'ObjectStorage', 'MetadataExtractor', 'ContentValidator',
+  'QuotaService', 'DistributedLockProvider', 'ThumbnailGenerator', 'EncryptionService',
+  'CdnInvalidator', 'VersionRepository', 'SearchIndex', 'Duration',
+  'FileTooLargeException', 'QuotaExceededException', 'FileLockedException',
+  'FileAlreadyExistsException', 'StorageDocument', 'FileStoredEvent',
   // MODE
   'ShipmentNotificationService', 'MessageTemplateRepository', 'CustomerNotifier',
   'DeliveryRepository', 'Order', 'DeliveryResult', 'Sent',
@@ -390,7 +600,13 @@ const METHOD_NAMES = [
   'importOrders', 'parse', 'start', 'forEach', 'process', 'finish',
   'launchNow', 'requireReady', 'update', 'enqueue', 'mapOf',
   // impl bodies
-  'exists', 'put', 'read',
+  'exists', 'put', 'read', 'find', 'ensureDirectory',
+  'generateKey', 'encrypt', 'extract', 'generate', 'archive', 'index',
+  'invalidate', 'tryAcquire', 'release', 'recordUsage', 'publish',
+  'requireValidMimeType', 'requireSafeContent', 'currentUsage',
+  'normalizePath', 'computeChecksum', 'isImageType', 'thumbnailPath',
+  'currentUserId', 'tenantId', 'substringBeforeLast', 'isNotBlank',
+  'isNotEmpty', 'toMap', 'ofSeconds', 'toLong', 'toString',
   'requireById', 'markDeleted', 'deleteByUser',
   'requireValid', 'reserve', 'authorize', 'normalize',
   'copy', 'instant',
@@ -898,6 +1114,26 @@ export default makeScene2D(function* (view) {
     code.node.opacity(0);
     return code;
   });
+
+  // Complex save code — full-class view for PERMISSION trade-off section.
+  const complexSaveCode = Manticore.create(COMPLEX_SAVE_CODE, {
+    x: 0,
+    y: -60,
+    width: 1000,
+    height: 860,
+    fontSize: 17,
+    lineHeight: 23,
+    fontFamily: Fonts.code,
+    theme: DryFiltersV3CodeTheme,
+    noClip: false,
+    cardStyle: TRANSPARENT_CARD,
+    glowAccent: false,
+    customTypes: CUSTOM_TYPES,
+  });
+  complexSaveCode.mount(view);
+  complexSaveCode.colorize(CODE_RULES);
+  paintNamedParams(complexSaveCode);
+  complexSaveCode.node.opacity(0);
 
   // Backlit highlight strip behind every boolean line. Builds a thin
   // rounded plate sized to the actual code line and binds its opacity
@@ -1610,10 +1846,24 @@ export default makeScene2D(function* (view) {
   paintNamedParams(implCodes[0]);
   yield* waitFor(3.0);
 
-  // PERMISSION close.
+  // ── COMPLEX SAVE — trade-off reveal ──────────────────────────────────
+  // Hide left/right code, show full class with smooth scroll.
   yield* all(
     hideCallCode(0, 0.55),
     hideImplCode(0, 0.55),
+  );
+  yield* complexSaveCode.node.opacity(1, 0.6, easeInOutSine);
+  yield* waitFor(1.0);
+  // Scroll to the single `!overwrite` check (line ~54), pause.
+  yield* complexSaveCode.scrollTo(54, 5, easeInOutSine);
+  yield* waitFor(2.5);
+  // Scroll through the rest — encryption, thumbnails, CDN, audit, events...
+  yield* complexSaveCode.scrollTo(170, 6, easeInOutSine);
+  yield* waitFor(1.5);
+
+  // PERMISSION close.
+  yield* all(
+    complexSaveCode.node.opacity(0, 0.55, easeInOutSine),
     bigScale().opacity(0, 0.45, easeInOutSine),
   );
 
