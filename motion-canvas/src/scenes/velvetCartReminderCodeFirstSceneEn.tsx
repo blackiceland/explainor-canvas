@@ -503,16 +503,12 @@ export default makeScene2D(function* (view) {
         marketingShape().position.y(0, 0.7, easeInOutCubic),
         securityShape().position.y(0, 0.7, easeInOutCubic),
         labels().opacity(0, 0.45, easeInCubic),
+        (function* (): ThreadGenerator {
+            yield* waitFor(0.45);
+            yield* securityShape().scale(0.82, 0.15, easeInCubic);
+        })(),
     );
     labels().remove();
-
-    yield* securityShape().scale(0.82, 0.1, easeInCubic);
-
-    yield* all(
-        marketingShape().opacity(0, 0.45, easeInCubic),
-        securityShape().opacity(0, 0.45, easeInCubic),
-    );
-    marketingShape().remove();
     securityShape().remove();
 
     // ════════════════════════════════════════════════════════════════
@@ -548,8 +544,13 @@ export default makeScene2D(function* (view) {
         })}
     </Node>);
 
-    yield* revBarsNode().opacity(1, 0.45, easeOutCubic);
-    yield* waitFor(0.3);
+    // Blob dissolves while bars appear underneath
+    yield* all(
+        marketingShape().opacity(0, 0.4, easeInCubic),
+        revBarsNode().opacity(1, 0.4, easeOutCubic),
+    );
+    marketingShape().remove();
+    yield* waitFor(0.2);
 
     const expandOps: ThreadGenerator[] = [];
     for (let i = 0; i < N_REV_BARS; i++) {

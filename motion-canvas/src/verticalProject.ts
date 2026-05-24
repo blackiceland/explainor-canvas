@@ -42,9 +42,9 @@ import linenDuplicationSceneEn from "./scenes/linenDuplicationSceneEn?scene";
 export default makeProject({
     experimentalFeatures: true,
     scenes: [
-        deepCobaltQuietFieldsVelvetCodeFirstSceneEn,
-        universalPaletteShowcaseCodeFirstSceneEn,
+        // deepCobaltQuietFieldsVelvetCodeFirstSceneEn,
+        // universalPaletteShowcaseCodeFirstSceneEn,
         velvetCartReminderCodeFirstSceneEn,
-        linenDuplicationSceneEn,
+        // linenDuplicationSceneEn,
     ],
 });
