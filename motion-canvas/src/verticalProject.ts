@@ -36,11 +36,15 @@ import deepCobaltQuietFieldsAmethystSapphireCodeFirstSceneEn from './scenes/deep
 import deepCobaltQuietFieldsSmokyCodeFirstSceneEn from './scenes/deepCobaltQuietFieldsSmokyCodeFirstSceneEn?scene';
 import deepCobaltQuietFieldsVelvetCodeFirstSceneEn from './scenes/deepCobaltQuietFieldsVelvetCodeFirstSceneEn?scene';
 import universalPaletteShowcaseCodeFirstSceneEn from './scenes/universalPaletteShowcaseCodeFirstSceneEn?scene';
+import velvetCartReminderCodeFirstSceneEn from './scenes/velvetCartReminderCodeFirstSceneEn?scene';
+import linenDuplicationSceneEn from "./scenes/linenDuplicationSceneEn?scene";
 
 export default makeProject({
     experimentalFeatures: true,
     scenes: [
         deepCobaltQuietFieldsVelvetCodeFirstSceneEn,
         universalPaletteShowcaseCodeFirstSceneEn,
+        velvetCartReminderCodeFirstSceneEn,
+        linenDuplicationSceneEn,
     ],
 });

@@ -1,5 +1,5 @@
 import {Rect, Txt, makeScene2D} from '@motion-canvas/2d';
-import {ThreadGenerator, waitFor} from '@motion-canvas/core';
+import {ThreadGenerator, all, createRef, easeOutCubic, waitFor} from '@motion-canvas/core';
 import {ColorRule, Manticore} from '../core/code/components/Manticore';
 import {SyntaxTheme} from '../core/code/model/SyntaxTheme';
 
@@ -105,6 +105,9 @@ const ALL_KEYWORDS = [
     'if', 'else', 'return', 'throw', 'for', 'while', 'switch', 'case',
     'break', 'continue', 'do', 'try', 'catch', 'finally',
     'in', 'of', 'instanceof', 'typeof',
+    // kotlin
+    'fun', 'val', 'suspend', 'when', 'is', 'data', 'sealed', 'object',
+    'override', 'open', 'internal', 'companion', 'lateinit', 'abstract',
     // misc
     'this', 'super', 'void', 'yield',
 ];
@@ -181,16 +184,22 @@ export function buildUniversalCodeScene(palette: UniversalCodePalette, opts: Uni
         code.mount(view);
         bumpWeight(code, 500);
         code.colorize(RULES);
-        code.node.opacity(1);
+        code.node.opacity(0);
 
+        const caption = createRef<Txt>();
         view.add(<Txt
+            ref={caption}
             text={opts.caption}
             fontFamily={F_MONO} fontSize={42} fontWeight={500}
             fill={ACCENT}
             offset={[-1, 0]}
             x={-465} y={520}
+            opacity={0}
         />);
 
-        yield* waitFor(8);
+        yield* code.node.opacity(1, 0.5, easeOutCubic);
+        yield* caption().opacity(1, 0.35, easeOutCubic);
+
+        yield* waitFor(7);
     });
 }

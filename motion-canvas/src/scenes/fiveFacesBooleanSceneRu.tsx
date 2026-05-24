@@ -102,12 +102,8 @@ class MonthlyReportPublisher(
     }
 }`;
 
-const IMPL_PERMISSION = `fun save(
-    path: String,
-    content: Bytes,
-    contentType: String,
-    overwrite: Boolean = false,
-): StoredFile {
+const IMPL_PERMISSION = `fun save(path: String, content: Bytes, contentType: String,
+         overwrite: Boolean = false): StoredFile {
     if (storage.exists(path) && !overwrite) {
         throw FileAlreadyExists(path)
     }
@@ -193,12 +189,7 @@ class AccountDeletionService(
     }
 }`;
 
-const IMPL_SAFETY = `fun delete(
-    userId: UserId,
-    soft: Boolean = true,
-    deletedAt: Instant,
-    deletedBy: UserId,
-): DeletedUser {
+const IMPL_SAFETY = `fun delete(userId: UserId, soft: Boolean = true, deletedAt: Instant, deletedBy: UserId): DeletedUser {
     val user = users.requireById(userId)
 
     if (soft) {
@@ -241,11 +232,7 @@ class ErpOrderImportJob(
     }
 }`;
 
-const IMPL_SHORTCUT = `fun process(
-    order: Order,
-    source: OrderSource,
-    skipValidation: Boolean = false,
-): ProcessingResult {
+const IMPL_SHORTCUT = `fun process(order: Order, source: OrderSource, skipValidation: Boolean = false): ProcessingResult {
     if (!skipValidation) {
         validator.requireValid(order)
     }
@@ -294,11 +281,7 @@ class CampaignLauncher(
     }
 }`;
 
-const IMPL_POOR = `fun update(
-    campaignId: CampaignId,
-    active: Boolean,
-    startedAt: Instant,
-): Campaign {
+const IMPL_POOR = `fun update(campaignId: CampaignId, active: Boolean, startedAt: Instant): Campaign {
     val campaign = requireById(campaignId)
 
     val updated = campaign.copy(
@@ -456,6 +439,16 @@ const CODE_RULES: ColorRule[] = [
 export default makeScene2D(function* (view) {
   // ── Project background (canon vertical gradient) ───────────────────
   applyBackground(view);
+
+  const bgCover = createRef<Rect>();
+  view.add(
+    <Rect
+      ref={bgCover}
+      width={1920}
+      height={1080}
+      fill={'#000000'}
+    />,
+  );
 
   // ── Spotlight ──────────────────────────────────────────────────────
   // The aim point is a tweenable signal. On top of it, layered sines
@@ -718,7 +711,8 @@ export default makeScene2D(function* (view) {
   const IMPL_W         = 620;    // implementation card
   const CALL_X         = -530;   // call card centre  → spans [-940, -120]
   const IMPL_X         = 220;    // impl card centre  → spans [-90, +530]
-  const VIZ_X          = 740;    // right-side viz centre
+  const VIZ_X          = 670;    // viz zone centre, pulled left for breathing room
+  const VIZ_Y          = 200;    // push viz into bottom-right zone
   const TOP_Y          = -310;   // first call-code line top — gap from names ≈ 95px
 
   // Manticore vertically centres its content; this returns the
@@ -726,6 +720,14 @@ export default makeScene2D(function* (view) {
   const yForCode = (src: string): number => {
     const lines = src.split('\n').length;
     return TOP_Y + ((lines - 1) * CODE_LH) / 2;
+  };
+
+  const findMethodLine = (src: string): number => {
+    const lines = src.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].trim().startsWith('fun ')) return i;
+    }
+    return 0;
   };
 
   // Identify the lines that hold a boolean.
@@ -843,9 +845,12 @@ export default makeScene2D(function* (view) {
   });
 
   const implCodes = FACES.map(face => {
+    const methodLine = findMethodLine(face.callCode);
+    const implLines = face.implCode.split('\n').length;
+    const implY = TOP_Y + methodLine * CODE_LH + ((implLines - 1) * IMPL_LH) / 2;
     const code = Manticore.create(face.implCode, {
       x: IMPL_X,
-      y: 0,             // implementation sits vertically centred in the right half
+      y: implY,
       width: IMPL_W,
       fontSize: IMPL_FONT_SIZE,
       lineHeight: IMPL_LH,
@@ -938,7 +943,7 @@ export default makeScene2D(function* (view) {
   const permTarget      = createRef<Rect>();
   {
     view.add(
-      <Node ref={permissionViz} x={VIZ_X} y={0} opacity={0}>
+      <Node ref={permissionViz} x={VIZ_X} y={VIZ_Y} opacity={0}>
         {/* Request token — top */}
         <Circle
           ref={permRequest}
@@ -953,9 +958,9 @@ export default makeScene2D(function* (view) {
           y={-180 + 56}
           text={'request'}
           fontFamily={Fonts.code}
-          fontSize={18}
+          fontSize={20}
           fill={'rgba(244, 241, 235, 0.70)'}
-          letterSpacing={1}
+          letterSpacing={2}
         />
         {/* Barrier — thin rose line, blocks the path by default */}
         <Rect
@@ -975,20 +980,25 @@ export default makeScene2D(function* (view) {
           width={80}
           height={80}
           fill={'rgba(244, 241, 235, 0.10)'}
-          radius={4}
+          radius={6}
         />
         <Txt
           x={0}
           y={180 + 60}
           text={'save'}
           fontFamily={Fonts.code}
-          fontSize={18}
+          fontSize={20}
           fill={'rgba(244, 241, 235, 0.70)'}
-          letterSpacing={1}
+          letterSpacing={2}
         />
       </Node>,
     );
   }
+
+  const vizBlur = createSignal(0);
+  permissionViz().cache(true);
+  permissionViz().cachePadding(60);
+  permissionViz().filters(() => [blur(vizBlur())]);
 
   // ── MODE viz — minimalist: two stacked circles, active state swaps
   // Top circle filled orange = default mode (active). Bottom circle
@@ -1001,7 +1011,7 @@ export default makeScene2D(function* (view) {
   const modeSilentTxt = createRef<Txt>();
   {
     view.add(
-      <Node ref={modeViz} x={VIZ_X} y={0} opacity={0}>
+      <Node ref={modeViz} x={VIZ_X} y={VIZ_Y} opacity={0}>
         {/* Left — active by default (orange filled) */}
         <Circle
           ref={modeTopCircle}
@@ -1017,8 +1027,8 @@ export default makeScene2D(function* (view) {
           y={92}
           text={'default'}
           fontFamily={Fonts.code}
-          fontSize={22}
-          letterSpacing={3}
+          fontSize={20}
+          letterSpacing={2}
           fill={'#FF9F43'}
         />
 
@@ -1031,7 +1041,7 @@ export default makeScene2D(function* (view) {
           height={120}
           fill={'rgba(201, 176, 232, 0)'}
           stroke={'rgba(201, 176, 232, 0.45)'}
-          lineWidth={4}
+          lineWidth={3}
         />
         <Txt
           ref={modeSilentTxt}
@@ -1039,8 +1049,8 @@ export default makeScene2D(function* (view) {
           y={92}
           text={'silent'}
           fontFamily={Fonts.code}
-          fontSize={22}
-          letterSpacing={3}
+          fontSize={20}
+          letterSpacing={2}
           fill={'rgba(201, 176, 232, 0.45)'}
         />
       </Node>,
@@ -1071,7 +1081,7 @@ export default makeScene2D(function* (view) {
   const cellY     = (i: number): number => -SC_TOTAL / 2 + SC_STEP_H / 2 + i * (SC_STEP_H + SC_GAP);
   {
     view.add(
-      <Node ref={shortcutViz} x={VIZ_X} y={0} opacity={0}>
+      <Node ref={shortcutViz} x={VIZ_X} y={VIZ_Y} opacity={0}>
         {/* Stage cards — outlined "stations" with subtle tinted fill,
             chunky coloured stroke, label in the stage colour. */}
         {STEPS.map((s, i) => (
@@ -1084,7 +1094,7 @@ export default makeScene2D(function* (view) {
             fill={SC_FILLS[i]}
             stroke={SC_COLOURS[i]}
             lineWidth={3}
-            radius={8}
+            radius={6}
           />
         ))}
         {STEPS.map((s, i) => (
@@ -1094,7 +1104,7 @@ export default makeScene2D(function* (view) {
             y={cellY(i)}
             text={s}
             fontFamily={Fonts.code}
-            fontSize={22}
+            fontSize={20}
             letterSpacing={2}
             fill={SC_COLOURS[i]}
             fontWeight={600}
@@ -1126,7 +1136,7 @@ export default makeScene2D(function* (view) {
     const INK     = '#F4F1EB';
     const SUBTLE  = 'rgba(244, 241, 235, 0.50)';
     view.add(
-      <Node ref={safetyViz} x={VIZ_X - 30} y={0} opacity={0}>
+      <Node ref={safetyViz} x={VIZ_X} y={VIZ_Y} opacity={0}>
         {/* Argument label above the table — `soft = true` etc. */}
         <Txt
           ref={safetyArgTxt}
@@ -1135,7 +1145,7 @@ export default makeScene2D(function* (view) {
           offset={[-1, 0]}
           text={'soft = true'}
           fontFamily={Fonts.code}
-          fontSize={26}
+          fontSize={22}
           letterSpacing={1}
           fill={PARAM_DARK}
         />
@@ -1166,7 +1176,7 @@ export default makeScene2D(function* (view) {
         {/* Row 2 — Bob (target) wrapped in a Node so phase 2 can hide
             the WHOLE row at once. */}
         <Node ref={sBobRow}>
-          <Rect ref={sRowFill} x={0} y={HDR_Y + 2 * ROW_GAP} width={ROW_W} height={ROW_H} fill={'rgba(255, 140, 163, 0.10)'} radius={3} />
+          <Rect ref={sRowFill} x={0} y={HDR_Y + 2 * ROW_GAP} width={ROW_W} height={ROW_H} fill={'rgba(255, 140, 163, 0.10)'} radius={6} />
           <Txt              x={COL_X[0]} y={HDR_Y + 2 * ROW_GAP} text={'2'}   fontFamily={Fonts.code} fontSize={FONT_SZ} fill={INK} />
           <Txt              x={COL_X[1]} y={HDR_Y + 2 * ROW_GAP} text={'Bob'} fontFamily={Fonts.code} fontSize={FONT_SZ} fill={INK} />
           <Txt ref={sBobDate} x={COL_X[2]} y={HDR_Y + 2 * ROW_GAP} text={'—'} fontFamily={Fonts.code} fontSize={FONT_SZ} fill={SUBTLE} />
@@ -1219,7 +1229,7 @@ export default makeScene2D(function* (view) {
     const labelOffset = (p: [number, number, string, string]): [number, number] =>
       p[3] === 'below' ? [0, 0] : [-1, 0];
     view.add(
-      <Node ref={poorViz} x={VIZ_X} y={0} opacity={0}>
+      <Node ref={poorViz} x={VIZ_X} y={VIZ_Y} opacity={0}>
         {poorEdges.map(([a, b], i) => (
           <Line
             ref={makeRef(poorLinks, i)}
@@ -1241,7 +1251,7 @@ export default makeScene2D(function* (view) {
             width={POOR_NODE_R * 2}
             height={POOR_NODE_R * 2}
             stroke={p[2]}
-            lineWidth={4}
+            lineWidth={3}
             radius={6}
             opacity={0}
           />
@@ -1451,11 +1461,11 @@ export default makeScene2D(function* (view) {
     );
     yield* waitFor(implHold);
     yield* vizDrivers[i]();
+    yield* restoreLines(callCodes[i], 0.8);
     yield* waitFor(vizHold);
     yield* showSmallScale(i);
     yield* waitFor(closeHold);
     yield* all(
-      restoreLines(callCodes[i], 0.4),
       hideCallCode(i, 0.5),
       hideImplCode(i, 0.5),
       hideViz(i, 0.5),
@@ -1475,7 +1485,10 @@ export default makeScene2D(function* (view) {
   // impl and gate viz all arrive together; the gate viz plays. Then
   // the big rating gauge blooms centre-frame and migrates up under
   // PERMISSION's name as the persistent rating indicator.
-  yield* baseX(NAME_XS[0], 1.9, easeInOutSine);
+  yield* all(
+    baseX(NAME_XS[0], 1.9, easeInOutSine),
+    bgCover().opacity(0, 1.4, easeInOutSine),
+  );
   arrivalTime(view.globalTime());
   yield* waitFor(0.2);
   yield* showCallCode(0);
@@ -1489,12 +1502,8 @@ export default makeScene2D(function* (view) {
   // Time to read the impl before the gate animation starts.
   yield* waitFor(2.0);
   yield* permissionDriver();
-  // Hold the post-driver state long enough to read again.
+  yield* restoreLines(callCodes[0], 0.8);
   yield* waitFor(2.5);
-
-  // Hide the viz BEFORE the rating bloom — clean stage for the scale.
-  yield* hideViz(0, 0.45);
-  yield* waitFor(0.6);
 
   // Big rating bloom — frame centre, on top of HEAVY-blurred code.
   bigScale().position([0, 0]);
@@ -1502,8 +1511,10 @@ export default makeScene2D(function* (view) {
   yield* all(
     callBlurs[0](BLUR_HEAVY, 0.6, easeInOutSine),
     implBlurs[0](BLUR_HEAVY, 0.6, easeInOutSine),
+    vizBlur(BLUR_HEAVY, 0.6, easeInOutSine),
     callCodes[0].node.opacity(0.40, 0.6, easeInOutSine),
     implCodes[0].node.opacity(0.40, 0.6, easeInOutSine),
+    permissionViz().opacity(0.40, 0.6, easeInOutSine),
     bigScale().opacity(1, 0.6, easeInOutSine),
   );
   yield* waitFor(2.2);
@@ -1522,14 +1533,15 @@ export default makeScene2D(function* (view) {
     bigScale().scale(SMALL_TARGET_SCALE, 1.0, easeInOutSine),
     callBlurs[0](0, 1.0, easeInOutSine),
     implBlurs[0](0, 1.0, easeInOutSine),
+    vizBlur(0, 1.0, easeInOutSine),
     callCodes[0].node.opacity(1, 1.0, easeInOutSine),
     implCodes[0].node.opacity(1, 1.0, easeInOutSine),
+    permissionViz().opacity(1, 1.0, easeInOutSine),
   );
   yield* waitFor(2.0);
 
   // PERMISSION close.
   yield* all(
-    restoreLines(callCodes[0], 0.45),
     hideCallCode(0, 0.55),
     hideImplCode(0, 0.55),
     hideViz(0, 0.55),
