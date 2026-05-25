@@ -48,6 +48,7 @@ import velvetVioletInkCodeFirstSceneEn from './scenes/velvetVioletInkCodeFirstSc
 import velvetRichIndigoCodeFirstSceneEn from './scenes/velvetRichIndigoCodeFirstSceneEn?scene';
 import velvetCoolGraphiteCodeFirstSceneEn from './scenes/velvetCoolGraphiteCodeFirstSceneEn?scene';
 import velvetOpeningsShowcaseCodeFirstSceneEn from './scenes/velvetOpeningsShowcaseCodeFirstSceneEn?scene';
+import velvetDegradationCodeFirstSceneEn from './scenes/velvetDegradationCodeFirstSceneEn?scene';
 
 export default makeProject({
     experimentalFeatures: true,

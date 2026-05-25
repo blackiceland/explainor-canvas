@@ -4,6 +4,14 @@ import chapter1YudanSceneEn from "./scenes/chapter1YudanSceneEn?scene";
 import flagsWeightTakeSceneEn from "./scenes/flagsWeightTakeSceneEn?scene";
 import oneMethodManyVersionsSceneEn from "./scenes/oneMethodManyVersionsSceneEn?scene";
 import fiveFacesBooleanSceneRu from "./scenes/fiveFacesBooleanSceneRu?scene";
+import fiveFacesBooleanSceneRuV2 from "./scenes/fiveFacesBooleanSceneRuV2?scene";
+import fiveFacesPermissionSceneRuV2 from "./scenes/fiveFacesPermissionSceneRuV2?scene";
+import fiveFacesModeSceneRuV2 from "./scenes/fiveFacesModeSceneRuV2?scene";
+import fiveFacesSafetySceneRuV2 from "./scenes/fiveFacesSafetySceneRuV2?scene";
+import fiveFacesShortcutSceneRuV2 from "./scenes/fiveFacesShortcutSceneRuV2?scene";
+import fiveFacesPoorModelSceneRuV2 from "./scenes/fiveFacesPoorModelSceneRuV2?scene";
+import fiveFacesFinaleSceneRuV2 from "./scenes/fiveFacesFinaleSceneRuV2?scene";
+import fiveFacesBooleanMorphSceneRu from "./scenes/fiveFacesBooleanMorphSceneRu?scene";
 import messageDeliverySelectionSceneEn from "./scenes/messageDeliverySelectionSceneEn?scene";
 import whatsappCodePairSceneEn from "./scenes/whatsappCodePairSceneEn?scene";
 import smallMethodsProblemsSubtitlesSceneRu from "./scenes/smallMethodsProblemsSubtitlesSceneRu?scene";
@@ -130,7 +138,16 @@ export default makeProject({
 
         // chapter1YudanSceneEn,
         // oneMethodManyVersionsSceneEn,
-        fiveFacesBooleanSceneRu,
+        // fiveFacesBooleanSceneRu,
+        // fiveFacesBooleanSceneRuV2,
+
+         fiveFacesPermissionSceneRuV2,
+         fiveFacesModeSceneRuV2,
+        // fiveFacesSafetySceneRuV2,
+        // fiveFacesShortcutSceneRuV2,
+        // fiveFacesPoorModelSceneRuV2,
+        // fiveFacesFinaleSceneRuV2,
+
         // messageDeliverySelectionSceneEn,
         // whatsappCodePairSceneEn,
 

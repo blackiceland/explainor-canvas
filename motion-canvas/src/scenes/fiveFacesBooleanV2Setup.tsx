@@ -1,4 +1,4 @@
-import {Circle, Gradient, Line, Node, Rect, Txt, blur, makeScene2D} from '@motion-canvas/2d';
+import {Circle, Gradient, Line, Node, Rect, Txt, View2D, blur, makeScene2D} from '@motion-canvas/2d';
 import {
   all,
   createRef,
@@ -17,57 +17,38 @@ import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
 import {Fonts, Screen} from '../core/theme';
 import {applyBackground} from '../core/utils';
 
-// Five Faces of Boolean — director's cut v3.
-// Pitch-black stage. Five role names sit across the top, sized for
-// mobile viewing and casting real light-driven shadows. A spotlight
-// crawls from left to right; whichever name the light lands on lifts
-// out of the dark and casts its shadow away from the source. For each
-// face the centre of the frame plays the same beat: code arrives,
-// breathes, then a five-dot weight gauge fades in DIRECTLY UNDER the
-// active name — small punctuation of risk. After the hold, scale and
-// code dissolve and the light moves on. The last face — POOR MODEL —
-// burns longest; its `true` literal dissolves and the six-state
-// life-cycle blooms in its place. Finally the other four names
-// extinguish and POOR MODEL is left alone in the spotlight.
-
 // ── Palette ───────────────────────────────────────────────────────────
-const TEXT_PRIMARY  = '#F4F1EB';
-const ACCENT        = '#FF8CA3';        // project rose — weight gauge
+export const TEXT_PRIMARY  = '#F4F1EB';
+export const ACCENT        = '#FF8CA3';        // project rose — weight gauge
 
 // Code colours — strict classification with one role per colour.
-const VAR_LIGHT    = 'rgba(244,241,235,0.96)';      // variables, receivers, locals, impl-sig params
-const TYPE_CLEAN   = 'rgba(220,215,255,0.80)';      // types
-const METHOD_COLOR = '#FF8CA3';                     // method calls
-const FUN_BLUE     = '#A3CDFF';                     // language keywords
-const STRING_GREEN = '#86B07A';                     // string literals — richer green
-const CONST_COLOR  = 'rgba(201,180,255,0.78)';      // SCREAMING_SNAKE constants — project canon (DryFiltersV3CodeTheme.constant)
-const PARAM_DARK   = '#7C9CBA';                     // CALL-SITE named params only
+export const VAR_LIGHT    = 'rgba(244,241,235,0.96)';      // variables, receivers, locals, impl-sig params
+export const TYPE_CLEAN   = 'rgba(220,215,255,0.80)';      // types
+export const METHOD_COLOR = '#FF8CA3';                     // method calls
+export const FUN_BLUE     = '#A3CDFF';                     // language keywords
+export const STRING_GREEN = '#86B07A';                     // string literals — richer green
+export const CONST_COLOR  = 'rgba(201,180,255,0.78)';      // SCREAMING_SNAKE constants — project canon (DryFiltersV3CodeTheme.constant)
+export const PARAM_DARK   = '#7C9CBA';                     // CALL-SITE named params only
 
 // ── Top row layout ────────────────────────────────────────────────────
-const NAME_XS = [-720, -360, 0, 360, 720] as const;
+export const NAME_XS = [-720, -360, 0, 360, 720] as const;
 
-const NAMES_Y        = -450;
-const NAME_FONT_SIZE = 44;
-const NAME_LETTER_SP = 4;
+export const NAMES_Y        = -450;
+export const NAME_FONT_SIZE = 44;
+export const NAME_LETTER_SP = 4;
 
 // Small scale-dot indicators under each name.
-const DOTS_Y         = -395;
-const DOT_R          = 8;
-const DOT_GAP        = 30;
+export const DOTS_Y         = -395;
+export const DOT_R          = 8;
+export const DOT_GAP        = 30;
 
 // ── Spotlight physics ─────────────────────────────────────────────────
-const LIGHT_REACH = 270;
-const SPOT_R      = 290;
-const SHADOW_MAX  = 18;
+export const LIGHT_REACH = 270;
+export const SPOT_R      = 290;
+export const SHADOW_MAX  = 18;
 
 // ── Faces ─────────────────────────────────────────────────────────────
-// LEFT  — full production class (the context where the boolean call
-//          actually lives). After the camera reads it, every line dims
-//          EXCEPT the call-site block that uses the boolean — that
-//          block stays bright as the focal point.
-// RIGHT — implementation of the called method ("расшифровка"). Shows
-//          what the boolean really does inside.
-interface Face {
+export interface Face {
   name: string;
   scale: number;             // weight rating 0..5
   callCode: string;          // full production class
@@ -75,7 +56,7 @@ interface Face {
   callBlock: [number, number]; // [startLine, endLine] of the call site within callCode
 }
 
-const CALL_PERMISSION = `@Service
+export const CALL_PERMISSION = `@Service
 class MonthlyReportPublisher(
 
     private val renderer: ReportRenderer,
@@ -103,7 +84,7 @@ class MonthlyReportPublisher(
     }
 }`;
 
-const COMPLEX_SAVE_CODE = `class FileStorageService(
+export const COMPLEX_SAVE_CODE = `class FileStorageService(
     private val storage: ObjectStorage,
     private val metadata: MetadataExtractor,
     private val validator: ContentValidator,
@@ -257,7 +238,7 @@ const COMPLEX_SAVE_CODE = `class FileStorageService(
     }
 }`;
 
-const IMPL_SAVE_CLEAN = `fun save(path: String, content: Bytes, contentType: String): StoredFile {
+export const IMPL_SAVE_CLEAN = `fun save(path: String, content: Bytes, contentType: String): StoredFile {
     if (storage.exists(path)) {
         throw FileAlreadyExists(path)
     }
@@ -265,11 +246,11 @@ const IMPL_SAVE_CLEAN = `fun save(path: String, content: Bytes, contentType: Str
     return write(path, content, contentType)
 }`;
 
-const IMPL_SAVE_OR_REPLACE = `fun saveOrReplace(path: String, content: Bytes, contentType: String): StoredFile {
+export const IMPL_SAVE_OR_REPLACE = `fun saveOrReplace(path: String, content: Bytes, contentType: String): StoredFile {
     return write(path, content, contentType)
 }`;
 
-const IMPL_WRITE = `private fun write(path: String, content: Bytes, contentType: String): StoredFile {
+export const IMPL_WRITE = `private fun write(path: String, content: Bytes, contentType: String): StoredFile {
     val key = storage.put(
         path = path,
         content = content,
@@ -279,7 +260,7 @@ const IMPL_WRITE = `private fun write(path: String, content: Bytes, contentType:
     return StoredFile(key)
 }`;
 
-const IMPL_PERMISSION_REFACTORED = `fun save(path: String, content: Bytes, contentType: String): StoredFile {
+export const IMPL_PERMISSION_REFACTORED = `fun save(path: String, content: Bytes, contentType: String): StoredFile {
     if (storage.exists(path)) {
         throw FileAlreadyExists(path)
     }
@@ -301,7 +282,7 @@ private fun write(path: String, content: Bytes, contentType: String): StoredFile
     return StoredFile(key)
 }`;
 
-const IMPL_PERMISSION = `fun save(path: String, content: Bytes, contentType: String,
+export const IMPL_PERMISSION = `fun save(path: String, content: Bytes, contentType: String,
     overwrite: Boolean = false): StoredFile {
     if (storage.exists(path) && !overwrite) {
         throw FileAlreadyExists(path)
@@ -316,7 +297,7 @@ const IMPL_PERMISSION = `fun save(path: String, content: Bytes, contentType: Str
     return StoredFile(key)
 }`;
 
-const CALL_MODE = `@Service
+export const CALL_MODE = `@Service
 class ShipmentNotificationService(
 
     private val templates: MessageTemplateRepository,
@@ -345,7 +326,7 @@ class ShipmentNotificationService(
     }
 }`;
 
-const IMPL_MODE = `fun send(user: User, message: Message, silent: Boolean): Delivery {
+export const IMPL_MODE = `fun send(user: User, message: Message, silent: Boolean): Delivery {
     val options = if (silent) {
         PushOptions.Silent
     } else {
@@ -359,7 +340,7 @@ const IMPL_MODE = `fun send(user: User, message: Message, silent: Boolean): Deli
     )
 }`;
 
-const CALL_SAFETY = `@Service
+export const CALL_SAFETY = `@Service
 class AccountDeletionService(
 
     private val users: UserRepository,
@@ -390,7 +371,7 @@ class AccountDeletionService(
     }
 }`;
 
-const IMPL_SAFETY = `fun delete(userId: UserId, soft: Boolean = true, deletedAt: Instant,
+export const IMPL_SAFETY = `fun delete(userId: UserId, soft: Boolean = true, deletedAt: Instant,
     deletedBy: UserId): DeletedUser {
     val user = users.requireById(userId)
 
@@ -409,7 +390,7 @@ const IMPL_SAFETY = `fun delete(userId: UserId, soft: Boolean = true, deletedAt:
     return DeletedUser(user.id)
 }`;
 
-const CALL_SHORTCUT = `@Service
+export const CALL_SHORTCUT = `@Service
 class ErpOrderImportJob(
 
     private val parser: ErpOrderParser,
@@ -435,7 +416,7 @@ class ErpOrderImportJob(
     }
 }`;
 
-const IMPL_SHORTCUT = `fun process(order: Order, source: OrderSource,
+export const IMPL_SHORTCUT = `fun process(order: Order, source: OrderSource,
     skipValidation: Boolean = false): ProcessingResult {
     if (!skipValidation) {
         validator.requireValid(order)
@@ -455,7 +436,7 @@ const IMPL_SHORTCUT = `fun process(order: Order, source: OrderSource,
     )
 }`;
 
-const CALL_POOR = `@Service
+export const CALL_POOR = `@Service
 class CampaignLauncher(
 
     private val campaigns: CampaignRepository,
@@ -486,7 +467,7 @@ class CampaignLauncher(
     }
 }`;
 
-const IMPL_POOR = `fun update(campaignId: CampaignId, active: Boolean, startedAt: Instant
+export const IMPL_POOR = `fun update(campaignId: CampaignId, active: Boolean, startedAt: Instant
 ): Campaign {
     val campaign = requireById(campaignId)
 
@@ -500,9 +481,7 @@ const IMPL_POOR = `fun update(campaignId: CampaignId, active: Boolean, startedAt
 }`;
 
 // Line ranges of the call-site block inside each production class.
-// These lines stay BRIGHT after the spotlight; the rest of the class
-// dims down so the boolean call is the focal point.
-const FACES: Face[] = [
+export const FACES: Face[] = [
   {name: 'PERMISSION', scale: 2,
    callCode: CALL_PERMISSION, implCode: IMPL_PERMISSION,
    callBlock: [11, 16]},
@@ -520,10 +499,10 @@ const FACES: Face[] = [
    callBlock: [12, 16]},
 ];
 
-const STATE_LIST = 'draft  /  scheduled  /  running  /  paused  /  completed  /  archived';
+export const STATE_LIST = 'draft  /  scheduled  /  running  /  paused  /  completed  /  archived';
 
 // Project code-rendering canon: transparent card, no clipping.
-const TRANSPARENT_CARD = {
+export const TRANSPARENT_CARD = {
   radius: 0,
   fill: 'rgba(0,0,0,0)',
   stroke: 'rgba(0,0,0,0)',
@@ -536,7 +515,7 @@ const TRANSPARENT_CARD = {
   shadowOffsetY: 0,
 } as const;
 
-const CUSTOM_TYPES = [
+export const CUSTOM_TYPES = [
   // PERMISSION
   'Service', 'MonthlyReportPublisher', 'ReportRenderer', 'FileStorage', 'AuditLog',
   'YearMonth', 'UserId', 'StorageKey',
@@ -567,7 +546,7 @@ const CUSTOM_TYPES = [
   'CampaignId', 'Campaign', 'CampaignActivated',
 ];
 
-const METHOD_NAMES = [
+export const METHOD_NAMES = [
   // call sites + production classes
   'publish', 'renderMonthlyReport', 'save', 'record',
   'notifyShipmentCreated', 'require', 'render', 'send', 'format',
@@ -589,11 +568,7 @@ const METHOD_NAMES = [
   'copy', 'instant',
 ];
 
-// Named parameters — every identifier that appears as `name = value`
-// at a call site (Kotlin's named-args feature). Painted slate ONLY
-// when followed by `=` on the same line — see `paintNamedParams`.
-// Variables of the same name in OTHER contexts stay cream.
-const NAMED_PARAMS = [
+export const NAMED_PARAMS = [
   // PERMISSION
   'path', 'content', 'contentType', 'overwrite',
   // MODE
@@ -612,7 +587,7 @@ const NAMED_PARAMS = [
   'orderId', 'reservationId', 'paymentId',
 ];
 
-const VAR_NAMES = [
+export const VAR_NAMES = [
   // receivers
   'fileStorage', 'notifier', 'userRepository', 'orderProcessor', 'campaignRepository',
   'renderer', 'auditLog', 'templates', 'deliveries', 'sessions',
@@ -631,14 +606,8 @@ const VAR_NAMES = [
 ];
 
 // Manticore applies ALL rules in order; the last match wins.
-//
-// One role → one colour. Named-parameter highlighting is NOT a global
-// rule — it is applied per-face only inside the call-site block (see
-// `paintNamedParams` below). Impl-signature parameter declarations
-// therefore stay as ordinary identifiers (cream).
-const CODE_RULES: ColorRule[] = [
-  // 1. Variables — broad fallback so every lowercase identifier starts
-  //    as cream; later rules selectively repaint methods/keywords/etc.
+export const CODE_RULES: ColorRule[] = [
+  // 1. Variables — broad fallback
   {match: /^[a-z][a-zA-Z0-9_]*$/, color: VAR_LIGHT},
   // 2. Explicit variable / receiver list (re-asserts cream)
   {match: new RegExp('^(' + VAR_NAMES.join('|') + ')$'), color: VAR_LIGHT},
@@ -647,11 +616,9 @@ const CODE_RULES: ColorRule[] = [
   {match: new RegExp('^(' + CUSTOM_TYPES.join('|') + ')$'), color: TYPE_CLEAN},
   // 4. Method calls (with tokenizer hint)
   {match: /^[a-z][a-zA-Z0-9_]*$/, color: METHOD_COLOR, onlyTypes: ['method'] as const},
-  // 5. Explicit method list — without type restriction so identifiers
-  //    that the tokenizer mis-classifies (like Kotlin's higher-order
-  //    .forEach) still get painted rose.
+  // 5. Explicit method list
   {match: new RegExp('^(' + METHOD_NAMES.join('|') + ')$'), color: METHOD_COLOR},
-  // 6. SCREAMING_SNAKE constants / enum entries — distinct warm tan
+  // 6. SCREAMING_SNAKE constants / enum entries
   {match: /^[A-Z][A-Z0-9_]+$/, color: CONST_COLOR},
   // 7. Kotlin keywords + Spring annotation
   {match: /^(class|object|fun|val|var|private|public|internal|return|if|else|is|in|to|true|false|throw|null|@Service)$/, color: FUN_BLUE},
@@ -659,7 +626,118 @@ const CODE_RULES: ColorRule[] = [
   {match: /./, color: STRING_GREEN, onlyTypes: ['string'] as const},
 ];
 
-export default makeScene2D(function* (view) {
+// ── Code layout constants ─────────────────────────────────────────────
+export const CODE_FONT_SIZE = 19;
+export const CODE_LH        = 28;
+export const IMPL_FONT_SIZE = 19;
+export const IMPL_LH        = 28;
+export const CALL_W         = 820;
+export const IMPL_W         = 620;
+export const CALL_X         = -530;
+export const IMPL_X         = 220;
+export const VIZ_X          = 670;
+export const VIZ_Y          = 200;
+export const TOP_Y          = -310;
+
+// ── Shortcut viz constants ────────────────────────────────────────────
+export const SC_STEP_W = 240;
+export const SC_STEP_H = 70;
+export const SC_GAP    = 20;
+export const STEPS     = ['input', 'validate', 'process', 'finalize'];
+export const SC_COLOURS = ['#7AA8D4', '#D67373', '#D9A574', '#8FA887'];
+export const SC_FILLS   = [
+  'rgba(122, 168, 212, 0.16)',
+  'rgba(214, 115, 115, 0.16)',
+  'rgba(217, 165, 116, 0.16)',
+  'rgba(143, 168, 135, 0.18)',
+];
+export const SC_TOTAL  = STEPS.length * SC_STEP_H + (STEPS.length - 1) * SC_GAP;
+export const cellY     = (i: number): number => -SC_TOTAL / 2 + SC_STEP_H / 2 + i * (SC_STEP_H + SC_GAP);
+
+// ── Poor Model viz constants ──────────────────────────────────────────
+export const POOR_NODE_R = 30;
+export const poorPositions: [number, number, string, 'right' | 'below'][] = [
+  [   0, -180, '#C9B0E8', 'right'],   // 0
+  [   0,  -80, '#C9B0E8', 'right'],   // 1
+  [   0,   20, '#A8CDE8', 'right'],   // 2
+  [-130,  150, '#86B07A', 'below'],   // 3
+  [   0,  150, '#FFB562', 'below'],   // 4
+  [ 130,  150, '#FF7373', 'below'],   // 5
+];
+export const poorEdges: [number, number][] = [
+  [0, 1], [1, 2], [2, 3], [2, 4], [2, 5],
+];
+export const poorStateLabels = [
+  'draft',        // 0
+  'scheduled',    // 1
+  'running',      // 2
+  'paused',       // 3
+  'completed',    // 4
+  'archived',     // 5
+];
+
+// ── Blur constant ─────────────────────────────────────────────────────
+export const BLUR_HEAVY = 14;
+
+// ── Big scale constants ───────────────────────────────────────────────
+export const BIG_R   = 40;
+export const BIG_GAP = 150;
+
+// ── Pure helpers ──────────────────────────────────────────────────────
+export const yForCode = (src: string): number => {
+  const lines = src.split('\n').length;
+  return TOP_Y + ((lines - 1) * CODE_LH) / 2;
+};
+
+export const findMethodLine = (src: string): number => {
+  const lines = src.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].trim().startsWith('fun ')) return i;
+  }
+  return 0;
+};
+
+const BOOL_LINE_RE = /\b(true|false)\b|:\s*Boolean\b/;
+export const findBoolLines = (src: string): number[] => {
+  const out: number[] = [];
+  src.split('\n').forEach((line, i) => {
+    if (BOOL_LINE_RE.test(line)) out.push(i);
+  });
+  return out;
+};
+
+export const blockLines = (block: readonly [number, number]): number[] => {
+  const arr: number[] = [];
+  for (let i = block[0]; i <= block[1]; i++) arr.push(i);
+  return arr;
+};
+
+// Paint call-site named parameters slate.
+export const paintNamedParams = (code: Manticore): void => {
+  for (let lineIdx = 0; lineIdx < code.lineCount; lineIdx++) {
+    const line = code.getLine(lineIdx);
+    if (!line) continue;
+    const toks = line.tokens;
+    for (let i = 0; i < toks.length; i++) {
+      const tok = toks[i];
+      if (!NAMED_PARAMS.includes(tok.text)) continue;
+
+      let p = i - 1;
+      while (p >= 0 && toks[p].text.trim() === '') p--;
+      const prev = p >= 0 ? toks[p].text.trim() : '';
+      if (prev === 'val' || prev === 'var') continue;
+
+      let n = i + 1;
+      while (n < toks.length && toks[n].text.trim() === '') n++;
+      if (n < toks.length && toks[n].text.trim() === '=') {
+        tok.ref().fill(PARAM_DARK);
+      }
+    }
+  }
+};
+
+// ── Stage factory ─────────────────────────────────────────────────────
+export function createFiveFacesStage(view: View2D) {
   // ── Project background (canon vertical gradient) ───────────────────
   applyBackground(view);
 
@@ -674,16 +752,9 @@ export default makeScene2D(function* (view) {
   );
 
   // ── Spotlight ──────────────────────────────────────────────────────
-  // The aim point is a tweenable signal. On top of it, layered sines
-  // add organic hand-jitter so the light is never perfectly still — the
-  // wobble is borrowed from pipelineGrabGrowthSceneEn.
   const baseX = createSignal(NAME_XS[0] - 760);   // off-screen left
   const baseY = NAMES_Y - 6;
 
-  // Hand-held wobble — active only during the first 5 s after the light
-  // lands on a name. The envelope EASES IN over the first 0.4 s so the
-  // wobble doesn't pop on arrival (that was the visible micro-lag),
-  // holds, then eases out smoothly to zero by the 5 s mark.
   const arrivalTime = createSignal(-100);
   const smoothstep = (t: number): number => t * t * (3 - 2 * t);
   const tremorEnvelope = (): number => {
@@ -755,8 +826,7 @@ export default makeScene2D(function* (view) {
     />,
   );
 
-  // ── Finale spotlights — one per name, stationary. Hidden until the
-  //    summary moment when all five names should light up at once.
+  // ── Finale spotlights — one per name, stationary.
   const finaleSpots: ReturnType<typeof createRef<Circle>>[] = [];
   for (let i = 0; i < NAME_XS.length; i++) {
     const spotRef = createRef<Circle>();
@@ -788,12 +858,7 @@ export default makeScene2D(function* (view) {
   }
 
   // ── Five names — invisible until the spotlight reaches them ────────
-  // Finale override — when this signal tweens to 1, every name lights
-  // up regardless of where the spotlight is. Used for the summary
-  // moment at the very end of the scene.
   const finaleMix  = createSignal(0);
-  // Global scene-alpha — multiplied into every name's opacity so the
-  // final fade-out can dim all five names regardless of brightness.
   const sceneAlpha = createSignal(1);
 
   const nameRefs: ReturnType<typeof createRef<Txt>>[] = [];
@@ -831,10 +896,6 @@ export default makeScene2D(function* (view) {
   }
 
   // ── Small scale-dot indicators (sit under each name) ───────────────
-  // For PERMISSION there is ALSO a separate, BIG version that blooms in
-  // the middle of the frame on top of the blurred code, then migrates
-  // up into PERMISSION's small slot. The other four faces just light
-  // up their small dots directly under the name at the end of the step.
   const smallScaleNodes: ReturnType<typeof createRef<Node>>[] = [];
   for (let i = 0; i < FACES.length; i++) {
     const x = NAME_XS[i];
@@ -864,17 +925,10 @@ export default makeScene2D(function* (view) {
     );
   }
 
-  // PERMISSION's BIG bloom-and-migrate scale node — drawn at frame
-  // centre at large scale, migrates to PERMISSION's small slot, then
-  // hides (smallScaleNodes[0] takes over as the persistent indicator).
+  // PERMISSION's BIG bloom-and-migrate scale node
   const bigScale = createRef<Node>();
   const bigSafeLabel  = createRef<Txt>();
   const bigRiskyLabel = createRef<Txt>();
-  const BIG_R   = 40;
-  // BIG_GAP / BIG_R == DOT_GAP / DOT_R, so when the big gauge shrinks
-  // to SMALL_TARGET_SCALE = 0.2 it lands at the exact same geometry as
-  // the small under-name indicator — the handover is seamless.
-  const BIG_GAP = 150;
   {
     const dots: any[] = [];
     for (let j = 0; j < 5; j++) {
@@ -922,51 +976,6 @@ export default makeScene2D(function* (view) {
   }
 
   // ── Two-layer code: call site (left) + implementation (right) ──────
-  // Same fontSize, top-aligned per face so the cards always feel like
-  // they live on the same shelf, regardless of how many lines each one
-  // has.  The boolean parameter is highlighted in BOTH halves: in the
-  // call site it looks small, in the implementation it does its work.
-  const CODE_FONT_SIZE = 19;
-  const CODE_LH        = 28;
-  const IMPL_FONT_SIZE = 19;     // same size as the call code
-  const IMPL_LH        = 28;
-  const CALL_W         = 820;    // production class card
-  const IMPL_W         = 620;    // implementation card
-  const CALL_X         = -530;   // call card centre  → spans [-940, -120]
-  const IMPL_X         = 220;    // impl card centre  → spans [-90, +530]
-  const VIZ_X          = 670;    // viz zone centre, pulled left for breathing room
-  const VIZ_Y          = 200;    // push viz into bottom-right zone
-  const TOP_Y          = -310;   // first call-code line top — gap from names ≈ 95px
-
-  // Manticore vertically centres its content; this returns the
-  // container Y that places the FIRST line at TOP_Y for a given code.
-  const yForCode = (src: string): number => {
-    const lines = src.split('\n').length;
-    return TOP_Y + ((lines - 1) * CODE_LH) / 2;
-  };
-
-  const findMethodLine = (src: string): number => {
-    const lines = src.split('\n');
-    for (let i = 0; i < lines.length; i++) {
-      if (lines[i].trim().startsWith('fun ')) return i;
-    }
-    return 0;
-  };
-
-  // Identify the lines that hold a boolean.
-  const BOOL_LINE_RE = /\b(true|false)\b|:\s*Boolean\b/;
-  const findBoolLines = (src: string): number[] => {
-    const out: number[] = [];
-    src.split('\n').forEach((line, i) => {
-      if (BOOL_LINE_RE.test(line)) out.push(i);
-    });
-    return out;
-  };
-
-  // The identifiers that ARE booleans in our snippets — these get the
-  // halo wherever they appear (parameter list, call argument, or `if`
-  // condition). Together with the literal values and the type, they
-  // form the "boolean cluster".
   const BOOL_NAMES = new Set([
     'overwrite', 'silent', 'soft', 'skipValidation', 'active',
   ]);
@@ -975,25 +984,18 @@ export default makeScene2D(function* (view) {
   const isBoolToken   = (text: string): boolean =>
     BOOL_NAMES.has(text) || BOOL_LITERALS.has(text);
 
-  // Per-token halo. We mark just the boolean-cluster tokens (name +
-  // type + signs + value), not the whole line, and give each token a
-  // shadow in its own fill colour. Works at call sites, in impl
-  // signatures, and inside `if (…)` checks alike.
   const glowBooleanLines = (code: Manticore): void => {
     for (let lineIdx = 0; lineIdx < code.lineCount; lineIdx++) {
       const line = code.getLine(lineIdx);
       if (!line) continue;
       const toks = line.tokens;
 
-      // First pass — identifiers + literals.
       const glow = new Set<number>();
       for (let i = 0; i < toks.length; i++) {
         if (isBoolToken(toks[i].text.trim())) glow.add(i);
       }
       if (glow.size === 0) continue;
 
-      // Second pass — pull in adjacent signs ( `:` `=` `!` ) sitting
-      // immediately around a marked token. Skip whitespace tokens.
       for (let i = 0; i < toks.length; i++) {
         if (!glow.has(i)) continue;
         let p = i - 1;
@@ -1004,43 +1006,10 @@ export default makeScene2D(function* (view) {
         if (n < toks.length && BOOL_SIGNS.has(toks[n].text.trim())) glow.add(n);
       }
 
-      // Apply the halo — shadow in each token's own fill colour.
       for (const idx of glow) {
         const ref = toks[idx].ref();
         ref.shadowColor(ref.fill());
         ref.shadowBlur(16);
-      }
-    }
-  };
-
-  // Paint call-site named parameters slate. Detects the pattern
-  // `IDENT = …` where IDENT is in NAMED_PARAMS AND is NOT a variable
-  // declaration (`val IDENT = …`).  Kotlin named arguments are the
-  // only syntax in our snippets that matches both checks, so anything
-  // else (variables, type annotations, the value on the right of `=`,
-  // lambda parameters) is left as its default colour.
-  const paintNamedParams = (code: Manticore): void => {
-    for (let lineIdx = 0; lineIdx < code.lineCount; lineIdx++) {
-      const line = code.getLine(lineIdx);
-      if (!line) continue;
-      const toks = line.tokens;
-      for (let i = 0; i < toks.length; i++) {
-        const tok = toks[i];
-        if (!NAMED_PARAMS.includes(tok.text)) continue;
-
-        // The previous non-whitespace token must NOT be `val` / `var`
-        // — that would mean we're looking at a variable declaration.
-        let p = i - 1;
-        while (p >= 0 && toks[p].text.trim() === '') p--;
-        const prev = p >= 0 ? toks[p].text.trim() : '';
-        if (prev === 'val' || prev === 'var') continue;
-
-        // The next non-whitespace token must be `=`.
-        let n = i + 1;
-        while (n < toks.length && toks[n].text.trim() === '') n++;
-        if (n < toks.length && toks[n].text.trim() === '=') {
-          tok.ref().fill(PARAM_DARK);
-        }
       }
     }
   };
@@ -1137,54 +1106,7 @@ export default makeScene2D(function* (view) {
   paintNamedParams(saveOrReplaceMC);
   saveOrReplaceMC.node.opacity(0);
 
-  // Backlit highlight strip behind every boolean line. Builds a thin
-  // rounded plate sized to the actual code line and binds its opacity
-  // to the code's opacity so it fades together. Renders BEHIND the
-  // code (zIndex=-1) so glyphs stay sharp.
-  const addBoolBacklight = (
-    src: string,
-    containerY: number,
-    cardCenterX: number,
-    cardWidth: number,
-    fontSize: number,
-    lineHeight: number,
-    codeOpacity: () => number,
-  ): void => {
-    const lines = src.split('\n');
-    const totalLines = lines.length;
-    const charW = fontSize * 0.6;
-    const textLeft = cardCenterX - cardWidth / 2 + 56;     // matches Manticore paddingX
-    for (const lineIdx of findBoolLines(src)) {
-      const raw = lines[lineIdx];
-      const leading = raw.length - raw.trimStart().length;
-      const trimmed = raw.trim();
-      const sceneY = containerY + (lineIdx - (totalLines - 1) / 2) * lineHeight;
-      const lineX0 = textLeft + leading * charW;
-      const lineWidth = trimmed.length * charW;
-      view.add(
-        <Rect
-          x={lineX0 + lineWidth / 2}
-          y={sceneY}
-          width={lineWidth + 22}
-          height={lineHeight + 2}
-          fill={'rgba(244, 241, 235, 0.04)'}
-          stroke={'rgba(244, 241, 235, 0.22)'}
-          lineWidth={1}
-          radius={4}
-          zIndex={-1}
-          opacity={() => codeOpacity() * 0.9}
-        />,
-      );
-    }
-  };
-
-  // Backlight strips removed — the per-token coloured halo is the only
-  // glow now, exactly matching the boolean cluster.
-
-  // Every code card carries a tweenable blur — PERMISSION uses it for
-  // the bloom ritual at the start; SAFETY and POOR MODEL use it to
-  // soften the impl when their right-side visualisations take over.
-  const BLUR_HEAVY = 14;
+  // ── Blur signals ────────────────────────────────────────────────────
   const callBlurs = callCodes.map(c => {
     const sig = createSignal(0);
     c.node.cache(true);
@@ -1201,10 +1123,6 @@ export default makeScene2D(function* (view) {
   });
 
   // ── PERMISSION viz — VERTICAL: request circle hits a barrier ──────
-  // Style: foreignResponsibilityShapesSceneEn — solid filled shapes,
-  // bright saturated palette.  Circle starts at top, drops toward a
-  // red barrier; when the boolean fires the barrier shatters and the
-  // circle continues into a green target square at the bottom.
   const permissionViz   = createRef<Node>();
   const permRequest      = createRef<Circle>();
   const permRequestLabel = createRef<Txt>();
@@ -1270,10 +1188,7 @@ export default makeScene2D(function* (view) {
   permissionViz().cachePadding(60);
   permissionViz().filters(() => [blur(vizBlur())]);
 
-  // ── MODE viz — minimalist: two stacked circles, active state swaps
-  // Top circle filled orange = default mode (active). Bottom circle
-  // outlined lilac = silent (inactive). When the flag fires, fills
-  // swap: top empties to outline, bottom fills lilac. Labels follow.
+  // ── MODE viz ────────────────────────────────────────────────────────
   const modeViz       = createRef<Node>();
   const modeTopCircle = createRef<Circle>();
   const modeBotCircle = createRef<Circle>();
@@ -1327,33 +1242,13 @@ export default makeScene2D(function* (view) {
     );
   }
 
-  // ── SHORTCUT viz — VERTICAL stack, one cell falls out ─────────────
-  // Style: solid filled chips, foreign-shapes vocabulary. Four stages
-  // stacked top → bottom. When the flag fires the "validate" cell
-  // drops out of the column (translates off-screen + fades) and the
-  // remaining cells collapse upward to close the void.
+  // ── SHORTCUT viz ────────────────────────────────────────────────────
   const shortcutViz = createRef<Node>();
   const scCells: Rect[] = [];
   const scTexts: Txt[]  = [];
-  const SC_STEP_W = 240;
-  const SC_STEP_H = 70;
-  const SC_GAP    = 20;
-  const STEPS     = ['input', 'validate', 'process', 'finalize'];
-  // Less-bright, slightly desaturated stage colours.
-  const SC_COLOURS = ['#7AA8D4', '#D67373', '#D9A574', '#8FA887'];
-  const SC_FILLS   = [
-    'rgba(122, 168, 212, 0.16)',
-    'rgba(214, 115, 115, 0.16)',
-    'rgba(217, 165, 116, 0.16)',
-    'rgba(143, 168, 135, 0.18)',
-  ];
-  const SC_TOTAL  = STEPS.length * SC_STEP_H + (STEPS.length - 1) * SC_GAP;
-  const cellY     = (i: number): number => -SC_TOTAL / 2 + SC_STEP_H / 2 + i * (SC_STEP_H + SC_GAP);
   {
     view.add(
       <Node ref={shortcutViz} x={VIZ_X} y={VIZ_Y} opacity={0}>
-        {/* Stage cards — outlined "stations" with subtle tinted fill,
-            chunky coloured stroke, label in the stage colour. */}
         {STEPS.map((s, i) => (
           <Rect
             ref={makeRef(scCells, i)}
@@ -1384,11 +1279,7 @@ export default makeScene2D(function* (view) {
     );
   }
 
-  // ── SAFETY viz — bordered DB table, two-phase reveal ───────────────
-  // Header label above (`soft = true` / `soft = false`) shows which
-  // branch is active.  Phase 1: soft=true — Bob's deleted_at fills,
-  // his row dims but stays. Phase 2: soft=false — Bob's row is
-  // removed entirely (the literal "hard delete" outcome).
+  // ── SAFETY viz ──────────────────────────────────────────────────────
   const safetyViz   = createRef<Node>();
   const safetyArgTxt = createRef<Txt>();
   const safetyValTxt = createRef<Txt>();
@@ -1408,7 +1299,7 @@ export default makeScene2D(function* (view) {
     const SUBTLE  = 'rgba(244, 241, 235, 0.65)';
     view.add(
       <Node ref={safetyViz} x={VIZ_X} y={VIZ_Y} opacity={0}>
-        {/* Argument label above the table — `soft = true` etc. */}
+        {/* Argument label above the table */}
         <Txt
           ref={safetyArgTxt}
           x={-TABLE_W / 2 + 18}
@@ -1455,8 +1346,7 @@ export default makeScene2D(function* (view) {
         <Txt x={COL_X[1]} y={HDR_Y +     ROW_GAP} text={'Alice'} fontFamily={Fonts.code} fontSize={FONT_SZ} fill={INK} />
         <Txt x={COL_X[2]} y={HDR_Y +     ROW_GAP} text={'—'}     fontFamily={Fonts.code} fontSize={FONT_SZ} fill={SUBTLE} />
 
-        {/* Row 2 — Bob (target) wrapped in a Node so phase 2 can hide
-            the WHOLE row at once. */}
+        {/* Row 2 — Bob (target) */}
         <Node ref={sBobRow}>
           <Rect ref={sRowFill} x={0} y={HDR_Y + 2 * ROW_GAP} width={ROW_W} height={ROW_H} fill={'rgba(255, 140, 163, 0.10)'} radius={6} />
           <Txt              x={COL_X[0]} y={HDR_Y + 2 * ROW_GAP} text={'2'}   fontFamily={Fonts.code} fontSize={FONT_SZ} fill={INK} />
@@ -1473,36 +1363,10 @@ export default makeScene2D(function* (view) {
   }
 
   // ── POOR MODEL viz — six-node campaign lifecycle ───────────────────
-  // Whole tree blooms in one fade (no lone-square intro, no title).
-  // Vertical-column nodes carry labels on their RIGHT side. The bottom
-  // row carries labels BELOW each cube — they never overlap each other.
-  // State names are domain-leaning (campaign / message lifecycle) so
-  // the audience reads them as concrete states, not abstract chips.
   const poorViz = createRef<Node>();
   const poorNodes:  Rect[] = [];
   const poorLabels: Txt[]  = [];
   const poorLinks:  Line[] = [];
-  const POOR_NODE_R = 30;
-  // (x, y, colour, labelPlacement)
-  const poorPositions: [number, number, string, 'right' | 'below'][] = [
-    [   0, -180, '#C9B0E8', 'right'],   // 0
-    [   0,  -80, '#C9B0E8', 'right'],   // 1
-    [   0,   20, '#A8CDE8', 'right'],   // 2
-    [-130,  150, '#86B07A', 'below'],   // 3
-    [   0,  150, '#FFB562', 'below'],   // 4
-    [ 130,  150, '#FF7373', 'below'],   // 5
-  ];
-  const poorEdges: [number, number][] = [
-    [0, 1], [1, 2], [2, 3], [2, 4], [2, 5],
-  ];
-  const poorStateLabels = [
-    'draft',        // 0
-    'scheduled',    // 1
-    'running',      // 2
-    'paused',       // 3
-    'completed',    // 4
-    'archived',     // 5
-  ];
   {
     const labelX = (p: [number, number, string, string]): number =>
       p[3] === 'below' ? p[0] : p[0] + POOR_NODE_R + 14;
@@ -1557,7 +1421,7 @@ export default makeScene2D(function* (view) {
   }
 
   // ─────────────────────────────────────────────────────────────────────
-  // Helpers
+  // Helper generators
   // ─────────────────────────────────────────────────────────────────────
   function* showCallCode(i: number, dur = 0.55): ThreadGenerator {
     yield* callCodes[i].node.opacity(1, dur, easeInOutSine);
@@ -1578,15 +1442,7 @@ export default makeScene2D(function* (view) {
     yield* smallScaleNodes[i]().opacity(0, dur, easeInOutSine);
   }
 
-  // Expand a [start, end] (inclusive) range into an array of indices.
-  const blockLines = (block: readonly [number, number]): number[] => {
-    const arr: number[] = [];
-    for (let i = block[0]; i <= block[1]; i++) arr.push(i);
-    return arr;
-  };
-
-  // Dim every line of `code` except the ones in `keepBright`. The
-  // bright lines stay at opacity 1; the rest go to `dimOpacity`.
+  // Dim every line of `code` except the ones in `keepBright`.
   function* spotlightLines(code: Manticore, keepBright: number[], dimOpacity: number, dur: number): ThreadGenerator {
     const anims: ThreadGenerator[] = [];
     for (let i = 0; i < code.lineCount; i++) {
@@ -1598,7 +1454,7 @@ export default makeScene2D(function* (view) {
     yield* all(...anims);
   }
 
-  // Lift every line back to full opacity (used before hide).
+  // Lift every line back to full opacity.
   function* restoreLines(code: Manticore, dur: number): ThreadGenerator {
     const anims: ThreadGenerator[] = [];
     for (let i = 0; i < code.lineCount; i++) {
@@ -1608,28 +1464,19 @@ export default makeScene2D(function* (view) {
     yield* all(...anims);
   }
 
-  // ── Per-face viz drivers — each plays the animation that explains
-  //    its role: opens (Permission), modifies (Mode), persists (Safety),
-  //    skips (Shortcut), reveals hidden states (Poor Model).
+  // ── Per-face viz drivers ────────────────────────────────────────────
   function* permissionDriver(): ThreadGenerator {
     yield* waitFor(0.3);
     yield* permRequestLabel().opacity(0, 0.25, easeInOutSine);
-    // Ball drops and stops dead against the barrier.
     yield* permRequest().position.y(-82, 0.5, easeInOutCubic);
-    // Ball turns RED — request was blocked.
     yield* permRequest().fill('#E63946', 0.32, easeInOutSine);
-    // Hold the blocked state so the viewer reads "denied by default".
     yield* waitFor(0.8);
-    // Flag fires — barrier collapses.
     yield* all(
       permBarrier().scale.x(0, 0.4, easeInOutCubic),
       permBarrier().opacity(0, 0.4),
     );
-    // Ball returns to blue — exception granted, it's allowed through.
     yield* permRequest().fill('rgba(100, 180, 255, 0.85)', 0.25, easeInOutSine);
-    // Continues falling into target.
     yield* permRequest().position.y(100, 0.55, easeInOutCubic);
-    // Target ignites green — action permitted.
     yield* all(
       permTarget().fill('rgba(134, 176, 122, 0.92)', 0.35, easeInOutSine),
       permRequest().opacity(0, 0.35, easeInOutSine),
@@ -1638,7 +1485,6 @@ export default makeScene2D(function* (view) {
 
   function* modeDriver(): ThreadGenerator {
     yield* waitFor(0.4);
-    // Active state swaps. Top empties; bottom fills.
     yield* all(
       modeTopCircle().fill('rgba(255, 159, 67, 0)', 0.5, easeInOutSine),
       modeTopCircle().stroke('rgba(255, 159, 67, 0.45)', 0.5, easeInOutSine),
@@ -1652,14 +1498,12 @@ export default makeScene2D(function* (view) {
 
   function* shortcutDriver(): ThreadGenerator {
     yield* waitFor(0.35);
-    // The `validate` cell (index 1) falls out of the column.
     yield* all(
       scCells[1].position.x(220, 0.45, easeInOutCubic),
       scCells[1].opacity(0, 0.45, easeInOutSine),
       scTexts[1].position.x(220, 0.45, easeInOutCubic),
       scTexts[1].opacity(0, 0.45, easeInOutSine),
     );
-    // The cells below collapse upward to close the gap.
     const collapseDist = SC_STEP_H + SC_GAP;
     yield* all(
       scCells[2].position.y(cellY(2) - collapseDist, 0.55, easeInOutCubic),
@@ -1670,7 +1514,6 @@ export default makeScene2D(function* (view) {
   }
 
   function* safetyDriver(): ThreadGenerator {
-    // Phase 1 — soft = true → Bob's deleted_at fills, row dims, stays.
     yield* waitFor(0.35);
     yield* sRowFill().fill('rgba(255, 140, 163, 0.22)', 0.3, easeInOutSine);
     yield* waitFor(0.3);
@@ -1681,7 +1524,6 @@ export default makeScene2D(function* (view) {
       sRowFill().fill('rgba(244, 241, 235, 0.05)', 0.5, easeInOutSine),
       sBobRow().opacity(0.45, 0.5, easeInOutSine),
     );
-    // Phase 2 — soft = false → row disappears.
     yield* waitFor(1.5);
     yield* all(
       safetyValTxt().text('false', 0.5),
@@ -1720,13 +1562,7 @@ export default makeScene2D(function* (view) {
     yield* vizRefs[i]().opacity(0, dur, easeInOutSine);
   }
 
-  // Per-face beat — same shape for every face:
-  //   1. light slides to name (auto-lights)
-  //   2. call site lands on the left, sharp
-  //   3. after a beat, dim non-bool lines + show impl AND viz at once
-  //   4. play the viz driver (face-specific animation)
-  //   5. small scale dots fade in under the name (closes the step)
-  //   6. fade everything for the next face
+  // Per-face beat — same shape for every face.
   function* runFace(
     i: number,
     slideDur: number,
@@ -1760,177 +1596,82 @@ export default makeScene2D(function* (view) {
     );
   }
 
-  // ─────────────────────────────────────────────────────────────────────
-  // TIMELINE
-  // ─────────────────────────────────────────────────────────────────────
+  // ── Return all refs, signals, and generators ────────────────────────
+  return {
+    // Refs
+    bgCover,
+    mainSpot,
+    finaleSpots,
+    nameRefs,
+    smallScaleNodes,
+    bigScale,
+    bigSafeLabel,
+    bigRiskyLabel,
+    callCodes,
+    implCodes,
+    complexSaveCode,
+    writeMC,
+    saveOrReplaceMC,
+    permissionViz,
+    permRequest,
+    permRequestLabel,
+    permBarrier,
+    permTarget,
+    modeViz,
+    modeTopCircle,
+    modeBotCircle,
+    modeLoudTxt,
+    modeSilentTxt,
+    shortcutViz,
+    scCells,
+    scTexts,
+    safetyViz,
+    safetyArgTxt,
+    safetyValTxt,
+    sRowFill,
+    sBobRow,
+    sBobDate,
+    poorViz,
+    poorNodes,
+    poorLabels,
+    poorLinks,
+    vizRefs,
 
-  // Pre-roll — brief darkness while the eye adapts.
-  yield* waitFor(0.45);
+    // Signals
+    baseX,
+    baseY,
+    arrivalTime,
+    finaleMix,
+    sceneAlpha,
+    callBlurs,
+    implBlurs,
+    vizBlur,
 
-  // ─── PERMISSION ─────────────────────────────────────────────────────
-  // Long initial slide brings the light into the frame. Call site,
-  // impl and gate viz all arrive together; the gate viz plays. Then
-  // the big rating gauge blooms centre-frame and migrates up under
-  // PERMISSION's name as the persistent rating indicator.
-  yield* all(
-    baseX(NAME_XS[0], 1.9, easeInOutSine),
-    bgCover().opacity(0, 1.4, easeInOutSine),
-  );
-  arrivalTime(view.globalTime());
-  yield* waitFor(0.2);
-  yield* showCallCode(0);
-  // Let the viewer actually read the call site before anything dims.
-  yield* waitFor(4.5);
-  yield* all(
-    spotlightLines(callCodes[0], blockLines(FACES[0].callBlock), 0.32, 0.55),
-    showImplCode(0),
-    showViz(0),
-  );
-  // Time to read the impl before the gate animation starts.
-  yield* waitFor(2.0);
-  yield* permissionDriver();
-  yield* restoreLines(callCodes[0], 0.8);
-  yield* waitFor(1.2);
-  yield* hideViz(0, 0.5);
-  yield* waitFor(0.8);
+    // Computed
+    lightX,
+    lightY,
+    brightnessAt,
 
-  // Big rating bloom — frame centre, on top of HEAVY-blurred code.
-  bigScale().position([0, 0]);
-  bigScale().scale(1);
-  yield* all(
-    callBlurs[0](BLUR_HEAVY, 0.6, easeInOutSine),
-    implBlurs[0](BLUR_HEAVY, 0.6, easeInOutSine),
-    callCodes[0].node.opacity(0.40, 0.6, easeInOutSine),
-    implCodes[0].node.opacity(0.40, 0.6, easeInOutSine),
-    bigScale().opacity(1, 0.6, easeInOutSine),
-  );
-  yield* waitFor(2.2);
+    // Generators
+    showCallCode,
+    hideCallCode,
+    showImplCode,
+    hideImplCode,
+    showSmallScale,
+    hideSmallScale,
+    spotlightLines,
+    restoreLines,
+    showViz,
+    hideViz,
+    runFace,
+    permissionDriver,
+    modeDriver,
+    safetyDriver,
+    shortcutDriver,
+    poorDriver,
+    vizDrivers,
 
-  // Labels fade before migration.
-  yield* all(
-    bigSafeLabel().opacity(0, 0.4, easeInOutSine),
-    bigRiskyLabel().opacity(0, 0.4, easeInOutSine),
-  );
-
-  // Migration: gauge → small slot under PERMISSION; everything else
-  // comes back to focus.
-  const SMALL_TARGET_SCALE = (DOT_R * 2) / (BIG_R * 2);
-  yield* all(
-    bigScale().position([NAME_XS[0], DOTS_Y], 1.0, easeInOutSine),
-    bigScale().scale(SMALL_TARGET_SCALE, 1.0, easeInOutSine),
-    callBlurs[0](0, 1.0, easeInOutSine),
-    implBlurs[0](0, 1.0, easeInOutSine),
-    callCodes[0].node.opacity(1, 1.0, easeInOutSine),
-    implCodes[0].node.opacity(1, 1.0, easeInOutSine),
-  );
-  yield* waitFor(2.0);
-
-  // ── MORPH: boolean → three explicit methods ─────────────────────────
-  // Step 1: highlight overwrite, then morph save (remove boolean).
-  {
-    const sigLine = implCodes[0].getLine(1);
-    const ifLine = implCodes[0].getLine(2);
-    if (sigLine) yield* sigLine.colorizeByRuleAnimated('overwrite', METHOD_COLOR, 0.4);
-    if (ifLine) yield* ifLine.colorizeByRuleAnimated('overwrite', METHOD_COLOR, 0.4);
-  }
-  yield* waitFor(1.5);
-  yield* implCodes[0].morphTo(IMPL_SAVE_CLEAN, {
-    removeDuration: 0.3,
-    moveDuration: 0.4,
-    charDelay: 0.015,
-    flashRemovedColor: METHOD_COLOR,
-    flashRemovedDuration: 0.2,
-    addStyle: 'typewriter',
-    scrollStrategy: 'block',
-  });
-  implCodes[0].colorize(CODE_RULES);
-  paintNamedParams(implCodes[0]);
-  implCodes[0].recenterContent();
-  yield* waitFor(0.8);
-
-  // Step 2: write appears — its bottom `}` aligns with publish's bottom `}`.
-  const callLines = FACES[0].callCode.split('\n').length;
-  const callY = yForCode(FACES[0].callCode);
-  const publishBraceY = callY - ((callLines - 1) * CODE_LH) / 2 + 25 * CODE_LH;
-  const writeLines = IMPL_WRITE.split('\n').length;
-  const writeY = publishBraceY - ((writeLines - 1) * IMPL_LH) / 2;
-  const sorLines = IMPL_SAVE_OR_REPLACE.split('\n').length;
-  const gap = 2 * IMPL_LH;
-
-  writeMC.node.position.y(writeY);
-  yield* writeMC.node.opacity(1, 0.5, easeInOutSine);
-  yield* waitFor(0.6);
-
-  // Step 3: saveOrReplace inserts between save and write.
-  const writeTop = writeY - ((writeLines - 1) * IMPL_LH) / 2;
-  const sorY = writeTop - gap - ((sorLines - 1) * IMPL_LH) / 2;
-  const sorTop = sorY - ((sorLines - 1) * IMPL_LH) / 2;
-  const saveLines = IMPL_SAVE_CLEAN.split('\n').length;
-  const saveTargetY = sorTop - gap - ((saveLines - 1) * IMPL_LH) / 2;
-  saveOrReplaceMC.node.position.y(sorY);
-  yield* all(
-    saveOrReplaceMC.node.opacity(1, 0.5, easeInOutSine),
-    implCodes[0].node.position.y(saveTargetY, 0.5, easeInOutCubic),
-  );
-  yield* waitFor(3.0);
-
-  // ── COMPLEX SAVE — trade-off reveal ──────────────────────────────────
-  // Hide everything, show full class with smooth scroll.
-  yield* all(
-    hideCallCode(0, 0.55),
-    hideImplCode(0, 0.55),
-    writeMC.node.opacity(0, 0.55, easeInOutSine),
-    saveOrReplaceMC.node.opacity(0, 0.55, easeInOutSine),
-  );
-  yield* complexSaveCode.node.opacity(1, 0.6, easeInOutSine);
-  yield* waitFor(1.0);
-  // Scroll to the single `!overwrite` check (line ~56), pause.
-  yield* complexSaveCode.scrollTo(56, 5, easeInOutSine);
-  yield* waitFor(2.5);
-  // Scroll through the rest — encryption, thumbnails, CDN, audit, events, backup, metrics...
-  yield* complexSaveCode.scrollTo(140, 6, easeInOutSine);
-  yield* waitFor(1.5);
-
-  // PERMISSION close.
-  yield* all(
-    complexSaveCode.node.opacity(0, 0.55, easeInOutSine),
-    bigScale().opacity(0, 0.45, easeInOutSine),
-  );
-
-  // ─── MODE / SAFETY / SHORTCUT / POOR MODEL — same shape ─────────────
-  // Per-face holds: slide / callHold(read call) / implHold(read impl
-  // before viz drives) / vizHold / closeHold. Each waitFor leaves at
-  // least ~2 s for the viewer before the next opacity change.
-  yield* runFace(1, 0.9, 4.5, 2.0, 3.0, 2.2);
-  yield* runFace(2, 0.9, 4.5, 2.0, 4.5, 2.2);
-  yield* runFace(3, 0.9, 4.5, 2.0, 3.0, 2.2);
-  yield* runFace(4, 0.9, 4.5, 2.0, 3.8, 2.2);
-
-  // ─── FINALE — moving lamp stays on POOR MODEL, four new lamps
-  //    flick on over the other names. All five gauges fade in.
-  yield* all(
-    finaleMix(1, 1.0, easeInOutSine),
-    finaleSpots[0]().opacity(1, 1.0, easeInOutSine),
-    finaleSpots[1]().opacity(1, 1.0, easeInOutSine),
-    finaleSpots[2]().opacity(1, 1.0, easeInOutSine),
-    finaleSpots[3]().opacity(1, 1.0, easeInOutSine),
-    ...smallScaleNodes.map(s => s().opacity(1, 1.0, easeInOutSine)),
-  );
-
-  // Reminder hold.
-  yield* waitFor(4.0);
-
-  // Final fade-out — everything dims in place; the lamp stays on
-  // POOR MODEL, just dims out with the rest of the scene.
-  yield* all(
-    sceneAlpha(0, 1.4, easeInOutSine),
-    finaleMix(0, 1.4, easeInOutSine),
-    mainSpot().opacity(0, 1.4, easeInOutSine),
-    finaleSpots[0]().opacity(0, 1.4, easeInOutSine),
-    finaleSpots[1]().opacity(0, 1.4, easeInOutSine),
-    finaleSpots[2]().opacity(0, 1.4, easeInOutSine),
-    finaleSpots[3]().opacity(0, 1.4, easeInOutSine),
-    ...smallScaleNodes.map(s => s().opacity(0, 1.4, easeInOutSine)),
-  );
-  yield* waitFor(0.6);
-});
+    // Utilities available inside timeline
+    glowBooleanLines,
+  };
+}

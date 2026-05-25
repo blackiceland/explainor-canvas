@@ -52,7 +52,8 @@ const THEME: SyntaxTheme = {
 
 const RULES: ColorRule[] = [
     {match: /^(function|const|let|var|return|if|else|await|async|throw|new|export|import|class|interface|enum)$/, color: KEY},
-    {match: /^(sendCartReminder|sendLoginCode|sendMessage|render|send|track)$/, color: DOMAIN},
+    {match: /^(sendCartReminder|sendLoginCode|sendMessage|render|send|track|canReceiveMarketing|persistOtp|auditOtpSent)$/, color: DOMAIN},
+    {match: /^(quietHours|frequencyCap)$/, color: DOMAIN},
 ];
 
 const FLAT_CARD = {
@@ -88,6 +89,130 @@ const CODE_MERGED = `function sendMessage(user, template, payload) {
     const delivery = send(user.phone, message)
     track(user, message, delivery)
 
+    return delivery
+}`;
+
+// ── Degradation steps (4-space indent to match CODE_MERGED) ─────────
+
+const DEG_KIND = `function sendMessage(user, kind, template, payload) {
+    const message = render(template, payload)
+    const delivery = send(user.phone, message)
+    track(user, message, delivery)
+
+    return delivery
+}`;
+
+const DEG_GUARD1 = `function sendMessage(user, kind, template, payload) {
+    if (kind === "marketing" && !canReceiveMarketing(user)) {
+        return
+    }
+
+    const message = render(template, payload)
+    const delivery = send(user.phone, message)
+    track(user, message, delivery)
+
+    return delivery
+}`;
+
+const DEG_GUARD3 = `function sendMessage(user, kind, template, payload) {
+    if (kind === "marketing" && !canReceiveMarketing(user)) {
+        return
+    }
+
+    if (kind === "marketing" && quietHours.active(user)) {
+        return
+    }
+
+    if (kind === "marketing" && frequencyCap.exceeded(user)) {
+        return
+    }
+
+    const message = render(template, payload)
+    const delivery = send(user.phone, message)
+    track(user, message, delivery)
+
+    return delivery
+}`;
+
+const DEG_PRE_SEC = `function sendMessage(user, kind, template, payload) {
+    if (kind === "marketing" && !canReceiveMarketing(user)) {
+        return
+    }
+
+    if (kind === "marketing" && quietHours.active(user)) {
+        return
+    }
+
+    if (kind === "marketing" && frequencyCap.exceeded(user)) {
+        return
+    }
+
+    if (kind === "security") {
+        persistOtp(user, payload.code, "5m")
+    }
+
+    const message = render(template, payload)
+    const delivery = send(user.phone, message)
+    track(user, message, delivery)
+
+    return delivery
+}`;
+
+const DEG_TEMPLATE = `function sendMessage(user, kind, payload) {
+    if (kind === "marketing" && !canReceiveMarketing(user)) {
+        return
+    }
+
+    if (kind === "marketing" && quietHours.active(user)) {
+        return
+    }
+
+    if (kind === "marketing" && frequencyCap.exceeded(user)) {
+        return
+    }
+
+    if (kind === "security") {
+        persistOtp(user, payload.code, "5m")
+    }
+
+    const template =
+        kind === "security" ? "login.code" : "cart.reminder"
+
+    const message = render(template, payload)
+    const delivery = send(user.phone, message)
+    track(user, message, delivery)
+
+    return delivery
+}`;
+
+const DEG_FINAL = `function sendMessage(user, kind, payload) {
+    if (kind === "marketing" && !canReceiveMarketing(user)) {
+        return
+    }
+
+    if (kind === "marketing" && quietHours.active(user)) {
+        return
+    }
+
+    if (kind === "marketing" && frequencyCap.exceeded(user)) {
+        return
+    }
+
+    if (kind === "security") {
+        persistOtp(user, payload.code, "5m")
+    }
+
+    const template =
+        kind === "security" ? "login.code" : "cart.reminder"
+
+    const message = render(template, payload)
+    const delivery = send(user.phone, message)
+
+    if (kind === "security") {
+        auditOtpSent(user, delivery)
+    }
+
+    track(user, message, delivery)
     return delivery
 }`;
 
@@ -607,10 +732,75 @@ export default makeScene2D(function* (view) {
         merged.appear(0.55),
     );
     revBarsNode().remove();
-    yield* waitFor(2.4);
+    yield* waitFor(1.5);
 
     // ════════════════════════════════════════════════════════════════
-    //  Beat 7 — MANTRA
+    //  Beat 7 — DEGRADATION: clean function rots step by step
+    // ════════════════════════════════════════════════════════════════
+
+    const NO_SCROLL = {
+        blockOrder: 'parallel' as const,
+        lineOrder: 'parallel' as const,
+    };
+    const MORPH_TYPE = {
+        addStyle: 'typewriter' as const,
+        charDelay: 0.015, lineDelay: 0.03,
+        moveDuration: 0.3, removeDuration: 0.2,
+        ...NO_SCROLL,
+    };
+    const MORPH_FADE = {
+        addStyle: 'fade' as const,
+        moveDuration: 0.35, removeDuration: 0.2,
+        ...NO_SCROLL,
+    };
+
+    function* recolor(): ThreadGenerator {
+        merged.colorize(RULES);
+        applyGlow(merged);
+    }
+
+    const LEFT_LOCAL = -522;
+    const SCALE = 0.78;
+    const xScaled = CODE_X + LEFT_LOCAL * (1 - SCALE);
+
+    // S2: kind in signature + zoom out, push sig higher for growth room
+    const yScaled = -200;
+    yield* all(
+        merged.morphTo(DEG_KIND, MORPH_TYPE),
+        merged.node.scale(SCALE, 0.5, easeInOutCubic),
+        merged.node.x(xScaled, 0.5, easeInOutCubic),
+        merged.node.y(yScaled, 0.5, easeInOutCubic),
+    );
+    yield* recolor();
+    yield* waitFor(1.2);
+
+    // S3: first guard drops in
+    yield* merged.morphTo(DEG_GUARD1, MORPH_FADE);
+    yield* recolor();
+    yield* waitFor(1.2);
+
+    // S4: two more guards drop in
+    yield* merged.morphTo(DEG_GUARD3, MORPH_FADE);
+    yield* recolor();
+    yield* waitFor(1.5);
+
+    // S5: security pre-send block
+    yield* merged.morphTo(DEG_PRE_SEC, MORPH_TYPE);
+    yield* recolor();
+    yield* waitFor(1.2);
+
+    // S6: template becomes conditional
+    yield* merged.morphTo(DEG_TEMPLATE, MORPH_TYPE);
+    yield* recolor();
+    yield* waitFor(1.2);
+
+    // S7: post-send security audit — final degraded form
+    yield* merged.morphTo(DEG_FINAL, MORPH_TYPE);
+    yield* recolor();
+    yield* waitFor(2.0);
+
+    // ════════════════════════════════════════════════════════════════
+    //  Beat 8 — MANTRA
     // ════════════════════════════════════════════════════════════════
     const mantra = createRef<Node>();
     view.add(<Node ref={mantra} opacity={0}>

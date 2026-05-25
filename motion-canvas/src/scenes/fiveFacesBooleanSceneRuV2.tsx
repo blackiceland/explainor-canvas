@@ -1855,7 +1855,7 @@ export default makeScene2D(function* (view) {
   const writeLines = IMPL_WRITE.split('\n').length;
   const writeY = publishBraceY - ((writeLines - 1) * IMPL_LH) / 2;
   const sorLines = IMPL_SAVE_OR_REPLACE.split('\n').length;
-  const gap = 2 * IMPL_LH;
+  const gap = IMPL_LH;
 
   writeMC.node.position.y(writeY);
   yield* writeMC.node.opacity(1, 0.5, easeInOutSine);
