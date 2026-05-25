@@ -257,6 +257,28 @@ const COMPLEX_SAVE_CODE = `class FileStorageService(
     }
 }`;
 
+const IMPL_SAVE_CLEAN = `fun save(path: String, content: Bytes, contentType: String): StoredFile {
+    if (storage.exists(path)) {
+        throw FileAlreadyExists(path)
+    }
+
+    return write(path, content, contentType)
+}`;
+
+const IMPL_SAVE_OR_REPLACE = `fun saveOrReplace(path: String, content: Bytes, contentType: String): StoredFile {
+    return write(path, content, contentType)
+}`;
+
+const IMPL_WRITE = `private fun write(path: String, content: Bytes, contentType: String): StoredFile {
+    val key = storage.put(
+        path = path,
+        content = content,
+        contentType = contentType,
+    )
+
+    return StoredFile(key)
+}`;
+
 const IMPL_PERMISSION_REFACTORED = `fun save(path: String, content: Bytes, contentType: String): StoredFile {
     if (storage.exists(path)) {
         throw FileAlreadyExists(path)
@@ -1090,6 +1112,31 @@ export default makeScene2D(function* (view) {
   paintNamedParams(complexSaveCode);
   complexSaveCode.node.opacity(0);
 
+  // Separate Manticores for the 3-method morph reveal.
+  const writeMC = Manticore.create(IMPL_WRITE, {
+    x: IMPL_X, y: 0, width: IMPL_W,
+    fontSize: IMPL_FONT_SIZE, lineHeight: IMPL_LH,
+    fontFamily: Fonts.code, theme: DryFiltersV3CodeTheme,
+    noClip: true, cardStyle: TRANSPARENT_CARD,
+    glowAccent: false, customTypes: CUSTOM_TYPES,
+  });
+  writeMC.mount(view);
+  writeMC.colorize(CODE_RULES);
+  paintNamedParams(writeMC);
+  writeMC.node.opacity(0);
+
+  const saveOrReplaceMC = Manticore.create(IMPL_SAVE_OR_REPLACE, {
+    x: IMPL_X, y: 0, width: IMPL_W,
+    fontSize: IMPL_FONT_SIZE, lineHeight: IMPL_LH,
+    fontFamily: Fonts.code, theme: DryFiltersV3CodeTheme,
+    noClip: true, cardStyle: TRANSPARENT_CARD,
+    glowAccent: false, customTypes: CUSTOM_TYPES,
+  });
+  saveOrReplaceMC.mount(view);
+  saveOrReplaceMC.colorize(CODE_RULES);
+  paintNamedParams(saveOrReplaceMC);
+  saveOrReplaceMC.node.opacity(0);
+
   // Backlit highlight strip behind every boolean line. Builds a thin
   // rounded plate sized to the actual code line and binds its opacity
   // to the code's opacity so it fades together. Renders BEHIND the
@@ -1778,7 +1825,8 @@ export default makeScene2D(function* (view) {
   );
   yield* waitFor(2.0);
 
-  // ── MORPH: boolean → two explicit methods ──────────────────────────
+  // ── MORPH: boolean → three explicit methods ─────────────────────────
+  // Step 1: highlight overwrite, then morph save (remove boolean).
   {
     const sigLine = implCodes[0].getLine(1);
     const ifLine = implCodes[0].getLine(2);
@@ -1786,26 +1834,53 @@ export default makeScene2D(function* (view) {
     if (ifLine) yield* ifLine.colorizeByRuleAnimated('overwrite', METHOD_COLOR, 0.4);
   }
   yield* waitFor(1.5);
-  yield* implCodes[0].morphTo(IMPL_PERMISSION_REFACTORED, {
+  yield* implCodes[0].morphTo(IMPL_SAVE_CLEAN, {
     removeDuration: 0.3,
     moveDuration: 0.4,
     charDelay: 0.015,
     flashRemovedColor: METHOD_COLOR,
     flashRemovedDuration: 0.2,
     addStyle: 'typewriter',
-    scrollStrategy: 'auto',
-    blockOrder: 'parallel',
-    lineOrder: 'parallel',
+    scrollStrategy: 'block',
   });
   implCodes[0].colorize(CODE_RULES);
   paintNamedParams(implCodes[0]);
+  implCodes[0].recenterContent();
+  yield* waitFor(0.8);
+
+  // Step 2: write appears — its bottom `}` aligns with publish's bottom `}`.
+  const callLines = FACES[0].callCode.split('\n').length;
+  const callY = yForCode(FACES[0].callCode);
+  const publishBraceY = callY - ((callLines - 1) * CODE_LH) / 2 + 25 * CODE_LH;
+  const writeLines = IMPL_WRITE.split('\n').length;
+  const writeY = publishBraceY - ((writeLines - 1) * IMPL_LH) / 2;
+  const sorLines = IMPL_SAVE_OR_REPLACE.split('\n').length;
+  const gap = IMPL_LH;
+
+  writeMC.node.position.y(writeY);
+  yield* writeMC.node.opacity(1, 0.5, easeInOutSine);
+  yield* waitFor(0.6);
+
+  // Step 3: saveOrReplace inserts between save and write.
+  const writeTop = writeY - ((writeLines - 1) * IMPL_LH) / 2;
+  const sorY = writeTop - gap - ((sorLines - 1) * IMPL_LH) / 2;
+  const sorTop = sorY - ((sorLines - 1) * IMPL_LH) / 2;
+  const saveLines = IMPL_SAVE_CLEAN.split('\n').length;
+  const saveTargetY = sorTop - gap - ((saveLines - 1) * IMPL_LH) / 2;
+  saveOrReplaceMC.node.position.y(sorY);
+  yield* all(
+    saveOrReplaceMC.node.opacity(1, 0.5, easeInOutSine),
+    implCodes[0].node.position.y(saveTargetY, 0.5, easeInOutCubic),
+  );
   yield* waitFor(3.0);
 
   // ── COMPLEX SAVE — trade-off reveal ──────────────────────────────────
-  // Hide left/right code, show full class with smooth scroll.
+  // Hide everything, show full class with smooth scroll.
   yield* all(
     hideCallCode(0, 0.55),
     hideImplCode(0, 0.55),
+    writeMC.node.opacity(0, 0.55, easeInOutSine),
+    saveOrReplaceMC.node.opacity(0, 0.55, easeInOutSine),
   );
   yield* complexSaveCode.node.opacity(1, 0.6, easeInOutSine);
   yield* waitFor(1.0);

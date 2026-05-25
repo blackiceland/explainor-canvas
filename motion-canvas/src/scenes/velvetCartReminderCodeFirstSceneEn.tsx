@@ -1,9 +1,10 @@
-import {Line, Node, Rect, Txt, makeScene2D} from '@motion-canvas/2d';
+import {Line, Node, Rect, Txt, blur, makeScene2D} from '@motion-canvas/2d';
 import {
     Reference,
     ThreadGenerator,
     all,
     createRef,
+    createSignal,
     easeInCubic,
     easeInOutCubic,
     easeOutCubic,
@@ -315,25 +316,24 @@ export default makeScene2D(function* (view) {
     login.colorize(RULES);
     applyGlow(cart);
     applyGlow(login);
-    cart.node.opacity(1);
-    login.node.opacity(1);
+    const SHIFT = 10;
+    const cartBlur = createSignal(8);
+    const loginBlur = createSignal(8);
+    cart.node.filters(() => [blur(cartBlur())]);
+    login.node.filters(() => [blur(loginBlur())]);
+    cart.node.opacity(0);
+    login.node.opacity(0);
+    cart.node.x(CODE_X - SHIFT);
+    login.node.x(CODE_X - SHIFT);
 
-    // Hide all tokens, then typewriter reveal all lines simultaneously
-    for (const block of [cart, login]) {
-        for (let i = 0; i < block.lineCount; i++) {
-            const line = block.getLine(i);
-            if (line) line.hideTokensInstantly();
-        }
-    }
-
-    const typeOps: ThreadGenerator[] = [];
-    for (const block of [cart, login]) {
-        for (let i = 0; i < block.lineCount; i++) {
-            const line = block.getLine(i);
-            if (line) typeOps.push(line.typewriter(0.015));
-        }
-    }
-    yield* all(...typeOps);
+    yield* all(
+        cart.node.opacity(1, 0.7, easeOutCubic),
+        login.node.opacity(1, 0.7, easeOutCubic),
+        cartBlur(0, 0.7, easeOutCubic),
+        loginBlur(0, 0.7, easeOutCubic),
+        cart.node.x(CODE_X, 0.7, easeOutCubic),
+        login.node.x(CODE_X, 0.7, easeOutCubic),
+    );
     yield* waitFor(0.3);
 
     // Hero appears on top, one line at a time
@@ -371,7 +371,7 @@ export default makeScene2D(function* (view) {
     // Subtitle: static `//` + typed body, both left-aligned at fixed x.
     // x=-175 centres the group visually for average subtitle length.
     const SUB_Y = 680;
-    const SUB_X = -175;
+    const SUB_X = -230;
     const SUB_FS = 37;
     const SLASH_W = 67; // "// " = 3 chars × ~22.2px at JBM 37px
     const subSlashes = createRef<Txt>();

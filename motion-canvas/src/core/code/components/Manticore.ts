@@ -276,6 +276,19 @@ export class Manticore {
     getLineY(index: number): number { return this.lineY(index); }
     getLeftEdge(): number { return this.leftEdge; }
 
+    recenterContent(): void {
+        if (!this.mounted || this.lines.length === 0) return;
+        const lh = this.cfg.lineHeight;
+        const n = this.lines.length;
+        const content = this.contentRef();
+        const container = this.containerRef();
+        const oldVisualCenter = content.y() + this.startY + ((n - 1) / 2) * lh;
+        container.position.y(container.position.y() + oldVisualCenter);
+        this.startY = -((n - 1) / 2) * lh;
+        for (let i = 0; i < n; i++) this.lines[i].node.y(this.lineY(i));
+        content.y(0);
+    }
+
     *appear(duration = 0.6): ThreadGenerator {
         yield* this.containerRef().opacity(1, duration, easeInOutCubic);
     }

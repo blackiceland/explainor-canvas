@@ -46,12 +46,16 @@ import velvetTarBlackCodeFirstSceneEn from './scenes/velvetTarBlackCodeFirstScen
 import velvetDeepMidnightCodeFirstSceneEn from './scenes/velvetDeepMidnightCodeFirstSceneEn?scene';
 import velvetVioletInkCodeFirstSceneEn from './scenes/velvetVioletInkCodeFirstSceneEn?scene';
 import velvetRichIndigoCodeFirstSceneEn from './scenes/velvetRichIndigoCodeFirstSceneEn?scene';
+import velvetCoolGraphiteCodeFirstSceneEn from './scenes/velvetCoolGraphiteCodeFirstSceneEn?scene';
+import velvetOpeningsShowcaseCodeFirstSceneEn from './scenes/velvetOpeningsShowcaseCodeFirstSceneEn?scene';
 
 export default makeProject({
     experimentalFeatures: true,
     scenes: [
+        velvetCartReminderCodeFirstSceneEn,
         deepCobaltQuietFieldsVelvetCodeFirstSceneEn,
-        velvetDeepMidnightCodeFirstSceneEn,
+        velvetCoolGraphiteCodeFirstSceneEn,
+        // velvetDeepMidnightCodeFirstSceneEn,
         // velvetVioletInkCodeFirstSceneEn,
         // velvetRichIndigoCodeFirstSceneEn,
         // universalPaletteShowcaseCodeFirstSceneEn,
