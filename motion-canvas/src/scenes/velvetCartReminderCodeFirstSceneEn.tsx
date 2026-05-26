@@ -54,6 +54,7 @@ const RULES: ColorRule[] = [
     {match: /^(function|const|let|var|return|if|else|await|async|throw|new|export|import|class|interface|enum)$/, color: KEY},
     {match: /^(sendCartReminder|sendLoginCode|sendMessage|render|send|track|canReceiveMarketing|persistOtp|auditOtpSent)$/, color: DOMAIN},
     {match: /^(quietHours|frequencyCap)$/, color: DOMAIN},
+    {match: /^(MARKETING|SECURITY|CART_TPL|LOGIN_TPL|TTL|TPL)$/, color: DOMAIN},
 ];
 
 const FLAT_CARD = {
@@ -69,7 +70,7 @@ const FLAT_CARD = {
 } as const;
 
 const CODE_CART = `function sendCartReminder(user, cart) {
-    const message = render("cart.reminder", cart)
+    const message = render(CART_TPL, cart)
     const delivery = send(user.phone, message)
     track(user, message, delivery)
 
@@ -77,7 +78,7 @@ const CODE_CART = `function sendCartReminder(user, cart) {
 }`;
 
 const CODE_LOGIN = `function sendLoginCode(user, code) {
-    const message = render("login.code", code)
+    const message = render(LOGIN_TPL, code)
     const delivery = send(user.phone, message)
     track(user, message, delivery)
 
@@ -92,129 +93,6 @@ const CODE_MERGED = `function sendMessage(user, template, payload) {
     return delivery
 }`;
 
-// ── Degradation steps (4-space indent to match CODE_MERGED) ─────────
-
-const DEG_KIND = `function sendMessage(user, kind, template, payload) {
-    const message = render(template, payload)
-    const delivery = send(user.phone, message)
-    track(user, message, delivery)
-
-    return delivery
-}`;
-
-const DEG_GUARD1 = `function sendMessage(user, kind, template, payload) {
-    if (kind === "marketing" && !canReceiveMarketing(user)) {
-        return
-    }
-
-    const message = render(template, payload)
-    const delivery = send(user.phone, message)
-    track(user, message, delivery)
-
-    return delivery
-}`;
-
-const DEG_GUARD3 = `function sendMessage(user, kind, template, payload) {
-    if (kind === "marketing" && !canReceiveMarketing(user)) {
-        return
-    }
-
-    if (kind === "marketing" && quietHours.active(user)) {
-        return
-    }
-
-    if (kind === "marketing" && frequencyCap.exceeded(user)) {
-        return
-    }
-
-    const message = render(template, payload)
-    const delivery = send(user.phone, message)
-    track(user, message, delivery)
-
-    return delivery
-}`;
-
-const DEG_PRE_SEC = `function sendMessage(user, kind, template, payload) {
-    if (kind === "marketing" && !canReceiveMarketing(user)) {
-        return
-    }
-
-    if (kind === "marketing" && quietHours.active(user)) {
-        return
-    }
-
-    if (kind === "marketing" && frequencyCap.exceeded(user)) {
-        return
-    }
-
-    if (kind === "security") {
-        persistOtp(user, payload.code, "5m")
-    }
-
-    const message = render(template, payload)
-    const delivery = send(user.phone, message)
-    track(user, message, delivery)
-
-    return delivery
-}`;
-
-const DEG_TEMPLATE = `function sendMessage(user, kind, payload) {
-    if (kind === "marketing" && !canReceiveMarketing(user)) {
-        return
-    }
-
-    if (kind === "marketing" && quietHours.active(user)) {
-        return
-    }
-
-    if (kind === "marketing" && frequencyCap.exceeded(user)) {
-        return
-    }
-
-    if (kind === "security") {
-        persistOtp(user, payload.code, "5m")
-    }
-
-    const template =
-        kind === "security" ? "login.code" : "cart.reminder"
-
-    const message = render(template, payload)
-    const delivery = send(user.phone, message)
-    track(user, message, delivery)
-
-    return delivery
-}`;
-
-const DEG_FINAL = `function sendMessage(user, kind, payload) {
-    if (kind === "marketing" && !canReceiveMarketing(user)) {
-        return
-    }
-
-    if (kind === "marketing" && quietHours.active(user)) {
-        return
-    }
-
-    if (kind === "marketing" && frequencyCap.exceeded(user)) {
-        return
-    }
-
-    if (kind === "security") {
-        persistOtp(user, payload.code, "5m")
-    }
-
-    const template =
-        kind === "security" ? "login.code" : "cart.reminder"
-
-    const message = render(template, payload)
-    const delivery = send(user.phone, message)
-
-    if (kind === "security") {
-        auditOtpSent(user, delivery)
-    }
-
-    track(user, message, delivery)
-    return delivery
-}`;
 
 // ── Shape geometry ───────────────────────────────────────────────────
 function marketingBlobPoints(): [number, number][] {
@@ -431,8 +309,8 @@ export default makeScene2D(function* (view) {
 // ════════════════════════════════════════════════════════════════
     //  Beat 1 — CODE FIRST, then HERO on top
     // ════════════════════════════════════════════════════════════════
-    const cart  = makeBlock({code: CODE_CART,  x: CODE_X, y: -170, fontSize: 32, lineHeight: 46, width: 1100});
-    const login = makeBlock({code: CODE_LOGIN, x: CODE_X, y: +310, fontSize: 32, lineHeight: 46, width: 1100});
+    const cart  = makeBlock({code: CODE_CART,  x: CODE_X, y: -210, fontSize: 32, lineHeight: 46, width: 1100});
+    const login = makeBlock({code: CODE_LOGIN, x: CODE_X, y: +270, fontSize: 32, lineHeight: 46, width: 1100});
     cart.mount(view);
     login.mount(view);
     bumpWeight(cart, 500);
@@ -461,38 +339,6 @@ export default makeScene2D(function* (view) {
     );
     yield* waitFor(0.3);
 
-    // Hero appears on top, one line at a time
-    const hero = createRef<Node>();
-    const HERO_TOP = -700;
-    const HERO_LH  = 88;
-    const HERO_SZ  = 72;
-
-    const heroL1 = createRef<Txt>();
-    const heroL2 = createRef<Txt>();
-    const heroL3 = createRef<Txt>();
-    view.add(<Node ref={hero}>
-        <Txt ref={heroL1} text="Code duplication"
-            fontFamily={F_SERIF} fontSize={HERO_SZ} fontWeight={400}
-            fill={HERO} y={HERO_TOP} textAlign="center" opacity={0}
-        />
-        <Txt ref={heroL2} text="isn't always"
-            fontFamily={F_SERIF} fontSize={HERO_SZ} fontWeight={400}
-            fill={HERO} y={HERO_TOP + HERO_LH} textAlign="center" opacity={0}
-        />
-        <Txt ref={heroL3} text="bad."
-            fontFamily={F_SERIF} fontSize={108} fontWeight={400}
-            fontStyle="italic" fill={ACCENT}
-            y={HERO_TOP + HERO_LH * 2 + 14} textAlign="center" opacity={0}
-        />
-    </Node>);
-
-    yield* heroL1().opacity(1, 0.32, easeOutCubic);
-    yield* waitFor(0.16);
-    yield* heroL2().opacity(1, 0.32, easeOutCubic);
-    yield* waitFor(0.22);
-    yield* heroL3().opacity(1, 0.45, easeOutCubic);
-    yield* waitFor(0.4);
-
     // Subtitle: static `//` + typed body, both left-aligned at fixed x.
     // x=-175 centres the group visually for average subtitle length.
     const SUB_Y = 680;
@@ -517,7 +363,7 @@ export default makeScene2D(function* (view) {
     subSlashes().opacity(1);
     subBody().opacity(1);
     yield* typeBody(subBody, 'two functions');
-    yield* waitFor(1.2);
+    yield* waitFor(0.8);
 
     // ════════════════════════════════════════════════════════════════
     //  Beat 2 — SEQUENTIAL HIGHLIGHT (no crystal)
@@ -527,35 +373,33 @@ export default makeScene2D(function* (view) {
     const TRACK_LINE  = 3;
     const RETURN_LINE = 5;
 
-    // RENDER — hero fades in parallel
+    // RENDER
     yield* all(
-        hero().opacity(0, 0.6, easeInCubic),
-        highlightOnly([cart, login], RENDER_LINE, 0.5),
+        highlightOnly([cart, login], RENDER_LINE, 0.4),
         swapSub(subBody, 'render the message'),
     );
-    hero().remove();
-    yield* waitFor(0.7);
+    yield* waitFor(0.5);
 
     // SEND
     yield* all(
         highlightOnly([cart, login], SEND_LINE, 0.4),
         swapSub(subBody, 'send to the user'),
     );
-    yield* waitFor(0.7);
+    yield* waitFor(0.5);
 
     // TRACK
     yield* all(
         highlightOnly([cart, login], TRACK_LINE, 0.4),
         swapSub(subBody, 'track the delivery'),
     );
-    yield* waitFor(0.7);
+    yield* waitFor(0.5);
 
     // RETURN
     yield* all(
         highlightOnly([cart, login], RETURN_LINE, 0.4),
         swapSub(subBody, 'return the result'),
     );
-    yield* waitFor(0.75);
+    yield* waitFor(0.5);
 
     // Restore all lines, subtitle fades
     yield* all(
@@ -583,8 +427,8 @@ export default makeScene2D(function* (view) {
     const cartIndents  = cartRowSpec.map(r => r.indentPx);
     const loginIndents = loginRowSpec.map(r => r.indentPx);
 
-    const cartCenterY  = -170;
-    const loginCenterY =  310;
+    const cartCenterY  = -210;
+    const loginCenterY =  270;
     const barCount = cartLineIndices.length;
 
     const barYsRel = cartLineIndices.map(idx =>
@@ -735,90 +579,83 @@ export default makeScene2D(function* (view) {
     yield* waitFor(1.5);
 
     // ════════════════════════════════════════════════════════════════
-    //  Beat 7 — DEGRADATION: clean function rots step by step
+    //  Beat 7 — EXPANSION: bars as code-line placeholders
     // ════════════════════════════════════════════════════════════════
+
+    const LEFT_LOCAL = -522;
+    const SCALE = 0.78;
+    const xScaled = CODE_X + LEFT_LOCAL * (1 - SCALE);
+    const yScaled = -200;
 
     const NO_SCROLL = {
         blockOrder: 'parallel' as const,
         lineOrder: 'parallel' as const,
     };
-    const MORPH_TYPE = {
-        addStyle: 'typewriter' as const,
-        charDelay: 0.015, lineDelay: 0.03,
-        moveDuration: 0.3, removeDuration: 0.2,
-        ...NO_SCROLL,
-    };
     const MORPH_FADE = {
         addStyle: 'fade' as const,
-        moveDuration: 0.35, removeDuration: 0.2,
+        moveDuration: 0.4, removeDuration: 0.2,
         ...NO_SCROLL,
     };
 
-    function* recolor(): ThreadGenerator {
-        merged.colorize(RULES);
-        applyGlow(merged);
-    }
+    // Same code but with empty lines between body and return — room for bars
+    const CODE_SPACED = `function sendMessage(user, template, payload) {
+    const message = render(template, payload)
+    const delivery = send(user.phone, message)
+    track(user, message, delivery)
 
-    const LEFT_LOCAL = -522;
-    const SCALE = 0.78;
-    const xScaled = CODE_X + LEFT_LOCAL * (1 - SCALE);
 
-    // S2: kind in signature + zoom out, push sig higher for growth room
-    const yScaled = -200;
+
+
+
+    return delivery
+}`;
+
+    // startY stays at 7-line value after morphTo (not recalculated)
+    const START_Y_7 = -((7 - 1) / 2) * 46;
+    const LOCAL_LEFT = -1100 / 2 + 56;
+    const bodyIndent = measureRow('    x', F_MONO, 32).indentPx;
+    const BAR_LINES = [5, 6, 7];
+    const BAR_WIDTHS = [350, 280, 450];
+
+    const barsNode = createRef<Node>();
+    const barRefs: Reference<Rect>[] = [];
+
+    view.add(
+        <Node ref={barsNode} x={xScaled} y={yScaled} scale={SCALE} opacity={0}>
+            {BAR_LINES.map((li, i) => {
+                const ref = createRef<Rect>();
+                barRefs.push(ref);
+                return (
+                    <Rect
+                        ref={ref}
+                        width={0} height={12} radius={4}
+                        fill={INK}
+                        offset={[-1, 0]}
+                        x={LOCAL_LEFT + bodyIndent}
+                        y={START_Y_7 + li * 46}
+                    />
+                );
+            })}
+        </Node>
+    );
+
+    // Phase 1: zoom out
     yield* all(
-        merged.morphTo(DEG_KIND, MORPH_TYPE),
         merged.node.scale(SCALE, 0.5, easeInOutCubic),
         merged.node.x(xScaled, 0.5, easeInOutCubic),
         merged.node.y(yScaled, 0.5, easeInOutCubic),
     );
-    yield* recolor();
-    yield* waitFor(1.2);
 
-    // S3: first guard drops in
-    yield* merged.morphTo(DEG_GUARD1, MORPH_FADE);
-    yield* recolor();
-    yield* waitFor(1.2);
-
-    // S4: two more guards drop in
-    yield* merged.morphTo(DEG_GUARD3, MORPH_FADE);
-    yield* recolor();
-    yield* waitFor(1.5);
-
-    // S5: security pre-send block
-    yield* merged.morphTo(DEG_PRE_SEC, MORPH_TYPE);
-    yield* recolor();
-    yield* waitFor(1.2);
-
-    // S6: template becomes conditional
-    yield* merged.morphTo(DEG_TEMPLATE, MORPH_TYPE);
-    yield* recolor();
-    yield* waitFor(1.2);
-
-    // S7: post-send security audit — final degraded form
-    yield* merged.morphTo(DEG_FINAL, MORPH_TYPE);
-    yield* recolor();
-    yield* waitFor(2.0);
-
-    // ════════════════════════════════════════════════════════════════
-    //  Beat 8 — MANTRA
-    // ════════════════════════════════════════════════════════════════
-    const mantra = createRef<Node>();
-    view.add(<Node ref={mantra} opacity={0}>
-        <Txt text="Same shape."
-            fontFamily={F_SERIF} fontSize={92} fontWeight={400}
-            fill={HERO} y={-60} textAlign="center"
-        />
-        <Txt text="Different meaning."
-            fontFamily={F_SERIF} fontSize={92} fontWeight={400}
-            fontStyle="italic" fill={ACCENT}
-            y={60} textAlign="center"
-        />
-    </Node>);
-
+    // Phase 2: morph opens gap (return/} slide down) + bars grow
     yield* all(
-        merged.node.opacity(0, 0.55, easeInOutCubic),
-        mantra().opacity(1, 0.7, easeOutCubic),
+        merged.morphTo(CODE_SPACED, MORPH_FADE),
+        barsNode().opacity(1, 0.3, easeOutCubic),
+        ...barRefs.map((ref, i) =>
+            ref().width(BAR_WIDTHS[i], 0.5, easeInOutCubic),
+        ),
     );
-    merged.node.remove();
+    merged.colorize(RULES);
+    applyGlow(merged);
+
     yield* waitFor(3.0);
 });

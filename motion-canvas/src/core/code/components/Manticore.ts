@@ -333,6 +333,14 @@ export class Manticore {
         }
     }
 
+    *scrollOff(duration = 1, easing: TimingFunction = easeInOutCubic): ThreadGenerator {
+        if (this.lines.length === 0 || this.clipHeight <= 0) return;
+        const content = this.contentRef();
+        const lastLineY = this.lineY(this.lines.length - 1);
+        const targetY = -(lastLineY + this.clipHeight / 2 + this.cfg.lineHeight);
+        yield* content.y(targetY, duration, easing);
+    }
+
     isLineVisible(lineIdx: number): boolean {
         if (lineIdx < 0 || lineIdx >= this.lines.length) return false;
         const content = this.contentRef();

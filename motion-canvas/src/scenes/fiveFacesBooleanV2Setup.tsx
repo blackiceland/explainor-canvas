@@ -86,23 +86,13 @@ class MonthlyReportPublisher(
 
 export const COMPLEX_SAVE_CODE = `class FileStorageService(
     private val storage: ObjectStorage,
-    private val metadata: MetadataExtractor,
     private val validator: ContentValidator,
     private val antivirus: AntivirusScanner,
     private val quotas: QuotaService,
-    private val rateLimiter: RateLimiter,
     private val locks: DistributedLockProvider,
+    private val encryption: EncryptionService,
     private val events: DomainEventPublisher,
     private val audit: AuditLog,
-    private val thumbnails: ThumbnailGenerator,
-    private val encryption: EncryptionService,
-    private val cdn: CdnInvalidator,
-    private val versions: VersionRepository,
-    private val searchIndex: SearchIndex,
-    private val subscriptions: FileSubscriptionRepository,
-    private val notifications: NotificationService,
-    private val backupStorage: BackupStorage,
-    private val backupPolicy: BackupPolicy,
     private val metrics: StorageMetrics,
     private val clock: Clock,
 ) {
@@ -110,6 +100,7 @@ export const COMPLEX_SAVE_CODE = `class FileStorageService(
     fun save(path: String, content: Bytes, contentType: String, overwrite: Boolean = false): StoredFile {
         require(path.isNotBlank()) { "Path must not be blank" }
         require(content.size > 0) { "Content must not be empty" }
+
         val startTime = clock.instant()
 
         val normalizedPath = normalizePath(path)
@@ -122,6 +113,7 @@ export const COMPLEX_SAVE_CODE = `class FileStorageService(
         }
 
         val scanResult = antivirus.scan(content, contentType)
+
         if (!scanResult.clean) {
             audit.record(currentUserId(), "malware_detected", normalizedPath,
                 mapOf("threat" to scanResult.threatName, "engine" to scanResult.engineVersion))
@@ -129,11 +121,10 @@ export const COMPLEX_SAVE_CODE = `class FileStorageService(
         }
 
         val usage = quotas.currentUsage(tenantId())
+
         if (usage.bytes + sizeBytes > usage.limit) {
             throw QuotaExceededException(tenantId(), sizeBytes, usage.limit - usage.bytes)
         }
-
-        rateLimiter.check(currentUserId(), "file.save")
 
         val lock = locks.tryAcquire("file:\${normalizedPath}", Duration.ofSeconds(5))
             ?: throw FileLockedException(normalizedPath)
@@ -145,15 +136,11 @@ export const COMPLEX_SAVE_CODE = `class FileStorageService(
                 throw FileAlreadyExistsException(normalizedPath)
             }
 
-            val version = if (existing != null) existing.version + 1 else 1
+            val version = (existing?.version ?: 0) + 1
 
             val encryptionKey = encryption.generateKey()
             val encrypted = encryption.encrypt(content, encryptionKey)
             val checksum = computeChecksum(encrypted)
-            val meta = metadata.extract(content, contentType)
-
-            val parentDir = normalizedPath.substringBeforeLast('/')
-            if (parentDir.isNotEmpty()) storage.ensureDirectory(parentDir)
 
             val storageKey = storage.put(
                 path = normalizedPath, content = encrypted, contentType = contentType,
@@ -164,46 +151,17 @@ export const COMPLEX_SAVE_CODE = `class FileStorageService(
                 ),
             )
 
-            val thumbKeys = if (isImageType(contentType)) {
-                THUMBNAIL_SIZES.map { size ->
-                    val thumb = thumbnails.generate(content, size.width, size.height, "webp")
-                    val thumbPath = thumbnailPath(normalizedPath, size.label)
-                    storage.put(path = thumbPath, content = thumb, contentType = "image/webp")
-                    size.label to thumbPath
-                }.toMap()
-            } else emptyMap()
-
-            if (existing != null) {
-                versions.archive(normalizedPath, existing.version, currentUserId())
-            }
-
-            searchIndex.index(StorageDocument(
-                path = normalizedPath, contentType = contentType, sizeBytes = sizeBytes,
-                version = version, dimensions = meta.dimensions,
-                createdAt = existing?.createdAt ?: clock.instant(), updatedAt = clock.instant(),
-                createdBy = existing?.createdBy ?: currentUserId(), updatedBy = currentUserId(),
-            ))
-
-            if (existing != null) {
-                cdn.invalidate(normalizedPath)
-                thumbKeys.values.forEach { cdn.invalidate(it) }
-            }
-
-            if (backupPolicy.requiresBackup(normalizedPath, contentType)) {
-                backupStorage.replicate(
-                    source = storageKey, destination = backupPolicy.targetBucket(normalizedPath),
-                    encryption = BackupEncryption.AES256, retentionDays = backupPolicy.retention(contentType),
-                )
-            }
-
             val storedFile = StoredFile(
                 key = storageKey, path = normalizedPath, contentType = contentType,
                 sizeBytes = sizeBytes, version = version, checksum = checksum,
-                thumbnails = thumbKeys, dimensions = meta.dimensions,
                 createdAt = existing?.createdAt ?: clock.instant(), updatedAt = clock.instant(),
             )
 
-            val action = if (existing != null) "file_overwritten" else "file_created"
+            val action = if (existing != null) {
+                "file_overwritten"
+            } else {
+                "file_created"
+            }
 
             audit.record(currentUserId(), action, storageKey, mapOf(
                 "path" to normalizedPath, "version" to version,
@@ -214,14 +172,6 @@ export const COMPLEX_SAVE_CODE = `class FileStorageService(
                 path = normalizedPath, key = storageKey, action = action,
                 version = version, storedAt = clock.instant(), storedBy = currentUserId(),
             ))
-
-            val watchers = subscriptions.findWatchers(normalizedPath)
-            if (watchers.isNotEmpty()) {
-                notifications.send(watchers, FileChangedNotification(
-                    path = normalizedPath, action = action, changedBy = currentUserId(),
-                    changedAt = clock.instant(), version = version,
-                ))
-            }
 
             quotas.recordUsage(tenantId(), sizeBytes - (existing?.sizeBytes ?: 0))
 
@@ -621,7 +571,7 @@ export const CODE_RULES: ColorRule[] = [
   // 6. SCREAMING_SNAKE constants / enum entries
   {match: /^[A-Z][A-Z0-9_]+$/, color: CONST_COLOR},
   // 7. Kotlin keywords + Spring annotation
-  {match: /^(class|object|fun|val|var|private|public|internal|return|if|else|is|in|to|true|false|throw|null|@Service)$/, color: FUN_BLUE},
+  {match: /^(class|object|fun|val|var|private|public|internal|return|if|else|is|in|to|true|false|throw|null|try|catch|finally|@Service)$/, color: FUN_BLUE},
   // 8. String literals
   {match: /./, color: STRING_GREEN, onlyTypes: ['string'] as const},
 ];
@@ -1065,7 +1015,7 @@ export function createFiveFacesStage(view: View2D) {
   const complexSaveCode = Manticore.create(COMPLEX_SAVE_CODE, {
     x: 0,
     y: 115,
-    width: 1000,
+    width: 1400,
     height: 850,
     fontSize: 17,
     lineHeight: 23,
@@ -1075,11 +1025,36 @@ export function createFiveFacesStage(view: View2D) {
     cardStyle: TRANSPARENT_CARD,
     glowAccent: false,
     customTypes: CUSTOM_TYPES,
+    contentOffsetX: 200,
+    contentOffsetY: 140,
   });
   complexSaveCode.mount(view);
   complexSaveCode.colorize(CODE_RULES);
   paintNamedParams(complexSaveCode);
   complexSaveCode.node.opacity(0);
+  complexSaveCode.node.cache(true);
+  complexSaveCode.node.cachePadding(20);
+
+  {
+    const FADE_H = 140;
+    const cpY = Math.round(Math.max(24, Math.min(48, 17 * 1.5 + 8)));
+    const clipH = 850 - cpY * 2;
+    complexSaveCode.node.add(new Rect({
+      width: 1400,
+      height: FADE_H,
+      y: -clipH / 2 + FADE_H / 2,
+      fill: new Gradient({
+        type: 'linear',
+        from: new Vector2(0, -FADE_H / 2),
+        to: new Vector2(0, FADE_H / 2),
+        stops: [
+          {offset: 0.0, color: 'white'},
+          {offset: 1.0, color: 'rgba(255,255,255,0)'},
+        ],
+      }),
+      compositeOperation: 'destination-out',
+    }));
+  }
 
   // Separate Manticores for the 3-method morph reveal.
   const writeMC = Manticore.create(IMPL_WRITE, {

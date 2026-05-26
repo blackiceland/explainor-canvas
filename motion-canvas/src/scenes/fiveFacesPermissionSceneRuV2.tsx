@@ -1,5 +1,5 @@
 import {makeScene2D} from '@motion-canvas/2d';
-import {all, easeInOutCubic, easeInOutSine, waitFor} from '@motion-canvas/core';
+import {all, chain, easeInOutCubic, easeInOutSine, linear, waitFor} from '@motion-canvas/core';
 import {
   createFiveFacesStage,
   NAME_XS,
@@ -132,16 +132,15 @@ export default makeScene2D(function* (view) {
     s.writeMC.node.opacity(0, 0.55, easeInOutSine),
     s.saveOrReplaceMC.node.opacity(0, 0.55, easeInOutSine),
   );
-  yield* s.complexSaveCode.node.opacity(1, 0.6, easeInOutSine);
-  yield* waitFor(1.0);
-  yield* s.complexSaveCode.scrollTo(56, 5, easeInOutSine);
-  yield* waitFor(2.5);
-  yield* s.complexSaveCode.scrollTo(140, 6, easeInOutSine);
-  yield* waitFor(1.5);
+  yield* all(
+    chain(
+      s.complexSaveCode.node.opacity(1, 0.4, easeInOutSine),
+      waitFor(0.6),
+      s.complexSaveCode.node.opacity(0, 3, easeInOutSine),
+    ),
+    s.complexSaveCode.scrollTo(69, 4, linear),
+  );
 
   // PERMISSION close.
-  yield* all(
-    s.complexSaveCode.node.opacity(0, 0.55, easeInOutSine),
-    s.bigScale().opacity(0, 0.45, easeInOutSine),
-  );
+  yield* s.bigScale().opacity(0, 0.45, easeInOutSine);
 });
