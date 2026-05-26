@@ -167,8 +167,8 @@ export default makeScene2D(function* (view) {
     const paramLine = s.implCodes[1].getLine(0);
     const bodyLine = s.implCodes[1].getLine(1);
     const anims: any[] = [];
-    if (paramLine) anims.push(paramLine.colorizeByRuleAnimated('silent', METHOD_COLOR, 0.4));
-    if (bodyLine) anims.push(bodyLine.colorizeByRuleAnimated('silent', METHOD_COLOR, 0.4));
+    if (paramLine) anims.push(...paramLine.colorizeByRuleAnimated('silent', METHOD_COLOR, 0.4));
+    if (bodyLine) anims.push(...bodyLine.colorizeByRuleAnimated('silent', METHOD_COLOR, 0.4));
     if (anims.length) yield* all(...anims);
   }
   yield* waitFor(1.5);

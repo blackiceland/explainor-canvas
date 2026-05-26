@@ -684,12 +684,6 @@ export default makeScene2D(function* (view) {
         blockOrder: 'parallel' as const,
         lineOrder: 'parallel' as const,
     };
-    const MORPH_TYPE = {
-        addStyle: 'typewriter' as const,
-        charDelay: 0.015, lineDelay: 0.03,
-        moveDuration: 0.3, removeDuration: 0.2,
-        ...NO_SCROLL,
-    };
     const MORPH_FADE = {
         addStyle: 'fade' as const,
         moveDuration: 0.4, removeDuration: 0.2,
@@ -715,8 +709,18 @@ export default makeScene2D(function* (view) {
     );
     yield* recolor();
 
-    // First guard types in
-    yield* merged.morphTo(DEG_GUARD1, MORPH_TYPE);
+    // First guard — fade in, then typewrite
+    yield* merged.morphTo(DEG_GUARD1, {
+        ...MORPH_FADE,
+        addStyle: 'fade' as const,
+        moveDuration: 0.3,
+    });
+    const guardLine = merged.getLine(1);
+    if (guardLine) {
+        for (const t of guardLine.tokens) t.ref().opacity(0);
+    }
+    yield* recolor();
+    if (guardLine) yield* guardLine.typewriter(0.015);
     yield* recolor();
 
     // Existing lines slide to final positions (track removed)
