@@ -54,7 +54,7 @@ const RULES: ColorRule[] = [
     {match: /^(function|const|let|var|return|if|else|await|async|throw|new|export|import|class|interface|enum)$/, color: KEY},
     {match: /^(sendCartReminder|sendLoginCode|sendMessage|render|send|track|canReceiveMarketing|persistOtp|auditOtpSent)$/, color: DOMAIN},
     {match: /^(quietHours|frequencyCap)$/, color: DOMAIN},
-    {match: /^(MARKETING|SECURITY|CART_TPL|LOGIN_TPL|TTL|TPL)$/, color: DOMAIN},
+    {match: /^(MARKETING|SECURITY|CART_TPL|LOGIN_TPL|TTL|TPL)$/, color: '#B49ED8'},
 ];
 
 const FLAT_CARD = {
@@ -93,6 +93,104 @@ const CODE_MERGED = `function sendMessage(user, template, payload) {
     return delivery
 }`;
 
+const DEG_KIND = `function sendMessage(user, kind, payload) {
+    const message = render(TPL[kind], payload)
+    const delivery = send(user.phone, message)
+    track(user, message, delivery)
+
+    return delivery
+}`;
+
+const DEG_GUARD1 = `function sendMessage(user, kind, payload) {
+    if (kind === MARKETING && !canReceiveMarketing(user)) return
+
+    const message = render(TPL[kind], payload)
+    const delivery = send(user.phone, message)
+    track(user, message, delivery)
+
+    return delivery
+}`;
+
+const DEG_GUARD3 = `function sendMessage(user, kind, payload) {
+    if (kind === MARKETING && !canReceiveMarketing(user)) return
+    if (kind === MARKETING && quietHours.active(user)) return
+    if (kind === MARKETING && frequencyCap.exceeded(user)) return
+
+    const message = render(TPL[kind], payload)
+    const delivery = send(user.phone, message)
+    track(user, message, delivery)
+
+    return delivery
+}`;
+
+const DEG_PRE_SEC = `function sendMessage(user, kind, payload) {
+    if (kind === MARKETING && !canReceiveMarketing(user)) return
+    if (kind === MARKETING && quietHours.active(user)) return
+    if (kind === MARKETING && frequencyCap.exceeded(user)) return
+
+    if (kind === SECURITY) persistOtp(user, payload.code, TTL)
+
+    const message = render(TPL[kind], payload)
+    const delivery = send(user.phone, message)
+    track(user, message, delivery)
+
+    return delivery
+}`;
+
+// Same layout as DEG_FINAL but only guard1 + existing lines (rest empty)
+const DEG_POSITIONED = `function sendMessage(user, kind, payload) {
+    if (kind === MARKETING && !canReceiveMarketing(user)) return
+
+
+
+
+
+    const message = render(TPL[kind], payload)
+    const delivery = send(user.phone, message)
+
+
+
+    return delivery
+}`;
+
+const DEG_FINAL = `function sendMessage(user, kind, payload) {
+    if (kind === MARKETING && !canReceiveMarketing(user)) return
+    if (kind === MARKETING && quietHours.active(user)) return
+    if (kind === MARKETING && frequencyCap.exceeded(user)) return
+
+    if (kind === SECURITY) persistOtp(user, payload.code, TTL)
+
+    const message = render(TPL[kind], payload)
+    const delivery = send(user.phone, message)
+
+    if (kind === SECURITY) auditOtpSent(user, delivery)
+
+    return delivery
+}`;
+
+const DEG_FINAL_SPACED = `function sendMessage(user, kind, payload) {
+    if (kind === MARKETING && !canReceiveMarketing(user)) return
+    if (kind === MARKETING && quietHours.active(user)) return
+    if (kind === MARKETING && frequencyCap.exceeded(user)) return
+
+    if (kind === SECURITY) persistOtp(user, payload.code, TTL)
+
+    const message = render(TPL[kind], payload)
+    const delivery = send(user.phone, message)
+
+    if (kind === SECURITY) auditOtpSent(user, delivery)
+
+
+
+
+
+
+
+
+
+
+    return delivery
+}`;
 
 // ── Shape geometry ───────────────────────────────────────────────────
 function marketingBlobPoints(): [number, number][] {
@@ -378,28 +476,28 @@ export default makeScene2D(function* (view) {
         highlightOnly([cart, login], RENDER_LINE, 0.4),
         swapSub(subBody, 'render the message'),
     );
-    yield* waitFor(0.5);
+    yield* waitFor(0.25);
 
     // SEND
     yield* all(
-        highlightOnly([cart, login], SEND_LINE, 0.4),
+        highlightOnly([cart, login], SEND_LINE, 0.3),
         swapSub(subBody, 'send to the user'),
     );
-    yield* waitFor(0.5);
+    yield* waitFor(0.25);
 
     // TRACK
     yield* all(
-        highlightOnly([cart, login], TRACK_LINE, 0.4),
+        highlightOnly([cart, login], TRACK_LINE, 0.3),
         swapSub(subBody, 'track the delivery'),
     );
-    yield* waitFor(0.5);
+    yield* waitFor(0.25);
 
     // RETURN
     yield* all(
-        highlightOnly([cart, login], RETURN_LINE, 0.4),
+        highlightOnly([cart, login], RETURN_LINE, 0.3),
         swapSub(subBody, 'return the result'),
     );
-    yield* waitFor(0.5);
+    yield* waitFor(0.25);
 
     // Restore all lines, subtitle fades
     yield* all(
@@ -579,17 +677,18 @@ export default makeScene2D(function* (view) {
     yield* waitFor(1.5);
 
     // ════════════════════════════════════════════════════════════════
-    //  Beat 7 — EXPANSION: bars as code-line placeholders
+    //  Beat 7 — DEGRADATION + placeholder bars
     // ════════════════════════════════════════════════════════════════
-
-    const LEFT_LOCAL = -522;
-    const SCALE = 0.78;
-    const xScaled = CODE_X + LEFT_LOCAL * (1 - SCALE);
-    const yScaled = -200;
 
     const NO_SCROLL = {
         blockOrder: 'parallel' as const,
         lineOrder: 'parallel' as const,
+    };
+    const MORPH_TYPE = {
+        addStyle: 'typewriter' as const,
+        charDelay: 0.015, lineDelay: 0.03,
+        moveDuration: 0.3, removeDuration: 0.2,
+        ...NO_SCROLL,
     };
     const MORPH_FADE = {
         addStyle: 'fade' as const,
@@ -597,25 +696,43 @@ export default makeScene2D(function* (view) {
         ...NO_SCROLL,
     };
 
-    // Same code but with empty lines between body and return — room for bars
-    const CODE_SPACED = `function sendMessage(user, template, payload) {
-    const message = render(template, payload)
-    const delivery = send(user.phone, message)
-    track(user, message, delivery)
+    function* recolor(): ThreadGenerator {
+        merged.colorize(RULES);
+        applyGlow(merged);
+    }
 
+    const LEFT_LOCAL = -522;
+    const SCALE = 0.78;
+    const xScaled = CODE_X + LEFT_LOCAL * (1 - SCALE);
+    const yScaled = -200;
 
+    // Zoom + params change (fade)
+    yield* all(
+        merged.morphTo(DEG_KIND, MORPH_FADE),
+        merged.node.scale(SCALE, 0.5, easeInOutCubic),
+        merged.node.x(xScaled, 0.5, easeInOutCubic),
+        merged.node.y(yScaled, 0.5, easeInOutCubic),
+    );
+    yield* recolor();
 
+    // First guard types in
+    yield* merged.morphTo(DEG_GUARD1, MORPH_TYPE);
+    yield* recolor();
 
+    // Existing lines slide to final positions (track removed)
+    yield* merged.morphTo(DEG_POSITIONED, MORPH_FADE);
+    yield* recolor();
 
-    return delivery
-}`;
+    // New lines fade in
+    yield* merged.morphTo(DEG_FINAL, MORPH_FADE);
+    yield* recolor();
 
-    // startY stays at 7-line value after morphTo (not recalculated)
+    // Bars: 7 bars in two groups, sequential reveal
     const START_Y_7 = -((7 - 1) / 2) * 46;
     const LOCAL_LEFT = -1100 / 2 + 56;
     const bodyIndent = measureRow('    x', F_MONO, 32).indentPx;
-    const BAR_LINES = [5, 6, 7];
-    const BAR_WIDTHS = [350, 280, 450];
+    const BAR_LINES = [12, 13, 14, 15, 17, 18, 19];
+    const BAR_WIDTHS = [900, 720, 1050, 580, 830, 650, 480];
 
     const barsNode = createRef<Node>();
     const barRefs: Reference<Rect>[] = [];
@@ -639,23 +756,17 @@ export default makeScene2D(function* (view) {
         </Node>
     );
 
-    // Phase 1: zoom out
+    // Morph opens gap + bars appear one by one
     yield* all(
-        merged.node.scale(SCALE, 0.5, easeInOutCubic),
-        merged.node.x(xScaled, 0.5, easeInOutCubic),
-        merged.node.y(yScaled, 0.5, easeInOutCubic),
+        merged.morphTo(DEG_FINAL_SPACED, MORPH_FADE),
+        (function* (): ThreadGenerator {
+            barsNode().opacity(1);
+            for (let i = 0; i < barRefs.length; i++) {
+                yield* barRefs[i]().width(BAR_WIDTHS[i], 0.12, easeOutCubic);
+            }
+        })(),
     );
-
-    // Phase 2: morph opens gap (return/} slide down) + bars grow
-    yield* all(
-        merged.morphTo(CODE_SPACED, MORPH_FADE),
-        barsNode().opacity(1, 0.3, easeOutCubic),
-        ...barRefs.map((ref, i) =>
-            ref().width(BAR_WIDTHS[i], 0.5, easeInOutCubic),
-        ),
-    );
-    merged.colorize(RULES);
-    applyGlow(merged);
+    yield* recolor();
 
     yield* waitFor(3.0);
 });

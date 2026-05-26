@@ -1,6 +1,6 @@
 import {makeScene2D} from '@motion-canvas/2d';
-import {Rect} from '@motion-canvas/2d';
-import {all, createRef, easeInOutSine, waitFor} from '@motion-canvas/core';
+import {Circle, Node, Rect, Txt} from '@motion-canvas/2d';
+import {all, createRef, createSignal, easeInOutCubic, easeInOutSine, waitFor} from '@motion-canvas/core';
 import {ColorRule, Manticore} from '../core/code/components/Manticore';
 import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
 import {Fonts} from '../core/theme';
@@ -13,6 +13,7 @@ import {
   IMPL_FONT_SIZE, IMPL_LH,
   TRANSPARENT_CARD, CUSTOM_TYPES,
   METHOD_COLOR, PARAM_DARK, FUN_BLUE,
+  TYPE_CLEAN, CONST_COLOR, TEXT_PRIMARY,
   blockLines,
   paintNamedParams,
   yForCode,
@@ -73,7 +74,7 @@ class ShipmentNotificationService(
         val delivery = notifier.send(
             user = order.customer,
             message = message,
-            mode = NotificationMode.SILENT,
+            mode = campaign.notificationMode,
         )
 
         deliveries.save(order.id, message.id, delivery.id)
@@ -122,6 +123,14 @@ const paintModeParams = (code: Manticore): void => {
 
 const STRIPE_COLOR = 'rgba(255, 80, 120, 0.18)';
 
+// Big enum for the epilogue showcase.
+const BIG_ENUM = `enum class NotificationMode {
+    DEFAULT,
+    SILENT,
+    CRITICAL,
+    BACKGROUND,
+}`;
+
 // ── Scene ────────────────────────────────────────────────────────────
 
 export default makeScene2D(function* (view) {
@@ -152,41 +161,42 @@ export default makeScene2D(function* (view) {
   // ── MORPH 1: rename the parameter ──────────────────────────────────
   // Both `silent` tokens turn red simultaneously.
 
+  // Line 0: fun send(..., silent: Boolean)  — параметр
+  // Line 1: val options = if (silent)       — тело
   {
-    const sigLine = s.implCodes[1].getLine(0);
-    const ifLine = s.implCodes[1].getLine(1);
+    const paramLine = s.implCodes[1].getLine(0);
+    const bodyLine = s.implCodes[1].getLine(1);
     const anims: any[] = [];
-    if (sigLine) anims.push(sigLine.colorizeByRuleAnimated('silent', METHOD_COLOR, 0.4));
-    if (ifLine) anims.push(ifLine.colorizeByRuleAnimated('silent', METHOD_COLOR, 0.4));
+    if (paramLine) anims.push(paramLine.colorizeByRuleAnimated('silent', METHOD_COLOR, 0.4));
+    if (bodyLine) anims.push(bodyLine.colorizeByRuleAnimated('silent', METHOD_COLOR, 0.4));
     if (anims.length) yield* all(...anims);
   }
   yield* waitFor(1.5);
+
+  // ── MORPH 1: signature — silent: Boolean → mode: NotificationMode ──
 
   yield* s.implCodes[1].morphTo(IMPL_STEP1, {
     removeDuration: 0.3,
     moveDuration: 0.4,
     charDelay: 0.015,
+    flashRemovedColor: METHOD_COLOR,
+    flashRemovedDuration: 0.2,
     addStyle: 'typewriter',
     scrollStrategy: 'block',
   });
   s.implCodes[1].colorize(MODE_RULES);
   paintModeParams(s.implCodes[1]);
   s.implCodes[1].recenterContent();
-
-  // Re-apply red on the remaining `silent` in if() (morph rebuilt tokens).
-  {
-    const ifLine = s.implCodes[1].getLine(1);
-    if (ifLine) yield* ifLine.colorizeByRuleAnimated('silent', METHOD_COLOR, 0.4);
-  }
   yield* waitFor(1.5);
 
   // ── MORPH 2: if/else → when ────────────────────────────────────────
-  // PushOptions.Silent stays on its line, Default stays on its.
 
   yield* s.implCodes[1].morphTo(IMPL_STEP2, {
     removeDuration: 0.3,
     moveDuration: 0.5,
     charDelay: 0.015,
+    flashRemovedColor: METHOD_COLOR,
+    flashRemovedDuration: 0.2,
     addStyle: 'typewriter',
     scrollStrategy: 'block',
   });
@@ -262,7 +272,7 @@ export default makeScene2D(function* (view) {
   yield* waitFor(2.5);
   yield* stripe().opacity(0, 0.5, easeInOutSine);
 
-  // ── Close ──────────────────────────────────────────────────────────
+  // ── Close morph section ─────────────────────────────────────────────
 
   yield* s.showSmallScale(1);
   yield* waitFor(2.0);
@@ -273,4 +283,126 @@ export default makeScene2D(function* (view) {
     s.hideSmallScale(1, 0.4),
     enumMC.node.opacity(0, 0.5, easeInOutSine),
   );
+  yield* waitFor(0.5);
+
+  // ── EPILOGUE STEP 1: enum showcase ─────────────────────────────────
+
+  const bigEnum = Manticore.create(BIG_ENUM, {
+    x: -100,
+    y: 0,
+    width: 900,
+    fontSize: 48,
+    lineHeight: 68,
+    fontFamily: Fonts.code,
+    theme: DryFiltersV3CodeTheme,
+    noClip: true,
+    cardStyle: TRANSPARENT_CARD,
+    glowAccent: false,
+    customTypes: MODE_TYPES,
+  });
+  bigEnum.mount(view);
+  bigEnum.colorize(MODE_RULES);
+
+  for (let i = 1; i <= 4; i++) {
+    const line = bigEnum.getLine(i);
+    if (line) line.node.opacity(0);
+  }
+  {
+    const closeLine = bigEnum.getLine(5);
+    if (closeLine) closeLine.node.opacity(0);
+  }
+  bigEnum.node.opacity(0);
+
+  yield* bigEnum.node.opacity(1, 0.5, easeInOutSine);
+  yield* waitFor(0.6);
+
+  for (let i = 1; i <= 4; i++) {
+    const line = bigEnum.getLine(i);
+    if (line) yield* line.node.opacity(1, 0.35, easeInOutSine);
+    yield* waitFor(0.5);
+  }
+  {
+    const closeLine = bigEnum.getLine(5);
+    if (closeLine) yield* closeLine.node.opacity(1, 0.25, easeInOutSine);
+  }
+  yield* waitFor(3.0);
+
+  yield* bigEnum.node.opacity(0, 0.6, easeInOutSine);
+  yield* waitFor(0.5);
+
+  // ── EPILOGUE STEP 2: boolean toggle ────────────────────────────────
+
+  const toggleOn = createSignal(0);
+
+  const TRACK_W  = 200;
+  const TRACK_H  = 100;
+  const HANDLE_R = 38;
+  const HANDLE_OFF_X = -TRACK_W / 2 + HANDLE_R + 10;
+  const HANDLE_ON_X  =  TRACK_W / 2 - HANDLE_R - 10;
+  const GLOW_COLOR   = 'rgba(255, 170, 185, 0.7)';
+
+  const toggleGroup = createRef<Node>();
+  const falseTxt = createRef<Txt>();
+  const trueTxt = createRef<Txt>();
+
+  view.add(
+    <Node ref={toggleGroup} opacity={0}>
+      <Txt
+        ref={falseTxt}
+        x={-TRACK_W / 2 - 140}
+        y={0}
+        text={'false'}
+        fontFamily={Fonts.code}
+        fontSize={44}
+        fill={FUN_BLUE}
+        opacity={() => 0.3 + (1 - toggleOn()) * 0.7}
+      />
+      <Rect
+        x={0}
+        y={0}
+        width={TRACK_W}
+        height={TRACK_H}
+        radius={TRACK_H / 2}
+        fill={() => `rgba(255, 170, 185, ${0.10 + toggleOn() * 0.45})`}
+        stroke={() => `rgba(244, 241, 235, ${0.18 + toggleOn() * 0.10})`}
+        lineWidth={1}
+        shadowColor={GLOW_COLOR}
+        shadowBlur={() => 14 * toggleOn()}
+      />
+      <Circle
+        x={() => HANDLE_OFF_X + toggleOn() * (HANDLE_ON_X - HANDLE_OFF_X)}
+        y={0}
+        width={HANDLE_R * 2}
+        height={HANDLE_R * 2}
+        fill={'rgba(244, 241, 235, 0.95)'}
+        shadowColor={'rgba(0, 0, 0, 0.45)'}
+        shadowBlur={10}
+        shadowOffsetY={3}
+      />
+      <Txt
+        ref={trueTxt}
+        x={TRACK_W / 2 + 140}
+        y={0}
+        text={'true'}
+        fontFamily={Fonts.code}
+        fontSize={44}
+        fill={FUN_BLUE}
+        opacity={() => 0.3 + toggleOn() * 0.7}
+      />
+    </Node>,
+  );
+
+  yield* toggleGroup().opacity(1, 0.5, easeInOutSine);
+  yield* waitFor(1.2);
+
+  yield* toggleOn(1, 0.4, easeInOutCubic);
+  yield* waitFor(1.0);
+
+  yield* toggleOn(0, 0.4, easeInOutCubic);
+  yield* waitFor(0.8);
+
+  yield* toggleOn(1, 0.4, easeInOutCubic);
+  yield* waitFor(2.5);
+
+  yield* toggleGroup().opacity(0, 0.6, easeInOutSine);
 });

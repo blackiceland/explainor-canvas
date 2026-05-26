@@ -137,19 +137,24 @@ export default makeProject({
         //04
 
         // chapter1YudanSceneEn,
-        // oneMethodManyVersionsSceneEn,
-        // fiveFacesBooleanSceneRu,
-        // fiveFacesBooleanSceneRuV2,
+        // messageDeliverySelectionSceneEn,
+        // whatsappCodePairSceneEn,
 
-         fiveFacesPermissionSceneRuV2,
-         fiveFacesModeSceneRuV2,
-        // fiveFacesSafetySceneRuV2,
+        // oneMethodManyVersionsSceneEn,
+
+        // fiveFacesBooleanSceneRu,
+
+        // fiveFacesBooleanSceneRuV2,
+        //01
+        //  fiveFacesPermissionSceneRuV2,
+        //02
+          fiveFacesModeSceneRuV2,
+         // fiveFacesSafetySceneRuV2,
         // fiveFacesShortcutSceneRuV2,
         // fiveFacesPoorModelSceneRuV2,
         // fiveFacesFinaleSceneRuV2,
 
-        // messageDeliverySelectionSceneEn,
-        // whatsappCodePairSceneEn,
+
 
     ]
 })
