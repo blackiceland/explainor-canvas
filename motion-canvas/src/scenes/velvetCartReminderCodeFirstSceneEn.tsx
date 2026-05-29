@@ -732,5 +732,21 @@ export default makeScene2D(function* (view) {
     );
     yield* recolor();
 
-    yield* waitFor(3.0);
+    // Hold the fully bloated function, then collapse attention onto the dispatch:
+    // dim everything except the `if (kind === ...)` lines, so the merge reads as what
+    // it became — a stack of "which case am I?" checks. The honest shared body
+    // (render / send / track / return) and the placeholder bars recede to ghosts.
+    yield* waitFor(0.8);
+    const guardSet = new Set(
+        DEG_FINAL_SPACED.split('\n')
+            .map((l, i) => (l.includes('if (kind ===') ? i : -1))
+            .filter(i => i >= 0),
+    );
+    yield* all(
+        ...Array.from({length: merged.lineCount}, (_, i) => i)
+            .filter(i => !guardSet.has(i))
+            .map(i => merged.dimLines(i, i, DIM_OP, 0.7)),
+        barsNode().opacity(DIM_OP, 0.7, easeInOutCubic),
+    );
+    yield* waitFor(2.4);
 });

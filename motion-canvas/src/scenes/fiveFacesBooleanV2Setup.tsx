@@ -366,8 +366,8 @@ class ErpOrderImportJob(
     }
 }`;
 
-export const IMPL_SHORTCUT = `fun process(order: Order, source: OrderSource,
-    skipValidation: Boolean = false): ProcessingResult {
+export const IMPL_SHORTCUT = `fun process(order: Order, source: OrderSource, skipValidation: Boolean = false
+): ProcessingResult {
     if (!skipValidation) {
         validator.requireValid(order)
     }

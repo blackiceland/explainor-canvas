@@ -1,5 +1,5 @@
-import {makeScene2D, Rect} from '@motion-canvas/2d';
-import {all, createRef, easeInOutSine, waitFor} from '@motion-canvas/core';
+import {makeScene2D} from '@motion-canvas/2d';
+import {all, easeInOutSine, waitFor} from '@motion-canvas/core';
 import {ColorRule, Manticore} from '../core/code/components/Manticore';
 import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
 import {Fonts} from '../core/theme';
@@ -8,19 +8,18 @@ import {
   NAME_XS,
   FACES,
   CODE_RULES, CODE_LH,
-  CALL_X, CALL_W, IMPL_X, IMPL_W,
+  IMPL_X, IMPL_W,
   IMPL_FONT_SIZE, IMPL_LH,
   TRANSPARENT_CARD, CUSTOM_TYPES,
-  METHOD_COLOR, TYPE_CLEAN,
+  METHOD_COLOR, TYPE_CLEAN, FUN_BLUE,
   blockLines,
   paintNamedParams,
-  yForCode,
 } from './fiveFacesBooleanV2Setup';
 
 // ── Morph targets — clean diffs, two impl steps + one call step ──────
 
 // Step 1: signature only. Order → ValidatedOrder, the flag is gone.
-// Body untouched (it still references skipValidation — transitional).
+// Body untouched (still wrapped, guard still present) — transitional.
 const IMPL_STEP1 = `fun process(order: ValidatedOrder, source: OrderSource): ProcessingResult {
     if (!skipValidation) {
         validator.requireValid(order)
@@ -40,14 +39,12 @@ const IMPL_STEP1 = `fun process(order: ValidatedOrder, source: OrderSource): Pro
     )
 }`;
 
-// Step 2: the internal guard is gone — the check no longer lives here.
+// Step 2: the guard is gone and the body collapses to clean one-liners —
+// the check no longer lives here.
 const IMPL_STEP2 = `fun process(order: ValidatedOrder, source: OrderSource): ProcessingResult {
-    val normalized = normalizer
-        .normalize(order, source)
-    val reserved = inventory
-        .reserve(normalized)
-    val payment = payments
-        .authorize(normalized)
+    val normalized = normalizer.normalize(order, source)
+    val reserved = inventory.reserve(normalized)
+    val payment = payments.authorize(normalized)
 
     return ProcessingResult.Accepted(
         orderId = normalized.id,
@@ -56,7 +53,7 @@ const IMPL_STEP2 = `fun process(order: ValidatedOrder, source: OrderSource): Pro
     )
 }`;
 
-// Call: validation appears at the boundary, the flag leaves.
+// Call: the order crosses an explicit validation boundary, the flag leaves.
 const CALL_AFTER = `@Service
 class ErpOrderImportJob(
 
@@ -70,7 +67,7 @@ class ErpOrderImportJob(
         val run = imports.start(file.name, orders.size)
 
         orders.forEach { order ->
-            val validatedOrder = erpOrderValidator.validate(order)
+            val validatedOrder = ValidatedOrder.from(order)
 
             orderProcessor.process(
                 order = validatedOrder,
@@ -84,28 +81,36 @@ class ErpOrderImportJob(
     }
 }`;
 
-// Epilogue — one clean type fractures into a zoo of wrappers.
-const ZOO = `ValidatedOrder
-ErpValidatedOrder
-WebValidatedOrder
-PricedOrder
-StockCheckedOrder
-FraudScreenedOrder`;
+// The type that carries the guarantee — a closed constructor means it
+// cannot exist unless it came through `from`, which validates.
+const VALIDATED_ORDER = `class ValidatedOrder private constructor(val order: Order) {
+    companion object {
+        fun from(order: Order): ValidatedOrder {
+            validator.requireValid(order)
+            return ValidatedOrder(order)
+        }
+    }
+}`;
 
 // ── Coloring ──────────────────────────────────────────────────────────
 
-const SHORT_TYPES = [...CUSTOM_TYPES, 'ValidatedOrder', 'ErpOrderValidator'];
+const SHORT_TYPES = [...CUSTOM_TYPES, 'ValidatedOrder'];
 
 const SHORT_RULES: ColorRule[] = [
   ...CODE_RULES,
-  {match: /^(ValidatedOrder|ErpOrderValidator)$/, color: TYPE_CLEAN},
+  {match: /^ValidatedOrder$/, color: TYPE_CLEAN},
 ];
 
-const ZOO_RULES: ColorRule[] = [
+// `constructor` would otherwise read as a method call (pink) — pair it
+// with the `private` keyword beside it.
+const VD_RULES: ColorRule[] = [
+  ...SHORT_RULES,
+  {match: /^constructor$/, color: FUN_BLUE},
+];
+
+const TYPE_RULES: ColorRule[] = [
   {match: /^[A-Z][A-Za-z]*$/, color: TYPE_CLEAN},
 ];
-
-const STRIPE_COLOR = 'rgba(255, 80, 120, 0.18)';
 
 // ── Scene ────────────────────────────────────────────────────────────
 
@@ -134,12 +139,12 @@ export default makeScene2D(function* (view) {
   yield* s.hideViz(3, 0.5);
   yield* waitFor(1.0);
 
-  // ── Beat A: the escape hatch turns red ─────────────────────────────
-  // impl line 1: skipValidation: Boolean = false  (параметр)
-  // impl line 2: if (!skipValidation)             (гард в теле)
+  // ── Beat A: the escape hatch turns red (impl only) ─────────────────
+  // line 0: ..., skipValidation: Boolean = false   (параметр)
+  // line 2: if (!skipValidation)                    (гард в теле)
 
   {
-    const paramLine = s.implCodes[3].getLine(1);
+    const paramLine = s.implCodes[3].getLine(0);
     const guardLine = s.implCodes[3].getLine(2);
     const anims: any[] = [];
     if (paramLine) anims.push(...paramLine.colorizeByRuleAnimated('skipValidation', METHOD_COLOR, 0.4));
@@ -164,29 +169,8 @@ export default makeScene2D(function* (view) {
   s.implCodes[3].recenterContent();
   yield* waitFor(1.5);
 
-  // ── The check moves out: stripe marks the call-site flag ───────────
-
-  const callLines = FACES[3].callCode.split('\n').length;
-  const callCenterY = yForCode(FACES[3].callCode);
-  const flagLineY = callCenterY + (16 - (callLines - 1) / 2) * CODE_LH;
-
-  const stripe = createRef<Rect>();
-  view.add(
-    <Rect
-      ref={stripe}
-      x={CALL_X}
-      y={flagLineY}
-      width={CALL_W - 40}
-      height={CODE_LH * 1.15}
-      fill={STRIPE_COLOR}
-      radius={4}
-      opacity={0}
-    />,
-  );
-  yield* stripe().opacity(1, 0.4, easeInOutSine);
-  yield* waitFor(0.5);
-
   // ── MORPH 2 (synchronized): guard dissolves right ↔ validate appears left
+  // Left morph carries no red flash — the call-site change is clean.
 
   yield* all(
     s.implCodes[3].morphTo(IMPL_STEP2, {
@@ -202,8 +186,6 @@ export default makeScene2D(function* (view) {
       removeDuration: 0.3,
       moveDuration: 0.5,
       charDelay: 0.015,
-      flashRemovedColor: METHOD_COLOR,
-      flashRemovedDuration: 0.2,
       addStyle: 'typewriter',
       scrollStrategy: 'block',
     }),
@@ -214,8 +196,35 @@ export default makeScene2D(function* (view) {
   s.callCodes[3].colorize(SHORT_RULES);
   paintNamedParams(s.callCodes[3]);
   s.callCodes[3].recenterContent();
-  yield* waitFor(2.0);
-  yield* stripe().opacity(0, 0.5, easeInOutSine);
+  yield* waitFor(1.5);
+
+  // ── ValidatedOrder definition appears below the method ─────────────
+  // Its closing brace lines up with the closing brace of the left code.
+
+  const callLinesAfter = CALL_AFTER.split('\n').length;
+  const callBottomY = s.callCodes[3].node.position.y() + ((callLinesAfter - 1) / 2) * CODE_LH;
+  const vdLineCount = VALIDATED_ORDER.split('\n').length;
+  const vdY = callBottomY - ((vdLineCount - 1) / 2) * IMPL_LH;
+
+  const vd = Manticore.create(VALIDATED_ORDER, {
+    x: IMPL_X,
+    y: vdY,
+    width: IMPL_W,
+    fontSize: IMPL_FONT_SIZE,
+    lineHeight: IMPL_LH,
+    fontFamily: Fonts.code,
+    theme: DryFiltersV3CodeTheme,
+    noClip: true,
+    cardStyle: TRANSPARENT_CARD,
+    glowAccent: false,
+    customTypes: SHORT_TYPES,
+  });
+  vd.mount(view);
+  vd.colorize(VD_RULES);
+  vd.node.opacity(0);
+
+  yield* vd.node.opacity(1, 0.55, easeInOutSine);
+  yield* waitFor(3.0);
 
   // ── Close morph section ────────────────────────────────────────────
 
@@ -226,18 +235,19 @@ export default makeScene2D(function* (view) {
     s.hideCallCode(3, 0.5),
     s.hideImplCode(3, 0.5),
     s.hideSmallScale(3, 0.4),
+    vd.node.opacity(0, 0.5, easeInOutSine),
   );
   yield* waitFor(0.5);
 
-  // ── EPILOGUE: one type fractures into a zoo ────────────────────────
+  // ── ENDING: "valid — by whose rules?" ──────────────────────────────
+  // The single clean name can't hold one truth: validity depends on the
+  // source. The token fractures along that axis.
 
-  const zooLineCount = ZOO.split('\n').length;
-
-  const zoo = Manticore.create(ZOO, {
+  const FRACTURE_GAP = 66;
+  const bigCfg = {
     x: 0,
-    y: 0,
-    width: 640,
-    fontSize: 46,
+    width: 760,
+    fontSize: 52,
     lineHeight: 70,
     fontFamily: Fonts.code,
     theme: DryFiltersV3CodeTheme,
@@ -245,26 +255,38 @@ export default makeScene2D(function* (view) {
     cardStyle: TRANSPARENT_CARD,
     glowAccent: false,
     customTypes: SHORT_TYPES,
-  });
-  zoo.mount(view);
-  zoo.colorize(ZOO_RULES);
+  };
 
-  for (let i = 1; i < zooLineCount; i++) {
-    const line = zoo.getLine(i);
-    if (line) line.node.opacity(0);
-  }
-  zoo.node.opacity(0);
+  const single = Manticore.create('ValidatedOrder', {...bigCfg, y: 0});
+  single.mount(view);
+  single.colorize(TYPE_RULES);
+  single.node.opacity(0);
 
-  yield* zoo.node.opacity(1, 0.5, easeInOutSine);
-  yield* waitFor(1.0);
+  yield* single.node.opacity(1, 0.5, easeInOutSine);
+  yield* waitFor(1.4);
 
-  for (let i = 1; i < zooLineCount; i++) {
-    const line = zoo.getLine(i);
-    if (line) yield* line.node.opacity(1, 0.3, easeInOutSine);
-    yield* waitFor(0.45);
-  }
-  yield* waitFor(3.0);
+  // One name forks along the source it can no longer pretend to ignore.
+  const erp = Manticore.create('ErpValidatedOrder', {...bigCfg, y: 0});
+  const web = Manticore.create('WebValidatedOrder', {...bigCfg, y: 0});
+  erp.mount(view);
+  web.mount(view);
+  erp.colorize(TYPE_RULES);
+  web.colorize(TYPE_RULES);
+  erp.node.opacity(0);
+  web.node.opacity(0);
 
-  yield* zoo.node.opacity(0, 0.6, easeInOutSine);
+  yield* all(
+    single.node.opacity(0, 0.4, easeInOutSine),
+    erp.node.position.y(-FRACTURE_GAP, 0.6, easeInOutSine),
+    erp.node.opacity(1, 0.6, easeInOutSine),
+    web.node.position.y(FRACTURE_GAP, 0.6, easeInOutSine),
+    web.node.opacity(1, 0.6, easeInOutSine),
+  );
+  yield* waitFor(3.2);
+
+  yield* all(
+    erp.node.opacity(0, 0.6, easeInOutSine),
+    web.node.opacity(0, 0.6, easeInOutSine),
+  );
   yield* waitFor(0.4);
 });
