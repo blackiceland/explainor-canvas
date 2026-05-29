@@ -56,6 +56,21 @@ export interface MorphOptions {
      * slide directly. Default 0 preserves the original behaviour.
      */
     tokenSlideDuration?: number;
+    /**
+     * When true, removed/added lines in a changed block are paired into
+     * 'modify's by matching identical trimmed text first (so a block that only
+     * changes indentation keeps its tokens and slides them), then positionally
+     * for the rest. Default false preserves the original positional pairing.
+     */
+    pairBySimilarity?: boolean;
+    /**
+     * Optional per-line hook run immediately after the built-in colour rules
+     * are applied to an added/modified line during the morph. Use it for
+     * context-sensitive colouring that plain ColorRules can't express (e.g.
+     * named-argument parameters), so those tokens land in their final colour
+     * as they type in instead of flashing the default colour first.
+     */
+    recolorLine?: (line: CodeLine) => void;
 }
 
 interface LinePlan {
@@ -86,6 +101,8 @@ interface MorphResolvedOptions {
     lineOrder: 'sequential' | 'parallel';
     blockOrder: 'sequential' | 'parallel';
     tokenSlideDuration: number;
+    pairBySimilarity: boolean;
+    recolorLine?: (line: CodeLine) => void;
 }
 
 interface MorphPreparedState {
@@ -459,7 +476,7 @@ export class Manticore {
         return this.cfg.y + this.contentRef().y() + this.lineY(index);
     }
 
-    private buildPlan(newLines: string[]): LinePlan[] {
+    private buildPlan(newLines: string[], o: MorphResolvedOptions): LinePlan[] {
         const diff = diffLines(this.code, newLines);
         const plan: LinePlan[] = [];
         let di = 0;
@@ -480,25 +497,54 @@ export class Manticore {
                 di++;
             }
 
-            const pairs = Math.min(removes.length, adds.length);
-            for (let k = 0; k < pairs; k++) {
-                const r = removes[k];
-                const a = adds[k];
-                const oldTokens = tokenizeLine(this.code[r.oldIndex], this.cfg.customTypes);
-                const newTokens = tokenizeLine(a.text, this.cfg.customTypes);
+            // Pair removes↔adds into 'modify's. With pairBySimilarity, lines
+            // whose trimmed text is identical (a block that only re-indents)
+            // are matched first so their tokens slide instead of re-typing;
+            // everything else falls back to the original positional pairing.
+            const usedR = new Set<number>();
+            const usedA = new Set<number>();
+            const matched: Array<[number, number]> = [];
+            if (o.pairBySimilarity) {
+                for (let a = 0; a < adds.length; a++) {
+                    const at = adds[a].text.trim();
+                    if (!at) continue;
+                    for (let r = 0; r < removes.length; r++) {
+                        if (usedR.has(r)) continue;
+                        if (removes[r].text.trim() === at) {
+                            matched.push([r, a]);
+                            usedR.add(r);
+                            usedA.add(a);
+                            break;
+                        }
+                    }
+                }
+            }
+            const remR = removes.map((_, i) => i).filter(i => !usedR.has(i));
+            const remA = adds.map((_, i) => i).filter(i => !usedA.has(i));
+            const fb = Math.min(remR.length, remA.length);
+            for (let k = 0; k < fb; k++) {
+                matched.push([remR[k], remA[k]]);
+                usedR.add(remR[k]);
+                usedA.add(remA[k]);
+            }
+            matched.sort((x, y) => adds[x[1]].newIndex - adds[y[1]].newIndex);
+
+            for (const [r, a] of matched) {
+                const oldTokens = tokenizeLine(this.code[removes[r].oldIndex], this.cfg.customTypes);
+                const newTokens = tokenizeLine(adds[a].text, this.cfg.customTypes);
                 plan.push({
                     kind: 'modify',
-                    oldIndex: r.oldIndex,
-                    newIndex: a.newIndex,
-                    newText: a.text,
+                    oldIndex: removes[r].oldIndex,
+                    newIndex: adds[a].newIndex,
+                    newText: adds[a].text,
                     tokenDiff: diffTokens(oldTokens, newTokens),
                 });
             }
-            for (let k = pairs; k < removes.length; k++) {
-                plan.push({kind: 'remove', oldIndex: removes[k].oldIndex, newIndex: -1, newText: ''});
+            for (let r = 0; r < removes.length; r++) {
+                if (!usedR.has(r)) plan.push({kind: 'remove', oldIndex: removes[r].oldIndex, newIndex: -1, newText: ''});
             }
-            for (let k = pairs; k < adds.length; k++) {
-                plan.push({kind: 'add', oldIndex: -1, newIndex: adds[k].newIndex, newText: adds[k].text});
+            for (let a = 0; a < adds.length; a++) {
+                if (!usedA.has(a)) plan.push({kind: 'add', oldIndex: -1, newIndex: adds[a].newIndex, newText: adds[a].text});
             }
         }
 
@@ -511,7 +557,7 @@ export class Manticore {
         const o = this.resolveMorphOptions(opts);
         const lineCountBefore = this.code.length;
         const newLines = newCode.split('\n');
-        const plan = this.buildPlan(newLines);
+        const plan = this.buildPlan(newLines, o);
         const lh = this.cfg.lineHeight;
         yield* this.runRemovePhase(plan, o);
         const state = this.prepareMorphState(newLines, plan, lh, o);
@@ -527,6 +573,70 @@ export class Manticore {
             lineCountBefore,
             lineCountAfter: newLines.length,
         };
+    }
+
+    /**
+     * Reflow morph — for when `newCode` holds the SAME ordered sequence of
+     * non-whitespace tokens as the current code, only re-wrapped or
+     * re-indented (e.g. joining a wrapped continuation back onto its line).
+     * Every matched token GLIDES from its current spot to its new spot — no
+     * retype, no fade — and the lines below settle up to fill the freed space.
+     * Top-anchored: line 0 stays put. Additive: `morphTo` and the scenes
+     * built on it are untouched.
+     *
+     * A token with no positional match (a genuine add/remove) simply appears
+     * at rest with no glide — use `morphTo` for edits that change the tokens.
+     */
+    *reflowTo(newCode: string, opts: {duration?: number} = {}): ThreadGenerator {
+        if (!this.mounted) return;
+        const duration = opts.duration ?? 0.5;
+        const lh = this.cfg.lineHeight;
+        const newLines = newCode.split('\n');
+
+        // Snapshot current non-whitespace token positions (content-local frame).
+        const oldFlat: {x: number; y: number}[] = [];
+        for (const line of this.lines) {
+            const ly = line.node.y();
+            for (const td of line.tokens) {
+                if (td.text.trim().length === 0) continue;
+                oldFlat.push({x: td.localX, y: ly});
+            }
+        }
+
+        // Top-anchored: keep startY so line 0 stays put, lower lines settle up.
+        const startY = this.startY;
+
+        const newCls: CodeLine[] = [];
+        for (let j = 0; j < newLines.length; j++) {
+            const cl = this.buildLine(newLines[j], startY + j * lh);
+            this.applyRules(cl);
+            this.contentRef().add(cl.node);
+            newCls.push(cl);
+        }
+
+        // Seed each fresh token at its matched old spot, then glide it home.
+        const anims: ThreadGenerator[] = [];
+        let fi = 0;
+        for (let j = 0; j < newCls.length; j++) {
+            const ly = startY + j * lh;
+            for (const td of newCls[j].tokens) {
+                if (td.text.trim().length === 0) continue;
+                const old = oldFlat[fi++];
+                if (!old) continue;
+                const restX = td.localX;
+                td.ref().x(old.x);
+                td.ref().y(old.y - ly);
+                anims.push(td.ref().x(restX, duration, easeInOutCubic));
+                anims.push(td.ref().y(0, duration, easeInOutCubic));
+            }
+        }
+
+        for (const line of this.lines) line.node.remove();
+        this.lines = newCls;
+        this.code = newLines;
+        // startY unchanged — the top stays pinned.
+
+        if (anims.length > 0) yield* all(...anims);
     }
 
     private resolveMorphOptions(opts: MorphOptions): MorphResolvedOptions {
@@ -546,6 +656,8 @@ export class Manticore {
             lineOrder: opts.lineOrder ?? 'sequential',
             blockOrder: opts.blockOrder ?? 'sequential',
             tokenSlideDuration: opts.tokenSlideDuration ?? 0,
+            pairBySimilarity: opts.pairBySimilarity ?? false,
+            recolorLine: opts.recolorLine,
         };
     }
 
@@ -594,6 +706,7 @@ export class Manticore {
                 cl.node.opacity(0);
                 if (opts.addStyle === 'typewriter') cl.hideTokensInstantly();
                 this.applyRules(cl);
+                opts.recolorLine?.(cl);
                 this.contentRef().add(cl.node);
                 result[p.newIndex] = cl;
             }
@@ -656,6 +769,7 @@ export class Manticore {
                     const vis = this.resolveTokenVisibility(p.tokenDiff!, opts.tokenSlideDuration > 0);
                     const slideAnims = cl.mutateInPlace(p.tokenDiff!, newTokens, vis.kept, opts.tokenSlideDuration);
                     this.applyRules(cl);
+                    opts.recolorLine?.(cl);
                     lineAnims.push(...slideAnims);
                     lineAnims.push(this.typewriterNewTokens(cl, vis, opts.charDelay));
                 } else {
@@ -722,6 +836,7 @@ export class Manticore {
                     const vis = this.resolveTokenVisibility(p.tokenDiff!, opts.tokenSlideDuration > 0);
                     const slideAnims = cl.mutateInPlace(p.tokenDiff!, newTokens, vis.kept, opts.tokenSlideDuration);
                     this.applyRules(cl);
+                    opts.recolorLine?.(cl);
                     lineAnims.push(...slideAnims);
                     lineAnims.push(this.typewriterNewTokens(cl, vis, opts.charDelay));
                 } else {

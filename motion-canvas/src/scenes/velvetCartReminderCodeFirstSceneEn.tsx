@@ -52,9 +52,9 @@ const THEME: SyntaxTheme = {
 
 const RULES: ColorRule[] = [
     {match: /^(function|const|let|var|return|if|else|await|async|throw|new|export|import|class|interface|enum)$/, color: KEY},
-    {match: /^(sendCartReminder|sendLoginCode|sendMessage|render|send|track|canReceiveMarketing|persistOtp|auditOtpSent)$/, color: DOMAIN},
+    {match: /^(sendCartReminder|sendLoginCode|sendMessage|render|send|track|canReceiveMarketing|persistOtp|auditOtpSent|hasValidCard|completedSetup|recentlyActive)$/, color: DOMAIN},
     {match: /^(quietHours|frequencyCap)$/, color: DOMAIN},
-    {match: /^(MARKETING|SECURITY|CART_TPL|LOGIN_TPL|TTL|TPL)$/, color: '#B49ED8'},
+    {match: /^(MARKETING|SECURITY|BILLING|ONBOARDING|REENGAGEMENT|CART_TPL|LOGIN_TPL|TTL|TPL)$/, color: '#B49ED8'},
 ];
 
 const FLAT_CARD = {
@@ -732,21 +732,100 @@ export default makeScene2D(function* (view) {
     );
     yield* recolor();
 
-    // Hold the fully bloated function, then collapse attention onto the dispatch:
-    // dim everything except the `if (kind === ...)` lines, so the merge reads as what
-    // it became — a stack of "which case am I?" checks. The honest shared body
-    // (render / send / track / return) and the placeholder bars recede to ghosts.
+    // Hold the bloated function, then push in on the if (kind === ...) block.
+    // Honest zoom: the whole document — code AND the placeholder bars — scales as one;
+    // the body just dims to gentle context. Nothing vanishes to fake the move.
     yield* waitFor(0.8);
     const guardSet = new Set(
         DEG_FINAL_SPACED.split('\n')
             .map((l, i) => (l.includes('if (kind ===') ? i : -1))
             .filter(i => i >= 0),
     );
+    const ZOOM = 1.4;
+    const xZoom = CODE_X + LEFT_LOCAL * (1 - ZOOM);
+    const yZoom = 0;                        // line 3 sits at local 0, so the kind guards straddle screen center — tune on render
     yield* all(
         ...Array.from({length: merged.lineCount}, (_, i) => i)
             .filter(i => !guardSet.has(i))
-            .map(i => merged.dimLines(i, i, DIM_OP, 0.7)),
-        barsNode().opacity(DIM_OP, 0.7, easeInOutCubic),
+            .map(i => merged.dimLines(i, i, 0.42, 0.6)),
+        merged.node.scale(ZOOM, 0.7, easeInOutCubic),
+        merged.node.x(xZoom, 0.7, easeInOutCubic),
+        merged.node.y(yZoom, 0.7, easeInOutCubic),
+        // bars belong to the document: scale them with the code, never fade them out
+        barsNode().scale(ZOOM, 0.7, easeInOutCubic),
+        barsNode().x(xZoom, 0.7, easeInOutCubic),
+        barsNode().y(yZoom, 0.7, easeInOutCubic),
+        barsNode().opacity(0.42, 0.6, easeInOutCubic),
     );
-    yield* waitFor(2.4);
+    yield* waitFor(0.4);
+
+    // The conditions multiply: each new domain bolts on another if (kind === ...)
+    // below the marketing guards. The signature stays put — everything beneath it,
+    // body and bars alike, is pushed down one line per guard. The stack reads as endless.
+    const DOMAIN_GUARDS = [
+        'if (kind === BILLING && !hasValidCard(user)) return',
+        'if (kind === ONBOARDING && completedSetup(user)) return',
+        'if (kind === REENGAGEMENT && recentlyActive(user)) return',
+    ];
+    const MKT_ANCHOR = '    if (kind === MARKETING && frequencyCap.exceeded(user)) return\n';
+    const withGuards = (n: number): string =>
+        DEG_FINAL_SPACED.replace(
+            MKT_ANCHOR,
+            MKT_ANCHOR + DOMAIN_GUARDS.slice(0, n).map(g => '    ' + g + '\n').join(''),
+        );
+    for (let n = 1; n <= DOMAIN_GUARDS.length; n++) {
+        yield* all(
+            merged.morphTo(withGuards(n), {...MORPH_FADE, moveDuration: 0.35}),
+            // bars sit below the insertion → they ride down with the body, one line
+            barsNode().y(barsNode().y() + ZOOM * 46, 0.35, easeInOutCubic),
+        );
+        yield* recolor();
+        yield* waitFor(0.15);
+    }
+    yield* waitFor(1.6);
+
+    // ── Closing quote ────────────────────────────────────────────────────
+    // A typographic statement, not typed: the claim in cream roman, the cost —
+    // the wrong abstraction — set apart in gold italic. No quote marks.
+    const line1 = createRef<Txt>();
+    const line2 = createRef<Txt>();
+    const attrib = createRef<Txt>();
+    view.add(
+        <Txt
+            ref={line1}
+            fontFamily={F_SERIF} fontSize={66} fontWeight={500}
+            fill={INK} textAlign="center" y={-82} opacity={0}
+        >
+            Duplication is far cheaper than
+        </Txt>,
+    );
+    view.add(
+        <Txt
+            ref={line2}
+            fontFamily={F_SERIF} fontSize={66} fontWeight={500} fontStyle={'italic'}
+            fill={ACCENT} textAlign="center" y={16} opacity={0}
+        >
+            the wrong abstraction
+        </Txt>,
+    );
+    view.add(
+        <Txt
+            ref={attrib}
+            fontFamily={F_SERIF} fontSize={30} fontWeight={500}
+            letterSpacing={5} fill={QUIET} textAlign="center" y={158} opacity={0}
+        >
+            SANDI METZ
+        </Txt>,
+    );
+
+    // Clear the bloated code, then let the statement settle in (fade, staggered).
+    yield* all(
+        merged.node.opacity(0, 0.7, easeInOutCubic),
+        barsNode().opacity(0, 0.7, easeInOutCubic),
+    );
+    yield* line1().opacity(1, 0.8, easeInOutCubic);
+    yield* line2().opacity(1, 0.8, easeInOutCubic);
+    yield* waitFor(0.3);
+    yield* attrib().opacity(1, 0.7, easeInOutCubic);
+    yield* waitFor(3.2);
 });

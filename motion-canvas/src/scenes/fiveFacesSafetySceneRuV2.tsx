@@ -1,6 +1,7 @@
 import {makeScene2D} from '@motion-canvas/2d';
 import {Rect} from '@motion-canvas/2d';
 import {all, createRef, easeInOutCubic, easeInOutSine, waitFor} from '@motion-canvas/core';
+import {CodeLine} from '../core/code/components/CodeLine';
 import {ColorRule, Manticore} from '../core/code/components/Manticore';
 import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
 import {Fonts} from '../core/theme';
@@ -12,7 +13,7 @@ import {
   CALL_X, CALL_W, IMPL_X, IMPL_W,
   IMPL_FONT_SIZE, IMPL_LH,
   TRANSPARENT_CARD, CUSTOM_TYPES,
-  METHOD_COLOR,
+  METHOD_COLOR, PARAM_DARK, NAMED_PARAMS,
   blockLines,
   paintNamedParams,
 } from './fiveFacesBooleanV2Setup';
@@ -22,6 +23,7 @@ import {
 // What survives the morph: the soft branch, lifted out into its own method.
 const IMPL_SOFT_DELETE = `fun softDelete(userId: UserId, deletedAt: Instant, deletedBy: UserId): DeletedUser {
     val user = users.requireById(userId)
+
     return users.markDeleted(
         userId = user.id,
         deletedAt = deletedAt,
@@ -79,9 +81,29 @@ const SAFETY_RULES: ColorRule[] = [
 
 const STRIPE_COLOR = 'rgba(255, 80, 120, 0.18)';
 
-const SOFT_LINES = IMPL_SOFT_DELETE.split('\n').length;     // 8
-const HARD_LINES = IMPL_HARD_DELETE.split('\n').length;     // 5
-const RESTORE_LINES = IMPL_RESTORE.split('\n').length;      // 3
+const SOFT_LINES = IMPL_SOFT_DELETE.split('\n').length;
+const HARD_LINES = IMPL_HARD_DELETE.split('\n').length;
+const RESTORE_LINES = IMPL_RESTORE.split('\n').length;
+
+// Per-line painter for named-argument parameters (the identifier on the LHS
+// of `=`). Passed to morphTo's recolorLine hook so they morph in already in
+// the param colour instead of flashing white and being repainted afterwards.
+const paintNamedArgsLine = (line: CodeLine): void => {
+  const toks = line.tokens;
+  for (let i = 0; i < toks.length; i++) {
+    const tok = toks[i];
+    if (!NAMED_PARAMS.includes(tok.text)) continue;
+    let p = i - 1;
+    while (p >= 0 && toks[p].text.trim() === '') p--;
+    const prev = p >= 0 ? toks[p].text.trim() : '';
+    if (prev === 'val' || prev === 'var') continue;
+    let n = i + 1;
+    while (n < toks.length && toks[n].text.trim() === '') n++;
+    if (n < toks.length && toks[n].text.trim() === '=') {
+      tok.ref().fill(PARAM_DARK);
+    }
+  }
+};
 
 // ── Scene ────────────────────────────────────────────────────────────
 
@@ -94,6 +116,20 @@ export default makeScene2D(function* (view) {
 
   const callMC = s.callCodes[2];
   const implMC = s.implCodes[2];
+
+  // Method blocks stack upward from a floor; each sits one gap above the
+  // next. `bottom` is the floor — the bottom-most method's closing brace.
+  const GAP = IMPL_LH * 2;
+  const stackYs = (fromFloor: number[], bottom: number): number[] => {
+    const ys: number[] = [];
+    let b = bottom;
+    for (const n of fromFloor) {
+      const span = (n - 1) * IMPL_LH;
+      ys.push(b - span / 2);
+      b = b - span - GAP;
+    }
+    return ys;
+  };
 
   // ── Face beat ──────────────────────────────────────────────────────
   yield* s.baseX(NAME_XS[2], 0.9, easeInOutSine);
@@ -113,26 +149,6 @@ export default makeScene2D(function* (view) {
   yield* s.hideViz(2, 0.5);
   yield* waitFor(0.8);
 
-  // ── Shared bottom baseline = the call code's natural closing brace ──
-  // The left code never moves; the right method stack hangs its bottom
-  // brace on this same line. container.y = bottom - ((lines-1)/2)*lh.
-  let baseY = callMC.node.position.y() + callMC.getLineY(callMC.lineCount - 1);
-  const GAP = IMPL_LH * 2;
-  const topY = (lines: number, bottom: number = baseY): number =>
-    bottom - ((lines - 1) / 2) * IMPL_LH;
-  // Centers for a stack of method blocks resting on the baseline, given
-  // their line counts from the floor up.
-  const stackYs = (fromFloor: number[]): number[] => {
-    const ys: number[] = [];
-    let bottom = baseY;
-    for (const n of fromFloor) {
-      const span = (n - 1) * IMPL_LH;
-      ys.push(bottom - span / 2);
-      bottom = bottom - span - GAP;
-    }
-    return ys;
-  };
-
   // ── MARK: the dangerous bit (param + the if that branches on it) ────
   {
     const paramLine = implMC.getLine(0);   // fun delete(..., soft: Boolean ...)
@@ -145,7 +161,7 @@ export default makeScene2D(function* (view) {
   yield* waitFor(1.0);
 
   // ── MORPH: the if-gate and the hard cascade flash out; the soft ─────
-  // branch lifts free into softDelete.
+  // branch lifts free into softDelete (named args keep their colour).
   yield* implMC.morphTo(IMPL_SOFT_DELETE, {
     removeDuration: 0.35,
     moveDuration: 0.5,
@@ -154,40 +170,22 @@ export default makeScene2D(function* (view) {
     flashRemovedDuration: 0.25,
     addStyle: 'typewriter',
     scrollStrategy: 'block',
+    // The markDeleted block only re-indents — pair it by content so its
+    // tokens slide to the new position instead of being re-typed, and run
+    // the block's lines in parallel so it travels as one unit (no per-line
+    // staggered left-creep). Slide duration matches the vertical settle.
+    pairBySimilarity: true,
+    tokenSlideDuration: 0.5,
+    lineOrder: 'parallel',
+    recolorLine: paintNamedArgsLine,
   });
   implMC.colorize(SAFETY_RULES);
   paintNamedParams(implMC);
   implMC.recenterContent();
-  yield* waitFor(0.5);
+  yield* waitFor(0.6);
 
-  // ── softDelete settles onto the baseline (left code stays put) ──────
-  yield* implMC.node.position.y(topY(SOFT_LINES), 0.6, easeInOutCubic);
-  yield* waitFor(1.0);
-
-  // ── SPLIT: hardDelete takes the floor, softDelete climbs above it ────
-  const hardMC = Manticore.create(IMPL_HARD_DELETE, {
-    x: IMPL_X, y: topY(HARD_LINES), width: IMPL_W,
-    fontSize: IMPL_FONT_SIZE, lineHeight: IMPL_LH,
-    fontFamily: Fonts.code, theme: DryFiltersV3CodeTheme,
-    noClip: true, cardStyle: TRANSPARENT_CARD,
-    glowAccent: false, customTypes: CUSTOM_TYPES,
-  });
-  hardMC.mount(view);
-  hardMC.colorize(SAFETY_RULES);
-  paintNamedParams(hardMC);
-  hardMC.node.opacity(0);
-
-  {
-    const [hardY, softY] = stackYs([HARD_LINES, SOFT_LINES]);
-    hardMC.node.position.y(hardY);
-    yield* all(
-      implMC.node.position.y(softY, 0.5, easeInOutCubic),
-      hardMC.node.opacity(1, 0.55, easeInOutSine),
-    );
-  }
-  yield* waitFor(1.0);
-
-  // ── Call site — the highlight marks the doomed bit, then clears ─────
+  // ── Call site — the highlight marks the doomed bit, then clears, then
+  // the caller names the operation it actually wants. ─────────────────
   const stripeLineY = callMC.node.position.y() + callMC.getLineY(16);   // soft = true,
   const stripe = createRef<Rect>();
   view.add(
@@ -204,40 +202,56 @@ export default makeScene2D(function* (view) {
   );
   yield* stripe().opacity(1, 0.4, easeInOutSine);
   yield* waitFor(0.7);
-  // Highlight disappears exactly before the morph.
-  yield* stripe().opacity(0, 0.3, easeInOutSine);
-
+  yield* stripe().opacity(0, 0.3, easeInOutSine);   // clears right before the morph
   yield* callMC.morphTo(CALL_SAFETY_AFTER, {
     removeDuration: 0.3,
     moveDuration: 0.4,
     charDelay: 0.015,
     addStyle: 'typewriter',
     scrollStrategy: 'block',
+    recolorLine: paintNamedArgsLine,
   });
   callMC.colorize(SAFETY_RULES);
   paintNamedParams(callMC);
-  callMC.recenterContent();   // visually a no-op; only normalizes line coords
-  // Re-anchor the RIGHT stack to the call's actual post-morph bottom brace,
-  // so the left code never has to move to stay aligned.
-  baseY = callMC.node.position.y() + callMC.getLineY(callMC.lineCount - 1);
-  {
-    const [hardY, softY] = stackYs([HARD_LINES, SOFT_LINES]);
-    if (Math.abs(softY - implMC.node.position.y()) > 1) {
-      yield* all(
-        implMC.node.position.y(softY, 0.35, easeInOutSine),
-        hardMC.node.position.y(hardY, 0.35, easeInOutSine),
-      );
-    }
-  }
+  callMC.recenterContent();
+  yield* waitFor(0.6);
+
+  // ── Anchor (mirrors PERMISSION): the bottom-most method rests its
+  // closing brace on the call's deleteAccount closing brace (2nd-to-last
+  // line; the very last line is the class brace). ────────────────────────
+  const braceY = callMC.node.position.y() + callMC.getLineY(callMC.lineCount - 2);
+  // Final 3-method layout, solved once. softDelete and hardDelete land in
+  // their FINAL spots immediately; restore's floor slot stays empty until
+  // the cost beat fills it. Nothing ever re-stacks, so softDelete moves
+  // exactly once (no dive-down-then-climb-back).
+  const [restoreY, hardY, softY] = stackYs([RESTORE_LINES, HARD_LINES, SOFT_LINES], braceY);
+
+  // ── SPLIT: softDelete settles to its place; hardDelete appears below ─
+  const hardMC = Manticore.create(IMPL_HARD_DELETE, {
+    x: IMPL_X, y: hardY, width: IMPL_W,
+    fontSize: IMPL_FONT_SIZE, lineHeight: IMPL_LH,
+    fontFamily: Fonts.code, theme: DryFiltersV3CodeTheme,
+    noClip: true, cardStyle: TRANSPARENT_CARD,
+    glowAccent: false, customTypes: CUSTOM_TYPES,
+  });
+  hardMC.mount(view);
+  hardMC.colorize(SAFETY_RULES);
+  paintNamedParams(hardMC);
+  hardMC.node.opacity(0);
+  yield* all(
+    implMC.node.position.y(softY, 0.55, easeInOutCubic),
+    hardMC.node.opacity(1, 0.55, easeInOutSine),
+  );
   yield* waitFor(1.2);
 
   // ── Consistent close marker — the scale dot lights up ───────────────
   yield* s.showSmallScale(2);
   yield* waitFor(1.5);
 
-  // ── COST: restore takes the floor, soft+hard climb — a lifecycle ────
+  // ── COST: restore drops into the reserved floor slot — a lifecycle ──
+  // (soft and hard don't budge; the API just grew downward to the brace.)
   const restoreMC = Manticore.create(IMPL_RESTORE, {
-    x: IMPL_X, y: topY(RESTORE_LINES), width: IMPL_W,
+    x: IMPL_X, y: restoreY, width: IMPL_W,
     fontSize: IMPL_FONT_SIZE, lineHeight: IMPL_LH,
     fontFamily: Fonts.code, theme: DryFiltersV3CodeTheme,
     noClip: true, cardStyle: TRANSPARENT_CARD,
@@ -247,16 +261,7 @@ export default makeScene2D(function* (view) {
   restoreMC.colorize(SAFETY_RULES);
   paintNamedParams(restoreMC);
   restoreMC.node.opacity(0);
-
-  {
-    const [restoreY, hardY, softY] = stackYs([RESTORE_LINES, HARD_LINES, SOFT_LINES]);
-    restoreMC.node.position.y(restoreY);
-    yield* all(
-      implMC.node.position.y(softY, 0.5, easeInOutCubic),
-      hardMC.node.position.y(hardY, 0.5, easeInOutCubic),
-      restoreMC.node.opacity(1, 0.6, easeInOutSine),
-    );
-  }
+  yield* restoreMC.node.opacity(1, 0.6, easeInOutSine);
   yield* waitFor(3.0);
 
   // ── Close ───────────────────────────────────────────────────────────
