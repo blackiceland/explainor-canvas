@@ -93,8 +93,13 @@ const CODE_MERGED = `function sendMessage(user, template, payload) {
     return delivery
 }`;
 
-const DEG_SLOT = `function sendMessage(user, kind, payload) {
+// Beat 7 degradation chain. Each state is shaped so morphTo does exactly one thing
+// per step (verified by scripts/deg-plan.mjs): only the first `if` types, every other
+// new line fades, `track` is kept throughout, and nothing teleports.
 
+// Zoom target: the merge gains a discriminator (template->kind, render(TPL[kind])).
+// Same line count as CODE_MERGED, so the body does not move on this step.
+const DEG_KIND = `function sendMessage(user, kind, payload) {
     const message = render(TPL[kind], payload)
     const delivery = send(user.phone, message)
     track(user, message, delivery)
@@ -104,7 +109,6 @@ const DEG_SLOT = `function sendMessage(user, kind, payload) {
 
 const DEG_GUARD1 = `function sendMessage(user, kind, payload) {
     if (kind === MARKETING && !canReceiveMarketing(user)) return
-
     const message = render(TPL[kind], payload)
     const delivery = send(user.phone, message)
     track(user, message, delivery)
@@ -112,7 +116,8 @@ const DEG_GUARD1 = `function sendMessage(user, kind, payload) {
     return delivery
 }`;
 
-const DEG_GUARD3 = `function sendMessage(user, kind, payload) {
+// Marketing rules pile on (fade in; the body keeps sliding down).
+const DEG_MKT = `function sendMessage(user, kind, payload) {
     if (kind === MARKETING && !canReceiveMarketing(user)) return
     if (kind === MARKETING && quietHours.active(user)) return
     if (kind === MARKETING && frequencyCap.exceeded(user)) return
@@ -124,36 +129,7 @@ const DEG_GUARD3 = `function sendMessage(user, kind, payload) {
     return delivery
 }`;
 
-const DEG_PRE_SEC = `function sendMessage(user, kind, payload) {
-    if (kind === MARKETING && !canReceiveMarketing(user)) return
-    if (kind === MARKETING && quietHours.active(user)) return
-    if (kind === MARKETING && frequencyCap.exceeded(user)) return
-
-    if (kind === SECURITY) persistOtp(user, payload.code, TTL)
-
-    const message = render(TPL[kind], payload)
-    const delivery = send(user.phone, message)
-    track(user, message, delivery)
-
-    return delivery
-}`;
-
-// Same layout as DEG_FINAL but only guard1 + existing lines (rest empty)
-const DEG_POSITIONED = `function sendMessage(user, kind, payload) {
-    if (kind === MARKETING && !canReceiveMarketing(user)) return
-
-
-
-
-
-    const message = render(TPL[kind], payload)
-    const delivery = send(user.phone, message)
-
-
-
-    return delivery
-}`;
-
+// Security rules pile on too: persistOtp + auditOtpSent fade in around the body.
 const DEG_FINAL = `function sendMessage(user, kind, payload) {
     if (kind === MARKETING && !canReceiveMarketing(user)) return
     if (kind === MARKETING && quietHours.active(user)) return
@@ -163,35 +139,18 @@ const DEG_FINAL = `function sendMessage(user, kind, payload) {
 
     const message = render(TPL[kind], payload)
     const delivery = send(user.phone, message)
+    track(user, message, delivery)
 
     if (kind === SECURITY) auditOtpSent(user, delivery)
 
     return delivery
 }`;
 
-const DEG_FINAL_SPACED = `function sendMessage(user, kind, payload) {
-    if (kind === MARKETING && !canReceiveMarketing(user)) return
-    if (kind === MARKETING && quietHours.active(user)) return
-    if (kind === MARKETING && frequencyCap.exceeded(user)) return
-
-    if (kind === SECURITY) persistOtp(user, payload.code, TTL)
-
-    const message = render(TPL[kind], payload)
-    const delivery = send(user.phone, message)
-
-    if (kind === SECURITY) auditOtpSent(user, delivery)
-
-
-
-
-
-
-
-
-
-
-    return delivery
-}`;
+// Opens a 10-line gap before return for the placeholder bars (lines 12..21).
+const DEG_FINAL_SPACED = DEG_FINAL.replace(
+    'auditOtpSent(user, delivery)\n\n    return delivery',
+    'auditOtpSent(user, delivery)\n' + '\n'.repeat(10) + '    return delivery',
+);
 
 // ── Shape geometry ───────────────────────────────────────────────────
 function marketingBlobPoints(): [number, number][] {
@@ -701,38 +660,43 @@ export default makeScene2D(function* (view) {
     const xScaled = CODE_X + LEFT_LOCAL * (1 - SCALE);
     const yScaled = -200;
 
-    // Zoom + slot opens (template→kind, empty line for guard)
+    // Zoom in. The merge gains a discriminator: template→kind, render(TPL[kind]).
+    // Same line count → the body stays put; only the signature and render() morph.
     yield* all(
-        merged.morphTo(DEG_SLOT, MORPH_FADE),
+        merged.morphTo(DEG_KIND, MORPH_FADE),
         merged.node.scale(SCALE, 0.5, easeInOutCubic),
         merged.node.x(xScaled, 0.5, easeInOutCubic),
         merged.node.y(yScaled, 0.5, easeInOutCubic),
     );
     yield* recolor();
 
-    // First guard typewriters into the empty slot
+    // First guard is the ONLY typed line. It is added directly above message, so the
+    // body slides down one line (moveDuration > 0, no teleport). Nothing else types.
     yield* merged.morphTo(DEG_GUARD1, {
         addStyle: 'typewriter' as const,
         charDelay: 0.012, lineDelay: 0,
-        moveDuration: 0, removeDuration: 0,
+        moveDuration: 0.35, removeDuration: 0,
         ...NO_SCROLL,
     });
     yield* recolor();
 
-    // Existing lines slide to final positions
-    yield* merged.morphTo(DEG_POSITIONED, {...MORPH_FADE, moveDuration: 0.3});
+    // Marketing rules pile on — fade in while the body keeps sliding down.
+    yield* merged.morphTo(DEG_MKT, {...MORPH_FADE, moveDuration: 0.35});
     yield* recolor();
 
-    // Remaining code fades in
-    yield* merged.morphTo(DEG_FINAL, {...MORPH_FADE, moveDuration: 0.3});
+    // Security rules pile on too — persistOtp + auditOtpSent fade in around the body.
+    yield* merged.morphTo(DEG_FINAL, {...MORPH_FADE, moveDuration: 0.35});
     yield* recolor();
 
-    // Bars: 7 bars in two groups, sequential reveal
-    const START_Y_7 = -((7 - 1) / 2) * 46;
+    // Bars: 7 placeholder "lines" in two groups (4 + 3), revealed in sequence.
+    // They share the code's coordinate system: startY is fixed at mount
+    // (CODE_MERGED = 7 lines) and morphTo never recenters, so a bar on line `li`
+    // sits exactly where code line `li` would — MOUNT_START_Y + li * 46.
+    const MOUNT_START_Y = -((7 - 1) / 2) * 46;
     const LOCAL_LEFT = -1100 / 2 + 56;
     const bodyIndent = measureRow('    x', F_MONO, 32).indentPx;
-    const BAR_LINES = [12, 13, 14, 15, 17, 18, 19];
-    const BAR_WIDTHS = [900, 720, 1050, 580, 830, 650, 480];
+    const BAR_LINES = [13, 14, 15, 16, 18, 19, 20];
+    const BAR_WIDTHS = [1000, 820, 1080, 720, 900, 780, 560];
 
     const barsNode = createRef<Node>();
     const barRefs: Reference<Rect>[] = [];
@@ -749,7 +713,7 @@ export default makeScene2D(function* (view) {
                         fill={INK}
                         offset={[-1, 0]}
                         x={LOCAL_LEFT + bodyIndent}
-                        y={START_Y_7 + li * 46}
+                        y={MOUNT_START_Y + li * 46}
                     />
                 );
             })}
