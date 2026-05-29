@@ -93,7 +93,8 @@ const CODE_MERGED = `function sendMessage(user, template, payload) {
     return delivery
 }`;
 
-const DEG_KIND = `function sendMessage(user, kind, payload) {
+const DEG_SLOT = `function sendMessage(user, kind, payload) {
+
     const message = render(TPL[kind], payload)
     const delivery = send(user.phone, message)
     track(user, message, delivery)
@@ -700,35 +701,30 @@ export default makeScene2D(function* (view) {
     const xScaled = CODE_X + LEFT_LOCAL * (1 - SCALE);
     const yScaled = -200;
 
-    // Zoom + params change (fade)
+    // Zoom + slot opens (template→kind, empty line for guard)
     yield* all(
-        merged.morphTo(DEG_KIND, MORPH_FADE),
+        merged.morphTo(DEG_SLOT, MORPH_FADE),
         merged.node.scale(SCALE, 0.5, easeInOutCubic),
         merged.node.x(xScaled, 0.5, easeInOutCubic),
         merged.node.y(yScaled, 0.5, easeInOutCubic),
     );
     yield* recolor();
 
-    // First guard — fade in, then typewrite
+    // First guard typewriters into the empty slot
     yield* merged.morphTo(DEG_GUARD1, {
-        ...MORPH_FADE,
-        addStyle: 'fade' as const,
-        moveDuration: 0.3,
+        addStyle: 'typewriter' as const,
+        charDelay: 0.012, lineDelay: 0,
+        moveDuration: 0, removeDuration: 0,
+        ...NO_SCROLL,
     });
-    const guardLine = merged.getLine(1);
-    if (guardLine) {
-        for (const t of guardLine.tokens) t.ref().opacity(0);
-    }
-    yield* recolor();
-    if (guardLine) yield* guardLine.typewriter(0.015);
     yield* recolor();
 
-    // Existing lines slide to final positions (track removed)
-    yield* merged.morphTo(DEG_POSITIONED, MORPH_FADE);
+    // Existing lines slide to final positions
+    yield* merged.morphTo(DEG_POSITIONED, {...MORPH_FADE, moveDuration: 0.3});
     yield* recolor();
 
-    // New lines fade in
-    yield* merged.morphTo(DEG_FINAL, MORPH_FADE);
+    // Remaining code fades in
+    yield* merged.morphTo(DEG_FINAL, {...MORPH_FADE, moveDuration: 0.3});
     yield* recolor();
 
     // Bars: 7 bars in two groups, sequential reveal

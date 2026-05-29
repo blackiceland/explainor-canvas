@@ -134,7 +134,7 @@ export default makeProject({
         // earnedAbstractionSceneEn,
         // chapter2ReversibilitySceneEn,
 
-        //04
+        // IV
 
         // chapter1YudanSceneEn,
         // messageDeliverySelectionSceneEn,
@@ -145,12 +145,18 @@ export default makeProject({
         // fiveFacesBooleanSceneRu,
 
         // fiveFacesBooleanSceneRuV2,
-        //01
-        //  fiveFacesPermissionSceneRuV2,
-        //02
-          fiveFacesModeSceneRuV2,
-         // fiveFacesSafetySceneRuV2,
-        // fiveFacesShortcutSceneRuV2,
+
+        // 01
+        // fiveFacesPermissionSceneRuV2,
+
+        // 02
+        //  fiveFacesModeSceneRuV2,
+
+        // 03
+         fiveFacesSafetySceneRuV2,
+
+        // 04
+         fiveFacesShortcutSceneRuV2,
         // fiveFacesPoorModelSceneRuV2,
         // fiveFacesFinaleSceneRuV2,
 
