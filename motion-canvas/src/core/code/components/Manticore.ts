@@ -593,15 +593,16 @@ export class Manticore {
         const lh = this.cfg.lineHeight;
         const newLines = newCode.split('\n');
 
-        // Snapshot current non-whitespace token positions (content-local frame).
-        const oldFlat: {x: number; y: number}[] = [];
-        for (const line of this.lines) {
+        // Snapshot position AND live colour of each non-whitespace token.
+        // A reflow relocates the SAME tokens, so colour must carry through the
+        // glide (named-param paint, glow, custom fills). applyRules alone would
+        // reset it to rule colour and flash mid-move.
+        const oldFlat = this.lines.flatMap(line => {
             const ly = line.node.y();
-            for (const td of line.tokens) {
-                if (td.text.trim().length === 0) continue;
-                oldFlat.push({x: td.localX, y: ly});
-            }
-        }
+            return line.tokens
+                .filter(td => td.text.trim().length > 0)
+                .map(td => ({x: td.localX, y: ly, fill: td.ref().fill()}));
+        });
 
         // Top-anchored: keep startY so line 0 stays put, lower lines settle up.
         const startY = this.startY;
@@ -624,6 +625,7 @@ export class Manticore {
                 const old = oldFlat[fi++];
                 if (!old) continue;
                 const restX = td.localX;
+                td.ref().fill(old.fill);          // carry the original colour through the move
                 td.ref().x(old.x);
                 td.ref().y(old.y - ly);
                 anims.push(td.ref().x(restX, duration, easeInOutCubic));

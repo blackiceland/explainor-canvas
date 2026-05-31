@@ -295,6 +295,7 @@ class AccountDeletionService(
 
     private val users: UserRepository,
     private val sessions: UserSessionRepository,
+    private val deletion: UserDeletion,
     private val auditLog: AuditLog,
     private val clock: Clock,
 ) {
@@ -440,7 +441,7 @@ export const FACES: Face[] = [
    callBlock: [17, 21]},
   {name: 'SAFETY',     scale: 3,
    callCode: CALL_SAFETY,     implCode: IMPL_SAFETY,
-   callBlock: [14, 19]},
+   callBlock: [15, 20]},
   {name: 'SHORTCUT',   scale: 4,
    callCode: CALL_SHORTCUT,   implCode: IMPL_SHORTCUT,
    callBlock: [13, 17]},
@@ -485,7 +486,7 @@ export const CUSTOM_TYPES = [
   'User', 'Message', 'Delivery', 'PushOptions', 'Silent', 'Default',
   'PushGateway',
   // SAFETY
-  'AccountDeletionService', 'UserRepository', 'UserSessionRepository', 'Clock',
+  'AccountDeletionService', 'UserRepository', 'UserSessionRepository', 'UserDeletion', 'Clock',
   'DeletionResult', 'Deleted', 'DeletedUser', 'Instant',
   // SHORTCUT
   'ErpOrderImportJob', 'ErpOrderParser', 'OrderProcessor', 'ImportRunRepository',
@@ -513,7 +514,7 @@ export const METHOD_NAMES = [
   'isNotEmpty', 'toMap', 'ofSeconds', 'toLong', 'toString',
   'scan', 'check', 'replicate', 'requiresBackup', 'targetBucket',
   'retention', 'recordUpload', 'findWatchers', 'between',
-  'requireById', 'markDeleted', 'deleteByUser',
+  'requireById', 'markDeleted', 'deleteByUser', 'deletePermanently',
   'requireValid', 'reserve', 'authorize', 'normalize',
   'copy', 'instant',
 ];

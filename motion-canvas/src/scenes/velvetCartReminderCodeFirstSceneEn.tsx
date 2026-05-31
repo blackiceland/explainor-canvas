@@ -8,6 +8,8 @@ import {
     easeInCubic,
     easeInOutCubic,
     easeOutCubic,
+    easeOutQuint,
+    sequence,
     waitFor,
 } from '@motion-canvas/core';
 import {ColorRule, Manticore} from '../core/code/components/Manticore';
@@ -172,6 +174,19 @@ function securityHexPoints(): [number, number][] {
     for (let i = 0; i < 6; i++) {
         const a = tilt + (i / 6) * Math.PI * 2;
         pts.push([Math.cos(a) * r, Math.sin(a) * r * 0.96]);
+    }
+    return pts;
+}
+
+function billingDiscPoints(): [number, number][] {
+    // A calm octagon — distinct from the marketing blob and the security hexagon,
+    // a neutral third domain.
+    const pts: [number, number][] = [];
+    const r = 124;
+    const N = 8;
+    for (let i = 0; i < N; i++) {
+        const a = Math.PI / N + (i / N) * Math.PI * 2; // flat top/bottom
+        pts.push([Math.cos(a) * r, Math.sin(a) * r * 0.98]);
     }
     return pts;
 }
@@ -784,6 +799,142 @@ export default makeScene2D(function* (view) {
     }
     yield* waitFor(1.6);
 
+    // ════════════════════════════════════════════════════════════════
+    //  Beat 8 — CONSEQUENCES: one method, every domain on one line
+    // ════════════════════════════════════════════════════════════════
+    // No zoom — pure translation. Keep the method name and the three real domain constants from
+    // the code, fade the rest; sendMessage slides to centre-top and the constants slide up into a
+    // single column beneath it, all of them hanging off the one method.
+
+    const sigLine = merged.getLine(0);
+    const nameTok = sigLine?.tokens.find(t => t.text === 'sendMessage')?.ref();
+    const NAME_LX =
+        LOCAL_LEFT + textWidth('function ', F_MONO, 32) + textWidth('sendMessage', F_MONO, 32) / 2;
+    const NAME_LY = MOUNT_START_Y;
+    const SM_Y = -180;                      // sendMessage parks here; the constants line up beneath it
+
+    // Keep sendMessage + the first domain constant of each kind; fade the rest. Column order
+    // follows the source order, so SECURITY (which lives at the bottom of the body) sits at the
+    // bottom of the chain rather than the middle.
+    const KEEP = ['MARKETING', 'BILLING', 'SECURITY'];
+    const constToks: Txt[] = [];
+    const seenK = new Set<string>();
+    const fadeToks: ThreadGenerator[] = [];
+    for (let i = 0; i < merged.lineCount; i++) {
+        const line = merged.getLine(i);
+        if (!line) continue;
+        for (const t of line.tokens) {
+            const node = t.ref();
+            if (t.text === 'sendMessage') { node.shadowColor('rgba(0,0,0,0)'); node.shadowBlur(0); continue; }
+            const k = KEEP.indexOf(t.text);
+            if (k >= 0 && !seenK.has(t.text)) {
+                seenK.add(t.text);
+                constToks[k] = node;
+                node.shadowColor('rgba(0,0,0,0)'); node.shadowBlur(0);
+                continue;
+            }
+            fadeToks.push(node.opacity(0, 0.5, easeInOutCubic));
+        }
+    }
+
+    // Block-local centre of a constant's first occurrence (same layout maths as the name).
+    const constBL = (name: string): {x: number; y: number} => {
+        const lines = withGuards(DOMAIN_GUARDS.length).split('\n');
+        for (let i = 0; i < lines.length; i++) {
+            const idx = lines[i].indexOf(name);
+            if (idx >= 0) {
+                return {
+                    x: LOCAL_LEFT + textWidth(lines[i].slice(0, idx), F_MONO, 32) + textWidth(name, F_MONO, 32) / 2,
+                    y: MOUNT_START_Y + i * 46,
+                };
+            }
+        }
+        return {x: 0, y: 0};
+    };
+
+    // No-zoom geometry. With the scale held fixed, every motion is a pure translation, so a plain
+    // linear tween gives CONSTANT on-screen velocity — nothing to cancel. The block translates so
+    // sendMessage parks at (0, SM_Y); each constant additionally slides to its slot, dead-centre on
+    // x=0, in source order.
+    const S = merged.node.scale().x;        // current scale, held fixed (no zoom)
+    const Pfx = -S * NAME_LX;
+    const Pfy = SM_Y - S * NAME_LY;
+    const GAP = 130;
+    const colY = (k: number) => SM_Y + GAP * (k + 1);   // MARKETING / BILLING / SECURITY beneath sendMessage
+    const FORM = 0.8;
+
+    // One decisive move with a strong ease-out: everything launches fast and glides to rest, so the
+    // constants carry momentum instead of a wooden constant-speed slide. The scale is fixed and the
+    // block + every constant share the same ease, so the on-screen motion collapses to a clean
+    // ease-out; the farther a constant travels the faster it goes, so the column assembles with
+    // natural variation. Meanwhile every other token and the bars fade.
+    yield* all(
+        merged.node.x(Pfx, FORM, easeOutQuint),
+        merged.node.y(Pfy, FORM, easeOutQuint),
+        merged.showAllLines(0.55),
+        ...fadeToks,
+        barsNode().opacity(0, 0.5, easeInOutCubic),
+        ...[0, 1, 2].map(k => {
+            const tok = constToks[k];
+            if (!tok) return waitFor(0);
+            const cur = constBL(KEEP[k]);
+            const p = tok.position();
+            return tok.position(
+                [p.x + ((0 - Pfx) / S - cur.x), p.y + ((colY(k) - Pfy) / S - cur.y)],
+                FORM, easeOutQuint,
+            );
+        }),
+    );
+    yield* waitFor(0.2);
+
+    // String the column together with a vertical line, drawn only in the gaps between the
+    // items (sendMessage + the three constants) — all on one vertical line, one method.
+    const itemY = [SM_Y, colY(0), colY(1), colY(2)];
+    const HALF = 36;
+    const conn = createRef<Node>();
+    const segRefs: Reference<Line>[] = [];
+    view.add(
+        <Node ref={conn}>
+            {[0, 1, 2].map(j => {
+                const r = createRef<Line>();
+                segRefs.push(r);
+                return <Line ref={r} points={[[0, itemY[j] + HALF], [0, itemY[j + 1] - HALF]]} stroke={INK} lineWidth={2.5} opacity={0.5} end={0} />;
+            })}
+        </Node>,
+    );
+    yield* all(...segRefs.map(s => s().end(1, 0.4, easeInOutCubic)));
+    yield* waitFor(0.5);
+
+    // ── The cost: change one domain and the rest break ──────────────────
+    // SECURITY (bottom of the chain) is edited — its own colour flares gold, then settles. Because
+    // every domain hangs off the one method, the break then runs up the shared line: each link,
+    // then the constant it feeds, turns to the alert clay in turn, bottom to top. You cannot touch
+    // one without the rest going with it. Colour carries it — no gutter chrome, no glow, no shake.
+    const ALERT  = '#D6907E';   // dusty clay-red: reads "broken" without RGB-cheapening the palette
+    const PURPLE = '#B49ED8';   // the constants' normal colour
+    const secTok = constToks[2];
+
+    // 1) SECURITY is edited — a gold flare on the word itself, then it settles back to purple.
+    if (secTok) {
+        yield* secTok.fill(ACCENT, 0.24, easeOutCubic);
+        yield* secTok.fill(PURPLE, 0.34, easeInCubic);
+    }
+    yield* waitFor(0.3);
+
+    // 2) The break travels up the chain, evenly paced: each link, then the constant it feeds.
+    const breakLink = (s: Reference<Line>): ThreadGenerator =>
+        all(s().stroke(ALERT, 0.32, easeInOutCubic), s().opacity(0.8, 0.32, easeInOutCubic));
+    const breakConst = (k: number): ThreadGenerator =>
+        constToks[k] ? constToks[k].fill(ALERT, 0.34, easeInOutCubic) : waitFor(0);
+    yield* sequence(0.16,
+        breakLink(segRefs[2]),   // SECURITY → BILLING link
+        breakConst(1),           // BILLING breaks
+        breakLink(segRefs[1]),   // BILLING → MARKETING link
+        breakConst(0),           // MARKETING breaks
+        breakLink(segRefs[0]),   // MARKETING → sendMessage link
+    );
+    yield* waitFor(1.1);
+
     // ── Closing quote ────────────────────────────────────────────────────
     // A typographic statement, not typed: the claim in cream roman, the cost —
     // the wrong abstraction — set apart in gold italic. No quote marks.
@@ -818,9 +969,10 @@ export default makeScene2D(function* (view) {
         </Txt>,
     );
 
-    // Clear the bloated code, then let the statement settle in (fade, staggered).
+    // Clear sendMessage + the constant row, then let the statement settle in (staggered).
     yield* all(
         merged.node.opacity(0, 0.7, easeInOutCubic),
+        conn().opacity(0, 0.7, easeInOutCubic),
         barsNode().opacity(0, 0.7, easeInOutCubic),
     );
     yield* line1().opacity(1, 0.8, easeInOutCubic);

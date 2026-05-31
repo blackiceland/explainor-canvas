@@ -22,7 +22,7 @@ import {
 // branch. Order → ValidatedOrder. Body keeps its wrapped val lines.
 const IMPL_STEP1 = `fun process(order: ValidatedOrder, source: OrderSource): ProcessingResult {
     val normalized = normalizer
-        .normalize(order, source)
+        .normalize(order.value, source)
     val reserved = inventory
         .reserve(normalized)
     val payment = payments
@@ -37,7 +37,7 @@ const IMPL_STEP1 = `fun process(order: ValidatedOrder, source: OrderSource): Pro
 
 // Step 2: the body collapses to clean one-liners — cosmetic tidy-up.
 const IMPL_STEP2 = `fun process(order: ValidatedOrder, source: OrderSource): ProcessingResult {
-    val normalized = normalizer.normalize(order, source)
+    val normalized = normalizer.normalize(order.value, source)
     val reserved = inventory.reserve(normalized)
     val payment = payments.authorize(normalized)
 
@@ -77,12 +77,19 @@ class ErpOrderImportJob(
 }`;
 
 // The type that carries the guarantee — a closed constructor means it
-// cannot exist unless it came through `from`, which validates.
-const VALIDATED_ORDER = `class ValidatedOrder private constructor(val order: Order) {
+// cannot exist unless it came through `from`, and the gate is shown, not
+// hidden in a helper: an invalid order throws here and never reaches
+// `process`. Rules are a pure ruleset (OrderRules), not an injected bean — a
+// companion can't hold one, and a guarantee that depends on mutable state
+// would be a lie. Stable rules also seed the ending — one ruleset here, but whose?
+const VALIDATED_ORDER = `class ValidatedOrder private constructor(val value: Order) {
 
     companion object {
         fun from(order: Order): ValidatedOrder {
-            validator.requireValid(order)
+            if (!OrderRules.isValid(order)) {
+                throw InvalidOrder(order.id)
+            }
+
             return ValidatedOrder(order)
         }
     }
@@ -90,7 +97,7 @@ const VALIDATED_ORDER = `class ValidatedOrder private constructor(val order: Ord
 
 // ── Coloring ──────────────────────────────────────────────────────────
 
-const SHORT_TYPES = [...CUSTOM_TYPES, 'ValidatedOrder'];
+const SHORT_TYPES = [...CUSTOM_TYPES, 'ValidatedOrder', 'OrderRules', 'InvalidOrder'];
 
 const SHORT_RULES: ColorRule[] = [
   ...CODE_RULES,
@@ -107,6 +114,10 @@ const VD_RULES: ColorRule[] = [
 const TYPE_RULES: ColorRule[] = [
   {match: /^[A-Z][A-Za-z]*$/, color: TYPE_CLEAN},
 ];
+
+// Glow for the instant the flag's meaning lands in the type (vs PERMISSION,
+// where it split into two method names). A cool type-coloured halo.
+const GLOW_TYPE = 'rgba(201,180,255,0.45)';
 
 // ── Scene ────────────────────────────────────────────────────────────
 
@@ -177,7 +188,20 @@ export default makeScene2D(function* (view) {
   s.callCodes[3].colorize(SHORT_RULES);
   paintNamedParams(s.callCodes[3]);
   s.callCodes[3].recenterContent();
-  yield* waitFor(1.5);
+
+  // ── Contrast with PERMISSION ───────────────────────────────────────
+  // Permission split the verb into two named methods. Here the flag's
+  // meaning concentrates into a noun — the type. Glow ValidatedOrder where
+  // it just displaced `Order`: the guarantee now lives in the type itself.
+  {
+    const sigLine = s.implCodes[3].getLine(0);
+    if (sigLine) {
+      yield* sigLine.setTokensGlow(['ValidatedOrder'], 12, GLOW_TYPE, 0.4);
+      yield* waitFor(0.7);
+      yield* sigLine.resetTokensGlow(['ValidatedOrder'], 0.5);
+    }
+  }
+  yield* waitFor(0.8);
 
   // ── MORPH 2 (impl only): wrapped val lines REFLOW into one-liners ───
   // The trailing calls glide up onto their `val` line (no retype); the

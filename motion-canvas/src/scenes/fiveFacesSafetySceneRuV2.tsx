@@ -21,26 +21,23 @@ import {
 // ── Clean split — the boolean method becomes two named operations ─────
 
 // What survives the morph: the soft branch, lifted out into its own method.
-const IMPL_SOFT_DELETE = `fun softDelete(userId: UserId, deletedAt: Instant, deletedBy: UserId): DeletedUser {
+const IMPL_SOFT_DELETE = `fun softDelete(userId: UserId, deletedBy: UserId): DeletedUser {
     val user = users.requireById(userId)
 
     return users.markDeleted(
         userId = user.id,
-        deletedAt = deletedAt,
+        deletedAt = clock.instant(),
         deletedBy = deletedBy,
     )
 }`;
 
-// Slides in below — the cascade reborn as its own named operation.
+// Slides in below — the brutal counterpart, one line. No infrastructure
+// cascade in the code (sessions/credentials would pull the eye into plumbing
+// instead of the point); the row simply goes for good. markDeleted (records
+// the deletion) vs deletePermanently (erases it) is the whole contrast — and
+// the destruction is shown in the table, where the row vanishes.
 const IMPL_HARD_DELETE = `fun hardDelete(userId: UserId) {
-    sessions.deleteByUser(userId)
-    credentials.deleteByUser(userId)
-    users.delete(userId)
-}`;
-
-// Cost beat — softDelete implies a way back. One flag became a lifecycle.
-const IMPL_RESTORE = `fun restore(userId: UserId): DeletedUser {
-    return users.clearDeleted(userId)
+    users.deletePermanently(userId)
 }`;
 
 // Call site — the dangerous bit disappears, the verb names itself.
@@ -49,8 +46,8 @@ class AccountDeletionService(
 
     private val users: UserRepository,
     private val sessions: UserSessionRepository,
+    private val deletion: UserDeletion,
     private val auditLog: AuditLog,
-    private val clock: Clock,
 ) {
 
     fun deleteAccount(userId: UserId, actor: UserId): DeletionResult {
@@ -60,7 +57,6 @@ class AccountDeletionService(
 
         val deletedUser = deletion.softDelete(
             userId = user.id,
-            deletedAt = clock.instant(),
             deletedBy = actor,
         )
 
@@ -76,14 +72,13 @@ class AccountDeletionService(
 
 const SAFETY_RULES: ColorRule[] = [
   ...CODE_RULES,
-  {match: /^(softDelete|hardDelete|restore|clearDeleted)$/, color: METHOD_COLOR},
+  {match: /^(softDelete|hardDelete)$/, color: METHOD_COLOR},
 ];
 
 const STRIPE_COLOR = 'rgba(255, 80, 120, 0.18)';
 
 const SOFT_LINES = IMPL_SOFT_DELETE.split('\n').length;
 const HARD_LINES = IMPL_HARD_DELETE.split('\n').length;
-const RESTORE_LINES = IMPL_RESTORE.split('\n').length;
 
 // Per-line painter for named-argument parameters (the identifier on the LHS
 // of `=`). Passed to morphTo's recolorLine hook so they morph in already in
@@ -152,7 +147,7 @@ export default makeScene2D(function* (view) {
   // ── MARK: the dangerous bit (param + the if that branches on it) ────
   {
     const paramLine = implMC.getLine(0);   // fun delete(..., soft: Boolean ...)
-    const ifLine = implMC.getLine(5);        // if (soft) {
+    const ifLine = implMC.getLine(4);        // if (soft) {
     const anims: any[] = [];
     if (paramLine) anims.push(...paramLine.colorizeByRuleAnimated('soft', METHOD_COLOR, 0.4));
     if (ifLine) anims.push(...ifLine.colorizeByRuleAnimated('soft', METHOD_COLOR, 0.4));
@@ -186,7 +181,7 @@ export default makeScene2D(function* (view) {
 
   // ── Call site — the highlight marks the doomed bit, then clears, then
   // the caller names the operation it actually wants. ─────────────────
-  const stripeLineY = callMC.node.position.y() + callMC.getLineY(16);   // soft = true,
+  const stripeLineY = callMC.node.position.y() + callMC.getLineY(17);   // soft = true,
   const stripe = createRef<Rect>();
   view.add(
     <Rect
@@ -216,15 +211,12 @@ export default makeScene2D(function* (view) {
   callMC.recenterContent();
   yield* waitFor(0.6);
 
-  // ── Anchor (mirrors PERMISSION): the bottom-most method rests its
-  // closing brace on the call's deleteAccount closing brace (2nd-to-last
-  // line; the very last line is the class brace). ────────────────────────
+  // ── Anchor (mirrors PERMISSION): hardDelete — the lower of the two clean
+  // methods — rests its closing brace on the call's deleteAccount brace
+  // (2nd-to-last line; the last is the class brace). Two methods are the
+  // whole clean solution; the cost is named separately, not piled on. ──────
   const braceY = callMC.node.position.y() + callMC.getLineY(callMC.lineCount - 2);
-  // Final 3-method layout, solved once. softDelete and hardDelete land in
-  // their FINAL spots immediately; restore's floor slot stays empty until
-  // the cost beat fills it. Nothing ever re-stacks, so softDelete moves
-  // exactly once (no dive-down-then-climb-back).
-  const [restoreY, hardY, softY] = stackYs([RESTORE_LINES, HARD_LINES, SOFT_LINES], braceY);
+  const [hardY, softY] = stackYs([HARD_LINES, SOFT_LINES], braceY);
 
   // ── SPLIT: softDelete settles to its place; hardDelete appears below ─
   const hardMC = Manticore.create(IMPL_HARD_DELETE, {
@@ -246,23 +238,12 @@ export default makeScene2D(function* (view) {
 
   // ── Consistent close marker — the scale dot lights up ───────────────
   yield* s.showSmallScale(2);
-  yield* waitFor(1.5);
 
-  // ── COST: restore drops into the reserved floor slot — a lifecycle ──
-  // (soft and hard don't budge; the API just grew downward to the brace.)
-  const restoreMC = Manticore.create(IMPL_RESTORE, {
-    x: IMPL_X, y: restoreY, width: IMPL_W,
-    fontSize: IMPL_FONT_SIZE, lineHeight: IMPL_LH,
-    fontFamily: Fonts.code, theme: DryFiltersV3CodeTheme,
-    noClip: true, cardStyle: TRANSPARENT_CARD,
-    glowAccent: false, customTypes: CUSTOM_TYPES,
-  });
-  restoreMC.mount(view);
-  restoreMC.colorize(SAFETY_RULES);
-  paintNamedParams(restoreMC);
-  restoreMC.node.opacity(0);
-  yield* restoreMC.node.opacity(1, 0.6, easeInOutSine);
-  yield* waitFor(3.0);
+  // ── Hold on the clean solution: the caller names the operation it wants
+  // (deletion.softDelete), and the boolean has become two named methods —
+  // softDelete records, hardDelete erases. The cost was already paid on
+  // screen by the table, where the row vanished; no extra code is piled on. ─
+  yield* waitFor(2.4);
 
   // ── Close ───────────────────────────────────────────────────────────
   yield* all(
@@ -270,7 +251,6 @@ export default makeScene2D(function* (view) {
     s.hideImplCode(2, 0.5),
     s.hideSmallScale(2, 0.4),
     hardMC.node.opacity(0, 0.5, easeInOutSine),
-    restoreMC.node.opacity(0, 0.5, easeInOutSine),
   );
   yield* waitFor(0.5);
 });

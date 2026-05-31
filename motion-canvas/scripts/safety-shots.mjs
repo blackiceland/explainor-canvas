@@ -9,7 +9,7 @@ const OUT = path.resolve('safety-shots');
 await fs.mkdir(OUT, {recursive: true});
 
 const FPS = 60;
-const TIMES_S = [19, 20, 21, 26];
+const TIMES_S = [27, 28];
 
 const browser = await puppeteer.launch({
   headless: true,
