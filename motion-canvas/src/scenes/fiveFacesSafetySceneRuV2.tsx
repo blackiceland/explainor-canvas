@@ -1,18 +1,14 @@
 import {makeScene2D} from '@motion-canvas/2d';
 import {Rect} from '@motion-canvas/2d';
-import {all, createRef, easeInOutCubic, easeInOutSine, waitFor} from '@motion-canvas/core';
+import {all, createRef, easeInOutSine, waitFor} from '@motion-canvas/core';
 import {CodeLine} from '../core/code/components/CodeLine';
-import {ColorRule, Manticore} from '../core/code/components/Manticore';
-import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
-import {Fonts} from '../core/theme';
+import {ColorRule} from '../core/code/components/Manticore';
 import {
   createFiveFacesStage,
   NAME_XS,
   FACES,
   CODE_RULES, CODE_LH,
-  CALL_X, CALL_W, IMPL_X, IMPL_W,
-  IMPL_FONT_SIZE, IMPL_LH,
-  TRANSPARENT_CARD, CUSTOM_TYPES,
+  CALL_X, CALL_W,
   METHOD_COLOR, PARAM_DARK, NAMED_PARAMS,
   blockLines,
   paintNamedParams,
@@ -20,8 +16,14 @@ import {
 
 // ── Clean split — the boolean method becomes two named operations ─────
 
-// What survives the morph: the soft branch, lifted out into its own method.
-const IMPL_SOFT_DELETE = `fun softDelete(userId: UserId, deletedBy: UserId): DeletedUser {
+// One morph turns the single delete(soft) into BOTH methods at once. The soft
+// branch keeps its body and becomes softDelete; the hard branch drops out into
+// hardDelete right below. Same shape, same return — two alternatives at one
+// level, not a verb with a void aside. No infrastructure cascade (sessions/
+// credentials would pull the eye into plumbing); markDeleted (records) vs
+// deletePermanently (erases) is the whole contrast, and the destruction shows
+// in the table, where the row vanishes.
+const IMPL_SAFETY_AFTER = `fun softDelete(userId: UserId, deletedBy: UserId): DeletedUser {
     val user = users.requireById(userId)
 
     return users.markDeleted(
@@ -29,15 +31,12 @@ const IMPL_SOFT_DELETE = `fun softDelete(userId: UserId, deletedBy: UserId): Del
         deletedAt = clock.instant(),
         deletedBy = deletedBy,
     )
-}`;
+}
 
-// Slides in below — the brutal counterpart, one line. No infrastructure
-// cascade in the code (sessions/credentials would pull the eye into plumbing
-// instead of the point); the row simply goes for good. markDeleted (records
-// the deletion) vs deletePermanently (erases it) is the whole contrast — and
-// the destruction is shown in the table, where the row vanishes.
-const IMPL_HARD_DELETE = `fun hardDelete(userId: UserId) {
+fun hardDelete(userId: UserId): DeletedUser {
     users.deletePermanently(userId)
+
+    return DeletedUser(userId)
 }`;
 
 // Call site — the dangerous bit disappears, the verb names itself.
@@ -52,7 +51,6 @@ class AccountDeletionService(
 
     fun deleteAccount(userId: UserId, actor: UserId): DeletionResult {
         val user = users.requireActive(userId)
-
         sessions.revokeAll(user.id)
 
         val deletedUser = deletion.softDelete(
@@ -76,9 +74,6 @@ const SAFETY_RULES: ColorRule[] = [
 ];
 
 const STRIPE_COLOR = 'rgba(255, 80, 120, 0.18)';
-
-const SOFT_LINES = IMPL_SOFT_DELETE.split('\n').length;
-const HARD_LINES = IMPL_HARD_DELETE.split('\n').length;
 
 // Per-line painter for named-argument parameters (the identifier on the LHS
 // of `=`). Passed to morphTo's recolorLine hook so they morph in already in
@@ -112,20 +107,6 @@ export default makeScene2D(function* (view) {
   const callMC = s.callCodes[2];
   const implMC = s.implCodes[2];
 
-  // Method blocks stack upward from a floor; each sits one gap above the
-  // next. `bottom` is the floor — the bottom-most method's closing brace.
-  const GAP = IMPL_LH * 2;
-  const stackYs = (fromFloor: number[], bottom: number): number[] => {
-    const ys: number[] = [];
-    let b = bottom;
-    for (const n of fromFloor) {
-      const span = (n - 1) * IMPL_LH;
-      ys.push(b - span / 2);
-      b = b - span - GAP;
-    }
-    return ys;
-  };
-
   // ── Face beat ──────────────────────────────────────────────────────
   yield* s.baseX(NAME_XS[2], 0.9, easeInOutSine);
   s.arrivalTime(view.globalTime());
@@ -146,7 +127,7 @@ export default makeScene2D(function* (view) {
 
   // ── MARK: the dangerous bit (param + the if that branches on it) ────
   {
-    const paramLine = implMC.getLine(0);   // fun delete(..., soft: Boolean ...)
+    const paramLine = implMC.getLine(0);   // fun delete(... soft: Boolean ...)
     const ifLine = implMC.getLine(4);        // if (soft) {
     const anims: any[] = [];
     if (paramLine) anims.push(...paramLine.colorizeByRuleAnimated('soft', METHOD_COLOR, 0.4));
@@ -155,23 +136,24 @@ export default makeScene2D(function* (view) {
   }
   yield* waitFor(1.0);
 
-  // ── MORPH: the if-gate and the hard cascade flash out; the soft ─────
-  // branch lifts free into softDelete (named args keep their colour).
-  yield* implMC.morphTo(IMPL_SOFT_DELETE, {
-    removeDuration: 0.35,
-    moveDuration: 0.5,
+  // ── MORPH: the boolean splits into BOTH named methods in one pass. The
+  // if-gate and the soft/deletedAt params flash out; softDelete keeps the
+  // markDeleted body, hardDelete's header types in at the same time as its
+  // body so neither method appears headerless. Parallel block+line order =
+  // both methods form together (the user's "simultaneous"); no token-slide
+  // and no similarity-pairing, so tokens retype/settle straight — nothing
+  // creeps diagonally. The pair re-centres as one block — softDelete never
+  // moves again afterwards. ───────────────────────────────────────────────
+  yield* implMC.morphTo(IMPL_SAFETY_AFTER, {
+    removeDuration: 0.3,
+    moveDuration: 0.45,
     charDelay: 0.015,
     flashRemovedColor: METHOD_COLOR,
-    flashRemovedDuration: 0.25,
+    flashRemovedDuration: 0.2,
     addStyle: 'typewriter',
     scrollStrategy: 'block',
-    // The markDeleted block only re-indents — pair it by content so its
-    // tokens slide to the new position instead of being re-typed, and run
-    // the block's lines in parallel so it travels as one unit (no per-line
-    // staggered left-creep). Slide duration matches the vertical settle.
-    pairBySimilarity: true,
-    tokenSlideDuration: 0.5,
     lineOrder: 'parallel',
+    blockOrder: 'parallel',
     recolorLine: paintNamedArgsLine,
   });
   implMC.colorize(SAFETY_RULES);
@@ -181,7 +163,7 @@ export default makeScene2D(function* (view) {
 
   // ── Call site — the highlight marks the doomed bit, then clears, then
   // the caller names the operation it actually wants. ─────────────────
-  const stripeLineY = callMC.node.position.y() + callMC.getLineY(17);   // soft = true,
+  const stripeLineY = callMC.node.position.y() + callMC.getLineY(16);   // soft = true,
   const stripe = createRef<Rect>();
   view.add(
     <Rect
@@ -211,29 +193,8 @@ export default makeScene2D(function* (view) {
   callMC.recenterContent();
   yield* waitFor(0.6);
 
-  // ── Anchor (mirrors PERMISSION): hardDelete — the lower of the two clean
-  // methods — rests its closing brace on the call's deleteAccount brace
-  // (2nd-to-last line; the last is the class brace). Two methods are the
-  // whole clean solution; the cost is named separately, not piled on. ──────
-  const braceY = callMC.node.position.y() + callMC.getLineY(callMC.lineCount - 2);
-  const [hardY, softY] = stackYs([HARD_LINES, SOFT_LINES], braceY);
-
-  // ── SPLIT: softDelete settles to its place; hardDelete appears below ─
-  const hardMC = Manticore.create(IMPL_HARD_DELETE, {
-    x: IMPL_X, y: hardY, width: IMPL_W,
-    fontSize: IMPL_FONT_SIZE, lineHeight: IMPL_LH,
-    fontFamily: Fonts.code, theme: DryFiltersV3CodeTheme,
-    noClip: true, cardStyle: TRANSPARENT_CARD,
-    glowAccent: false, customTypes: CUSTOM_TYPES,
-  });
-  hardMC.mount(view);
-  hardMC.colorize(SAFETY_RULES);
-  paintNamedParams(hardMC);
-  hardMC.node.opacity(0);
-  yield* all(
-    implMC.node.position.y(softY, 0.55, easeInOutCubic),
-    hardMC.node.opacity(1, 0.55, easeInOutSine),
-  );
+  // ── Both methods are already on screen from the single morph — no split
+  // stage and no repositioning. Hold, then mark the scale and close. ──────
   yield* waitFor(1.2);
 
   // ── Consistent close marker — the scale dot lights up ───────────────
@@ -250,7 +211,6 @@ export default makeScene2D(function* (view) {
     s.hideCallCode(2, 0.5),
     s.hideImplCode(2, 0.5),
     s.hideSmallScale(2, 0.4),
-    hardMC.node.opacity(0, 0.5, easeInOutSine),
   );
   yield* waitFor(0.5);
 });

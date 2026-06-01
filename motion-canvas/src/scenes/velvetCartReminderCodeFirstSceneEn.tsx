@@ -1,4 +1,4 @@
-import {Line, Node, Rect, Txt, blur, makeScene2D} from '@motion-canvas/2d';
+import {Circle, Line, Node, Rect, Txt, blur, makeScene2D} from '@motion-canvas/2d';
 import {
     Reference,
     ThreadGenerator,
@@ -8,7 +8,6 @@ import {
     easeInCubic,
     easeInOutCubic,
     easeOutCubic,
-    easeOutQuint,
     sequence,
     waitFor,
 } from '@motion-canvas/core';
@@ -800,18 +799,18 @@ export default makeScene2D(function* (view) {
     yield* waitFor(1.6);
 
     // ════════════════════════════════════════════════════════════════
-    //  Beat 8 — CONSEQUENCES: one method, every domain on one line
+    //  Beat 8 — CONSEQUENCES: the method is the intersection of the domains
     // ════════════════════════════════════════════════════════════════
-    // No zoom — pure translation. Keep the method name and the three real domain constants from
-    // the code, fade the rest; sendMessage slides to centre-top and the constants slide up into a
-    // single column beneath it, all of them hanging off the one method.
+    // No zoom — pure translation. Keep the method name and the three real domain constants from the
+    // code, fade the rest; sendMessage glides to the centroid and the constants pull out to the
+    // vertices of a triangle, then a circle blooms from each so all three overlap on sendMessage.
 
     const sigLine = merged.getLine(0);
     const nameTok = sigLine?.tokens.find(t => t.text === 'sendMessage')?.ref();
     const NAME_LX =
         LOCAL_LEFT + textWidth('function ', F_MONO, 32) + textWidth('sendMessage', F_MONO, 32) / 2;
     const NAME_LY = MOUNT_START_Y;
-    const SM_Y = -180;                      // sendMessage parks here; the constants line up beneath it
+    const VY = -40;                         // figure centroid: sendMessage parks here, domains ring around it
 
     // Keep sendMessage + the first domain constant of each kind; fade the rest. Column order
     // follows the source order, so SECURITY (which lives at the bottom of the body) sits at the
@@ -852,64 +851,146 @@ export default makeScene2D(function* (view) {
         return {x: 0, y: 0};
     };
 
-    // No-zoom geometry. With the scale held fixed, every motion is a pure translation, so a plain
-    // linear tween gives CONSTANT on-screen velocity — nothing to cancel. The block translates so
-    // sendMessage parks at (0, SM_Y); each constant additionally slides to its slot, dead-centre on
-    // x=0, in source order.
+    // Geometry. sendMessage parks high up — in the clear band between the header and the top of the
+    // figure — while the three constants pull out to the vertices of an equilateral triangle:
+    // MARKETING top-left, SECURITY top-right, BILLING the bottom point. The rings centre on the
+    // vertices; their triple-overlap lands on the centroid (0, VY), which is the territory
+    // sendMessage occupies.
     const S = merged.node.scale().x;        // current scale, held fixed (no zoom)
-    const Pfx = -S * NAME_LX;
-    const Pfy = SM_Y - S * NAME_LY;
-    const GAP = 130;
-    const colY = (k: number) => SM_Y + GAP * (k + 1);   // MARKETING / BILLING / SECURITY beneath sendMessage
-    const FORM = 0.8;
+    const SM_TOP_Y = -590;                  // sendMessage perches up here, clear of the header and the rings
+    const SM_X = -220;                      // …and off to the left — no symmetry with the centred figure
+    const Pfx = SM_X - S * NAME_LX;         // translate the block so sendMessage lands at (SM_X, SM_TOP_Y)
+    const Pfy = SM_TOP_Y - S * NAME_LY;
+    const R_TRI = 210;                      // centroid → vertex (where each constant parks)
+    const R_CIR = 245;                      // ring radius (> R_TRI, so the three overlap at the centroid)
+    const VERT = [
+        {x: 0,              y: VY + R_TRI},          // MARKETING — bottom point
+        {x: -R_TRI * 0.866, y: VY - R_TRI * 0.5},   // BILLING   — top-left
+        {x:  R_TRI * 0.866, y: VY - R_TRI * 0.5},   // SECURITY  — top-right
+    ];
+    const ZONE = DOMAIN;                     // the intersection, painted in the method's own colour
+    const FORM = 0.85;
 
-    // One decisive move with a strong ease-out: everything launches fast and glides to rest, so the
-    // constants carry momentum instead of a wooden constant-speed slide. The scale is fixed and the
-    // block + every constant share the same ease, so the on-screen motion collapses to a clean
-    // ease-out; the farther a constant travels the faster it goes, so the column assembles with
-    // natural variation. Meanwhile every other token and the bars fade.
+    merged.node.zIndex(10);                 // labels ride above the rings and the zone
+
+    // Two steps, so the body never rides the move. First the code dissolves IN PLACE — every token
+    // but sendMessage and the three constants fades where it sits, the block held still. (If the
+    // block translated while the body was still visible, the whole method would lurch upward.)
     yield* all(
-        merged.node.x(Pfx, FORM, easeOutQuint),
-        merged.node.y(Pfy, FORM, easeOutQuint),
-        merged.showAllLines(0.55),
+        merged.showAllLines(0.5),
         ...fadeToks,
-        barsNode().opacity(0, 0.5, easeInOutCubic),
+        barsNode().opacity(0, 0.45, easeInOutCubic),
+    );
+
+    // sendMessage gains its empty parens AS it travels: a separate node, parented into the moving
+    // block so it stays glued to the name, fading in by a pure opacity rise over the glide. Wrapped
+    // in a plain Node so the code block's layout never repositions it.
+    const parensTok = createRef<Txt>();
+    if (nameTok) {
+        const halfName = textWidth('sendMessage', F_MONO, 32) / 2;
+        const halfPar  = textWidth('()', F_MONO, 32) / 2;
+        merged.node.add(
+            <Node x={NAME_LX + halfName + halfPar} y={NAME_LY} zIndex={10}>
+                <Txt
+                    ref={parensTok}
+                    fontFamily={F_MONO} fontWeight={nameTok.fontWeight()}
+                    fontSize={32} fill={nameTok.fill()} opacity={0}
+                >
+                    ()
+                </Txt>
+            </Node>,
+        );
+    }
+    const parensIn = nameTok
+        ? (function* () {
+              yield* waitFor(FORM * 0.22);
+              yield* parensTok().opacity(1, FORM * 0.6, easeInOutCubic);
+          })()
+        : waitFor(0);
+
+    // The move, smooth ease-in-out: sendMessage glides up to its perch while each constant pulls out
+    // to its vertex — and the parens fade in along the way. Fixed scale + shared ease ⇒ a clean
+    // ease-in-out on screen.
+    yield* all(
+        parensIn,
+        merged.node.x(Pfx, FORM, easeInOutCubic),
+        merged.node.y(Pfy, FORM, easeInOutCubic),
         ...[0, 1, 2].map(k => {
             const tok = constToks[k];
             if (!tok) return waitFor(0);
             const cur = constBL(KEEP[k]);
             const p = tok.position();
             return tok.position(
-                [p.x + ((0 - Pfx) / S - cur.x), p.y + ((colY(k) - Pfy) / S - cur.y)],
-                FORM, easeOutQuint,
+                [p.x + ((VERT[k].x - Pfx) / S - cur.x), p.y + ((VERT[k].y - Pfy) / S - cur.y)],
+                FORM, easeInOutCubic,
             );
         }),
     );
-    yield* waitFor(0.2);
+    yield* waitFor(0.15);
 
-    // String the column together with a vertical line, drawn only in the gaps between the
-    // items (sendMessage + the three constants) — all on one vertical line, one method.
-    const itemY = [SM_Y, colY(0), colY(1), colY(2)];
-    const HALF = 36;
-    const conn = createRef<Node>();
-    const segRefs: Reference<Line>[] = [];
+    // The rings DRAW ON — each circle's outline is traced around its constant (start/end trim).
+    const rings = createRef<Node>();
+    const ringRefs: Reference<Circle>[] = [];
     view.add(
-        <Node ref={conn}>
-            {[0, 1, 2].map(j => {
-                const r = createRef<Line>();
-                segRefs.push(r);
-                return <Line ref={r} points={[[0, itemY[j] + HALF], [0, itemY[j + 1] - HALF]]} stroke={INK} lineWidth={2.5} opacity={0.5} end={0} />;
+        <Node ref={rings} zIndex={1}>
+            {[0, 1, 2].map(k => {
+                const r = createRef<Circle>();
+                ringRefs.push(r);
+                return (
+                    <Circle
+                        ref={r} x={VERT[k].x} y={VERT[k].y}
+                        width={R_CIR * 2} height={R_CIR * 2}
+                        stroke={INK} lineWidth={2} opacity={0.32} start={0} end={0}
+                    />
+                );
             })}
         </Node>,
     );
-    yield* all(...segRefs.map(s => s().end(1, 0.4, easeInOutCubic)));
+    yield* sequence(0.12, ...ringRefs.map(r => r().end(1, 0.7, easeInOutCubic)));
+
+    // The middle fills in the method's own colour — the exact intersection of all three discs, via
+    // nested clips. No connecting line: once it fills, sendMessage() and the zone pulse together in a
+    // slow two-beat throb — a gentle synchronised breath that binds the method to its territory.
+    const zone = createRef<Node>();
+    const vA = VERT[0], vB = VERT[1], vC = VERT[2];
+    view.add(
+        <Node ref={zone} zIndex={0} opacity={0}>
+            <Circle x={vA.x} y={vA.y} width={R_CIR * 2} height={R_CIR * 2} clip>
+                <Circle x={vB.x - vA.x} y={vB.y - vA.y} width={R_CIR * 2} height={R_CIR * 2} clip>
+                    <Circle x={vC.x - vB.x} y={vC.y - vB.y} width={R_CIR * 2} height={R_CIR * 2} fill={ZONE} />
+                </Circle>
+            </Circle>
+        </Node>,
+    );
+    // First the zone fills (clean rise), then the bind: a slow, gentle two-beat throb where the zone
+    // and sendMessage() dip and recover together — smooth and shallow, so it reads as a synchronised
+    // breath, not a glitch. Both settle bright.
+    const smThrob = (o: number, d: number): ThreadGenerator =>
+        all(
+            nameTok ? nameTok.opacity(o, d, easeInOutCubic) : waitFor(0),
+            nameTok ? parensTok().opacity(o, d, easeInOutCubic) : waitFor(0),
+        );
+    yield* zone().opacity(0.9, 0.3, easeOutCubic);
+    yield* all(
+        (function* () {
+            yield* zone().opacity(0.6, 0.22, easeInOutCubic);
+            yield* zone().opacity(0.9, 0.22, easeInOutCubic);
+            yield* zone().opacity(0.6, 0.22, easeInOutCubic);
+            yield* zone().opacity(0.9, 0.26, easeInOutCubic);
+        })(),
+        (function* () {
+            yield* smThrob(0.62, 0.22);
+            yield* smThrob(1,    0.22);
+            yield* smThrob(0.62, 0.22);
+            yield* smThrob(1,    0.26);
+        })(),
+    );
     yield* waitFor(0.5);
 
-    // ── The cost: change one domain and the rest break ──────────────────
-    // SECURITY (bottom of the chain) is edited — its own colour flares gold, then settles. Because
-    // every domain hangs off the one method, the break then runs up the shared line: each link,
-    // then the constant it feeds, turns to the alert clay in turn, bottom to top. You cannot touch
-    // one without the rest going with it. Colour carries it — no gutter chrome, no glow, no shake.
+    // ── The cost: edit one domain, the rest break ───────────────────────
+    // SECURITY (top-right) is edited — its colour flares gold, then settles. Because sendMessage is
+    // the shared intersection, the other two domains break with it: label AND ring turn to the alert
+    // clay. You cannot touch the intersection without breaking every domain that meets there.
     const ALERT  = '#D6907E';   // dusty clay-red: reads "broken" without RGB-cheapening the palette
     const PURPLE = '#B49ED8';   // the constants' normal colour
     const secTok = constToks[2];
@@ -921,63 +1002,77 @@ export default makeScene2D(function* (view) {
     }
     yield* waitFor(0.3);
 
-    // 2) The break travels up the chain, evenly paced: each link, then the constant it feeds.
-    const breakLink = (s: Reference<Line>): ThreadGenerator =>
-        all(s().stroke(ALERT, 0.32, easeInOutCubic), s().opacity(0.8, 0.32, easeInOutCubic));
-    const breakConst = (k: number): ThreadGenerator =>
-        constToks[k] ? constToks[k].fill(ALERT, 0.34, easeInOutCubic) : waitFor(0);
-    yield* sequence(0.16,
-        breakLink(segRefs[2]),   // SECURITY → BILLING link
-        breakConst(1),           // BILLING breaks
-        breakLink(segRefs[1]),   // BILLING → MARKETING link
-        breakConst(0),           // MARKETING breaks
-        breakLink(segRefs[0]),   // MARKETING → sendMessage link
-    );
+    // 2) The other two domains break — label + ring turn clay, BILLING then MARKETING.
+    const breakDomain = (k: number): ThreadGenerator =>
+        all(
+            constToks[k] ? constToks[k].fill(ALERT, 0.34, easeInOutCubic) : waitFor(0),
+            ringRefs[k]().stroke(ALERT, 0.34, easeInOutCubic),
+            ringRefs[k]().opacity(0.6, 0.34, easeInOutCubic),
+        );
+    yield* sequence(0.16, breakDomain(1), breakDomain(0));
     yield* waitFor(1.1);
 
-    // ── Closing quote ────────────────────────────────────────────────────
-    // A typographic statement, not typed: the claim in cream roman, the cost —
-    // the wrong abstraction — set apart in gold italic. No quote marks.
-    const line1 = createRef<Txt>();
-    const line2 = createRef<Txt>();
-    const attrib = createRef<Txt>();
+    // ── Closing field note ──────────────────────────────────────────────
+    // The author's own verdict, not a citation: a FIELD NOTE eyebrow over a two-part line — the
+    // condition in cream roman, the verdict (the abstraction came too early) set apart in gold italic.
+    const GOLD_QUIET = '#DDBF5C';   // muted gold — a touch calmer than ACCENT so the verdict sits, not glows
+    const eyebrow = createRef<Txt>();
+    const condA = createRef<Txt>();
+    const condB = createRef<Txt>();
+    const concl = createRef<Txt>();
     view.add(
         <Txt
-            ref={line1}
-            fontFamily={F_SERIF} fontSize={66} fontWeight={500}
-            fill={INK} textAlign="center" y={-82} opacity={0}
-        >
-            Duplication is far cheaper than
-        </Txt>,
-    );
-    view.add(
-        <Txt
-            ref={line2}
-            fontFamily={F_SERIF} fontSize={66} fontWeight={500} fontStyle={'italic'}
-            fill={ACCENT} textAlign="center" y={16} opacity={0}
-        >
-            the wrong abstraction
-        </Txt>,
-    );
-    view.add(
-        <Txt
-            ref={attrib}
+            ref={eyebrow}
             fontFamily={F_SERIF} fontSize={30} fontWeight={500}
-            letterSpacing={5} fill={QUIET} textAlign="center" y={158} opacity={0}
+            letterSpacing={5} fill={QUIET} textAlign="center" y={-142} opacity={0}
         >
-            SANDI METZ
+            FIELD NOTE
+        </Txt>,
+    );
+    view.add(
+        <Txt
+            ref={condA}
+            fontFamily={F_SERIF} fontSize={58} fontWeight={500}
+            fill={INK} textAlign="center" y={-60} opacity={0}
+        >
+            If a merged function needs
+        </Txt>,
+    );
+    view.add(
+        <Txt
+            ref={condB}
+            fontFamily={F_SERIF} fontSize={58} fontWeight={500}
+            fill={INK} textAlign="center" y={24} opacity={0}
+        >
+            a flag to tell cases apart,
+        </Txt>,
+    );
+    view.add(
+        <Txt
+            ref={concl}
+            fontFamily={F_SERIF} fontSize={58} fontWeight={500} fontStyle={'italic'}
+            fill={GOLD_QUIET} textAlign="center" y={136} opacity={0}
+        >
+            the abstraction came too early.
         </Txt>,
     );
 
-    // Clear sendMessage + the constant row, then let the statement settle in (staggered).
+    // Clear sendMessage + the domains, then let the note settle in: eyebrow first, the condition
+    // (gently staggered), a beat, then the verdict lands alone.
     yield* all(
         merged.node.opacity(0, 0.7, easeInOutCubic),
-        conn().opacity(0, 0.7, easeInOutCubic),
+        rings().opacity(0, 0.7, easeInOutCubic),
+        zone().opacity(0, 0.7, easeInOutCubic),
         barsNode().opacity(0, 0.7, easeInOutCubic),
     );
-    yield* line1().opacity(1, 0.8, easeInOutCubic);
-    yield* line2().opacity(1, 0.8, easeInOutCubic);
-    yield* waitFor(0.3);
-    yield* attrib().opacity(1, 0.7, easeInOutCubic);
+    yield* eyebrow().opacity(1, 0.6, easeInOutCubic);
+    yield* waitFor(0.1);
+    yield* sequence(
+        0.18,
+        condA().opacity(1, 0.7, easeInOutCubic),
+        condB().opacity(1, 0.7, easeInOutCubic),
+    );
+    yield* waitFor(0.45);
+    yield* concl().opacity(1, 0.85, easeInOutCubic);
     yield* waitFor(3.2);
 });

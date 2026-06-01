@@ -302,7 +302,6 @@ class AccountDeletionService(
 
     fun deleteAccount(userId: UserId, actor: UserId): DeletionResult {
         val user = users.requireActive(userId)
-
         sessions.revokeAll(user.id)
 
         val deletedUser = deletion.delete(
@@ -334,9 +333,7 @@ export const IMPL_SAFETY = `fun delete(userId: UserId, soft: Boolean = true, del
         )
     }
 
-    sessions.deleteByUser(user.id)
-    credentials.deleteByUser(user.id)
-    users.delete(user.id)
+    users.deletePermanently(user.id)
 
     return DeletedUser(user.id)
 }`;
@@ -441,7 +438,7 @@ export const FACES: Face[] = [
    callBlock: [17, 21]},
   {name: 'SAFETY',     scale: 3,
    callCode: CALL_SAFETY,     implCode: IMPL_SAFETY,
-   callBlock: [15, 20]},
+   callBlock: [14, 19]},
   {name: 'SHORTCUT',   scale: 4,
    callCode: CALL_SHORTCUT,   implCode: IMPL_SHORTCUT,
    callBlock: [13, 17]},

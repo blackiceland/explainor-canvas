@@ -5,7 +5,7 @@ const URL = 'http://localhost:5173/src/verticalProject';
 const OUT = './scripts/preview-out';
 // velvet is the only active scene → plays from t=0. Consequences beat sits late,
 // just before the closing quote. Sweep late timestamps to catch the tableau.
-const SHOT_TIMES = [34, 35, 35.5, 36, 36.5, 37, 37.5, 38];
+const SHOT_TIMES = [45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59];
 
 try { mkdirSync(OUT, {recursive: true}); } catch {}
 
