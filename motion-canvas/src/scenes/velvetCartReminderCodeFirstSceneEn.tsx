@@ -946,7 +946,28 @@ export default makeScene2D(function* (view) {
             })}
         </Node>,
     );
+
+    // Soft translucent beige washes under the rings — each domain its own gentle tone, warming where
+    // they overlap. They sit at the very back, below the ink rings and the central zone.
+    const fills = createRef<Node>();
+    const BEIGE = [
+        'rgba(246, 222, 168, 0.13)',   // MARKETING — soft sand
+        'rgba(248, 216, 190, 0.13)',   // BILLING   — rosy beige
+        'rgba(240, 226, 194, 0.13)',   // SECURITY  — warm oat
+    ];
+    view.add(
+        <Node ref={fills} zIndex={0} opacity={0}>
+            {[0, 1, 2].map(k => (
+                <Circle
+                    x={VERT[k].x} y={VERT[k].y}
+                    width={R_CIR * 2} height={R_CIR * 2} fill={BEIGE[k]}
+                />
+            ))}
+        </Node>,
+    );
     yield* sequence(0.12, ...ringRefs.map(r => r().end(1, 0.7, easeInOutCubic)));
+    // Once the outlines have traced on, the beige fields bloom in gently behind them.
+    yield* fills().opacity(1, 0.5, easeOutCubic);
 
     // The middle fills in the method's own colour — the exact intersection of all three discs, via
     // nested clips. No connecting line: once it fills, sendMessage() and the zone pulse together in a
@@ -1062,6 +1083,7 @@ export default makeScene2D(function* (view) {
     yield* all(
         merged.node.opacity(0, 0.7, easeInOutCubic),
         rings().opacity(0, 0.7, easeInOutCubic),
+        fills().opacity(0, 0.7, easeInOutCubic),
         zone().opacity(0, 0.7, easeInOutCubic),
         barsNode().opacity(0, 0.7, easeInOutCubic),
     );

@@ -49,11 +49,13 @@ import velvetRichIndigoCodeFirstSceneEn from './scenes/velvetRichIndigoCodeFirst
 import velvetCoolGraphiteCodeFirstSceneEn from './scenes/velvetCoolGraphiteCodeFirstSceneEn?scene';
 import velvetOpeningsShowcaseCodeFirstSceneEn from './scenes/velvetOpeningsShowcaseCodeFirstSceneEn?scene';
 import velvetDegradationCodeFirstSceneEn from './scenes/velvetDegradationCodeFirstSceneEn?scene';
+import velvetBooleanFlagCodeFirstSceneEn from './scenes/velvetBooleanFlagCodeFirstSceneEn?scene';
 
 export default makeProject({
     experimentalFeatures: true,
     scenes: [
         velvetCartReminderCodeFirstSceneEn,
+        velvetBooleanFlagCodeFirstSceneEn,
         // deepCobaltQuietFieldsVelvetCodeFirstSceneEn,
         // velvetCoolGraphiteCodeFirstSceneEn,
         // velvetDeepMidnightCodeFirstSceneEn,

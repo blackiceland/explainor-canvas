@@ -3,9 +3,12 @@ import {writeFileSync, mkdirSync} from 'fs';
 
 const URL = 'http://localhost:5173/src/verticalProject';
 const OUT = './scripts/preview-out';
-// velvet is the only active scene → plays from t=0. Consequences beat sits late,
-// just before the closing quote. Sweep late timestamps to catch the tableau.
-const SHOT_TIMES = [45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59];
+// verticalProject now plays TWO scenes: velvetBooleanFlag THEN velvetCartReminder.
+// So velvet's Beat-8 card tableau sits ~89s in (past one full boolean scene). To render
+// it cheaply, temporarily reorder velvetCartReminder FIRST in verticalProject.ts (both
+// scenes stay listed — never drop one), then it plays from t=0 and the card beat + field
+// note land ~36-48s in this sweep. Restore the original order afterwards.
+const SHOT_TIMES = [27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47];
 
 try { mkdirSync(OUT, {recursive: true}); } catch {}
 
