@@ -31,7 +31,6 @@ const OPERATOR = '#8F9AAA';
 const HERO     = '#E7E1D6';
 const ACCENT   = '#E8C656';
 const QUIET    = 'rgba(231, 225, 214, 0.50)';
-const SKEL     = 'rgba(231, 225, 214, 0.25)';
 const GHOST    = 'rgba(231, 225, 214, 0.60)';
 const GOLD_QUIET = '#DDBF5C';   // muted gold — warmth without RGB-cheapening the palette
 const DIM_OP   = 0.22;
@@ -177,11 +176,12 @@ function* flareToken(
 // ── Premium product cards — the import dialog, one flag apart ─────────
 // House card vocabulary (cf. whatsappCodePairSceneEn): an elevated rounded
 // panel with a soft drop-shadow, a leading app-glyph + title + handle + close,
-// a hairline-ruled record list, and a footer with a live count and a
-// Publish-style pill. Two material treatments carry the physics — the preview
-// card is a weightless frosted DRAFT (it lifts and evaporates, 0 written); the
-// run card is solid and elevated, and it COMMITS (record rules draw across,
-// the count climbs to 1,000, it stays).
+// a clean record list, and a footer with the outcome count and a Publish-style
+// pill. Premium is built STILL, not animated — no counters ticking, no rules
+// sweeping, no glow. The two cards differ only by material + final state: the
+// preview draft (translucent, preview: true, 0 written) vs the committed run
+// (solid + elevated, preview: false, 1,000 written). Same call, opposite
+// outcome, read at a glance.
 const RECORDS: {id: string; name: string}[] = [
     {id: '0418', name: 'Avery Brooks'},
     {id: '0419', name: 'Mara Quinn'},
@@ -212,43 +212,39 @@ const PILL_X    = CARD_W / 2 - CARD_PAD - PILL_W / 2; // 216
 
 type Card = {
     node: Reference<Node>;
-    count: Reference<Txt>;
-    rows: {sep: Reference<Rect>}[];
     jsx: any;
 };
 
 function buildCard(o: {
     y: number; variant: 'preview' | 'run';
-    handle: string; pillText: string; count: () => number;
+    handle: string; pillText: string; countText: string;
 }): Card {
     const run = o.variant === 'run';
 
-    // Material — solid+elevated (run) vs frosted+weightless draft (preview).
-    const panelFill   = run ? '#1B2233' : 'rgba(231,225,214,0.055)';
-    const panelStroke = run ? 'rgba(231,225,214,0.10)' : 'rgba(231,225,214,0.17)';
-    const shadowCol   = run ? 'rgba(0,0,0,0.50)' : 'rgba(0,0,0,0.20)';
-    const shadowBlurV = run ? 46 : 24;
+    // Material — solid+elevated (run) vs frosted+lighter draft (preview). The
+    // difference is stated, not animated: it lives in material + final state.
+    const panelFill   = run ? '#1B2233' : 'rgba(231,225,214,0.05)';
+    const panelStroke = run ? 'rgba(231,225,214,0.10)' : 'rgba(231,225,214,0.16)';
+    const shadowCol   = run ? 'rgba(0,0,0,0.50)' : 'rgba(0,0,0,0.18)';
+    const shadowBlurV = run ? 46 : 22;
     const shadowOff: [number, number] = run ? [0, 24] : [0, 12];
 
     const titleFill  = run ? INK : GHOST;
     const handleFill = run ? KEY : 'rgba(202,180,234,0.55)';
     const idFill     = run ? QUIET : 'rgba(231,225,214,0.28)';
     const nameFill   = run ? INK : GHOST;
-    const ruleFill   = run ? 'rgba(231,225,214,0.26)' : SKEL;
     const countFill  = run ? INK : QUIET;
 
-    const tileFill   = run ? 'rgba(232,198,86,0.15)' : 'rgba(231,225,214,0.06)';
-    const tileStroke = run ? 'rgba(232,198,86,0.36)' : 'rgba(231,225,214,0.16)';
-    const tileMark   = run ? GOLD_QUIET : QUIET;
+    const tileFill   = run ? 'rgba(231,225,214,0.10)' : 'rgba(231,225,214,0.05)';
+    const tileStroke = run ? 'rgba(231,225,214,0.20)' : 'rgba(231,225,214,0.13)';
+    const tileMark   = run ? 'rgba(231,225,214,0.82)' : QUIET;
 
-    const pillFill      = run ? INK : 'rgba(231,225,214,0.10)';
+    const pillFill      = run ? INK : 'rgba(231,225,214,0.09)';
     const pillStroke    = run ? 'rgba(0,0,0,0)' : 'rgba(231,225,214,0.22)';
     const pillLabelFill = run ? BG : QUIET;
-    const pillShadow    = run ? 'rgba(0,0,0,0.35)' : 'rgba(0,0,0,0)';
+    const pillShadow    = run ? 'rgba(0,0,0,0.30)' : 'rgba(0,0,0,0)';
 
-    const node  = createRef<Node>();
-    const count = createRef<Txt>();
-    const rows: {sep: Reference<Rect>}[] = [];
+    const node = createRef<Node>();
 
     const jsx = (
         <Node ref={node} y={o.y}>
@@ -273,10 +269,8 @@ function buildCard(o: {
                 <Rect width={20} height={2} radius={1} fill={QUIET} rotation={-45} />
             </Node>
 
-            {/* record list — each row carries a hairline rule, drawn on commit */}
+            {/* record list — clean and airy, no row rules */}
             {RECORDS.map((rec, i) => {
-                const sep = createRef<Rect>();
-                rows.push({sep});
                 const ry = ROW0_Y + i * ROW_GAP;
                 return (
                     <Node y={ry}>
@@ -284,15 +278,13 @@ function buildCard(o: {
                             fill={idFill} offset={[-1, 0]} x={LIST_X} y={1} />
                         <Txt text={rec.name} fontFamily={F_SANS} fontSize={23} fontWeight={450}
                             letterSpacing={-0.1} fill={nameFill} offset={[-1, 0]} x={NAME_X2} />
-                        <Rect ref={sep} width={0} height={1} fill={ruleFill}
-                            offset={[-1, 0]} x={LIST_X - 8} y={ROW_GAP / 2} />
                     </Node>
                 );
             })}
 
-            {/* footer — divider, live count, Publish-style pill */}
+            {/* footer — divider, outcome count, Publish-style pill */}
             <Rect width={RULE_W} height={1} fill="rgba(231,225,214,0.10)" y={DIVIDER_Y} />
-            <Txt ref={count} text={() => Math.round(o.count()).toLocaleString('en-US')}
+            <Txt text={o.countText}
                 fontFamily={F_MONO} fontSize={27} fontWeight={500}
                 fill={countFill} offset={[1, 0]} x={NUM_RIGHT} y={FOOTER_CY} />
             <Txt text="rows written" fontFamily={F_SANS} fontSize={15} fontWeight={400}
@@ -306,7 +298,7 @@ function buildCard(o: {
             </Rect>
         </Node>
     );
-    return {node, count, rows, jsx};
+    return {node, jsx};
 }
 
 // ── Subtitle typing (static `//` + typed body) ───────────────────────
@@ -355,18 +347,24 @@ export default makeScene2D(function* (view) {
         letterSpacing={4} fill={HERO} y={820} />);
 
     // Subtitle: static `//` + typed body, left-aligned at a fixed x.
+    // HIDDEN — these in-scene captions are replaced by the external subtitle
+    // overlay (subtitleOverlayProject). Fill is transparent so nothing draws,
+    // but the nodes and every typeBody/swapSub/opacity call below stay exactly
+    // in place, so the scene's timeline is unchanged and the existing cut + SRT
+    // still line up frame-for-frame. To bring them back: restore fill={ACCENT}.
     const SUB_Y = 705;
     const SUB_X = -250;
     const SUB_FS = 37;
     const SLASH_W = 67;
+    const CAPTION_FILL = 'rgba(0,0,0,0)';
     const subSlashes = createRef<Txt>();
     const subBody = createRef<Txt>();
     view.add(<Txt ref={subSlashes} text="// "
         fontFamily={F_MONO} fontSize={SUB_FS} fontWeight={500}
-        fill={ACCENT} offset={[-1, 0]} x={SUB_X} y={SUB_Y} opacity={0} />);
+        fill={CAPTION_FILL} offset={[-1, 0]} x={SUB_X} y={SUB_Y} opacity={0} />);
     view.add(<Txt ref={subBody} text=""
         fontFamily={F_MONO} fontSize={SUB_FS} fontWeight={500}
-        fill={ACCENT} offset={[-1, 0]} x={SUB_X + SLASH_W} y={SUB_Y} opacity={0} />);
+        fill={CAPTION_FILL} offset={[-1, 0]} x={SUB_X + SLASH_W} y={SUB_Y} opacity={0} />);
 
     // ════════════════════════════════════════════════════════════════
     //  Act 1 — THE FLAG FUNCTION
@@ -410,32 +408,29 @@ export default makeScene2D(function* (view) {
     // ════════════════════════════════════════════════════════════════
     //  Act 2 — THE PHYSICS  (what the two branches really do)
     // ════════════════════════════════════════════════════════════════
-    // Two product cards — the same import dialog, one flag apart. The preview
-    // card is a weightless frosted DRAFT: it lifts and evaporates, nothing
-    // written (0). The run card is solid and elevated, and it COMMITS — record
-    // rules draw across, the count climbs to 1,000, it stays. The vertical axis
-    // carries the thesis: the draft rises and vanishes, the commit settles.
+    // Two product cards, the same import dialog one flag apart, shown STILL.
+    // No counters tick, no rules sweep, no glow — the contrast lives in the
+    // final state. Top: the preview draft (preview: true, 0 written). Bottom:
+    // the committed run (preview: false, 1,000 written). Identical call,
+    // opposite outcome — read at a glance.
 
     const PREVIEW_Y = -355;
     const RUN_Y     =  315;
 
-    const previewCount = createSignal(0);
-    const runCount     = createSignal(0);
-
     const preview = buildCard({
         y: PREVIEW_Y, variant: 'preview',
-        handle: 'preview: true', pillText: 'Preview', count: () => previewCount(),
+        handle: 'preview: true', pillText: 'Preview', countText: '0',
     });
     const run = buildCard({
         y: RUN_Y, variant: 'run',
-        handle: 'preview: false', pillText: 'Run import', count: () => runCount(),
+        handle: 'preview: false', pillText: 'Run import', countText: '1,000',
     });
     view.add(preview.jsx);
     view.add(run.jsx);
-    preview.node().opacity(0); preview.node().y(PREVIEW_Y + 24);
-    run.node().opacity(0);     run.node().y(RUN_Y + 24);
+    preview.node().opacity(0);
+    run.node().opacity(0);
 
-    // Hand off from code to cards: the function recedes.
+    // Hand off from code to cards — a quiet crossfade, nothing more.
     yield* all(
         fn.node.opacity(0, 0.5, easeInCubic),
         fnBlur(6, 0.5, easeInCubic),
@@ -444,53 +439,29 @@ export default makeScene2D(function* (view) {
     );
     fn.node.remove();
 
-    // Both cards settle in — the solid run card first (weight), then the lighter
-    // preview draft. House entrance: fade + a short upward settle.
+    // The two states simply appear, together, and hold. No motion inside them.
     yield* all(
-        run.node().opacity(1, 0.6, easeOutCubic),
-        run.node().y(RUN_Y, 0.6, easeOutCubic),
+        run.node().opacity(1, 0.7, easeOutCubic),
+        preview.node().opacity(1, 0.7, easeOutCubic),
     );
-    yield* all(
-        preview.node().opacity(1, 0.6, easeOutCubic),
-        preview.node().y(PREVIEW_Y, 0.6, easeOutCubic),
-    );
-    yield* waitFor(0.4);
+    yield* waitFor(0.5);
 
     subSlashes().opacity(1);
     subBody().opacity(1);
     yield* typeBody(subBody, 'one flag, two outcomes');
-    yield* waitFor(0.5);
 
-    // Commit (run): each record locks in — its rule draws across, left to right —
-    // and the count climbs to 1,000 in step. This is the write.
-    yield* all(
-        sequence(0.09, ...run.rows.map(r => r.sep().width(RULE_W, 0.34, easeOutCubic))),
-        runCount(1000, 1.05, easeOutCubic),
-    );
+    // Hold the still contrast — this is the beat.
+    yield* waitFor(3.0);
 
-    // The write settles — a slow, weighty confirmation. The figure warms to a
-    // muted gold and eases back to ink.
-    yield* run.count().fill(GOLD_QUIET, 0.5, easeOutCubic);
-    yield* run.count().fill(INK, 0.7, easeInOutCubic);
-    yield* waitFor(0.5);
-
-    // The draft was never real — it lifts and dissolves. Nothing written; holds 0.
-    yield* all(
-        preview.node().y(PREVIEW_Y - 130, 1.3, easeOutCubic),
-        preview.node().opacity(0, 1.3, easeInCubic),
-    );
-    preview.node().remove();
-
-    // Hold the contrast: empty above / a full committed card below, 1,000 written.
-    yield* waitFor(1.5);
-
-    // Clear the physics.
+    // Clear.
     yield* all(
         run.node().opacity(0, 0.6, easeInCubic),
+        preview.node().opacity(0, 0.6, easeInCubic),
         subSlashes().opacity(0, 0.5, easeInCubic),
         subBody().opacity(0, 0.5, easeInCubic),
     );
     run.node().remove();
+    preview.node().remove();
 
     // ════════════════════════════════════════════════════════════════
     //  Act 3 — THE DECEPTION  (one bit apart)

@@ -5,7 +5,7 @@ const motionCanvasFactory = (motionCanvas as unknown as {default?: typeof motion
 
 export default defineConfig({
   plugins: [motionCanvasFactory({
-    project: ['./src/project.ts', './src/verticalProject.ts'],
+    project: ['./src/project.ts', './src/verticalProject.ts', './src/subtitleOverlayProject.ts'],
   })],
   resolve: {
     dedupe: ['three'],
