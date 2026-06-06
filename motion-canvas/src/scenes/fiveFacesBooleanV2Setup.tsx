@@ -84,6 +84,35 @@ class MonthlyReportPublisher(
     }
 }`;
 
+// PERMISSION call after the split — the boolean argument is gone; the caller
+// picks the named method. save(…, overwrite = true) → saveOrReplace(…).
+export const CALL_PERMISSION_CLEAN = `@Service
+class MonthlyReportPublisher(
+
+    private val renderer: ReportRenderer,
+    private val fileStorage: FileStorage,
+    private val auditLog: AuditLog,
+) {
+
+    fun publish(period: YearMonth, requestedBy: UserId): StorageKey {
+        val report = renderer.renderMonthlyReport(period)
+
+        val savedFile = fileStorage.saveOrReplace(
+            path = "reports/monthly/$period.pdf",
+            content = report.bytes,
+            contentType = "application/pdf",
+        )
+
+        auditLog.record(
+            actorId = requestedBy,
+            action = "monthly_report_published",
+            resourceId = savedFile.key,
+        )
+
+        return savedFile.key
+    }
+}`;
+
 export const COMPLEX_SAVE_CODE = `class FileStorageService(
     private val storage: ObjectStorage,
     private val validator: ContentValidator,
@@ -185,6 +214,99 @@ export const COMPLEX_SAVE_CODE = `class FileStorageService(
         } finally {
             lock.release()
         }
+    }
+}`;
+
+// PERMISSION big-method view — the SAME real save(), but ONLY the method:
+// no class header, no constructor injects. Shows how big one method already is,
+// so "just split it" is not free. De-indented one level (standalone method).
+export const COMPLEX_SAVE_METHOD = `fun save(path: String, content: Bytes, contentType: String, overwrite: Boolean = false): StoredFile {
+    require(path.isNotBlank()) { "Path must not be blank" }
+    require(content.size > 0) { "Content must not be empty" }
+
+    val startTime = clock.instant()
+
+    val normalizedPath = normalizePath(path)
+    val sizeBytes = content.size.toLong()
+    validator.requireValidMimeType(contentType)
+    validator.requireSafeContent(content, contentType)
+
+    if (sizeBytes > MAX_FILE_SIZE) {
+        throw FileTooLargeException(normalizedPath, sizeBytes, MAX_FILE_SIZE)
+    }
+
+    val scanResult = antivirus.scan(content, contentType)
+
+    if (!scanResult.clean) {
+        audit.record(currentUserId(), "malware_detected", normalizedPath,
+            mapOf("threat" to scanResult.threatName, "engine" to scanResult.engineVersion))
+        throw MalwareDetectedException(normalizedPath, scanResult.threatName)
+    }
+
+    val usage = quotas.currentUsage(tenantId())
+
+    if (usage.bytes + sizeBytes > usage.limit) {
+        throw QuotaExceededException(tenantId(), sizeBytes, usage.limit - usage.bytes)
+    }
+
+    val lock = locks.tryAcquire("file:\${normalizedPath}", Duration.ofSeconds(5))
+        ?: throw FileLockedException(normalizedPath)
+
+    try {
+        val existing = storage.find(normalizedPath)
+
+        if (existing != null && !overwrite) {
+            throw FileAlreadyExistsException(normalizedPath)
+        }
+
+        val version = (existing?.version ?: 0) + 1
+
+        val encryptionKey = encryption.generateKey()
+        val encrypted = encryption.encrypt(content, encryptionKey)
+        val checksum = computeChecksum(encrypted)
+
+        val storageKey = storage.put(
+            path = normalizedPath, content = encrypted, contentType = contentType,
+            metadata = mapOf(
+                "version" to version.toString(), "checksum" to checksum,
+                "original-size" to sizeBytes.toString(), "encryption-key-id" to encryptionKey.id,
+                "uploaded-at" to clock.instant().toString(), "uploaded-by" to currentUserId().value,
+            ),
+        )
+
+        val storedFile = StoredFile(
+            key = storageKey, path = normalizedPath, contentType = contentType,
+            sizeBytes = sizeBytes, version = version, checksum = checksum,
+            createdAt = existing?.createdAt ?: clock.instant(), updatedAt = clock.instant(),
+        )
+
+        val action = if (existing != null) {
+            "file_overwritten"
+        } else {
+            "file_created"
+        }
+
+        audit.record(currentUserId(), action, storageKey, mapOf(
+            "path" to normalizedPath, "version" to version,
+            "size" to sizeBytes, "contentType" to contentType,
+        ))
+
+        events.publish(FileStoredEvent(
+            path = normalizedPath, key = storageKey, action = action,
+            version = version, storedAt = clock.instant(), storedBy = currentUserId(),
+        ))
+
+        quotas.recordUsage(tenantId(), sizeBytes - (existing?.sizeBytes ?: 0))
+
+        metrics.recordUpload(
+            tenantId = tenantId(), sizeBytes = sizeBytes, contentType = contentType,
+            duration = Duration.between(startTime, clock.instant()),
+            version = version, overwritten = existing != null,
+        )
+
+        return storedFile
+    } finally {
+        lock.release()
     }
 }`;
 
@@ -1009,8 +1131,8 @@ export function createFiveFacesStage(view: View2D) {
     return code;
   });
 
-  // Complex save code — full-class view for PERMISSION trade-off section.
-  const complexSaveCode = Manticore.create(COMPLEX_SAVE_CODE, {
+  // Complex save code — method-only view for PERMISSION trade-off section.
+  const complexSaveCode = Manticore.create(COMPLEX_SAVE_METHOD, {
     x: 0,
     y: 115,
     width: 1400,
@@ -1034,13 +1156,15 @@ export function createFiveFacesStage(view: View2D) {
   complexSaveCode.node.cachePadding(20);
 
   {
-    const FADE_H = 140;
+    // Top fade: tall + raised so the scrolling method dissolves high and gently
+    // (band reaches above the clip edge → soft at the very top, long ramp down).
+    const FADE_H = 240;
     const cpY = Math.round(Math.max(24, Math.min(48, 17 * 1.5 + 8)));
     const clipH = 850 - cpY * 2;
     complexSaveCode.node.add(new Rect({
       width: 1400,
       height: FADE_H,
-      y: -clipH / 2 + FADE_H / 2,
+      y: -clipH / 2 + FADE_H / 2 - 50,
       fill: new Gradient({
         type: 'linear',
         from: new Vector2(0, -FADE_H / 2),

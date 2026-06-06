@@ -54,7 +54,8 @@ const THEME: SyntaxTheme = {
 const RULES: ColorRule[] = [
     {match: /^(function|const|let|var|return|if|else)$/, color: KEY},
     {match: /^(true|false)$/, color: KEY},
-    {match: /^(importCustomers|prepareCustomers|previewResult|saveCustomers|previewCustomerImport|runCustomerImport)$/, color: DOMAIN},
+    {match: /^(boolean|string|number)$/, color: DOMAIN},
+    {match: /^(saveFile|writeNewFile|overwriteFile|disk)$/, color: DOMAIN},
 ];
 
 const FLAT_CARD = {
@@ -70,30 +71,38 @@ const FLAT_CARD = {
 } as const;
 
 // ── Code states ──────────────────────────────────────────────────────
-const CODE_FLAG = `function importCustomers(file, preview) {
-    const customers = prepareCustomers(file)
-    if (preview) {
-        return previewResult(customers)
+// The cold open: a function name, alone — a promise of what it does.
+const NAME_ONLY = `saveFile`;
+
+// The honest signature: a path and its content. Nothing asks to be read twice.
+const SIGNATURE = `function saveFile(path, content)`;
+
+// One boolean, inserted — a foreign element the name never accounted for.
+const SIGNATURE_FLAG = `function saveFile(path, content, overwrite: boolean)`;
+
+// The body the name hides: save means write a new file — unless the flag is
+// set, and then it doesn't save, it overwrites what was already there.
+const CODE_FLAG = `function saveFile(path, content, overwrite) {
+    if (overwrite) {
+        return overwriteFile(path, content)
     }
-    return saveCustomers(customers)
+    return writeNewFile(path, content)
 }`;
 
-const CALL_TRUE  = `importCustomers(file, true)`;
-const CALL_FALSE = `importCustomers(file, false)`;
+const CALL_TRUE  = `saveFile(path, content, true)`;
+const CALL_FALSE = `saveFile(path, content, false)`;
 
-// The split: one flagged call → two named calls. The boolean's meaning
-// migrates into the name; the `, true` argument dissolves.
-const SPLIT_NAMES = `previewCustomerImport(file)
-runCustomerImport(file)`;
+// The split: one flagged call → two honest names. The boolean's meaning
+// migrates into the name; the `, true/false` argument dissolves.
+const SPLIT_NAMES = `writeNewFile(path, content)
+overwriteFile(path, content)`;
 
-const CODE_AFTER = `function previewCustomerImport(file) {
-    const customers = prepareCustomers(file)
-    return previewResult(customers)
+const CODE_AFTER = `function writeNewFile(path, content) {
+    return disk.create(path, content)
 }
 
-function runCustomerImport(file) {
-    const customers = prepareCustomers(file)
-    return saveCustomers(customers)
+function overwriteFile(path, content) {
+    return disk.replace(path, content)
 }`;
 
 // ── Code block helpers (house style: theme + rules + glow + weight) ───
@@ -347,60 +356,116 @@ export default makeScene2D(function* (view) {
         letterSpacing={4} fill={HERO} y={820} />);
 
     // Subtitle: static `//` + typed body, left-aligned at a fixed x.
-    // HIDDEN — these in-scene captions are replaced by the external subtitle
-    // overlay (subtitleOverlayProject). Fill is transparent so nothing draws,
-    // but the nodes and every typeBody/swapSub/opacity call below stay exactly
-    // in place, so the scene's timeline is unchanged and the existing cut + SRT
-    // still line up frame-for-frame. To bring them back: restore fill={ACCENT}.
     const SUB_Y = 705;
     const SUB_X = -250;
     const SUB_FS = 37;
     const SLASH_W = 67;
-    const CAPTION_FILL = 'rgba(0,0,0,0)';
     const subSlashes = createRef<Txt>();
     const subBody = createRef<Txt>();
     view.add(<Txt ref={subSlashes} text="// "
         fontFamily={F_MONO} fontSize={SUB_FS} fontWeight={500}
-        fill={CAPTION_FILL} offset={[-1, 0]} x={SUB_X} y={SUB_Y} opacity={0} />);
+        fill={ACCENT} offset={[-1, 0]} x={SUB_X} y={SUB_Y} opacity={0} />);
     view.add(<Txt ref={subBody} text=""
         fontFamily={F_MONO} fontSize={SUB_FS} fontWeight={500}
-        fill={CAPTION_FILL} offset={[-1, 0]} x={SUB_X + SLASH_W} y={SUB_Y} opacity={0} />);
+        fill={ACCENT} offset={[-1, 0]} x={SUB_X + SLASH_W} y={SUB_Y} opacity={0} />);
 
     // ════════════════════════════════════════════════════════════════
-    //  Act 1 — THE FLAG FUNCTION
+    //  Act 1 — THE NAME  (cold open: an honest name, then the lie)
     // ════════════════════════════════════════════════════════════════
-    const fn = makeBlock({code: CODE_FLAG, y: -40, fontSize: 32, lineHeight: 46, width: 1100, noClip: true});
+    // ONE block, morphed — never replaced. The name enters large and alone (it
+    // has room because it is short — a promise of what it does), then SHRINKS
+    // into its signature as context arrives: path, content. One boolean is
+    // inserted as a foreign element, and the name loses its authority — the gold
+    // flag is the only thing left lit, because `overwrite: true` doesn't save, it
+    // overwrites. The body grows out of the same line to prove it.
+    // saveFile → signature → +flag → lie → body. Nothing teleports.
+    const MORPH_SIG = {
+        addStyle: 'fade' as const, moveDuration: 0.5, removeDuration: 0.3,
+        blockOrder: 'parallel' as const, lineOrder: 'parallel' as const,
+    };
+    // Scale comp: the block scales about its origin, so to hold the content's
+    // left edge fixed while the name shrinks we shift x by LEFT_LOCAL·(1−scale).
+    const LEFT_LOCAL = -522;
+    const NAME_SCALE = 1.9;
+    const xAt = (s: number): number => CODE_X + LEFT_LOCAL * (1 - s);
+
+    const fn = makeBlock({code: NAME_ONLY, y: 0, fontSize: 32, lineHeight: 46, width: 1100, noClip: true});
     fn.mount(view);
     dressBlock(fn);
-
-    const fnBlur = createSignal(8);
+    const fnBlur = createSignal(10);
     fn.node.filters(() => [blur(fnBlur())]);
-    fn.node.opacity(0);
-    fn.node.x(CODE_X - 10);
-    yield* all(
-        fn.node.opacity(1, 0.7, easeOutCubic),
-        fnBlur(0, 0.7, easeOutCubic),
-        fn.node.x(CODE_X, 0.7, easeOutCubic),
-    );
-    yield* waitFor(0.3);
 
+    // 1 — the name alone: large, airy, honest. (A name is a promise.)
+    fn.node.opacity(0);
+    fn.node.scale(NAME_SCALE);
+    fn.node.x(xAt(NAME_SCALE));
+    yield* all(
+        fn.node.opacity(1, 0.8, easeOutCubic),
+        fnBlur(0, 0.8, easeOutCubic),
+    );
+    yield* waitFor(0.5);
     subSlashes().opacity(1);
     subBody().opacity(1);
-    yield* typeBody(subBody, 'one boolean');
+    yield* typeBody(subBody, 'a name is a promise');
+    yield* waitFor(0.7);
+
+    // 2 — the name shrinks into its signature; context resolves around it.
+    yield* all(
+        fn.morphTo(SIGNATURE, MORPH_SIG),
+        fn.node.scale(1, 0.7, easeInOutCubic),
+        fn.node.x(CODE_X, 0.7, easeInOutCubic),
+    );
+    dressBlock(fn);
+    yield* waitFor(0.8);
+
+    // 3 — one boolean, inserted as a foreign element. (Add one boolean —)
+    yield* swapSub(subBody, 'add one boolean');
+    yield* fn.morphTo(SIGNATURE_FLAG, MORPH_SIG);
+    dressBlock(fn);
     yield* waitFor(0.5);
 
-    // The boolean parameter — the hinge.
-    const IF_LINE     = 2;
-    const RET_PREVIEW = 3;
-    const RET_SAVE    = 5;
-    yield* flareToken(fn, 0, 'preview', ACCENT, INK);
-    yield* waitFor(0.2);
+    // 4 — the name starts to lie: structure recedes, the name loses its glow,
+    // and the gold flag is the only thing still lit.
+    const sigLine = fn.getLine(0);
+    const nameTok = sigLine?.tokens.find(t => t.text === 'saveFile')?.ref();
+    const owTok   = sigLine?.tokens.find(t => t.text === 'overwrite')?.ref();
+    const boolTok = sigLine?.tokens.find(t => t.text === 'boolean')?.ref();
+    const lieDim: ThreadGenerator[] = [];
+    if (sigLine) for (const t of sigLine.tokens) {
+        if (t.text === 'saveFile' || t.text === 'overwrite' || t.text === 'boolean') continue;
+        lieDim.push(t.ref().opacity(DIM_OP, 0.5));
+    }
+    yield* all(
+        ...lieDim,
+        nameTok?.opacity(0.45, 0.5) ?? waitFor(0),
+        nameTok?.shadowBlur(0, 0.5) ?? waitFor(0),
+        owTok?.fill(ACCENT, 0.5, easeOutCubic) ?? waitFor(0),
+        boolTok?.fill(ACCENT, 0.5, easeOutCubic) ?? waitFor(0),
+        swapSub(subBody, 'the name starts to lie'),
+    );
+    yield* waitFor(1.5);
 
-    // The switch, then the fork it picks between.
+    // 5 — the body grows out of the same line: one name, two paths, one of which
+    // overwrites. Relight the signature, morph 1 → 6 lines, and recenter as it
+    // grows (morphTo holds line 0 fixed and adds lines below — so lift the block).
+    const relightSig = (fn.getLine(0)?.tokens ?? []).map(t => t.ref().opacity(1, 0.45));
+    yield* all(
+        ...relightSig,
+        fn.morphTo(CODE_FLAG, MORPH_SIG),
+        fn.node.y(-115, 0.6, easeInOutCubic),
+        swapSub(subBody, 'two paths, one name'),
+    );
+    dressBlock(fn);
+    yield* waitFor(0.4);
+
+    // The switch, then the two paths it routes between.
+    const IF_LINE  = 1;
+    const RET_OVER = 2;
+    const RET_NEW  = 4;
+    yield* flareToken(fn, IF_LINE, 'overwrite', ACCENT, INK);
     yield* spotlight(fn, [IF_LINE], 0.4);
-    yield* all(swapSub(subBody, 'picks one of two'), waitFor(0.2));
-    yield* waitFor(0.5);
-    yield* spotlight(fn, [RET_PREVIEW, RET_SAVE], 0.45);
+    yield* waitFor(0.4);
+    yield* spotlight(fn, [RET_OVER, RET_NEW], 0.45);
     yield* waitFor(0.9);
     yield* fn.showAllLines(0.4);
     yield* waitFor(0.4);
@@ -562,9 +627,9 @@ export default makeScene2D(function* (view) {
     yield* waitFor(0.5);
 
     // Settle the eye on each honest name in turn.
-    yield* spotlight(after, [0, 1, 2, 3], 0.4);
+    yield* spotlight(after, [0, 1, 2], 0.4);
     yield* waitFor(0.7);
-    yield* spotlight(after, [5, 6, 7, 8], 0.45);
+    yield* spotlight(after, [4, 5, 6], 0.45);
     yield* waitFor(0.7);
     yield* after.showAllLines(0.4);
     yield* waitFor(0.8);

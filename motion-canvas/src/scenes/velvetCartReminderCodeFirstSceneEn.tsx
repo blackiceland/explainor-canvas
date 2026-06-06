@@ -413,22 +413,28 @@ export default makeScene2D(function* (view) {
 
     // Subtitle: static `//` + typed body, both left-aligned at fixed x.
     // x=-175 centres the group visually for average subtitle length.
+    // HIDDEN — these in-scene captions are replaced by the external subtitle
+    // overlay (subtitleOverlayProject). Fill is transparent so nothing draws,
+    // but the nodes and every typeBody/opacity call below stay exactly in place,
+    // so the scene's timeline is unchanged and the existing cut + SRT still line
+    // up frame-for-frame. To bring them back: restore fill={ACCENT}.
     const SUB_Y = 680;
     const SUB_X = -230;
     const SUB_FS = 37;
     const SLASH_W = 67; // "// " = 3 chars × ~22.2px at JBM 37px
+    const CAPTION_FILL = 'rgba(0,0,0,0)';
     const subSlashes = createRef<Txt>();
     const subBody = createRef<Txt>();
     view.add(<Txt
         ref={subSlashes} text="// "
         fontFamily={F_MONO} fontSize={SUB_FS} fontWeight={500}
-        fill={ACCENT} offset={[-1, 0]}
+        fill={CAPTION_FILL} offset={[-1, 0]}
         x={SUB_X} y={SUB_Y} opacity={0}
     />);
     view.add(<Txt
         ref={subBody} text=""
         fontFamily={F_MONO} fontSize={SUB_FS} fontWeight={500}
-        fill={ACCENT} offset={[-1, 0]}
+        fill={CAPTION_FILL} offset={[-1, 0]}
         x={SUB_X + SLASH_W} y={SUB_Y} opacity={0}
     />);
 
@@ -869,18 +875,23 @@ export default makeScene2D(function* (view) {
         {x:  R_TRI * 0.866, y: VY - R_TRI * 0.5},   // SECURITY  — top-right
     ];
     const ZONE = DOMAIN;                     // the intersection, painted in the method's own colour
-    const FORM = 0.85;
+    const FORM = 1.0;
 
     merged.node.zIndex(10);                 // labels ride above the rings and the zone
 
-    // Two steps, so the body never rides the move. First the code dissolves IN PLACE — every token
-    // but sendMessage and the three constants fades where it sits, the block held still. (If the
-    // block translated while the body was still visible, the whole method would lurch upward.)
+    // Three beats, so the selection reads as deliberate — not a flick. First the code
+    // dissolves IN PLACE: every token but sendMessage and the three domain constants fades
+    // where it sits, the block held still. (If the block translated while the body was
+    // still visible, the whole method would lurch upward.)
     yield* all(
-        merged.showAllLines(0.5),
+        merged.showAllLines(0.6),
         ...fadeToks,
-        barsNode().opacity(0, 0.45, easeInOutCubic),
+        barsNode().opacity(0, 0.55, easeInOutCubic),
     );
+
+    // Then a held beat: the four survivors stand alone and still — the selection registers
+    // before they move. No breath, no glitch; the stillness itself is what reads as expensive.
+    yield* waitFor(0.5);
 
     // sendMessage gains its empty parens AS it travels: a separate node, parented into the moving
     // block so it stays glued to the name, fading in by a pure opacity rise over the glide. Wrapped
@@ -965,7 +976,7 @@ export default makeScene2D(function* (view) {
             ))}
         </Node>,
     );
-    yield* sequence(0.12, ...ringRefs.map(r => r().end(1, 0.7, easeInOutCubic)));
+    yield* sequence(0.15, ...ringRefs.map(r => r().end(1, 0.85, easeInOutCubic)));
     // Once the outlines have traced on, the beige fields bloom in gently behind them.
     yield* fills().opacity(1, 0.5, easeOutCubic);
 
@@ -1041,11 +1052,15 @@ export default makeScene2D(function* (view) {
     const condA = createRef<Txt>();
     const condB = createRef<Txt>();
     const concl = createRef<Txt>();
+    // Calm centred column. The condition is split into TWO near-equal lines: centred lines of
+    // unequal length looked ragged (the short middle line pinched the silhouette into a bowtie).
+    // Body stays roman white so the verdict's italic + gold reads as a true accent — not one long
+    // decorative quote; the eyebrow is a dry letter-spaced label. Words unchanged.
     view.add(
         <Txt
             ref={eyebrow}
             fontFamily={F_SERIF} fontSize={30} fontWeight={500}
-            letterSpacing={5} fill={QUIET} textAlign="center" y={-142} opacity={0}
+            letterSpacing={5} fill={QUIET} textAlign="center" y={-210} opacity={0}
         >
             FIELD NOTE
         </Txt>,
@@ -1053,8 +1068,8 @@ export default makeScene2D(function* (view) {
     view.add(
         <Txt
             ref={condA}
-            fontFamily={F_SERIF} fontSize={58} fontWeight={500}
-            fill={INK} textAlign="center" y={-60} opacity={0}
+            fontFamily={F_SERIF} fontSize={56} fontWeight={500}
+            fill={INK} textAlign="center" y={-66} opacity={0}
         >
             If a merged function needs
         </Txt>,
@@ -1062,8 +1077,8 @@ export default makeScene2D(function* (view) {
     view.add(
         <Txt
             ref={condB}
-            fontFamily={F_SERIF} fontSize={58} fontWeight={500}
-            fill={INK} textAlign="center" y={24} opacity={0}
+            fontFamily={F_SERIF} fontSize={56} fontWeight={500}
+            fill={INK} textAlign="center" y={14} opacity={0}
         >
             a flag to tell cases apart,
         </Txt>,
@@ -1071,12 +1086,17 @@ export default makeScene2D(function* (view) {
     view.add(
         <Txt
             ref={concl}
-            fontFamily={F_SERIF} fontSize={58} fontWeight={500} fontStyle={'italic'}
-            fill={GOLD_QUIET} textAlign="center" y={136} opacity={0}
+            fontFamily={F_SERIF} fontSize={52} fontWeight={500} fontStyle={'italic'}
+            fill={GOLD_QUIET} textAlign="center" y={140} opacity={0}
         >
             the abstraction came too early.
         </Txt>,
     );
+
+    // Full-frame blackout above everything (incl. KUROSHIMA / ISSUE 02), invisible
+    // until the very end — eased in, it carries background and text to black together.
+    const blackout = createRef<Rect>();
+    view.add(<Rect ref={blackout} width={VIEW_W} height={VIEW_H} fill={'#000000'} opacity={0} zIndex={100} />);
 
     // Clear sendMessage + the domains, then let the note settle in: eyebrow first, the condition
     // (gently staggered), a beat, then the verdict lands alone.
@@ -1088,13 +1108,17 @@ export default makeScene2D(function* (view) {
         barsNode().opacity(0, 0.7, easeInOutCubic),
     );
     yield* eyebrow().opacity(1, 0.6, easeInOutCubic);
-    yield* waitFor(0.1);
+    yield* waitFor(0.18);
     yield* sequence(
         0.18,
         condA().opacity(1, 0.7, easeInOutCubic),
         condB().opacity(1, 0.7, easeInOutCubic),
     );
-    yield* waitFor(0.45);
+    yield* waitFor(0.5);
     yield* concl().opacity(1, 0.85, easeInOutCubic);
-    yield* waitFor(3.2);
+
+    // Let the verdict sit, then ease the whole frame — background and text — to black.
+    yield* waitFor(1.6);
+    yield* blackout().opacity(1, 1.6, easeInOutCubic);
+    yield* waitFor(0.3);
 });

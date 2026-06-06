@@ -60,8 +60,11 @@ C:\ffmpeg\bin\ffmpeg.exe -framerate 60 -start_number 0 -i %06d.png -c:v libx264 
 
 
 cd C:\Users\black\IdeaProjects\explainor-canvas\motion-canvas\output\verticalProject
-C:\ffmpeg\bin\ffmpeg.exe -framerate 60 -start_number 0 -i %06d.png -c:v libx264 -pix_fmt yuv420p -crf 18 -preset slow ..\reel3.mp4
+C:\ffmpeg\bin\ffmpeg.exe -framerate 60 -start_number 0 -i %06d.png -c:v libx264 -pix_fmt yuv420p -crf 18 -preset slow ..\reel4.mp4
 
+
+cd C:\Users\black\IdeaProjects\explainor-canvas\motion-canvas\output\subtitleOverlayProject
+C:\ffmpeg\bin\ffmpeg.exe -framerate 60 -start_number 0 -i %06d.png -c:v libx264 -pix_fmt yuv420p -crf 18 -preset slow ..\sub1.mp4
 
 
 Роль: Ты — сценарист и диктор YouTube‑канала о программировании в стиле CodeAesthetic. Аудитория — сеньор‑разработчики.

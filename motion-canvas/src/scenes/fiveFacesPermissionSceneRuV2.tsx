@@ -1,18 +1,18 @@
 import {makeScene2D, Txt, blur} from '@motion-canvas/2d';
-import {all, chain, createSignal, easeInOutCubic, easeInOutSine, linear, waitFor} from '@motion-canvas/core';
+import {all, createSignal, easeInOutCubic, easeInOutSine, linear, waitFor} from '@motion-canvas/core';
 import {
   createFiveFacesStage,
   NAME_XS,
   DOTS_Y,
   DOT_R,
   BIG_R,
-  BLUR_HEAVY,
   FACES,
   CODE_LH,
   IMPL_LH,
   IMPL_SAVE_CLEAN,
   IMPL_WRITE,
   IMPL_SAVE_OR_REPLACE,
+  CALL_PERMISSION_CLEAN,
   CODE_RULES,
   METHOD_COLOR,
   blockLines,
@@ -60,7 +60,11 @@ export default makeScene2D(function* (view) {
 
     const nonWs = (code: typeof callMC, lineIdx: number) => {
       const line = code.getLine(lineIdx);
-      return line ? line.tokens.filter(t => t.text.trim().length > 0) : [];
+      // Filter on the RENDERED glyph, not the logical token text: a ligature
+      // like `&&` is two Txt nodes where the 2nd carries text='' but still
+      // draws a `&`. Keying on t.text would skip it and leave a sharp `&`
+      // floating in the blur. t.ref().text() catches both halves.
+      return line ? line.tokens.filter(t => t.ref().text().trim().length > 0) : [];
     };
     const attach = (txt: Txt, sig: () => number): void => {
       txt.cache(true);
@@ -135,37 +139,7 @@ export default makeScene2D(function* (view) {
     }
   }
 
-  yield* waitFor(0.5);
-
-  // Big rating bloom — frame centre, on top of HEAVY-blurred code.
-  s.bigScale().position([0, 0]);
-  s.bigScale().scale(1);
-  yield* all(
-    s.callBlurs[0](BLUR_HEAVY, 0.6, easeInOutSine),
-    s.implBlurs[0](BLUR_HEAVY, 0.6, easeInOutSine),
-    s.callCodes[0].node.opacity(0.40, 0.6, easeInOutSine),
-    s.implCodes[0].node.opacity(0.40, 0.6, easeInOutSine),
-    s.bigScale().opacity(1, 0.6, easeInOutSine),
-  );
-  yield* waitFor(2.2);
-
-  // Labels fade before migration.
-  yield* all(
-    s.bigSafeLabel().opacity(0, 0.4, easeInOutSine),
-    s.bigRiskyLabel().opacity(0, 0.4, easeInOutSine),
-  );
-
-  // Migration: gauge → small slot under PERMISSION.
-  const SMALL_TARGET_SCALE = (DOT_R * 2) / (BIG_R * 2);
-  yield* all(
-    s.bigScale().position([NAME_XS[0], DOTS_Y], 1.0, easeInOutSine),
-    s.bigScale().scale(SMALL_TARGET_SCALE, 1.0, easeInOutSine),
-    s.callBlurs[0](0, 1.0, easeInOutSine),
-    s.implBlurs[0](0, 1.0, easeInOutSine),
-    s.callCodes[0].node.opacity(1, 1.0, easeInOutSine),
-    s.implCodes[0].node.opacity(1, 1.0, easeInOutSine),
-  );
-  yield* waitFor(1.5);
+  yield* waitFor(0.8);
 
   // MORPH: boolean → three explicit methods.
   {
@@ -213,24 +187,67 @@ export default makeScene2D(function* (view) {
     s.saveOrReplaceMC.node.opacity(1, 0.5, easeInOutSine),
     s.implCodes[0].node.position.y(saveTargetY, 0.5, easeInOutCubic),
   );
-  yield* waitFor(3.0);
+  yield* waitFor(0.8);
 
-  // COMPLEX SAVE — trade-off reveal.
+  // The left call adopts the named method. The boolean argument doesn't earn a
+  // clearer label here — it disappears into the verb:
+  // fileStorage.save(…, overwrite = true) → fileStorage.saveOrReplace(…).
+  yield* s.callCodes[0].morphTo(CALL_PERMISSION_CLEAN, {
+    removeDuration: 0.3,
+    moveDuration: 0.4,
+    charDelay: 0.015,
+    flashRemovedColor: METHOD_COLOR,
+    flashRemovedDuration: 0.2,
+    addStyle: 'typewriter',
+    scrollStrategy: 'block',
+  });
+  s.callCodes[0].colorize(CODE_RULES);
+  paintNamedParams(s.callCodes[0]);
+  yield* waitFor(1.8);
+
+  // BIG METHOD — trade-off reveal: one real save(), no class, no injects.
   yield* all(
     s.hideCallCode(0, 0.55),
     s.hideImplCode(0, 0.55),
     s.writeMC.node.opacity(0, 0.55, easeInOutSine),
     s.saveOrReplaceMC.node.opacity(0, 0.55, easeInOutSine),
   );
-  yield* all(
-    chain(
-      s.complexSaveCode.node.opacity(1, 0.8, easeInOutSine),
-      waitFor(1.2),
-      s.complexSaveCode.node.opacity(0, 6, easeInOutSine),
-    ),
-    s.complexSaveCode.scrollTo(69, 8, linear),
-  );
+  // Sit the block 100 lower before it scrolls up — leaves headroom for the verdict.
+  s.complexSaveCode.node.position.y(s.complexSaveCode.node.position.y() + 100);
 
-  // PERMISSION close.
-  yield* s.bigScale().opacity(0, 0.45, easeInOutSine);
+  // Wire a blur signal onto the already-cached block so it can defocus IN PLACE
+  // at the end instead of fading — the verdict racks focus to the foreground.
+  const bigBlur = createSignal(0);
+  s.complexSaveCode.node.filters(() => [blur(bigBlur())]);
+
+  yield* s.complexSaveCode.node.opacity(1, 1.0, easeInOutSine);
+  yield* waitFor(1.5);
+  yield* s.complexSaveCode.scrollTo(58, 12, linear);
+
+  // The method doesn't fade out — it softly blurs and sinks to the background.
+  yield* bigBlur(9, 1.4, easeInOutSine);
+
+  // ── PERMISSION verdict — blooms on TOP of the blurred method ──
+  s.bigScale().moveToTop();
+  s.bigScale().position([0, 0]);
+  s.bigScale().scale(1);
+  yield* s.bigScale().opacity(1, 0.6, easeInOutSine);
+
+  // A couple of seconds later the blurred code dissolves, leaving only the verdict.
+  yield* waitFor(2.0);
+  yield* s.complexSaveCode.node.opacity(0, 1.4, easeInOutSine);
+
+  // Dock the verdict up under PERMISSION — drop the safe/risky labels first, then
+  // migrate the dots to the small rating slot at top-left (as it was before).
+  yield* all(
+    s.bigSafeLabel().opacity(0, 0.4, easeInOutSine),
+    s.bigRiskyLabel().opacity(0, 0.4, easeInOutSine),
+  );
+  const SMALL_TARGET_SCALE = (DOT_R * 2) / (BIG_R * 2);
+  yield* all(
+    s.bigScale().position([NAME_XS[0], DOTS_Y], 1.0, easeInOutSine),
+    s.bigScale().scale(SMALL_TARGET_SCALE, 1.0, easeInOutSine),
+  );
+  yield* waitFor(1.2);
+  yield* s.bigScale().opacity(0, 0.5, easeInOutSine);
 });

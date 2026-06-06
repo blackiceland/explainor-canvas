@@ -10,17 +10,25 @@ const OUT = path.resolve('permission-shots');
 await fs.mkdir(OUT, {recursive: true});
 
 const FPS = 60;
-// Rack-focus now runs BEFORE the gauge (~t17.2 start). Checkpoints:
-//   18.1 defocused except `overwrite = true` (weaker blur), NO gauge yet
-//   22.0 most of the boolean path sharp, NO gauge yet
-//   23.6 whole path sharp (just before rack-back)
-//   25.2 rack-back done, gauge bloomed over whole-block blur (scale appears AFTER)
-const TIMES_S = [18.1, 22.0, 23.6, 25.2];
+// Verify the LEFT call adopts saveOrReplace (the boolean argument vanishes).
+//   33.0  saveOrReplace inserted on the right; call still save(…, overwrite=true)
+//   35.0  call mid/post-morph — should read fileStorage.saveOrReplace(…), no overwrite line
+//   36.5  call settled on saveOrReplace
+//   38.5  big method reveal still intact downstream
+//   50.5  gauge finale still intact downstream
+// Finale + restored migration + taller/higher top fade.
+//   44.0  mid-scroll — judge the TOP fade (should be higher & smoother)
+//   52.5  gauge bloomed ON TOP of the blurred method
+//   54.5  blurred code dissolving
+//   56.2  gauge migrating UP toward PERMISSION
+//   57.3  gauge docked as small rating under PERMISSION (как было)
+const TIMES_S = [51.5, 52.5, 53.0];
 
 const browser = await puppeteer.launch({
   headless: true,
   args: ['--no-sandbox', '--disable-setuid-sandbox'],
   defaultViewport: {width: 1920, height: 1080},
+  protocolTimeout: 300000,
 });
 const page = await browser.newPage();
 
@@ -62,10 +70,18 @@ for (const ts of TIMES_S) {
   await new Promise(r => setTimeout(r, 2000));
   await page.evaluate(v => localStorage.setItem('project/frame', String(v)), f);
   await page.reload({waitUntil: 'domcontentloaded'});
-  await new Promise(r => setTimeout(r, 13000));
-  const dataUrl = await grabMain();
-  if (!dataUrl) { console.log(`t=${ts}s f=${f} NO CANVAS`); continue; }
-  const png = Buffer.from(dataUrl.split(',')[1], 'base64');
+  await new Promise(r => setTimeout(r, 22000));
+  // Seeking to a deep frame means simulating every frame up to it; if the
+  // player hasn't finished, the canvas is still black (a tiny PNG). Retry.
+  let dataUrl = await grabMain();
+  let png = dataUrl ? Buffer.from(dataUrl.split(',')[1], 'base64') : null;
+  for (let tries = 0; png && png.length < 200000 && tries < 3; tries++) {
+    await new Promise(r => setTimeout(r, 6000));
+    dataUrl = await grabMain();
+    png = dataUrl ? Buffer.from(dataUrl.split(',')[1], 'base64') : null;
+    console.log(`  t=${ts}s retry ${tries + 1} -> ${png ? png.length : 'null'}b`);
+  }
+  if (!png) { console.log(`t=${ts}s f=${f} NO CANVAS`); continue; }
   const file = path.join(OUT, `t${String(ts).replace('.', '_')}s.png`);
   await fs.writeFile(file, png);
   sizes.push(`${ts}s=${png.length}b`);
