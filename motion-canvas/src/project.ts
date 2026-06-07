@@ -136,21 +136,19 @@ export default makeProject({
 
         // IV
 
-        // chapter1YudanSceneEn,
-        // messageDeliverySelectionSceneEn,
-        // whatsappCodePairSceneEn,
-
-        // oneMethodManyVersionsSceneEn,
+         // chapter1YudanSceneEn,
+         // messageDeliverySelectionSceneEn,
+         // whatsappCodePairSceneEn,
+         // oneMethodManyVersionsSceneEn,
 
         // fiveFacesBooleanSceneRu,
-
         // fiveFacesBooleanSceneRuV2,
 
         // 01
          fiveFacesPermissionSceneRuV2,
 
         // 02
-          fiveFacesModeSceneRuV2,
+        //  fiveFacesModeSceneRuV2,
 
         // 03
         // fiveFacesSafetySceneRuV2,

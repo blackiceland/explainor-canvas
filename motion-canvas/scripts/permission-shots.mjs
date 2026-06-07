@@ -22,7 +22,16 @@ const FPS = 60;
 //   54.5  blurred code dissolving
 //   56.2  gauge migrating UP toward PERMISSION
 //   57.3  gauge docked as small rating under PERMISSION (как было)
-const TIMES_S = [51.5, 52.5, 53.0];
+// Restructured finale: raise block, one scroll to the !overwrite guard, rack-focus
+// (guard sharp / rest soft) for ~9s, then blur all + verdict, then migrate.
+//   40.0  guard rack-focus — rest blurred, `if (… !overwrite)` sharp
+//   43.0  guard rack-focus (mid hold)
+//   46.0  whole method blurring / verdict starting
+//   49.0  verdict bloomed on fully-blurred method
+//   53.0  verdict docked under PERMISSION
+// Bottom-edge check: block dropped in (41.5) and mid rack-focus hold (43.0) —
+// the bottom should now feather, not end on a hard clip line.
+const TIMES_S = [41.5, 43.0];
 
 const browser = await puppeteer.launch({
   headless: true,

@@ -54,8 +54,8 @@ import velvetBooleanFlagCodeFirstSceneEn from './scenes/velvetBooleanFlagCodeFir
 export default makeProject({
     experimentalFeatures: true,
     scenes: [
-       // velvetBooleanFlagCodeFirstSceneEn,
-        velvetCartReminderCodeFirstSceneEn,
+        velvetBooleanFlagCodeFirstSceneEn,
+        // velvetCartReminderCodeFirstSceneEn,
         // deepCobaltQuietFieldsVelvetCodeFirstSceneEn,
         // velvetCoolGraphiteCodeFirstSceneEn,
         // velvetDeepMidnightCodeFirstSceneEn,

@@ -13,6 +13,8 @@ import {
 } from '@motion-canvas/core';
 import {ColorRule, Manticore} from '../core/code/components/Manticore';
 import {SyntaxTheme} from '../core/code/model/SyntaxTheme';
+import {textWidth} from '../core/utils/textMeasure';
+import {getCodePaddingX} from '../core/code/shared/TextMeasure';
 
 const F_SERIF = 'Newsreader, EB Garamond, serif';
 const F_MONO  = '"JetBrains Mono", "Monaspace Argon", monospace';
@@ -25,6 +27,7 @@ const BG       = '#151A28';
 const INK      = '#E7E1D6';
 const KEY      = '#CAB4EA';
 const DOMAIN   = '#8AC7EF';
+const TYPE_CLR = 'rgba(213, 209, 245, 0.92)';   // types (boolean, string…) — distinct from method blue & keyword lilac
 const STRING   = '#A8CF98';
 const PUNC     = '#D2D8E2';
 const OPERATOR = '#8F9AAA';
@@ -54,7 +57,7 @@ const THEME: SyntaxTheme = {
 const RULES: ColorRule[] = [
     {match: /^(function|const|let|var|return|if|else)$/, color: KEY},
     {match: /^(true|false)$/, color: KEY},
-    {match: /^(boolean|string|number)$/, color: DOMAIN},
+    {match: /^(boolean|string|number)$/, color: TYPE_CLR},
     {match: /^(saveFile|writeNewFile|overwriteFile|disk)$/, color: DOMAIN},
 ];
 
@@ -71,18 +74,20 @@ const FLAT_CARD = {
 } as const;
 
 // ── Code states ──────────────────────────────────────────────────────
-// The cold open: a function name, alone — a promise of what it does.
-const NAME_ONLY = `saveFile`;
+// The cold open: a method name with parens, alone — a promise of what it does.
+const NAME_ONLY = `saveFile()`;
 
-// The honest signature: a path and its content. Nothing asks to be read twice.
-const SIGNATURE = `function saveFile(path, content)`;
+// Two parameters resolve inside the parens. Still honest: a path, its content.
+const SIGNATURE = `saveFile(path, content)`;
 
-// One boolean, inserted — a foreign element the name never accounted for.
-const SIGNATURE_FLAG = `function saveFile(path, content, overwrite: boolean)`;
+// One boolean, typed in as a foreign element the name never accounted for.
+const SIGNATURE_FLAG = `saveFile(path, content, overwrite: boolean)`;
 
 // The body the name hides: save means write a new file — unless the flag is
-// set, and then it doesn't save, it overwrites what was already there.
-const CODE_FLAG = `function saveFile(path, content, overwrite) {
+// set, and then it doesn't save, it overwrites what was already there. (No
+// `function` keyword anywhere — the hero is the bare name, so every morph keeps
+// its left edge fixed; reads as a method.)
+const CODE_FLAG = `saveFile(path, content, overwrite) {
     if (overwrite) {
         return overwriteFile(path, content)
     }
@@ -97,11 +102,11 @@ const CALL_FALSE = `saveFile(path, content, false)`;
 const SPLIT_NAMES = `writeNewFile(path, content)
 overwriteFile(path, content)`;
 
-const CODE_AFTER = `function writeNewFile(path, content) {
+const CODE_AFTER = `writeNewFile(path, content) {
     return disk.create(path, content)
 }
 
-function overwriteFile(path, content) {
+overwriteFile(path, content) {
     return disk.replace(path, content)
 }`;
 
@@ -372,33 +377,50 @@ export default makeScene2D(function* (view) {
     // ════════════════════════════════════════════════════════════════
     //  Act 1 — THE NAME  (cold open: an honest name, then the lie)
     // ════════════════════════════════════════════════════════════════
-    // ONE block, morphed — never replaced. The name enters large and alone (it
-    // has room because it is short — a promise of what it does), then SHRINKS
-    // into its signature as context arrives: path, content. One boolean is
-    // inserted as a foreign element, and the name loses its authority — the gold
-    // flag is the only thing left lit, because `overwrite: true` doesn't save, it
-    // overwrites. The body grows out of the same line to prove it.
-    // saveFile → signature → +flag → lie → body. Nothing teleports.
-    const MORPH_SIG = {
+    // ONE block, morphed — never replaced (cf. velvetCartReminder Beat 7). The
+    // method NAME with parens enters large and alone (a promise of what it does),
+    // SHRINKS a little as two parameters resolve inside the parens, then the
+    // boolean parameter TYPES in as a foreign element. The name loses its
+    // authority — the gold flag is the only thing left lit — and the body grows
+    // out of the same line to prove it. Yudan-manner entrance (cf.
+    // chapter1YudanSceneEn): focal hero, scale down through stages, then a typed
+    // token. saveFile() → +params → type flag → lie → body. Nothing teleports.
+    const OPEN_FADE = {
         addStyle: 'fade' as const, moveDuration: 0.5, removeDuration: 0.3,
         blockOrder: 'parallel' as const, lineOrder: 'parallel' as const,
     };
-    // Scale comp: the block scales about its origin, so to hold the content's
-    // left edge fixed while the name shrinks we shift x by LEFT_LOCAL·(1−scale).
-    const LEFT_LOCAL = -522;
-    const NAME_SCALE = 1.9;
-    const xAt = (s: number): number => CODE_X + LEFT_LOCAL * (1 - s);
+    // The flag is TYPED in. tokenSlideDuration 0 is the whole trick: a kept close
+    // paren that sits AFTER the insertion point is hidden and RE-TYPED last (when
+    // sliding it would instead glide ahead of the cursor and leave a gap). So the
+    // params type strictly left-to-right with nothing to the cursor's right — no
+    // pre-parked bracket, no hole. The recentre is COUPLED to the typing by the
+    // caller (same all()), so the line grows outward from centre, never lurching.
+    const BOOL_TYPE = {
+        addStyle: 'typewriter' as const, charDelay: 0.05, lineDelay: 0,
+        moveDuration: 0.4, removeDuration: 0.2, tokenSlideDuration: 0,
+        blockOrder: 'parallel' as const, lineOrder: 'parallel' as const,
+    };
+    // The method enters CENTERED: each state is positioned so its content sits
+    // in the middle of the frame (Yudan-manner), not pinned to the left margin.
+    // centerX solves node.x from the measured content width; the body centres on
+    // its widest line (so the block, not just line 0, reads as centred).
+    const FS = 38;                                          // larger working size
+    const LEFT_LOCAL = -1100 / 2 + getCodePaddingX(FS);    // local x where text starts
+    const HERO_SCALE = 1.8;
+    const widthOf = (code: string): number =>
+        Math.max(...code.split('\n').map(l => textWidth(l, F_MONO, FS)));
+    const centerX = (code: string, scale: number): number => -(LEFT_LOCAL + widthOf(code) / 2) * scale;
 
-    const fn = makeBlock({code: NAME_ONLY, y: 0, fontSize: 32, lineHeight: 46, width: 1100, noClip: true});
+    const fn = makeBlock({code: NAME_ONLY, y: 0, fontSize: FS, lineHeight: 54, width: 1100, noClip: true});
     fn.mount(view);
     dressBlock(fn);
     const fnBlur = createSignal(10);
     fn.node.filters(() => [blur(fnBlur())]);
 
-    // 1 — the name alone: large, airy, honest. (A name is a promise.)
+    // 1 — the method name with parens, alone and large. (A name is a promise.)
     fn.node.opacity(0);
-    fn.node.scale(NAME_SCALE);
-    fn.node.x(xAt(NAME_SCALE));
+    fn.node.scale(HERO_SCALE);
+    fn.node.x(centerX(NAME_ONLY, HERO_SCALE));
     yield* all(
         fn.node.opacity(1, 0.8, easeOutCubic),
         fnBlur(0, 0.8, easeOutCubic),
@@ -409,18 +431,23 @@ export default makeScene2D(function* (view) {
     yield* typeBody(subBody, 'a name is a promise');
     yield* waitFor(0.7);
 
-    // 2 — the name shrinks into its signature; context resolves around it.
+    // 2 — shrink a little; two parameters resolve inside the parens.
     yield* all(
-        fn.morphTo(SIGNATURE, MORPH_SIG),
+        fn.morphTo(SIGNATURE, OPEN_FADE),
         fn.node.scale(1, 0.7, easeInOutCubic),
-        fn.node.x(CODE_X, 0.7, easeInOutCubic),
+        fn.node.x(centerX(SIGNATURE, 1), 0.7, easeInOutCubic),
     );
     dressBlock(fn);
-    yield* waitFor(0.8);
+    yield* waitFor(0.7);
 
-    // 3 — one boolean, inserted as a foreign element. (Add one boolean —)
+    // 3 — the boolean parameter TYPES in — a foreign element. (Add one boolean —)
+    // No standalone re-centre: the shift rides WITH the typing in one all(), so
+    // the line expands outward from centre as it grows. Ends centred → no overflow.
     yield* swapSub(subBody, 'add one boolean');
-    yield* fn.morphTo(SIGNATURE_FLAG, MORPH_SIG);
+    yield* all(
+        fn.morphTo(SIGNATURE_FLAG, BOOL_TYPE),
+        fn.node.x(centerX(SIGNATURE_FLAG, 1), 1.0, easeInOutCubic),
+    );
     dressBlock(fn);
     yield* waitFor(0.5);
 
@@ -451,8 +478,9 @@ export default makeScene2D(function* (view) {
     const relightSig = (fn.getLine(0)?.tokens ?? []).map(t => t.ref().opacity(1, 0.45));
     yield* all(
         ...relightSig,
-        fn.morphTo(CODE_FLAG, MORPH_SIG),
-        fn.node.y(-115, 0.6, easeInOutCubic),
+        fn.morphTo(CODE_FLAG, OPEN_FADE),
+        fn.node.x(centerX(CODE_FLAG, 1), 0.6, easeInOutCubic),
+        fn.node.y(-135, 0.6, easeInOutCubic),
         swapSub(subBody, 'two paths, one name'),
     );
     dressBlock(fn);

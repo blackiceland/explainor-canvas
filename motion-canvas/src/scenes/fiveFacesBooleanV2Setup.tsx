@@ -1178,6 +1178,29 @@ export function createFiveFacesStage(view: View2D) {
     }));
   }
 
+  {
+    // Bottom fade: mirror of the top band so the clipped method dissolves into
+    // the background instead of ending on a hard horizontal clip edge.
+    const FADE_H = 240;
+    const cpY = Math.round(Math.max(24, Math.min(48, 17 * 1.5 + 8)));
+    const clipH = 850 - cpY * 2;
+    complexSaveCode.node.add(new Rect({
+      width: 1400,
+      height: FADE_H,
+      y: clipH / 2 - FADE_H / 2 + 50,
+      fill: new Gradient({
+        type: 'linear',
+        from: new Vector2(0, -FADE_H / 2),
+        to: new Vector2(0, FADE_H / 2),
+        stops: [
+          {offset: 0.0, color: 'rgba(255,255,255,0)'},
+          {offset: 1.0, color: 'white'},
+        ],
+      }),
+      compositeOperation: 'destination-out',
+    }));
+  }
+
   // Separate Manticores for the 3-method morph reveal.
   const writeMC = Manticore.create(IMPL_WRITE, {
     x: IMPL_X, y: 0, width: IMPL_W,

@@ -1,5 +1,5 @@
 import {makeScene2D, Txt, blur} from '@motion-canvas/2d';
-import {all, createSignal, easeInOutCubic, easeInOutSine, linear, waitFor} from '@motion-canvas/core';
+import {all, createSignal, easeInOutCubic, easeInOutSine, waitFor} from '@motion-canvas/core';
 import {
   createFiveFacesStage,
   NAME_XS,
@@ -212,22 +212,44 @@ export default makeScene2D(function* (view) {
     s.writeMC.node.opacity(0, 0.55, easeInOutSine),
     s.saveOrReplaceMC.node.opacity(0, 0.55, easeInOutSine),
   );
-  // Sit the block 100 lower before it scrolls up — leaves headroom for the verdict.
-  s.complexSaveCode.node.position.y(s.complexSaveCode.node.position.y() + 100);
-
-  // Wire a blur signal onto the already-cached block so it can defocus IN PLACE
-  // at the end instead of fading — the verdict racks focus to the foreground.
-  const bigBlur = createSignal(0);
-  s.complexSaveCode.node.filters(() => [blur(bigBlur())]);
-
+  // Raise the method and drop it in — no slow scroll-through now.
+  s.complexSaveCode.node.position.y(0);
   yield* s.complexSaveCode.node.opacity(1, 1.0, easeInOutSine);
-  yield* waitFor(1.5);
-  yield* s.complexSaveCode.scrollTo(58, 12, linear);
+  yield* waitFor(0.6);
 
-  // The method doesn't fade out — it softly blurs and sinks to the background.
-  yield* bigBlur(9, 1.4, easeInOutSine);
+  // Per-token blur: the guard block — where `!overwrite` is actually applied —
+  // holds focus while the rest of the method softens around it.
+  const bGuard = createSignal(0); // if (existing != null && !overwrite) { throw }
+  const bRest = createSignal(0); //  everything else
+  {
+    const GUARD = new Set([35, 36, 37]);
+    for (let i = 0; i < s.complexSaveCode.lineCount; i++) {
+      const line = s.complexSaveCode.getLine(i);
+      if (!line) continue;
+      const sig = GUARD.has(i) ? bGuard : bRest;
+      for (const t of line.tokens) {
+        const txt = t.ref();
+        // Key on the rendered glyph so ligatures (!=, &&) blur as one piece.
+        if (txt.text().trim().length === 0) continue;
+        txt.cache(true);
+        txt.cachePadding(20);
+        txt.filters(() => [blur(sig())]);
+      }
+    }
+  }
 
-  // ── PERMISSION verdict — blooms on TOP of the blurred method ──
+  // ── 9s episode: one scroll to the boolean's use site, soften everything else ──
+  yield* s.complexSaveCode.scrollTo(29, 1.4, easeInOutCubic);
+  yield* bRest(6, 1.0, easeInOutSine);
+  yield* waitFor(6.6);
+
+  // Then the whole method blurs and the verdict blooms on top of it.
+  yield* all(
+    bRest(9, 1.0, easeInOutSine),
+    bGuard(9, 1.0, easeInOutSine),
+  );
+
+  // ── PERMISSION verdict — blooms on TOP of the fully-blurred method ──
   s.bigScale().moveToTop();
   s.bigScale().position([0, 0]);
   s.bigScale().scale(1);
