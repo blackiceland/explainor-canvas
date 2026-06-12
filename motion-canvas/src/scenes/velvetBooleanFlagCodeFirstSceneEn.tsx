@@ -58,7 +58,7 @@ const RULES: ColorRule[] = [
     {match: /^(function|const|let|var|return|if|else)$/, color: KEY},
     {match: /^(true|false)$/, color: KEY},
     {match: /^(boolean|string|number)$/, color: TYPE_CLR},
-    {match: /^(saveFile|writeNewFile|overwriteFile|disk)$/, color: DOMAIN},
+    {match: /^(savePost|publishPost|saveDraft|db|Post)$/, color: DOMAIN},
 ];
 
 const FLAT_CARD = {
@@ -75,39 +75,41 @@ const FLAT_CARD = {
 
 // ── Code states ──────────────────────────────────────────────────────
 // The cold open: a method name with parens, alone — a promise of what it does.
-const NAME_ONLY = `saveFile()`;
+const NAME_ONLY = `savePost()`;
 
-// Two parameters resolve inside the parens. Still honest: a path, its content.
-const SIGNATURE = `saveFile(path, content)`;
+// One parameter resolves inside the parens. Still honest: a post, fully typed.
+const SIGNATURE = `savePost(post: Post)`;
 
 // One boolean, typed in as a foreign element the name never accounted for.
-const SIGNATURE_FLAG = `saveFile(path, content, overwrite: boolean)`;
+// Every parameter is annotated — clean, idiomatic TypeScript, no implicit any.
+const SIGNATURE_FLAG = `savePost(post: Post, publish: boolean)`;
 
-// The body the name hides: save means write a new file — unless the flag is
-// set, and then it doesn't save, it overwrites what was already there. (No
-// `function` keyword anywhere — the hero is the bare name, so every morph keeps
-// its left edge fixed; reads as a method.)
-const CODE_FLAG = `saveFile(path, content, overwrite) {
-    if (overwrite) {
-        return overwriteFile(path, content)
+// The body the name hides: save means write a draft — unless the flag is set,
+// and then it doesn't save, it publishes, live to everyone. The signature keeps
+// its types (matches SIGNATURE_FLAG); no `function` keyword — the hero is the
+// bare name, every morph keeps its left edge, reads as a method.
+const CODE_FLAG = `savePost(post: Post, publish: boolean) {
+    if (publish) {
+        return publishPost(post)
     }
-    return writeNewFile(path, content)
+
+    return saveDraft(post)
 }`;
 
-const CALL_TRUE  = `saveFile(path, content, true)`;
-const CALL_FALSE = `saveFile(path, content, false)`;
+const CALL_TRUE  = `savePost(post, true)`;
+const CALL_FALSE = `savePost(post, false)`;
 
 // The split: one flagged call → two honest names. The boolean's meaning
 // migrates into the name; the `, true/false` argument dissolves.
-const SPLIT_NAMES = `writeNewFile(path, content)
-overwriteFile(path, content)`;
+const SPLIT_NAMES = `saveDraft(post)
+publishPost(post)`;
 
-const CODE_AFTER = `writeNewFile(path, content) {
-    return disk.create(path, content)
+const CODE_AFTER = `saveDraft(post) {
+    return db.insert(post)
 }
 
-overwriteFile(path, content) {
-    return disk.replace(path, content)
+publishPost(post) {
+    return db.publish(post)
 }`;
 
 // ── Code block helpers (house style: theme + rules + glow + weight) ───
@@ -315,6 +317,131 @@ function buildCard(o: {
     return {node, jsx};
 }
 
+// ── Large editorial DRAFT sheet — the post as a private magazine proof ────
+// The saveDraft branch made concrete in KUROSHIMA's own voice: a serif
+// headline, an italic byline + a mono "saved … · not published" timestamp, a
+// standfirst whose opacity decays (unfinished prose), a tabular Words/Reading
+// ledger over hairlines, a Draft|Public segmented control (the path-not-taken
+// beside the chosen one), a still toggle (knob LEFT = not published) and ONE
+// filled-ink "Save draft" primary. One soft layered shadow, hairline strokes,
+// a thin GOLD_QUIET edition-rule down the left bleed as the only warm accent.
+// Built STILL — life lives only in the lift entrance + the deflate-to-disabled.
+// Knob + active dots are full-radius Rects (circular) so no <Circle> import.
+const DCARD_W   = 760;
+const DCARD_H   = 680;
+const DCARD_PAD = 44;
+const D_LEFT    = -DCARD_W / 2 + DCARD_PAD;   // -336  left text/label rail
+const D_RIGHT   =  DCARD_W / 2 - DCARD_PAD;   //  336  right figure rail
+const D_RULE_W  =  DCARD_W - DCARD_PAD * 2;   //  672  hairline width
+
+function buildDraftCard(): {
+    node: Reference<Node>;
+    panel: Reference<Rect>;
+    seg: Reference<Rect>;       // selected DRAFT segment — fades on disable
+    pill: Reference<Rect>;      // filled primary — demotes to inert ghost on disable
+    pillLabel: Reference<Txt>;  // primary label — recolours to QUIET on disable
+    jsx: any;
+} {
+    const node      = createRef<Node>();
+    const panel     = createRef<Rect>();
+    const seg       = createRef<Rect>();
+    const pill      = createRef<Rect>();
+    const pillLabel = createRef<Txt>();
+
+    const jsx = (
+        <Node ref={node}>
+            {/* the sheet — the ONLY shadow in the composition (grown live on entrance), clipped */}
+            <Rect ref={panel} width={DCARD_W} height={DCARD_H} radius={30}
+                fill="#1B2233" stroke="rgba(231,225,214,0.12)" lineWidth={1}
+                shadowColor="rgba(0,0,0,0.50)" shadowBlur={0} shadowOffset={[0, 4]} clip>
+
+                {/* edition margin-rule — a thin warm spine down the left bleed (the one warm accent) */}
+                <Rect width={3} height={DCARD_H} x={-DCARD_W / 2 + 1.5} y={0}
+                    fill="rgba(221,191,92,0.55)" />
+                {/* top inner-highlight lip — sells the glass edge */}
+                <Rect width={DCARD_W - 2} height={1} y={-DCARD_H / 2 + 1}
+                    fill="rgba(231,225,214,0.06)" />
+
+                {/* header — section kicker + discreet lilac DRAFT chip */}
+                <Txt text="THE DRAWER" fontFamily={F_SERIF} fontSize={19} fontWeight={500}
+                    letterSpacing={4} fill={QUIET} offset={[-1, 0]} x={D_LEFT} y={-296} />
+                <Rect width={104} height={34} radius={17} x={288} y={-296}
+                    fill="rgba(202,180,234,0.10)" stroke="rgba(202,180,234,0.34)" lineWidth={1}>
+                    <Rect width={7} height={7} radius={3.5} fill={KEY} x={-34} />
+                    <Txt text="DRAFT" fontFamily={F_MONO} fontSize={15} fontWeight={600}
+                        letterSpacing={1.5} fill="rgba(202,180,234,0.85)" x={6} />
+                </Rect>
+                <Rect width={D_RULE_W} height={1} fill="rgba(231,225,214,0.10)" y={-262} />
+
+                {/* headline — a real article title, two serif lines */}
+                <Txt text="On the quiet cost" fontFamily={F_SERIF} fontSize={56} fontWeight={500}
+                    letterSpacing={-0.5} fill={INK} offset={[-1, 0]} x={D_LEFT} y={-200} />
+                <Txt text="of a single flag" fontFamily={F_SERIF} fontSize={56} fontWeight={500}
+                    letterSpacing={-0.5} fill={INK} offset={[-1, 0]} x={D_LEFT} y={-140} />
+
+                {/* byline — author-only visibility, stated in words */}
+                <Txt text="by A. Brooks" fontFamily={F_SERIF} fontSize={22} fontWeight={400}
+                    fontStyle={'italic'} fill={GHOST} offset={[-1, 0]} x={D_LEFT} y={-84} />
+                <Txt text="saved 14:02 · not published" fontFamily={F_MONO} fontSize={17}
+                    fontWeight={500} letterSpacing={0.2} fill={QUIET} offset={[-1, 0]} x={-128} y={-83} />
+
+                {/* standfirst — unfinished prose, opacity decays (no animation) */}
+                <Txt text="The flag looked free. It cost two contracts and" fontFamily={F_SANS}
+                    fontSize={20} fontWeight={400} letterSpacing={-0.1}
+                    fill="rgba(231,225,214,0.60)" offset={[-1, 0]} x={D_LEFT} y={-40} />
+                <Txt text="a name that no longer means what it says" fontFamily={F_SANS}
+                    fontSize={20} fontWeight={400} letterSpacing={-0.1}
+                    fill="rgba(231,225,214,0.34)" offset={[-1, 0]} x={D_LEFT} y={-10} />
+
+                {/* ledger — label (left) / tabular figure (right), over hairlines */}
+                <Rect width={D_RULE_W} height={1} fill="rgba(231,225,214,0.10)" y={18} />
+                <Txt text="Words" fontFamily={F_SANS} fontSize={20} fontWeight={450}
+                    letterSpacing={0.3} fill={GHOST} offset={[-1, 0]} x={D_LEFT} y={54} />
+                <Txt text="1,284" fontFamily={F_MONO} fontSize={24} fontWeight={500}
+                    fill={INK} offset={[1, 0]} x={D_RIGHT} y={54} />
+                <Rect width={D_RULE_W} height={1} fill="rgba(231,225,214,0.07)" y={86} />
+                <Txt text="Reading time" fontFamily={F_SANS} fontSize={20} fontWeight={450}
+                    letterSpacing={0.3} fill={GHOST} offset={[-1, 0]} x={D_LEFT} y={120} />
+                <Txt text="6 min" fontFamily={F_MONO} fontSize={24} fontWeight={500}
+                    fill={INK} offset={[1, 0]} x={D_RIGHT} y={120} />
+
+                {/* segmented visibility control — the path-not-taken beside the chosen one */}
+                <Txt text="Visibility" fontFamily={F_SANS} fontSize={17} fontWeight={400}
+                    letterSpacing={0.5} fill={QUIET} offset={[-1, 0]} x={D_LEFT} y={158} />
+                <Rect width={360} height={52} radius={14} x={D_LEFT + 180} y={202}
+                    fill="rgba(231,225,214,0.04)" stroke="rgba(231,225,214,0.12)" lineWidth={1} />
+                <Rect ref={seg} width={172} height={42} radius={11} x={D_LEFT + 95} y={202}
+                    fill="rgba(231,225,214,0.10)" stroke="rgba(231,225,214,0.20)" lineWidth={1}>
+                    <Rect width={7} height={7} radius={3.5} fill={KEY} x={-50} />
+                    <Txt text="Draft" fontFamily={F_SANS} fontSize={20} fontWeight={600}
+                        letterSpacing={-0.2} fill={INK} x={8} />
+                </Rect>
+                <Txt text="Public" fontFamily={F_SANS} fontSize={20} fontWeight={500}
+                    letterSpacing={-0.2} fill={QUIET} x={D_LEFT + 265} y={202} />
+
+                {/* footer — divider, still toggle (knob LEFT = not published), ONE filled primary */}
+                <Rect width={D_RULE_W} height={1} fill="rgba(231,225,214,0.10)" y={244} />
+                <Rect width={62} height={34} radius={17} x={D_LEFT + 31} y={284}
+                    fill="rgba(231,225,214,0.08)" stroke="rgba(231,225,214,0.16)" lineWidth={1}>
+                    <Rect width={26} height={26} radius={13} x={-15} y={0}
+                        fill="rgba(231,225,214,0.85)"
+                        shadowColor="rgba(0,0,0,0.30)" shadowBlur={6} shadowOffset={[0, 2]} />
+                </Rect>
+                <Txt text="Published — off, saved privately" fontFamily={F_SANS} fontSize={18}
+                    fontWeight={450} fill={GHOST} offset={[-1, 0]} x={D_LEFT + 76} y={284} />
+                <Rect ref={pill} width={196} height={56} radius={28}
+                    x={D_RIGHT - 98} y={284}
+                    fill={INK} stroke="rgba(0,0,0,0)" lineWidth={1.4}
+                    shadowColor="rgba(0,0,0,0.30)" shadowBlur={0} shadowOffset={[0, 6]}>
+                    <Txt ref={pillLabel} text="Save draft" fontFamily={F_SANS} fontSize={22}
+                        fontWeight={600} letterSpacing={-0.2} fill={BG} />
+                </Rect>
+            </Rect>
+        </Node>
+    );
+    return {node, panel, seg, pill, pillLabel, jsx};
+}
+
 // ── Subtitle typing (static `//` + typed body) ───────────────────────
 function* typeBody(ref: Reference<Txt>, body: string, charDelay = 0.03): ThreadGenerator {
     ref().text('');
@@ -379,25 +506,22 @@ export default makeScene2D(function* (view) {
     // ════════════════════════════════════════════════════════════════
     // ONE block, morphed — never replaced (cf. velvetCartReminder Beat 7). The
     // method NAME with parens enters large and alone (a promise of what it does),
-    // SHRINKS a little as two parameters resolve inside the parens, then the
-    // boolean parameter TYPES in as a foreign element. The name loses its
-    // authority — the gold flag is the only thing left lit — and the body grows
-    // out of the same line to prove it. Yudan-manner entrance (cf.
-    // chapter1YudanSceneEn): focal hero, scale down through stages, then a typed
-    // token. saveFile() → +params → type flag → lie → body. Nothing teleports.
+    // STAYS large as the first parameter TYPES inside the parens (the line grows
+    // outward from the centre — one param is no reason to shrink), then SHRINKS to
+    // admit the boolean as it TYPES in — the foreign flag forcing its way into the
+    // signature. The name then loses its authority — the gold flag is the only
+    // thing left lit — and the body grows out of the same line to prove it.
+    // savePost() → +param (type) → +flag (type + shrink) → lie → body. The
+    // signature TRANSFORMS in place; nothing fades onto pre-reserved spots.
+    const TYPE = {
+        addStyle: 'typewriter' as const, charDelay: 0.045,
+        moveDuration: 0.5, removeDuration: 0.3,
+        blockOrder: 'parallel' as const, lineOrder: 'parallel' as const,
+        tokenSlideDuration: 0,   // close paren re-types LAST → the growing line never shows a hole
+    };
+    // Body grow (beat 5) adds whole new lines — those fade in; params (beats 2-3) type.
     const OPEN_FADE = {
         addStyle: 'fade' as const, moveDuration: 0.5, removeDuration: 0.3,
-        blockOrder: 'parallel' as const, lineOrder: 'parallel' as const,
-    };
-    // The flag is TYPED in. tokenSlideDuration 0 is the whole trick: a kept close
-    // paren that sits AFTER the insertion point is hidden and RE-TYPED last (when
-    // sliding it would instead glide ahead of the cursor and leave a gap). So the
-    // params type strictly left-to-right with nothing to the cursor's right — no
-    // pre-parked bracket, no hole. The recentre is COUPLED to the typing by the
-    // caller (same all()), so the line grows outward from centre, never lurching.
-    const BOOL_TYPE = {
-        addStyle: 'typewriter' as const, charDelay: 0.05, lineDelay: 0,
-        moveDuration: 0.4, removeDuration: 0.2, tokenSlideDuration: 0,
         blockOrder: 'parallel' as const, lineOrder: 'parallel' as const,
     };
     // The method enters CENTERED: each state is positioned so its content sits
@@ -406,11 +530,16 @@ export default makeScene2D(function* (view) {
     // its widest line (so the block, not just line 0, reads as centred).
     const FS = 38;                                          // larger working size
     const LEFT_LOCAL = -1100 / 2 + getCodePaddingX(FS);    // local x where text starts
-    const HERO_SCALE = 1.8;
+    const HERO_SCALE = 1.6;   // big, but the shrink-to-fit at the boolean stays gentle + in-frame
     const widthOf = (code: string): number =>
         Math.max(...code.split('\n').map(l => textWidth(l, F_MONO, FS)));
     const centerX = (code: string, scale: number): number => -(LEFT_LOCAL + widthOf(code) / 2) * scale;
 
+    // Build the block at the NAME-ONLY state and morph it FORWARD — each added
+    // parameter TYPES into the parens, so the signature literally grows on screen
+    // (canon: morph one block, never replace). centerX solves node.x from the
+    // measured content width so each state sits centred; coupling the recentre to
+    // the typing makes the line expand from the middle rather than lurch leftward.
     const fn = makeBlock({code: NAME_ONLY, y: 0, fontSize: FS, lineHeight: 54, width: 1100, noClip: true});
     fn.mount(view);
     dressBlock(fn);
@@ -431,70 +560,121 @@ export default makeScene2D(function* (view) {
     yield* typeBody(subBody, 'a name is a promise');
     yield* waitFor(0.7);
 
-    // 2 — shrink a little; two parameters resolve inside the parens.
+    // 2 — the first parameter TYPES into the parens at hero size; the line grows
+    // outward from the centre (recentre coupled to the typing, so it expands from
+    // the middle instead of lurching). One param is no reason to shrink.
     yield* all(
-        fn.morphTo(SIGNATURE, OPEN_FADE),
-        fn.node.scale(1, 0.7, easeInOutCubic),
-        fn.node.x(centerX(SIGNATURE, 1), 0.7, easeInOutCubic),
+        fn.morphTo(SIGNATURE, TYPE),
+        fn.node.x(centerX(SIGNATURE, HERO_SCALE), 0.7, easeInOutCubic),
     );
-    dressBlock(fn);
     yield* waitFor(0.7);
 
-    // 3 — the boolean parameter TYPES in — a foreign element. (Add one boolean —)
-    // No standalone re-centre: the shift rides WITH the typing in one all(), so
-    // the line expands outward from centre as it grows. Ends centred → no overflow.
+    // 3 — the boolean TYPES in as the foreign flag, and the line SHRINKS to admit
+    // it (the boolean won't fit at hero size — the shrink is EARNED by the width it
+    // needs, not by "a param appeared"). Type + scale + recentre in one move, so
+    // the boolean's arrival is what makes the method give ground.
     yield* swapSub(subBody, 'add one boolean');
     yield* all(
-        fn.morphTo(SIGNATURE_FLAG, BOOL_TYPE),
-        fn.node.x(centerX(SIGNATURE_FLAG, 1), 1.0, easeInOutCubic),
+        fn.morphTo(SIGNATURE_FLAG, TYPE),
+        fn.node.scale(1, 0.7, easeInOutCubic),
+        fn.node.x(centerX(SIGNATURE_FLAG, 1), 0.7, easeInOutCubic),
     );
-    dressBlock(fn);
     yield* waitFor(0.5);
 
     // 4 — the name starts to lie: structure recedes, the name loses its glow,
     // and the gold flag is the only thing still lit.
     const sigLine = fn.getLine(0);
-    const nameTok = sigLine?.tokens.find(t => t.text === 'saveFile')?.ref();
-    const owTok   = sigLine?.tokens.find(t => t.text === 'overwrite')?.ref();
+    const nameTok = sigLine?.tokens.find(t => t.text === 'savePost')?.ref();
+    const pubTok  = sigLine?.tokens.find(t => t.text === 'publish')?.ref();
     const boolTok = sigLine?.tokens.find(t => t.text === 'boolean')?.ref();
     const lieDim: ThreadGenerator[] = [];
     if (sigLine) for (const t of sigLine.tokens) {
-        if (t.text === 'saveFile' || t.text === 'overwrite' || t.text === 'boolean') continue;
+        if (t.text === 'savePost' || t.text === 'publish' || t.text === 'boolean') continue;
         lieDim.push(t.ref().opacity(DIM_OP, 0.5));
     }
     yield* all(
         ...lieDim,
         nameTok?.opacity(0.45, 0.5) ?? waitFor(0),
         nameTok?.shadowBlur(0, 0.5) ?? waitFor(0),
-        owTok?.fill(ACCENT, 0.5, easeOutCubic) ?? waitFor(0),
+        pubTok?.fill(ACCENT, 0.5, easeOutCubic) ?? waitFor(0),
         boolTok?.fill(ACCENT, 0.5, easeOutCubic) ?? waitFor(0),
         swapSub(subBody, 'the name starts to lie'),
     );
     yield* waitFor(1.5);
 
     // 5 — the body grows out of the same line: one name, two paths, one of which
-    // overwrites. Relight the signature, morph 1 → 6 lines, and recenter as it
-    // grows (morphTo holds line 0 fixed and adds lines below — so lift the block).
+    // publishes. Drop the gold and relight the dimmed signature as the body opens
+    // — the lie resolves into plain structure, no accent survives into the body.
+    // morphTo holds line 0 fixed and adds lines below, so lift the block (now 7
+    // lines with the blank before the second return).
     const relightSig = (fn.getLine(0)?.tokens ?? []).map(t => t.ref().opacity(1, 0.45));
     yield* all(
         ...relightSig,
+        pubTok?.fill(INK, 0.5) ?? waitFor(0),
+        boolTok?.fill(TYPE_CLR, 0.5) ?? waitFor(0),
+        nameTok?.shadowBlur(8, 0.5) ?? waitFor(0),
         fn.morphTo(CODE_FLAG, OPEN_FADE),
         fn.node.x(centerX(CODE_FLAG, 1), 0.6, easeInOutCubic),
-        fn.node.y(-135, 0.6, easeInOutCubic),
+        fn.node.y(-160, 0.6, easeInOutCubic),
         swapSub(subBody, 'two paths, one name'),
     );
     dressBlock(fn);
     yield* waitFor(0.4);
 
-    // The switch, then the two paths it routes between.
-    const IF_LINE  = 1;
-    const RET_OVER = 2;
-    const RET_NEW  = 4;
-    yield* flareToken(fn, IF_LINE, 'overwrite', ACCENT, INK);
-    yield* spotlight(fn, [IF_LINE], 0.4);
-    yield* waitFor(0.4);
-    yield* spotlight(fn, [RET_OVER, RET_NEW], 0.45);
-    yield* waitFor(0.9);
+    // The two paths the switch routes between — surfaced one at a time, each made
+    // concrete by the product card it produces. Draft path first.
+    const IF_LINE     = 1;
+    const RET_PUBLISH = 2;
+    const IF_CLOSE    = 3;
+    const RET_DRAFT   = 5;   // blank line now sits above it (index shifted 4 → 5)
+
+    // The editorial draft sheet, parked just below its mark and flat on the page,
+    // ready to lift in when the draft path lights. Pre-state: invisible, 18px low,
+    // a whisper small; panel + pill shadows start at 0 (grown on entrance).
+    const SHEET_Y = -360;
+    const card = buildDraftCard();
+    view.add(card.jsx);
+    card.node().opacity(0);
+    card.node().y(SHEET_Y + 18);
+    card.node().scale(0.992);
+
+    // Phase 1 — light only the draft return as everything else recedes; in the same
+    // beat the method slides DOWN to free the upper region and the sheet materialises
+    // above it: fade + a small rise + the shadow grown from flat (= lifting toward the
+    // viewer), the primary capsule gaining its slight elevation. Then dead still.
+    yield* all(
+        spotlight(fn, [RET_DRAFT], 0.5),
+        fn.node.y(220, 0.72, easeInOutCubic),
+        card.node().opacity(1, 0.72, easeOutCubic),
+        card.node().y(SHEET_Y, 0.72, easeOutCubic),
+        card.node().scale(1, 0.72, easeOutCubic),
+        card.panel().shadowBlur(46, 0.72, easeOutCubic),
+        card.panel().shadowOffset([0, 26], 0.72, easeOutCubic),
+        card.pill().shadowBlur(16, 0.72, easeOutCubic),
+        swapSub(subBody, 'one branch saves a draft'),
+    );
+    yield* waitFor(1.2);
+
+    // Phase 2 — the light moves up to the publish branch; choosing publish takes the
+    // draft option away, so the sheet goes disabled: greyed and pushed back, its shadow
+    // deflated, the selected Draft segment dimmed, and the filled primary demoted to an
+    // inert frosted ghost (the action visibly dies). Never deleted — just unavailable.
+    yield* all(
+        spotlight(fn, [IF_LINE, RET_PUBLISH, IF_CLOSE], 0.45),
+        card.node().opacity(0.32, 0.55, easeInOutCubic),
+        card.node().scale(0.994, 0.55, easeInOutCubic),
+        card.panel().shadowBlur(6, 0.55, easeInOutCubic),
+        card.panel().shadowOffset([0, 3], 0.55, easeInOutCubic),
+        card.seg().opacity(0.4, 0.55, easeInOutCubic),
+        card.pill().fill('rgba(231,225,214,0.09)', 0.55, easeInOutCubic),
+        card.pill().stroke('rgba(231,225,214,0.22)', 0.55, easeInOutCubic),
+        card.pill().shadowBlur(0, 0.55, easeInOutCubic),
+        card.pillLabel().fill(QUIET, 0.55, easeInOutCubic),
+        swapSub(subBody, 'the other publishes'),
+    );
+    yield* waitFor(1.2);
+
+    // Restore the full method before the handoff (the chit stays disabled).
     yield* fn.showAllLines(0.4);
     yield* waitFor(0.4);
 
@@ -527,10 +707,12 @@ export default makeScene2D(function* (view) {
     yield* all(
         fn.node.opacity(0, 0.5, easeInCubic),
         fnBlur(6, 0.5, easeInCubic),
+        card.node().opacity(0, 0.5, easeInCubic),
         subSlashes().opacity(0, 0.4, easeInCubic),
         subBody().opacity(0, 0.4, easeInCubic),
     );
     fn.node.remove();
+    card.node().remove();
 
     // The two states simply appear, together, and hold. No motion inside them.
     yield* all(

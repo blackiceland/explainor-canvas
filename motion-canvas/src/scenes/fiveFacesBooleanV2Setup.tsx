@@ -310,6 +310,36 @@ export const COMPLEX_SAVE_METHOD = `fun save(path: String, content: Bytes, conte
     }
 }`;
 
+// PERMISSION trade-off payoff — the SAME method "split" cleanly. The public API
+// becomes two thin verbs, but the heavy body (and the boolean) don't vanish:
+// they move into a private save(…, overwrite). The flag survived the refactor —
+// it just went private. Real (compact) body, no elision comments.
+export const COMPLEX_SAVE_SPLIT = `fun save(path: String, content: Bytes, contentType: String): StoredFile =
+    save(path, content, contentType, overwrite = false)
+
+fun saveOrReplace(path: String, content: Bytes, contentType: String): StoredFile =
+    save(path, content, contentType, overwrite = true)
+
+private fun save(
+    path: String, content: Bytes, contentType: String,
+    overwrite: Boolean,
+): StoredFile {
+    val normalizedPath = normalizePath(path)
+    validator.requireValidMimeType(contentType)
+
+    val lock = locks.tryAcquire("file:\${normalizedPath}", Duration.ofSeconds(5))
+        ?: throw FileLockedException(normalizedPath)
+
+    val existing = storage.find(normalizedPath)
+    if (existing != null && !overwrite) {
+        throw FileAlreadyExistsException(normalizedPath)
+    }
+
+    val stored = storage.put(normalizedPath, encrypt(content))
+    events.publish(FileStoredEvent(normalizedPath, stored.key))
+    return stored
+}`;
+
 export const IMPL_SAVE_CLEAN = `fun save(path: String, content: Bytes, contentType: String): StoredFile {
     if (storage.exists(path)) {
         throw FileAlreadyExists(path)
@@ -1141,7 +1171,10 @@ export function createFiveFacesStage(view: View2D) {
     lineHeight: 23,
     fontFamily: Fonts.code,
     theme: DryFiltersV3CodeTheme,
-    noClip: false,
+    // noClip: no clip rectangle → no hard bottom cut and no need for edge fades.
+    // The method simply runs off the frame; it gets softened/blurred before the
+    // verdict anyway.
+    noClip: true,
     cardStyle: TRANSPARENT_CARD,
     glowAccent: false,
     customTypes: CUSTOM_TYPES,
@@ -1156,50 +1189,50 @@ export function createFiveFacesStage(view: View2D) {
   complexSaveCode.node.cachePadding(20);
 
   {
-    // Top fade: tall + raised so the scrolling method dissolves high and gently
-    // (band reaches above the clip edge → soft at the very top, long ramp down).
-    const FADE_H = 240;
-    const cpY = Math.round(Math.max(24, Math.min(48, 17 * 1.5 + 8)));
-    const clipH = 850 - cpY * 2;
+    // TOP fade only (no bottom — the method just runs off the frame). noClip means
+    // lines above the scroll window would otherwise show, so this band fully erases
+    // from the screen top (-540) down past the window top, then feathers in by -250.
     complexSaveCode.node.add(new Rect({
       width: 1400,
-      height: FADE_H,
-      y: -clipH / 2 + FADE_H / 2 - 50,
+      height: 290,
+      y: -395, // band spans -540 → -250
       fill: new Gradient({
         type: 'linear',
-        from: new Vector2(0, -FADE_H / 2),
-        to: new Vector2(0, FADE_H / 2),
+        from: new Vector2(0, -145),
+        to: new Vector2(0, 145),
         stops: [
-          {offset: 0.0, color: 'white'},
-          {offset: 1.0, color: 'rgba(255,255,255,0)'},
+          {offset: 0.0, color: 'white'},                  // screen top — fully erased
+          {offset: 0.51, color: 'white'},                 // ~-391, overflow lines still erased
+          {offset: 1.0, color: 'rgba(255,255,255,0)'},    // -250 — visible
         ],
       }),
       compositeOperation: 'destination-out',
     }));
   }
 
-  {
-    // Bottom fade: mirror of the top band so the clipped method dissolves into
-    // the background instead of ending on a hard horizontal clip edge.
-    const FADE_H = 240;
-    const cpY = Math.round(Math.max(24, Math.min(48, 17 * 1.5 + 8)));
-    const clipH = 850 - cpY * 2;
-    complexSaveCode.node.add(new Rect({
-      width: 1400,
-      height: FADE_H,
-      y: clipH / 2 - FADE_H / 2 + 50,
-      fill: new Gradient({
-        type: 'linear',
-        from: new Vector2(0, -FADE_H / 2),
-        to: new Vector2(0, FADE_H / 2),
-        stops: [
-          {offset: 0.0, color: 'rgba(255,255,255,0)'},
-          {offset: 1.0, color: 'white'},
-        ],
-      }),
-      compositeOperation: 'destination-out',
-    }));
-  }
+  // Split payoff — a SEPARATE, clip-free Manticore, screen-centered (noClip node
+  // is center-anchored at y). No clip → no hard edge; no morph → no garble; the
+  // giant cross-dissolves into this. cache(true) so the verdict can softly blur it.
+  const splitSaveCode = Manticore.create(COMPLEX_SAVE_SPLIT, {
+    x: 0,
+    y: 0,
+    width: 1400,
+    fontSize: 17,
+    lineHeight: 23,
+    fontFamily: Fonts.code,
+    theme: DryFiltersV3CodeTheme,
+    noClip: true,
+    cardStyle: TRANSPARENT_CARD,
+    glowAccent: false,
+    customTypes: CUSTOM_TYPES,
+    contentOffsetX: 200,
+  });
+  splitSaveCode.mount(view);
+  splitSaveCode.colorize(CODE_RULES);
+  paintNamedParams(splitSaveCode);
+  splitSaveCode.node.opacity(0);
+  splitSaveCode.node.cache(true);
+  splitSaveCode.node.cachePadding(20);
 
   // Separate Manticores for the 3-method morph reveal.
   const writeMC = Manticore.create(IMPL_WRITE, {
@@ -1730,6 +1763,7 @@ export function createFiveFacesStage(view: View2D) {
     callCodes,
     implCodes,
     complexSaveCode,
+    splitSaveCode,
     writeMC,
     saveOrReplaceMC,
     permissionViz,

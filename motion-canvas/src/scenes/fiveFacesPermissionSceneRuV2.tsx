@@ -212,7 +212,7 @@ export default makeScene2D(function* (view) {
     s.writeMC.node.opacity(0, 0.55, easeInOutSine),
     s.saveOrReplaceMC.node.opacity(0, 0.55, easeInOutSine),
   );
-  // Raise the method and drop it in — no slow scroll-through now.
+  // Drop the method in (not raised).
   s.complexSaveCode.node.position.y(0);
   yield* s.complexSaveCode.node.opacity(1, 1.0, easeInOutSine);
   yield* waitFor(0.6);
@@ -238,24 +238,25 @@ export default makeScene2D(function* (view) {
     }
   }
 
-  // ── 9s episode: one scroll to the boolean's use site, soften everything else ──
+  // Scroll to the boolean use-site; the guard stays sharp, the rest softens.
   yield* s.complexSaveCode.scrollTo(29, 1.4, easeInOutCubic);
   yield* bRest(6, 1.0, easeInOutSine);
-  yield* waitFor(6.6);
+  yield* waitFor(3.0);
 
-  // Then the whole method blurs and the verdict blooms on top of it.
+  // Then blur EVERYTHING (guard too) into a soft backdrop — per-token, so the top
+  // fade stays intact — and bloom the verdict on top.
   yield* all(
-    bRest(9, 1.0, easeInOutSine),
-    bGuard(9, 1.0, easeInOutSine),
+    bGuard(10, 1.0, easeInOutSine),
+    bRest(10, 1.0, easeInOutSine),
   );
 
-  // ── PERMISSION verdict — blooms on TOP of the fully-blurred method ──
+  // ── PERMISSION verdict — blooms on TOP of the blurred method ──
   s.bigScale().moveToTop();
   s.bigScale().position([0, 0]);
   s.bigScale().scale(1);
   yield* s.bigScale().opacity(1, 0.6, easeInOutSine);
 
-  // A couple of seconds later the blurred code dissolves, leaving only the verdict.
+  // A couple of seconds later the blurred method dissolves, leaving only the verdict.
   yield* waitFor(2.0);
   yield* s.complexSaveCode.node.opacity(0, 1.4, easeInOutSine);
 

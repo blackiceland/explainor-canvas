@@ -2,28 +2,39 @@ import puppeteer from 'puppeteer';
 
 const scene = process.argv[2] ?? 'velvetBooleanFlagCodeFirstSceneEn';
 const frames = (process.argv[3] ?? '0').split(',').map(s => s.trim()).filter(Boolean);
-const overlay = process.argv[4] === 'overlay' ? '&overlay=1' : '';
-const fps = 60;
+const overlay = process.argv[4] ?? '1';
+const BASE = 'http://127.0.0.1:5173/vstill.html';
 
-const browser = await puppeteer.launch({headless: 'new', args: ['--no-sandbox']});
+const browser = await puppeteer.launch({headless: true, args: ['--no-sandbox']});
 try {
   for (const f of frames) {
     const page = await browser.newPage();
-    const errs = [];
-    page.on('pageerror', e => errs.push(String(e)));
-    page.on('console', m => { const t = m.text(); if (/error|Error|throw/.test(t)) errs.push(t); });
-    const url = `http://127.0.0.1:5173/vstill.html?scene=${scene}&frame=${f}&fps=${fps}${overlay}`;
-    await page.goto(url, {waitUntil: 'load', timeout: 90000});
+    const logs = [];
+    page.on('console', m => logs.push('[console] ' + m.text()));
+    page.on('pageerror', e => logs.push('[pageerror] ' + e.message));
+    const url = `${BASE}?scene=${encodeURIComponent(scene)}&frame=${f}&fps=60&overlay=${overlay}`;
     try {
-      await page.waitForFunction(() => window.__MC_STILL_DONE || window.__MC_STILL_ERROR, {timeout: 80000});
+      await page.goto(url, {waitUntil: 'load', timeout: 60000});
+      await page.waitForFunction(
+        () => window.__MC_STILL_DONE || window.__MC_STILL_ERROR,
+        {timeout: 120000},
+      );
     } catch (e) {
-      console.log(`frame ${f}: WAIT TIMEOUT ${e.message}`);
+      console.log(`frame ${f}: TIMEOUT/NAV ${e.message}`);
+      console.log(logs.slice(-8).join('\n'));
+      await page.close();
+      continue;
     }
-    const err = await page.evaluate(() => window.__MC_STILL_ERROR);
-    const out = await page.evaluate(() => window.__MC_STILL?.output);
-    if (err) console.log(`frame ${f}: ERROR ${err}`);
-    else console.log(`frame ${f}: ${out}`);
-    if (errs.length) console.log(`  console: ${errs.slice(0, 3).join(' | ')}`);
+    const result = await page.evaluate(() => ({
+      err: window.__MC_STILL_ERROR || null,
+      still: window.__MC_STILL || null,
+    }));
+    if (result.err) {
+      console.log(`frame ${f}: ERROR ${result.err}`);
+      console.log(logs.slice(-8).join('\n'));
+    } else {
+      console.log(`frame ${f}: OK -> ${result.still?.output} (global ${result.still?.globalFrame})`);
+    }
     await page.close();
   }
 } finally {

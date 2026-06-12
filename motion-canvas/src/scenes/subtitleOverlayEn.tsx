@@ -68,25 +68,29 @@ const CUES: Cue[] = [
     {t: 21.125, text: 'a generic payload'},
     {t: 22.125, text: 'and branches'},
     {t: 22.833, text: 'for separate rules'},
-    // Shorter code, worse meaning.
-    {t: 24.250, text: 'shorter code'},
-    {t: 25.208, text: 'worse meaning'},
-    // Now the three domains are coupled, and a change in one domain can quietly break the other.
-    {t: 26.916, text: 'now the three domains'},
-    {t: 27.833, text: 'are coupled'},
-    {t: 29.166, text: 'and a change'},
-    {t: 29.750, text: 'in one domain'},
-    {t: 30.625, text: 'can quietly break the other'},
+    // And it gets worse when a third domain starts using the same function.
+    {t: 24.166, text: 'and it gets worse'},
+    {t: 24.916, text: 'when a third domain'},
+    {t: 25.458, text: 'starts using'},
+    {t: 26.083, text: 'the same function'},
+    // Now the three domains are coupled, and a change in one domain can quietly break another.
+    {t: 28.500, text: 'now the three domains'},
+    {t: 29.000, text: 'are coupled'},
+    {t: 29.458, text: 'and a change'},
+    {t: 30.583, text: 'in one domain'},
+    {t: 31.041, text: 'can quietly break another'},
     // That's the warning sign.
-    {t: 32.750, text: "that's the warning sign"},
+    {t: 33.791, text: "that's the warning sign"},
     // If a merged function needs a flag to tell cases apart, the abstraction came too early.
-    {t: 34.375, text: 'if a merged function'},
-    {t: 34.916, text: 'needs a flag'},
-    {t: 35.875, text: 'to tell cases apart'},
-    {t: 37.833, text: 'the abstraction came'},
-    {t: 38.541, text: 'too early'},
+    {t: 35.291, text: 'if a merged function'},
+    {t: 35.833, text: 'needs a flag'},
+    {t: 36.791, text: 'to tell cases apart'},
+    {t: 38.708, text: 'the abstraction came'},
+    {t: 39.500, text: 'too early'},
+    // That's the lesson.
+    {t: 40.666, text: "that's the lesson"},
 ];
-const END = 39.083;
+const END = 41.333;
 
 // Drop sentence punctuation, force lowercase; keep apostrophes (inside words).
 const clean = (s: string): string =>

@@ -29,9 +29,13 @@ const FPS = 60;
 //   46.0  whole method blurring / verdict starting
 //   49.0  verdict bloomed on fully-blurred method
 //   53.0  verdict docked under PERMISSION
-// Bottom-edge check: block dropped in (41.5) and mid rack-focus hold (43.0) —
-// the bottom should now feather, not end on a hard clip line.
-const TIMES_S = [41.5, 43.0];
+// RESTORED per author: top fade kept, method y0, scroll kept, boolean highlight
+// kept, then blur-all → gauge. Bottom: no fade/limiter (noClip).
+//   40.0  mid-scroll — top fade dissolves cleanly (no overflow lines), bottom runs off
+//   42.0  rack-focus settled — guard SHARP, rest soft, no bottom stripe
+//   44.5  blur-all — everything soft
+//   46.0  verdict over the blurred method
+const TIMES_S = [40.0, 42.0, 44.5, 46.0];
 
 const browser = await puppeteer.launch({
   headless: true,
