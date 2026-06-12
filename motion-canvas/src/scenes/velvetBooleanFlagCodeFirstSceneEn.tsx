@@ -317,129 +317,73 @@ function buildCard(o: {
     return {node, jsx};
 }
 
-// ── Large editorial DRAFT sheet — the post as a private magazine proof ────
-// The saveDraft branch made concrete in KUROSHIMA's own voice: a serif
-// headline, an italic byline + a mono "saved … · not published" timestamp, a
-// standfirst whose opacity decays (unfinished prose), a tabular Words/Reading
-// ledger over hairlines, a Draft|Public segmented control (the path-not-taken
-// beside the chosen one), a still toggle (knob LEFT = not published) and ONE
-// filled-ink "Save draft" primary. One soft layered shadow, hairline strokes,
-// a thin GOLD_QUIET edition-rule down the left bleed as the only warm accent.
-// Built STILL — life lives only in the lift entrance + the deflate-to-disabled.
-// Knob + active dots are full-radius Rects (circular) so no <Circle> import.
-const DCARD_W   = 760;
-const DCARD_H   = 680;
-const DCARD_PAD = 44;
-const D_LEFT    = -DCARD_W / 2 + DCARD_PAD;   // -336  left text/label rail
-const D_RIGHT   =  DCARD_W / 2 - DCARD_PAD;   //  336  right figure rail
-const D_RULE_W  =  DCARD_W - DCARD_PAD * 2;   //  672  hairline width
+// ── Modern draft card — the saveDraft branch as a clean product confirmation ──
+// Minimal contemporary product UX (iOS / Linear register): a soft-rounded panel
+// with ONE subtle shadow + hairline, a tinted icon tile, a sans title + muted
+// subtitle, and a single real toggle ("Publish to web", OFF = draft). Lots of
+// negative space, one accent (lilac), no serif/ledger clutter. It lifts in ABOVE
+// the static method (the code never moves) and greys to disabled when the publish
+// branch takes the path away.
+const DCARD_W = 700;
+const DCARD_H = 320;
 
 function buildDraftCard(): {
-    node: Reference<Node>;
-    panel: Reference<Rect>;
-    seg: Reference<Rect>;       // selected DRAFT segment — fades on disable
-    pill: Reference<Rect>;      // filled primary — demotes to inert ghost on disable
-    pillLabel: Reference<Txt>;  // primary label — recolours to QUIET on disable
+    node: Reference<Node>; panel: Reference<Rect>;
+    title: Reference<Txt>; subtitle: Reference<Txt>;
+    track: Reference<Rect>; knob: Reference<Rect>;   // the toggle — flips ON when the post publishes
     jsx: any;
 } {
-    const node      = createRef<Node>();
-    const panel     = createRef<Rect>();
-    const seg       = createRef<Rect>();
-    const pill      = createRef<Rect>();
-    const pillLabel = createRef<Txt>();
+    const node     = createRef<Node>();
+    const panel    = createRef<Rect>();
+    const title    = createRef<Txt>();
+    const subtitle = createRef<Txt>();
+    const track    = createRef<Rect>();
+    const knob     = createRef<Rect>();
+    const PAD   = 40;
+    const L     = -DCARD_W / 2 + PAD;   // -310  left rail
+    const R     =  DCARD_W / 2 - PAD;   //  310  right rail
+    const iconX = L + 32;               // -278  icon-tile centre
+    const textX = iconX + 54;           // -224  title/subtitle rail
+    const togW  = 64;
+    const togH  = 36;
 
     const jsx = (
         <Node ref={node}>
-            {/* the sheet — the ONLY shadow in the composition (grown live on entrance), clipped */}
-            <Rect ref={panel} width={DCARD_W} height={DCARD_H} radius={30}
-                fill="#1B2233" stroke="rgba(231,225,214,0.12)" lineWidth={1}
-                shadowColor="rgba(0,0,0,0.50)" shadowBlur={0} shadowOffset={[0, 4]} clip>
+            {/* the card — one soft shadow (grown live on entrance), hairline, generous radius */}
+            <Rect ref={panel} width={DCARD_W} height={DCARD_H} radius={32}
+                fill="#1B2233" stroke="rgba(231,225,214,0.10)" lineWidth={1}
+                shadowColor="rgba(0,0,0,0.50)" shadowBlur={0} shadowOffset={[0, 4]}>
 
-                {/* edition margin-rule — a thin warm spine down the left bleed (the one warm accent) */}
-                <Rect width={3} height={DCARD_H} x={-DCARD_W / 2 + 1.5} y={0}
-                    fill="rgba(221,191,92,0.55)" />
-                {/* top inner-highlight lip — sells the glass edge */}
-                <Rect width={DCARD_W - 2} height={1} y={-DCARD_H / 2 + 1}
-                    fill="rgba(231,225,214,0.06)" />
-
-                {/* header — section kicker + discreet lilac DRAFT chip */}
-                <Txt text="THE DRAWER" fontFamily={F_SERIF} fontSize={19} fontWeight={500}
-                    letterSpacing={4} fill={QUIET} offset={[-1, 0]} x={D_LEFT} y={-296} />
-                <Rect width={104} height={34} radius={17} x={288} y={-296}
-                    fill="rgba(202,180,234,0.10)" stroke="rgba(202,180,234,0.34)" lineWidth={1}>
-                    <Rect width={7} height={7} radius={3.5} fill={KEY} x={-34} />
-                    <Txt text="DRAFT" fontFamily={F_MONO} fontSize={15} fontWeight={600}
-                        letterSpacing={1.5} fill="rgba(202,180,234,0.85)" x={6} />
+                {/* tinted icon tile — a simple document glyph */}
+                <Rect x={iconX} y={-62} width={64} height={64} radius={18}
+                    fill="rgba(202,180,234,0.10)" stroke="rgba(202,180,234,0.22)" lineWidth={1}>
+                    <Rect y={-11} width={28} height={3.5} radius={1.75} fill="rgba(202,180,234,0.80)" />
+                    <Rect y={-1}  width={28} height={3.5} radius={1.75} fill="rgba(202,180,234,0.80)" />
+                    <Rect y={9}   width={17} height={3.5} radius={1.75} fill="rgba(202,180,234,0.50)" />
                 </Rect>
-                <Rect width={D_RULE_W} height={1} fill="rgba(231,225,214,0.10)" y={-262} />
 
-                {/* headline — a real article title, two serif lines */}
-                <Txt text="On the quiet cost" fontFamily={F_SERIF} fontSize={56} fontWeight={500}
-                    letterSpacing={-0.5} fill={INK} offset={[-1, 0]} x={D_LEFT} y={-200} />
-                <Txt text="of a single flag" fontFamily={F_SERIF} fontSize={56} fontWeight={500}
-                    letterSpacing={-0.5} fill={INK} offset={[-1, 0]} x={D_LEFT} y={-140} />
+                {/* title + subtitle — sans, clean hierarchy */}
+                <Txt ref={title} text="Draft saved" fontFamily={F_SANS} fontSize={36} fontWeight={600}
+                    letterSpacing={-0.6} fill={INK} offset={[-1, 0]} x={textX} y={-75} />
+                <Txt ref={subtitle} text="Only you can see this" fontFamily={F_SANS} fontSize={21} fontWeight={450}
+                    letterSpacing={-0.1} fill={QUIET} offset={[-1, 0]} x={textX} y={-38} />
 
-                {/* byline — author-only visibility, stated in words */}
-                <Txt text="by A. Brooks" fontFamily={F_SERIF} fontSize={22} fontWeight={400}
-                    fontStyle={'italic'} fill={GHOST} offset={[-1, 0]} x={D_LEFT} y={-84} />
-                <Txt text="saved 14:02 · not published" fontFamily={F_MONO} fontSize={17}
-                    fontWeight={500} letterSpacing={0.2} fill={QUIET} offset={[-1, 0]} x={-128} y={-83} />
+                {/* hairline divider */}
+                <Rect width={DCARD_W - PAD * 2} height={1} fill="rgba(231,225,214,0.09)" y={18} />
 
-                {/* standfirst — unfinished prose, opacity decays (no animation) */}
-                <Txt text="The flag looked free. It cost two contracts and" fontFamily={F_SANS}
-                    fontSize={20} fontWeight={400} letterSpacing={-0.1}
-                    fill="rgba(231,225,214,0.60)" offset={[-1, 0]} x={D_LEFT} y={-40} />
-                <Txt text="a name that no longer means what it says" fontFamily={F_SANS}
-                    fontSize={20} fontWeight={400} letterSpacing={-0.1}
-                    fill="rgba(231,225,214,0.34)" offset={[-1, 0]} x={D_LEFT} y={-10} />
-
-                {/* ledger — label (left) / tabular figure (right), over hairlines */}
-                <Rect width={D_RULE_W} height={1} fill="rgba(231,225,214,0.10)" y={18} />
-                <Txt text="Words" fontFamily={F_SANS} fontSize={20} fontWeight={450}
-                    letterSpacing={0.3} fill={GHOST} offset={[-1, 0]} x={D_LEFT} y={54} />
-                <Txt text="1,284" fontFamily={F_MONO} fontSize={24} fontWeight={500}
-                    fill={INK} offset={[1, 0]} x={D_RIGHT} y={54} />
-                <Rect width={D_RULE_W} height={1} fill="rgba(231,225,214,0.07)" y={86} />
-                <Txt text="Reading time" fontFamily={F_SANS} fontSize={20} fontWeight={450}
-                    letterSpacing={0.3} fill={GHOST} offset={[-1, 0]} x={D_LEFT} y={120} />
-                <Txt text="6 min" fontFamily={F_MONO} fontSize={24} fontWeight={500}
-                    fill={INK} offset={[1, 0]} x={D_RIGHT} y={120} />
-
-                {/* segmented visibility control — the path-not-taken beside the chosen one */}
-                <Txt text="Visibility" fontFamily={F_SANS} fontSize={17} fontWeight={400}
-                    letterSpacing={0.5} fill={QUIET} offset={[-1, 0]} x={D_LEFT} y={158} />
-                <Rect width={360} height={52} radius={14} x={D_LEFT + 180} y={202}
-                    fill="rgba(231,225,214,0.04)" stroke="rgba(231,225,214,0.12)" lineWidth={1} />
-                <Rect ref={seg} width={172} height={42} radius={11} x={D_LEFT + 95} y={202}
-                    fill="rgba(231,225,214,0.10)" stroke="rgba(231,225,214,0.20)" lineWidth={1}>
-                    <Rect width={7} height={7} radius={3.5} fill={KEY} x={-50} />
-                    <Txt text="Draft" fontFamily={F_SANS} fontSize={20} fontWeight={600}
-                        letterSpacing={-0.2} fill={INK} x={8} />
-                </Rect>
-                <Txt text="Public" fontFamily={F_SANS} fontSize={20} fontWeight={500}
-                    letterSpacing={-0.2} fill={QUIET} x={D_LEFT + 265} y={202} />
-
-                {/* footer — divider, still toggle (knob LEFT = not published), ONE filled primary */}
-                <Rect width={D_RULE_W} height={1} fill="rgba(231,225,214,0.10)" y={244} />
-                <Rect width={62} height={34} radius={17} x={D_LEFT + 31} y={284}
+                {/* toggle row — Publish to web, OFF (knob left = draft) */}
+                <Txt text="Publish to web" fontFamily={F_SANS} fontSize={22} fontWeight={450}
+                    letterSpacing={-0.2} fill={GHOST} offset={[-1, 0]} x={L} y={76} />
+                <Rect ref={track} width={togW} height={togH} radius={togH / 2} x={R - togW / 2} y={76}
                     fill="rgba(231,225,214,0.08)" stroke="rgba(231,225,214,0.16)" lineWidth={1}>
-                    <Rect width={26} height={26} radius={13} x={-15} y={0}
-                        fill="rgba(231,225,214,0.85)"
+                    <Rect ref={knob} width={28} height={28} radius={14} x={-14} y={0}
+                        fill="rgba(231,225,214,0.90)"
                         shadowColor="rgba(0,0,0,0.30)" shadowBlur={6} shadowOffset={[0, 2]} />
-                </Rect>
-                <Txt text="Published — off, saved privately" fontFamily={F_SANS} fontSize={18}
-                    fontWeight={450} fill={GHOST} offset={[-1, 0]} x={D_LEFT + 76} y={284} />
-                <Rect ref={pill} width={196} height={56} radius={28}
-                    x={D_RIGHT - 98} y={284}
-                    fill={INK} stroke="rgba(0,0,0,0)" lineWidth={1.4}
-                    shadowColor="rgba(0,0,0,0.30)" shadowBlur={0} shadowOffset={[0, 6]}>
-                    <Txt ref={pillLabel} text="Save draft" fontFamily={F_SANS} fontSize={22}
-                        fontWeight={600} letterSpacing={-0.2} fill={BG} />
                 </Rect>
             </Rect>
         </Node>
     );
-    return {node, panel, seg, pill, pillLabel, jsx};
+    return {node, panel, title, subtitle, track, knob, jsx};
 }
 
 // ── Subtitle typing (static `//` + typed body) ───────────────────────
@@ -455,6 +399,14 @@ function* swapSub(ref: Reference<Txt>, body: string): ThreadGenerator {
     ref().text('');
     yield* waitFor(0.08);
     yield* typeBody(ref, body);
+}
+
+// Crossfade a Txt to new copy in place — flips the card's title/subtitle when
+// the post goes from draft to published.
+function* retext(node: Txt, text: string): ThreadGenerator {
+    yield* node.opacity(0, 0.18, easeInCubic);
+    node.text(text);
+    yield* node.opacity(1, 0.3, easeOutCubic);
 }
 
 function* awaitFontsReady(): ThreadGenerator {
@@ -628,53 +580,46 @@ export default makeScene2D(function* (view) {
     const IF_CLOSE    = 3;
     const RET_DRAFT   = 5;   // blank line now sits above it (index shifted 4 → 5)
 
-    // The editorial draft sheet, parked just below its mark and flat on the page,
-    // ready to lift in when the draft path lights. Pre-state: invisible, 18px low,
-    // a whisper small; panel + pill shadows start at 0 (grown on entrance).
-    const SHEET_Y = -360;
+    // The draft card, parked just below its mark and flat on the page, ready to lift
+    // in ABOVE the static method when the draft path lights. The code never moves.
+    // Pre-state: invisible, 16px low, a whisper small; panel shadow starts at 0.
+    const SHEET_Y = -560;
     const card = buildDraftCard();
     view.add(card.jsx);
     card.node().opacity(0);
-    card.node().y(SHEET_Y + 18);
-    card.node().scale(0.992);
+    card.node().y(SHEET_Y + 16);
+    card.node().scale(0.99);
 
     // Phase 1 — light only the draft return as everything else recedes; in the same
-    // beat the method slides DOWN to free the upper region and the sheet materialises
-    // above it: fade + a small rise + the shadow grown from flat (= lifting toward the
-    // viewer), the primary capsule gaining its slight elevation. Then dead still.
+    // moment the card lifts in above the method (the method does NOT move): fade + a
+    // small rise + the shadow grown from flat = depth, not opacity. Then dead still.
     yield* all(
         spotlight(fn, [RET_DRAFT], 0.5),
-        fn.node.y(220, 0.72, easeInOutCubic),
-        card.node().opacity(1, 0.72, easeOutCubic),
-        card.node().y(SHEET_Y, 0.72, easeOutCubic),
-        card.node().scale(1, 0.72, easeOutCubic),
-        card.panel().shadowBlur(46, 0.72, easeOutCubic),
-        card.panel().shadowOffset([0, 26], 0.72, easeOutCubic),
-        card.pill().shadowBlur(16, 0.72, easeOutCubic),
+        card.node().opacity(1, 0.7, easeOutCubic),
+        card.node().y(SHEET_Y, 0.7, easeOutCubic),
+        card.node().scale(1, 0.7, easeOutCubic),
+        card.panel().shadowBlur(40, 0.7, easeOutCubic),
+        card.panel().shadowOffset([0, 22], 0.7, easeOutCubic),
         swapSub(subBody, 'one branch saves a draft'),
     );
     yield* waitFor(1.2);
 
-    // Phase 2 — the light moves up to the publish branch; choosing publish takes the
-    // draft option away, so the sheet goes disabled: greyed and pushed back, its shadow
-    // deflated, the selected Draft segment dimmed, and the filled primary demoted to an
-    // inert frosted ghost (the action visibly dies). Never deleted — just unavailable.
+    // Phase 2 — the light moves up to the publish branch; publish=true flips the
+    // toggle ON and the card transforms draft → published: the knob slides right, the
+    // track goes live-green, and the title/subtitle retext. Same card, opposite state
+    // = the two contracts under one name, and the subtitle now matches the visual.
     yield* all(
         spotlight(fn, [IF_LINE, RET_PUBLISH, IF_CLOSE], 0.45),
-        card.node().opacity(0.32, 0.55, easeInOutCubic),
-        card.node().scale(0.994, 0.55, easeInOutCubic),
-        card.panel().shadowBlur(6, 0.55, easeInOutCubic),
-        card.panel().shadowOffset([0, 3], 0.55, easeInOutCubic),
-        card.seg().opacity(0.4, 0.55, easeInOutCubic),
-        card.pill().fill('rgba(231,225,214,0.09)', 0.55, easeInOutCubic),
-        card.pill().stroke('rgba(231,225,214,0.22)', 0.55, easeInOutCubic),
-        card.pill().shadowBlur(0, 0.55, easeInOutCubic),
-        card.pillLabel().fill(QUIET, 0.55, easeInOutCubic),
+        card.knob().x(14, 0.5, easeInOutCubic),
+        card.track().fill('rgba(126,176,112,0.95)', 0.5, easeInOutCubic),
+        card.track().stroke('rgba(126,176,112,0.30)', 0.5, easeInOutCubic),
+        retext(card.title(), 'Published'),
+        retext(card.subtitle(), 'Live · anyone can see this'),
         swapSub(subBody, 'the other publishes'),
     );
     yield* waitFor(1.2);
 
-    // Restore the full method before the handoff (the chit stays disabled).
+    // Restore the full method before the handoff (the card stays published).
     yield* fn.showAllLines(0.4);
     yield* waitFor(0.4);
 
