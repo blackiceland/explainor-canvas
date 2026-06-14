@@ -8,9 +8,9 @@ const OUT = path.resolve('tree-shots');
 await fs.mkdir(OUT, {recursive: true});
 
 const FPS = 60;
-// Cascade: trunk ~0.5-2s, split to 2 ~2.2-3.1s, to 4 ~3.4-4.2s, to 8 ~4.6-5.4s,
-// tags settle ~5.5-6.1s, hold to ~8s.
-const TIMES_S = [1.6, 3.0, 4.2, 6.5];
+// Signature fork beats: hero held ~1.4s, after 1->2 ~3.6s, after 2->4 ~5.7s,
+// held 8 ~9.0s. (Seek drifts on fast scenes; widen if a frame lands mid-morph.)
+const TIMES_S = [2.0, 2.6, 3.2, 3.8];
 
 const browser = await puppeteer.launch({
   headless: true,
