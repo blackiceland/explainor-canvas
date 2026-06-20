@@ -55,7 +55,7 @@ export default makeProject({
     experimentalFeatures: true,
     scenes: [
         velvetBooleanFlagCodeFirstSceneEn,
-        // velvetCartReminderCodeFirstSceneEn,
+        // а velvetCartReminderCodeFirstSceneEn,
         // deepCobaltQuietFieldsVelvetCodeFirstSceneEn,
         // velvetCoolGraphiteCodeFirstSceneEn,
         // velvetDeepMidnightCodeFirstSceneEn,

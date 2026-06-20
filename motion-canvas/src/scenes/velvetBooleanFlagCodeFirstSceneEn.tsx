@@ -1,4 +1,4 @@
-import {Node, Rect, Txt, blur, makeScene2D} from '@motion-canvas/2d';
+import {Img, Node, Rect, Txt, blur, makeScene2D} from '@motion-canvas/2d';
 import {
     Reference,
     ThreadGenerator,
@@ -8,7 +8,6 @@ import {
     easeInCubic,
     easeInOutCubic,
     easeOutCubic,
-    easeOutQuint,
     sequence,
     waitFor,
 } from '@motion-canvas/core';
@@ -168,18 +167,19 @@ function* spotlight(block: Manticore, keep: number[], dur = 0.4): ThreadGenerato
 // mono slug) is FIXED; only its STATE moves. MONOCHROME cream/grey in Draft; the single
 // moment of colour on Publish is the code's OWN string-green (#A8CF98).
 const DCARD_W = 680;
-const DCARD_H = 420;   // taller — room for the 2-line body preview that makes it read as a POST
 const RAD = 20;                            // modest radius (not a rounded plastic card)
 const PUB_GREEN = STRING;                  // published accent = the code's string green
 const SURFACE = '#1B2132';                 // panel fill — a hair lighter than the #151A28 bg
-const SURFACE_EDGE = 'rgba(231,225,214,0.17)';   // the hairline EDGE — a touch stronger so it
-                                                 // reads even at low phone brightness (cream
-                                                 // contrast survives when the tonal gap fades)
+const SURFACE_EDGE = 'rgba(231,225,214,0.17)';   // the hairline EDGE — strong enough to read at
+                                                 // low phone brightness (cream contrast survives)
 
+// The publish record = a SOCIAL feed post (LinkedIn/X register) on the dark surface:
+// sender AVATAR + name + @handle header, the post BODY as the content, then the
+// visibility line + toggle. Clean composition — no divider rule, even rhythm.
 function buildDraftCard(): {
     node: Reference<Node>; ambient: Reference<Rect>; panel: Reference<Rect>;
     status: Reference<Node>; statusDot: Reference<Rect>; statusLabel: Reference<Txt>;
-    title: Reference<Txt>; slug: Reference<Txt>; visibility: Reference<Txt>;
+    visibility: Reference<Txt>;
     track: Reference<Rect>; knob: Reference<Rect>;
     jsx: any;
 } {
@@ -189,8 +189,6 @@ function buildDraftCard(): {
     const status      = createRef<Node>();
     const statusDot   = createRef<Rect>();
     const statusLabel = createRef<Txt>();
-    const title       = createRef<Txt>();
-    const slug        = createRef<Txt>();
     const visibility  = createRef<Txt>();
     const track       = createRef<Rect>();
     const knob        = createRef<Rect>();
@@ -198,70 +196,74 @@ function buildDraftCard(): {
     const L = -DCARD_W / 2 + PAD;   // -296  left rail
     const R =  DCARD_W / 2 - PAD;   //  296  right rail
     const COL = DCARD_W - PAD * 2;  //  592  column width
-    const togW = 92;                // toggle kept large for mobile, but FLAT (no plastic slab/shadow)
+    const togW = 92;
     const togH = 52;
     const knobR = 21;
     const knobX = togW / 2 - knobR - 5;   // 20  (OFF = -knobX, ON = +knobX)
-    // Mono status "● DRAFT/PUBLISHED" (Vercel/Linear register), large for mobile. Anchor
-    // the dot so the left-aligned word grows rightward; the dot never moves → no reflow.
     const STAT_FS = 27;
     const STAT_DOT = 12;
     const pubW = Math.ceil(textWidth('PUBLISHED', F_MONO, STAT_FS));
     const dotX = R - pubW - 22;
+    const H = 388;
 
-    const jsx = (
+    // shared surface wrapper (ambient caster + dark panel); content differs per variant
+    const surface = (children: any): any => (
         <Node ref={node}>
-            {/* broad AMBIENT shadow — a solid BG-fill caster (MC casts a node's shadow ×
-                its cached alpha, so the caster must be opaque) sitting FIRST, fully occluded
-                by the panel. Blooms on entrance = the soft elevation. */}
-            <Rect ref={ambient} width={DCARD_W} height={DCARD_H} radius={RAD}
+            <Rect ref={ambient} width={DCARD_W} height={H} radius={RAD}
                 fill={BG} shadowColor="rgba(0,0,0,0.58)" shadowBlur={2} shadowOffset={[0, 6]} />
-
-            {/* the SURFACE — a flat dark panel a hair lighter than the bg, a crisp hairline
-                EDGE, and a tight contact shadow. Dark + flat + minimal (NOT a glossy slab). */}
-            <Rect ref={panel} width={DCARD_W} height={DCARD_H} radius={RAD}
+            <Rect ref={panel} width={DCARD_W} height={H} radius={RAD}
                 fill={SURFACE} stroke={SURFACE_EDGE} lineWidth={1}
                 shadowColor="rgba(0,0,0,0.45)" shadowBlur={2} shadowOffset={[0, 2]}>
-
-            {/* status — top-right; the dot is the ONLY colour signal (grey→green on Publish),
-                no candy pill. Mono = the machine/system layer (rhymes the code). */}
-            <Node ref={status} y={-150}>
-                <Rect ref={statusDot} width={STAT_DOT} height={STAT_DOT} radius={STAT_DOT / 2} x={dotX} y={2}
-                    fill="rgba(231,225,214,0.34)" />
-                <Txt ref={statusLabel} text="DRAFT" fontFamily={F_MONO} fontSize={STAT_FS} fontWeight={500}
-                    letterSpacing={1.6} fill="rgba(231,225,214,0.55)" offset={[-1, 0]} x={dotX + STAT_DOT + 11} y={0} />
-            </Node>
-
-            {/* title + body preview — the CONTENT of the post, both SERIF (the human/editorial
-                voice). The 2-line body snippet is what makes it read as a POST, not a settings
-                row — and it stays in palette (cream) + in the type system (no new font). */}
-            <Txt ref={title} text="Getting Started" fontFamily={F_SERIF} fontSize={44} fontWeight={500}
-                letterSpacing={-0.3} fill={INK} offset={[-1, 0]} x={L} y={-98} />
-            <Txt text="Set up your workspace and ship your first" fontFamily={F_SERIF} fontSize={25} fontWeight={400}
-                fill="rgba(231,225,214,0.44)" offset={[-1, 0]} x={L} y={-42} />
-            <Txt text="change in just a few minutes." fontFamily={F_SERIF} fontSize={25} fontWeight={400}
-                fill="rgba(231,225,214,0.44)" offset={[-1, 0]} x={L} y={-8} />
-
-            {/* slug — the machine token / URL (mono), dimmer cream */}
-            <Txt ref={slug} text="/getting-started" fontFamily={F_MONO} fontSize={24} fontWeight={450}
-                fill="rgba(231,225,214,0.4)" offset={[-1, 0]} x={L} y={38} />
-
-            {/* one hairline rule — the single structural mark, splitting content from control */}
-            <Rect width={COL} height={1} y={78} fill="rgba(231,225,214,0.13)" />
-
-            {/* visibility — the state line, mono (system layer), same cream dimmed; + the FLAT
-                toggle (hairline track, flat knob, no plastic shadow). It IS the boolean. */}
-            <Txt ref={visibility} text="Only you can see this" fontFamily={F_MONO} fontSize={25} fontWeight={450}
-                letterSpacing={0} fill="rgba(231,225,214,0.55)" offset={[-1, 0]} x={L} y={134} />
-            <Rect ref={track} width={togW} height={togH} radius={togH / 2} x={R - togW / 2} y={134}
-                fill="rgba(231,225,214,0.04)" stroke="rgba(231,225,214,0.22)" lineWidth={1.5}>
-                <Rect ref={knob} width={knobR * 2} height={knobR * 2} radius={knobR} x={-knobX} y={0}
-                    fill="rgba(231,225,214,0.85)" />
-            </Rect>
+                {children}
             </Rect>
         </Node>
     );
-    return {node, ambient, panel, status, statusDot, statusLabel, title, slug, visibility, track, knob, jsx};
+
+    // Initial state is PUBLISHED (top branch — publishPost — is read first); the
+    // flip in Phase 2 reverses it back to draft.
+    const statusCluster = (y: number): any => (
+        <Node ref={status} y={y}>
+            <Rect ref={statusDot} width={STAT_DOT} height={STAT_DOT} radius={STAT_DOT / 2} x={dotX} y={2}
+                fill={PUB_GREEN} />
+            <Txt ref={statusLabel} text="PUBLISHED" fontFamily={F_MONO} fontSize={STAT_FS} fontWeight={500}
+                letterSpacing={1.6} fill={INK} offset={[-1, 0]} x={dotX + STAT_DOT + 11} y={0} />
+        </Node>
+    );
+
+    const toggle = (y: number): any => (
+        <Rect ref={track} width={togW} height={togH} radius={togH / 2} x={R - togW / 2} y={y}
+            fill="rgba(168,207,152,0.85)" stroke="rgba(168,207,152,0.55)" lineWidth={1.5}>
+            <Rect ref={knob} width={knobR * 2} height={knobR * 2} radius={knobR} x={knobX} y={0}
+                fill="rgba(231,225,214,0.85)" />
+        </Rect>
+    );
+
+    const jsx = surface(<>
+        {/* sender avatar (cropped face) + name + @handle; status top-right */}
+        <Rect width={68} height={68} radius={34} x={L + 34} y={-112}
+            fill="rgba(231,225,214,0.10)" stroke="rgba(231,225,214,0.20)" lineWidth={1} clip>
+            <Img src="/avatar-anna.jpg" width={68} height={68} />
+        </Rect>
+        <Txt text="Anna Petrova" fontFamily={F_SERIF} fontSize={30} fontWeight={500}
+            fill={INK} offset={[-1, 0]} x={L + 100} y={-126} />
+        <Txt text="@anna · 5h" fontFamily={F_MONO} fontSize={20} fontWeight={450}
+            fill="rgba(231,225,214,0.58)" offset={[-1, 0]} x={L + 100} y={-96} />
+        {statusCluster(-112)}
+
+        {/* post body — the content; clean, no divider rule beneath it */}
+        <Txt text="Just shipped our Getting Started guide." fontFamily={F_SERIF} fontSize={27} fontWeight={400}
+            fill="rgba(231,225,214,0.82)" offset={[-1, 0]} x={L} y={-30} />
+        <Txt text="Set up your workspace and ship your" fontFamily={F_SERIF} fontSize={27} fontWeight={400}
+            fill="rgba(231,225,214,0.82)" offset={[-1, 0]} x={L} y={6} />
+        <Txt text="first change in minutes." fontFamily={F_SERIF} fontSize={27} fontWeight={400}
+            fill="rgba(231,225,214,0.82)" offset={[-1, 0]} x={L} y={42} />
+
+        {/* visibility line + flat toggle */}
+        <Txt ref={visibility} text="Live · anyone can see this" fontFamily={F_MONO} fontSize={23} fontWeight={450}
+            fill="rgba(231,225,214,0.72)" offset={[-1, 0]} x={L} y={120} />
+        {toggle(120)}
+    </>);
+    return {node, ambient, panel, status, statusDot, statusLabel, visibility, track, knob, jsx};
 }
 
 // Crossfade a Txt to new copy in place — used on the flip for the visibility line.
@@ -359,7 +361,7 @@ export default makeScene2D(function* (view) {
         fn.node.opacity(1, 0.8, easeOutCubic),
         fnBlur(0, 0.8, easeOutCubic),
     );
-    yield* waitFor(1.1);
+    yield* waitFor(0.25);
 
     // 2 — the first parameter TYPES into the parens at hero size; the line grows
     // outward from the centre. One param is no reason to shrink.
@@ -445,8 +447,8 @@ export default makeScene2D(function* (view) {
     const IF_CLOSE    = 3;
     const RET_DRAFT   = 5;   // blank line sits above it (index 4)
 
-    // The draft card, parked just above the static method and flat on the page,
-    // ready to lift in when the draft path lights. The code never moves.
+    // The card, parked just above the static method and flat on the page, ready to
+    // lift in when the publish path (top if-block) lights. The code never moves.
     // Symmetric between the KUROSHIMA header (y=-820) and the signature (y=0):
     // card centre at the midpoint → equal 218px gaps above and below.
     const SHEET_Y = -410;
@@ -467,41 +469,44 @@ export default makeScene2D(function* (view) {
     card.panel().shadowBlur(2);
     card.panel().shadowOffset([0, 2]);
 
+    // The card materialises in ONE tempo with the code dimming: the spotlight drops the
+    // non-publish lines to DIM_OP (easeInOutCubic — CodeLine.setOpacity) while the card
+    // sharpens out of focus + the shadow blooms on the SAME duration and SAME curve, so
+    // the two read as a single synchronized move, not two overlapping animations.
+    const REVEAL_DUR = 0.6;
     yield* all(
-        spotlight(fn, [RET_DRAFT], 0.6),
-        cardBlur(0, 1.0, easeOutQuint),
-        card.node().scale(1, 0.85, easeOutCubic),
-        card.node().y(SHEET_Y, 0.9, easeOutCubic),
-        card.ambient().shadowBlur(46, 0.95, easeOutCubic),
-        card.ambient().shadowOffset([0, 20], 0.95, easeOutCubic),
-        card.panel().shadowBlur(12, 0.95, easeOutCubic),
-        card.panel().shadowOffset([0, 5], 0.95, easeOutCubic),
+        spotlight(fn, [IF_LINE, RET_PUBLISH, IF_CLOSE], REVEAL_DUR),
+        cardBlur(0, REVEAL_DUR, easeInOutCubic),
+        card.node().scale(1, REVEAL_DUR, easeInOutCubic),
+        card.node().y(SHEET_Y, REVEAL_DUR, easeInOutCubic),
+        card.ambient().shadowBlur(46, REVEAL_DUR, easeInOutCubic),
+        card.ambient().shadowOffset([0, 20], REVEAL_DUR, easeInOutCubic),
+        card.panel().shadowBlur(12, REVEAL_DUR, easeInOutCubic),
+        card.panel().shadowOffset([0, 5], REVEAL_DUR, easeInOutCubic),
     );
     yield* waitFor(1.4);
 
-    // Phase 2 — a writer hits Publish. The publish branch lights AND the card flips
-    // in one gesture. The flip is choreographed cause→effect, not a simultaneous
-    // recolour blink: the TOGGLE is the cause (knob slides, its contact shadow
-    // tightens, the track green-washes behind it — saturation in the stroke, fill
-    // muted, knob stays warm-white); then 0.12s later the CONSEQUENCE cascades —
-    // the pill word Draft→Published (locked width, no reflow) then the visibility
-    // line. Title + slug NEVER move: same post, only its state. One name, two
-    // contracts.
+    // Phase 2 — the flag drops. The DEFAULT branch (saveDraft, bottom) lights AND the
+    // card flips back to draft in one gesture. Cause→effect, not a simultaneous recolour
+    // blink: the TOGGLE is the cause (knob slides OFF, the publish-green drains out of the
+    // track); then 0.12s later the CONSEQUENCE cascades — the pill word Published→Draft
+    // (locked width, no reflow) then the visibility line. Title + slug NEVER move: same
+    // post, only its state. One name, two contracts.
     yield* all(
-        spotlight(fn, [IF_LINE, RET_PUBLISH, IF_CLOSE], 0.45),
+        spotlight(fn, [RET_DRAFT], 0.45),
         (function* () {
             yield* sequence(0.12,
-                all(   // the gesture (cause) leads — knob slides ON, track fills the publish-green
-                    card.knob().x(20, 0.5, easeInOutCubic),
-                    card.track().fill('rgba(168,207,152,0.85)', 0.5, easeInOutCubic),
-                    card.track().stroke('rgba(168,207,152,0.55)', 0.5, easeInOutCubic),
+                all(   // the gesture (cause) leads — knob slides OFF, track drains the publish-green
+                    card.knob().x(-20, 0.5, easeInOutCubic),
+                    card.track().fill('rgba(231,225,214,0.04)', 0.5, easeInOutCubic),
+                    card.track().stroke('rgba(231,225,214,0.22)', 0.5, easeInOutCubic),
                 ),
                 sequence(0.05,   // the consequence cascades top→bottom
                     all(
-                        card.statusDot().fill(PUB_GREEN, 0.42, easeInOutCubic),
-                        retextColored(card.statusLabel(), 'PUBLISHED', INK),
+                        card.statusDot().fill('rgba(231,225,214,0.48)', 0.42, easeInOutCubic),
+                        retextColored(card.statusLabel(), 'DRAFT', 'rgba(231,225,214,0.72)'),
                     ),
-                    retext(card.visibility(), 'Live · anyone can see this'),
+                    retext(card.visibility(), 'Only you can see this'),
                 ),
             );
         })(),

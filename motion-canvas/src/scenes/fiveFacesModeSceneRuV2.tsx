@@ -74,7 +74,7 @@ class ShipmentNotificationService(
         val delivery = notifier.send(
             user = order.customer,
             message = message,
-            mode = campaign.notificationMode,
+            mode = NotificationMode.SILENT,
         )
 
         deliveries.save(order.id, message.id, delivery.id)
@@ -96,6 +96,10 @@ const MODE_TYPES = [...CUSTOM_TYPES, 'NotificationMode'];
 const MODE_RULES: ColorRule[] = [
   ...CODE_RULES,
   {match: /^(when|enum)$/, color: FUN_BLUE},
+  // NotificationMode is not in the shared CUSTOM_TYPES the call/impl Manticores
+  // are built with, so the tokenizer marks it `plain` and it falls through to
+  // the cream variable colour. Force it to the type colour by text.
+  {match: /^NotificationMode$/, color: TYPE_CLEAN},
 ];
 
 const MODE_PARAMS = [...NAMED_PARAMS, 'mode'];
