@@ -8,15 +8,14 @@ import {
   createFiveFacesStage,
   NAME_XS,
   FACES,
-  CODE_RULES, CODE_LH,
-  CALL_X, CALL_W, IMPL_X, IMPL_W,
+  CODE_RULES,
+  IMPL_X, IMPL_W,
   IMPL_FONT_SIZE, IMPL_LH,
   TRANSPARENT_CARD, CUSTOM_TYPES,
   METHOD_COLOR, PARAM_DARK, FUN_BLUE,
   TYPE_CLEAN, CONST_COLOR, TEXT_PRIMARY,
   blockLines,
   paintNamedParams,
-  yForCode,
   NAMED_PARAMS,
 } from './fiveFacesBooleanV2Setup';
 
@@ -104,28 +103,29 @@ const MODE_RULES: ColorRule[] = [
 
 const MODE_PARAMS = [...NAMED_PARAMS, 'mode'];
 
-const paintModeParams = (code: Manticore): void => {
-  for (let lineIdx = 0; lineIdx < code.lineCount; lineIdx++) {
-    const line = code.getLine(lineIdx);
-    if (!line) continue;
-    const toks = line.tokens;
-    for (let i = 0; i < toks.length; i++) {
-      const tok = toks[i];
-      if (!MODE_PARAMS.includes(tok.text)) continue;
-      let p = i - 1;
-      while (p >= 0 && toks[p].text.trim() === '') p--;
-      const prev = p >= 0 ? toks[p].text.trim() : '';
-      if (prev === 'val' || prev === 'var') continue;
-      let n = i + 1;
-      while (n < toks.length && toks[n].text.trim() === '') n++;
-      if (n < toks.length && toks[n].text.trim() === '=') {
-        tok.ref().fill(PARAM_DARK);
-      }
+const paintModeParamsLine = (line: any): void => {
+  const toks = line.tokens;
+  for (let i = 0; i < toks.length; i++) {
+    const tok = toks[i];
+    if (!MODE_PARAMS.includes(tok.text)) continue;
+    let p = i - 1;
+    while (p >= 0 && toks[p].text.trim() === '') p--;
+    const prev = p >= 0 ? toks[p].text.trim() : '';
+    if (prev === 'val' || prev === 'var') continue;
+    let n = i + 1;
+    while (n < toks.length && toks[n].text.trim() === '') n++;
+    if (n < toks.length && toks[n].text.trim() === '=') {
+      tok.ref().fill(PARAM_DARK);
     }
   }
 };
 
-const STRIPE_COLOR = 'rgba(255, 80, 120, 0.18)';
+const paintModeParams = (code: Manticore): void => {
+  for (let lineIdx = 0; lineIdx < code.lineCount; lineIdx++) {
+    const line = code.getLine(lineIdx);
+    if (line) paintModeParamsLine(line);
+  }
+};
 
 // Big enum for the epilogue showcase.
 const BIG_ENUM = `enum class NotificationMode {
@@ -162,179 +162,20 @@ export default makeScene2D(function* (view) {
   yield* s.hideViz(1, 0.5);
   yield* waitFor(1.0);
 
-  // ── MORPH 1: rename the parameter ──────────────────────────────────
-  // Both `silent` tokens turn red simultaneously.
+  yield* waitFor(0.8);
 
-  // Line 0: fun send(..., silent: Boolean)  — параметр
-  // Line 1: val options = if (silent)       — тело
-  {
-    const paramLine = s.implCodes[1].getLine(0);
-    const bodyLine = s.implCodes[1].getLine(1);
-    const anims: any[] = [];
-    if (paramLine) anims.push(...paramLine.colorizeByRuleAnimated('silent', METHOD_COLOR, 0.4));
-    if (bodyLine) anims.push(...bodyLine.colorizeByRuleAnimated('silent', METHOD_COLOR, 0.4));
-    if (anims.length) yield* all(...anims);
-  }
-  yield* waitFor(1.5);
-
-  // ── MORPH 1: signature — silent: Boolean → mode: NotificationMode ──
-
-  yield* s.implCodes[1].morphTo(IMPL_STEP1, {
-    removeDuration: 0.3,
-    moveDuration: 0.4,
-    charDelay: 0.015,
-    flashRemovedColor: METHOD_COLOR,
-    flashRemovedDuration: 0.2,
-    addStyle: 'typewriter',
-    scrollStrategy: 'block',
-  });
-  s.implCodes[1].colorize(MODE_RULES);
-  paintModeParams(s.implCodes[1]);
-  s.implCodes[1].recenterContent();
-  yield* waitFor(1.5);
-
-  // ── MORPH 2: if/else → when ────────────────────────────────────────
-
-  yield* s.implCodes[1].morphTo(IMPL_STEP2, {
-    removeDuration: 0.3,
-    moveDuration: 0.5,
-    charDelay: 0.015,
-    flashRemovedColor: METHOD_COLOR,
-    flashRemovedDuration: 0.2,
-    addStyle: 'typewriter',
-    scrollStrategy: 'block',
-  });
-  s.implCodes[1].colorize(MODE_RULES);
-  paintModeParams(s.implCodes[1]);
-  s.implCodes[1].recenterContent();
-  yield* waitFor(2.0);
-
-  // ── Enum + call-site stripe appear together ────────────────────────
-
-  // Enum below the send function.
-  const implLines = IMPL_STEP2.split('\n').length;
-  const implNodeY = s.implCodes[1].node.position.y();
-  const implBottomY = implNodeY + ((implLines - 1) * IMPL_LH) / 2;
-  const enumLines = ENUM_CODE.split('\n').length;
-  const enumY = implBottomY + IMPL_LH * 2 + ((enumLines - 1) * IMPL_LH) / 2;
-
-  const enumMC = Manticore.create(ENUM_CODE, {
-    x: IMPL_X,
-    y: enumY,
-    width: IMPL_W,
-    fontSize: IMPL_FONT_SIZE,
-    lineHeight: IMPL_LH,
-    fontFamily: Fonts.code,
-    theme: DryFiltersV3CodeTheme,
-    noClip: true,
-    cardStyle: TRANSPARENT_CARD,
-    glowAccent: false,
-    customTypes: MODE_TYPES,
-  });
-  enumMC.mount(view);
-  enumMC.colorize(MODE_RULES);
-  enumMC.node.opacity(0);
-
-  // Stripe on the call-site line that will change (line 20: silent = true).
-  const callLines = FACES[1].callCode.split('\n').length;
-  const callCenterY = yForCode(FACES[1].callCode);
-  const lineY = callCenterY + (20 - (callLines - 1) / 2) * CODE_LH;
-
-  const stripe = createRef<Rect>();
-  view.add(
-    <Rect
-      ref={stripe}
-      x={CALL_X}
-      y={lineY}
-      width={CALL_W - 40}
-      height={CODE_LH * 1.15}
-      fill={STRIPE_COLOR}
-      radius={4}
-      opacity={0}
-    />,
-  );
-
-  // Both appear at once.
-  yield* all(
-    enumMC.node.opacity(1, 0.55, easeInOutSine),
-    stripe().opacity(1, 0.4, easeInOutSine),
-  );
-  yield* waitFor(1.0);
-
-  // ── MORPH 3: call site — silent = true → mode = NotificationMode.SILENT
-
-  yield* s.callCodes[1].morphTo(CALL_MODE_AFTER, {
-    removeDuration: 0.3,
-    moveDuration: 0.4,
-    charDelay: 0.015,
-    addStyle: 'typewriter',
-    scrollStrategy: 'block',
-  });
-  s.callCodes[1].colorize(MODE_RULES);
-  paintModeParams(s.callCodes[1]);
-  s.callCodes[1].recenterContent();
-  yield* waitFor(2.5);
-  yield* stripe().opacity(0, 0.5, easeInOutSine);
-
-  // ── Close morph section ─────────────────────────────────────────────
-
-  yield* s.showSmallScale(1);
-  yield* waitFor(2.0);
+  // ── INTERLUDE: diagnose the flag ───────────────────────────────────
+  // Blur the code into a soft backdrop and lift the flag off it into an
+  // abstract toggle (only two states) shown on top. Then sharpen the code
+  // back and apply the enum — and finally let that enum grow to the domain.
 
   yield* all(
-    s.hideCallCode(1, 0.5),
-    s.hideImplCode(1, 0.5),
-    s.hideSmallScale(1, 0.4),
-    enumMC.node.opacity(0, 0.5, easeInOutSine),
+    s.callBlurs[1](12, 0.6, easeInOutSine),
+    s.implBlurs[1](12, 0.6, easeInOutSine),
   );
-  yield* waitFor(0.5);
+  yield* waitFor(0.3);
 
-  // ── EPILOGUE STEP 1: enum showcase ─────────────────────────────────
-
-  const bigEnum = Manticore.create(BIG_ENUM, {
-    x: -100,
-    y: 0,
-    width: 900,
-    fontSize: 48,
-    lineHeight: 68,
-    fontFamily: Fonts.code,
-    theme: DryFiltersV3CodeTheme,
-    noClip: true,
-    cardStyle: TRANSPARENT_CARD,
-    glowAccent: false,
-    customTypes: MODE_TYPES,
-  });
-  bigEnum.mount(view);
-  bigEnum.colorize(MODE_RULES);
-
-  for (let i = 1; i <= 4; i++) {
-    const line = bigEnum.getLine(i);
-    if (line) line.node.opacity(0);
-  }
-  {
-    const closeLine = bigEnum.getLine(5);
-    if (closeLine) closeLine.node.opacity(0);
-  }
-  bigEnum.node.opacity(0);
-
-  yield* bigEnum.node.opacity(1, 0.5, easeInOutSine);
-  yield* waitFor(0.6);
-
-  for (let i = 1; i <= 4; i++) {
-    const line = bigEnum.getLine(i);
-    if (line) yield* line.node.opacity(1, 0.35, easeInOutSine);
-    yield* waitFor(0.5);
-  }
-  {
-    const closeLine = bigEnum.getLine(5);
-    if (closeLine) yield* closeLine.node.opacity(1, 0.25, easeInOutSine);
-  }
-  yield* waitFor(3.0);
-
-  yield* bigEnum.node.opacity(0, 0.6, easeInOutSine);
-  yield* waitFor(0.5);
-
-  // ── EPILOGUE STEP 2: boolean toggle ────────────────────────────────
+  // ── The boolean has exactly two states ─────────────────────────────
 
   const toggleOn = createSignal(0);
 
@@ -351,6 +192,15 @@ export default makeScene2D(function* (view) {
 
   view.add(
     <Node ref={toggleGroup} opacity={0}>
+      {/* The flag's name, carried in its accent colour. */}
+      <Txt
+        x={0}
+        y={-TRACK_H / 2 - 70}
+        text={'silent'}
+        fontFamily={Fonts.code}
+        fontSize={44}
+        fill={METHOD_COLOR}
+      />
       <Txt
         ref={falseTxt}
         x={-TRACK_W / 2 - 140}
@@ -400,13 +250,161 @@ export default makeScene2D(function* (view) {
   yield* waitFor(1.2);
 
   yield* toggleOn(1, 0.4, easeInOutCubic);
-  yield* waitFor(1.0);
+  yield* waitFor(1.2);
 
   yield* toggleOn(0, 0.4, easeInOutCubic);
-  yield* waitFor(0.8);
-
-  yield* toggleOn(1, 0.4, easeInOutCubic);
-  yield* waitFor(2.5);
+  yield* waitFor(1.8);
 
   yield* toggleGroup().opacity(0, 0.6, easeInOutSine);
+  yield* waitFor(0.6);
+
+  // ── Back to the code — sharpen it and apply the enum ───────────────
+
+  yield* all(
+    s.callBlurs[1](0, 0.6, easeInOutSine),
+    s.implBlurs[1](0, 0.6, easeInOutSine),
+  );
+  yield* waitFor(0.6);
+
+  // ── MORPH 1: signature — silent: Boolean → mode: NotificationMode ──
+  // Pre-set MODE_RULES (+ dark params) so the added tokens type straight in
+  // their target colour instead of recolouring after the morph settles.
+
+  s.implCodes[1].colorize(MODE_RULES);
+  paintModeParams(s.implCodes[1]);
+  yield* s.implCodes[1].morphTo(IMPL_STEP1, {
+    removeDuration: 0.22,
+    moveDuration: 0.3,
+    charDelay: 0.01,
+    addStyle: 'typewriter',
+    scrollStrategy: 'block',
+    recolorLine: paintModeParamsLine,
+  });
+  s.implCodes[1].colorize(MODE_RULES);
+  paintModeParams(s.implCodes[1]);
+  s.implCodes[1].recenterContent();
+  yield* waitFor(1.5);
+
+  // ── MORPH 2: if/else → when ────────────────────────────────────────
+
+  yield* s.implCodes[1].morphTo(IMPL_STEP2, {
+    removeDuration: 0.22,
+    moveDuration: 0.38,
+    charDelay: 0.01,
+    addStyle: 'typewriter',
+    scrollStrategy: 'block',
+    recolorLine: paintModeParamsLine,
+  });
+  s.implCodes[1].colorize(MODE_RULES);
+  paintModeParams(s.implCodes[1]);
+  s.implCodes[1].recenterContent();
+  yield* waitFor(2.0);
+
+  // ── Enum appears below the function ────────────────────────────────
+
+  // Enum below the send function.
+  const implLines = IMPL_STEP2.split('\n').length;
+  const implNodeY = s.implCodes[1].node.position.y();
+  const implBottomY = implNodeY + ((implLines - 1) * IMPL_LH) / 2;
+  const enumLines = ENUM_CODE.split('\n').length;
+  const enumY = implBottomY + IMPL_LH * 2 + ((enumLines - 1) * IMPL_LH) / 2;
+
+  const enumMC = Manticore.create(ENUM_CODE, {
+    x: IMPL_X,
+    y: enumY,
+    width: IMPL_W,
+    fontSize: IMPL_FONT_SIZE,
+    lineHeight: IMPL_LH,
+    fontFamily: Fonts.code,
+    theme: DryFiltersV3CodeTheme,
+    noClip: true,
+    cardStyle: TRANSPARENT_CARD,
+    glowAccent: false,
+    customTypes: MODE_TYPES,
+  });
+  enumMC.mount(view);
+  enumMC.colorize(MODE_RULES);
+  enumMC.node.opacity(0);
+
+  // Enum fades in below the function.
+  yield* enumMC.node.opacity(1, 0.55, easeInOutSine);
+  yield* waitFor(1.0);
+
+  // ── MORPH 3: call site — silent = true → mode = NotificationMode.SILENT
+
+  s.callCodes[1].colorize(MODE_RULES);
+  paintModeParams(s.callCodes[1]);
+  yield* s.callCodes[1].morphTo(CALL_MODE_AFTER, {
+    removeDuration: 0.22,
+    moveDuration: 0.3,
+    charDelay: 0.01,
+    addStyle: 'typewriter',
+    scrollStrategy: 'block',
+    recolorLine: paintModeParamsLine,
+  });
+  s.callCodes[1].colorize(MODE_RULES);
+  paintModeParams(s.callCodes[1]);
+  s.callCodes[1].recenterContent();
+  yield* waitFor(2.5);
+
+  // ── Payoff: the enum can grow ───────────────────────────────────────
+  // Clear the code, then let the type we just introduced gain the modes
+  // the domain will need — DEFAULT/SILENT stay, CRITICAL/BACKGROUND grow in.
+  // It is the same enum reflowing through states, so the brace slides down
+  // and the new constants type in (no reserved empty rows).
+
+  yield* all(
+    s.hideCallCode(1, 0.6),
+    s.hideImplCode(1, 0.6),
+    enumMC.node.opacity(0, 0.5, easeInOutSine),
+  );
+  yield* waitFor(0.4);
+
+  const growEnum = Manticore.create(ENUM_CODE, {
+    x: -100,
+    y: 0,
+    width: 900,
+    fontSize: 48,
+    lineHeight: 68,
+    fontFamily: Fonts.code,
+    theme: DryFiltersV3CodeTheme,
+    noClip: true,
+    cardStyle: TRANSPARENT_CARD,
+    glowAccent: false,
+    customTypes: MODE_TYPES,
+  });
+  growEnum.mount(view);
+  growEnum.colorize(MODE_RULES);
+  growEnum.node.opacity(0);
+
+  yield* growEnum.node.opacity(1, 0.5, easeInOutSine);
+  yield* waitFor(1.0);
+
+  yield* growEnum.morphTo(BIG_ENUM, {
+    removeDuration: 0.2,
+    moveDuration: 0.5,
+    charDelay: 0.02,
+    addStyle: 'typewriter',
+    scrollStrategy: 'block',
+  });
+  growEnum.colorize(MODE_RULES);
+  growEnum.recenterContent();
+  yield* waitFor(1.5);
+
+  // ── Verdict: the face's weight ──────────────────────────────────────
+  // Lands while the enum is still on screen, then blinks a couple of times
+  // so the eye catches it. The enum then bows out smoothly, and the verdict
+  // holds to the end of the scene.
+
+  yield* s.showSmallScale(1);
+  const scaleNode = s.smallScaleNodes[1]();
+  yield* waitFor(0.25);
+  for (let k = 0; k < 2; k++) {
+    yield* scaleNode.opacity(0.18, 0.16, easeInOutSine);
+    yield* scaleNode.opacity(1, 0.16, easeInOutSine);
+  }
+  yield* waitFor(0.8);
+
+  yield* growEnum.node.opacity(0, 0.7, easeInOutSine);
+  yield* waitFor(1.6);
 });

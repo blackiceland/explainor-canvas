@@ -1,4 +1,4 @@
-import {Img, Node, Rect, Txt, blur, makeScene2D} from '@motion-canvas/2d';
+import {Img, Node, Rect, Txt, blur, makeScene2D, saturate} from '@motion-canvas/2d';
 import {
     Reference,
     ThreadGenerator,
@@ -8,6 +8,7 @@ import {
     easeInCubic,
     easeInOutCubic,
     easeOutCubic,
+    linear,
     sequence,
     waitFor,
 } from '@motion-canvas/core';
@@ -55,7 +56,11 @@ const RULES: ColorRule[] = [
     {match: /^(function|const|let|var|return|if|else)$/, color: KEY},
     {match: /^(true|false)$/, color: KEY},
     {match: /^(boolean|string|number|Post)$/, color: TYPE_CLR},   // Post is a type → type colour, not method blue
-    {match: /^(savePost|publishPost|saveDraft|db)$/, color: DOMAIN},
+    {match: /^(savePost|publishPost|saveDraft)$/, color: DOMAIN},   // the method NAMES (declarations) are blue
+    {match: /^(publish|save)$/, color: DOMAIN, onlyTypes: ['method']},   // method CALLS are blue too, by
+    // convention (Anton: «методы синие по конвенции») — onlyTypes:'method' so the call `feed.publish`
+    // is blue but the boolean FLAG `publish` in the pre-split (type 'plain') stays cream. feed/drafts
+    // are OBJECTS, not methods → they remain plain cream.
 ];
 
 const FLAT_CARD = {
@@ -92,10 +97,22 @@ const CODE_FLAG = `savePost(post: Post, publish: boolean) {
     return saveDraft(post)
 }`;
 
+// The payoff: the one branching method MORPHS (one block, token-morph) into two honestly
+// named functions — saveDraft (lines 0-2) and publishPost (lines 4-6), blank line 3 between.
+// Then the block's lines SPREAD into two columns so each function pairs with its card.
+const CODE_SPLIT = `function saveDraft(post: Post) {
+    return drafts.save(post)
+}
+
+function publishPost(post: Post) {
+    return feed.publish(post)
+}`;
+
 // ── Code block helpers (house style: theme + rules + glow + weight) ───
 type BlockOpts = {
     code: string; x?: number; y: number;
     width?: number; fontSize?: number; lineHeight?: number; noClip?: boolean;
+    customTypes?: string[];
 };
 
 function makeBlock(o: BlockOpts): Manticore {
@@ -106,6 +123,7 @@ function makeBlock(o: BlockOpts): Manticore {
         lineHeight: o.lineHeight ?? 46,
         fontFamily: F_MONO,
         theme: THEME,
+        customTypes: o.customTypes,
         cardStyle: FLAT_CARD,
         glowAccent: false,
         noClip: o.noClip ?? false,
@@ -148,11 +166,11 @@ function dressBlock(block: Manticore): void {
 }
 
 // Spotlight a set of lines in one block: the kept lines stay lit, the rest dim.
-function* spotlight(block: Manticore, keep: number[], dur = 0.4): ThreadGenerator {
+function* spotlight(block: Manticore, keep: number[], dur = 0.4, easing = easeInOutCubic): ThreadGenerator {
     const ops: ThreadGenerator[] = [];
     for (let i = 0; i < block.lineCount; i++) {
         const line = block.getLine(i);
-        if (line) ops.push(line.setOpacity(keep.includes(i) ? 1 : DIM_OP, dur));
+        if (line) ops.push(line.node.opacity(keep.includes(i) ? 1 : DIM_OP, dur, easing));
     }
     if (ops.length) yield* all(...ops);
 }
@@ -178,6 +196,7 @@ const SURFACE_EDGE = 'rgba(231,225,214,0.17)';   // the hairline EDGE — strong
 // visibility line + toggle. Clean composition — no divider rule, even rhythm.
 function buildDraftCard(): {
     node: Reference<Node>; ambient: Reference<Rect>; panel: Reference<Rect>;
+    content: Reference<Node>;
     status: Reference<Node>; statusDot: Reference<Rect>; statusLabel: Reference<Txt>;
     visibility: Reference<Txt>;
     track: Reference<Rect>; knob: Reference<Rect>;
@@ -186,6 +205,7 @@ function buildDraftCard(): {
     const node        = createRef<Node>();
     const ambient     = createRef<Rect>();
     const panel       = createRef<Rect>();
+    const content     = createRef<Node>();
     const status      = createRef<Node>();
     const statusDot   = createRef<Rect>();
     const statusLabel = createRef<Txt>();
@@ -214,7 +234,7 @@ function buildDraftCard(): {
             <Rect ref={panel} width={DCARD_W} height={H} radius={RAD}
                 fill={SURFACE} stroke={SURFACE_EDGE} lineWidth={1}
                 shadowColor="rgba(0,0,0,0.45)" shadowBlur={2} shadowOffset={[0, 2]}>
-                {children}
+                <Node ref={content}>{children}</Node>
             </Rect>
         </Node>
     );
@@ -263,23 +283,113 @@ function buildDraftCard(): {
             fill="rgba(231,225,214,0.72)" offset={[-1, 0]} x={L} y={120} />
         {toggle(120)}
     </>);
-    return {node, ambient, panel, status, statusDot, statusLabel, visibility, track, knob, jsx};
+    return {node, ambient, panel, content, status, statusDot, statusLabel, visibility, track, knob, jsx};
 }
 
-// Crossfade a Txt to new copy in place — used on the flip for the visibility line.
+// A FIXED-state card (no toggle) — used in the split payoff, where each function owns one
+// outcome and there is no boolean left to flip. Same post, same surface; only the status +
+// visibility line differ by state. The missing toggle is the point: the contract is the NAME.
+function buildStateCard(state: 'draft' | 'published'): {
+    node: Reference<Node>; ambient: Reference<Rect>; panel: Reference<Rect>; jsx: any;
+} {
+    const node    = createRef<Node>();
+    const ambient = createRef<Rect>();
+    const panel   = createRef<Rect>();
+    const PAD = 44;
+    const L = -DCARD_W / 2 + PAD;
+    const R =  DCARD_W / 2 - PAD;
+    const STAT_FS = 27;
+    const STAT_DOT = 12;
+    const pubW = Math.ceil(textWidth('PUBLISHED', F_MONO, STAT_FS));
+    const dotX = R - pubW - 22;
+    const H = 388;
+    const pub = state === 'published';
+    const dotFill   = pub ? PUB_GREEN : 'rgba(231,225,214,0.48)';
+    const label     = pub ? 'PUBLISHED' : 'DRAFT';
+    const labelFill = pub ? INK : 'rgba(231,225,214,0.72)';
+    const vis       = pub ? 'Live · anyone can see this' : 'Only you can see this';
+    // the toggle — present on BOTH cards so they read as parallel contracts: ON/green
+    // for published, OFF/grey for draft (the draft card is disabled, its switch is off).
+    const togW = 92, togH = 52, knobR = 21, knobX = togW / 2 - knobR - 5;   // 20
+    const trackFill   = pub ? 'rgba(168,207,152,0.85)' : 'rgba(231,225,214,0.04)';
+    const trackStroke = pub ? 'rgba(168,207,152,0.55)' : 'rgba(231,225,214,0.22)';
+    const knobPosX    = pub ? knobX : -knobX;
+
+    const jsx = (
+        <Node ref={node}>
+            <Rect ref={ambient} width={DCARD_W} height={H} radius={RAD}
+                fill={BG} shadowColor="rgba(0,0,0,0.58)" shadowBlur={46} shadowOffset={[0, 20]} />
+            <Rect ref={panel} width={DCARD_W} height={H} radius={RAD}
+                fill={SURFACE} stroke={SURFACE_EDGE} lineWidth={1}
+                shadowColor="rgba(0,0,0,0.45)" shadowBlur={12} shadowOffset={[0, 5]}>
+              {/* draft = DISABLED look: content faded + desaturated (avatar greys), surface stays */}
+              <Node opacity={pub ? 1 : 0.68} filters={pub ? [] : [saturate(0.3)]}>
+                <Rect width={68} height={68} radius={34} x={L + 34} y={-112}
+                    fill="rgba(231,225,214,0.10)" stroke="rgba(231,225,214,0.20)" lineWidth={1} clip>
+                    <Img src="/avatar-anna.jpg" width={68} height={68} />
+                </Rect>
+                <Txt text="Anna Petrova" fontFamily={F_SERIF} fontSize={30} fontWeight={500}
+                    fill={INK} offset={[-1, 0]} x={L + 100} y={-126} />
+                <Txt text="@anna · 5h" fontFamily={F_MONO} fontSize={20} fontWeight={450}
+                    fill="rgba(231,225,214,0.58)" offset={[-1, 0]} x={L + 100} y={-96} />
+                <Rect width={STAT_DOT} height={STAT_DOT} radius={STAT_DOT / 2} x={dotX} y={-110} fill={dotFill} />
+                <Txt text={label} fontFamily={F_MONO} fontSize={STAT_FS} fontWeight={500}
+                    letterSpacing={1.6} fill={labelFill} offset={[-1, 0]} x={dotX + STAT_DOT + 11} y={-112} />
+
+                <Txt text="Just shipped our Getting Started guide." fontFamily={F_SERIF} fontSize={27} fontWeight={400}
+                    fill="rgba(231,225,214,0.82)" offset={[-1, 0]} x={L} y={-30} />
+                <Txt text="Set up your workspace and ship your" fontFamily={F_SERIF} fontSize={27} fontWeight={400}
+                    fill="rgba(231,225,214,0.82)" offset={[-1, 0]} x={L} y={6} />
+                <Txt text="first change in minutes." fontFamily={F_SERIF} fontSize={27} fontWeight={400}
+                    fill="rgba(231,225,214,0.82)" offset={[-1, 0]} x={L} y={42} />
+
+                <Txt text={vis} fontFamily={F_MONO} fontSize={23} fontWeight={450}
+                    fill="rgba(231,225,214,0.72)" offset={[-1, 0]} x={L} y={120} />
+                <Rect width={togW} height={togH} radius={togH / 2} x={R - togW / 2} y={120}
+                    fill={trackFill} stroke={trackStroke} lineWidth={1.5}>
+                    <Rect width={knobR * 2} height={knobR * 2} radius={knobR} x={knobPosX} y={0}
+                        fill="rgba(231,225,214,0.85)" />
+                </Rect>
+              </Node>
+            </Rect>
+        </Node>
+    );
+    return {node, ambient, panel, jsx};
+}
+
+// Roll a Txt to new copy — a top-to-bottom flip (departures-board feel): the old word
+// drops DOWN and out as it fades, the new word arrives from ABOVE and settles into the
+// slot. Both motions go downward → reads as a clean top→bottom morph, not a plain fade.
 function* retext(node: Txt, text: string): ThreadGenerator {
-    yield* node.opacity(0, 0.18, easeInCubic);
+    const baseY = node.y();
+    const H = node.fontSize() * 0.85;
+    yield* all(
+        node.y(baseY + H, 0.2, easeInCubic),
+        node.opacity(0, 0.2, easeInCubic),
+    );
     node.text(text);
-    yield* node.opacity(1, 0.3, easeOutCubic);
+    node.y(baseY - H);
+    yield* all(
+        node.y(baseY, 0.32, easeOutCubic),
+        node.opacity(1, 0.32, easeOutCubic),
+    );
 }
 
-// retext that also eases the fill on the way back in — the pill word going "live".
+// Roll that also swaps the fill (the status word going "live"/"draft"): the new word rolls
+// in already wearing its new colour, so the change reads as one clean top→bottom flip.
 function* retextColored(node: Txt, text: string, finalFill: string): ThreadGenerator {
-    yield* node.opacity(0, 0.18, easeInCubic);
-    node.text(text);
+    const baseY = node.y();
+    const H = node.fontSize() * 0.85;
     yield* all(
-        node.opacity(1, 0.3, easeOutCubic),
-        node.fill(finalFill, 0.3, easeOutCubic),
+        node.y(baseY + H, 0.2, easeInCubic),
+        node.opacity(0, 0.2, easeInCubic),
+    );
+    node.text(text);
+    node.fill(finalFill);
+    node.y(baseY - H);
+    yield* all(
+        node.y(baseY, 0.32, easeOutCubic),
+        node.opacity(1, 0.32, easeOutCubic),
     );
 }
 
@@ -346,8 +456,19 @@ export default makeScene2D(function* (view) {
     const widthOf = (code: string): number =>
         Math.max(...code.split('\n').map(l => textWidth(l, F_MONO, FS)));
     const centerX = (code: string, scale: number): number => -(LEFT_LOCAL + widthOf(code) / 2) * scale;
+    // The split functions (narrower than savePost) sit left of centre when left-aligned at savePost's
+    // edge; nudge the whole block +20px right so they read centred. Baked from the signature step so
+    // it is CONSTANT through the split (no horizontal move during the morph). Anton: «сдвинь на 20 правее».
+    const SPLIT_DX = 20;
 
-    const fn = makeBlock({code: NAME_ONLY, y: 0, fontSize: FS, lineHeight: 54, width: 1100, noClip: true});
+    // lineHeight 53.2 (not 54): a hair tighter so saveDraft (13 lines below publishPost in the split)
+    // lands ~10px HIGHER than publishPost — Anton's «нижний блок на 10 выше», BAKED into the layout
+    // so it never moves after placement (no nudge, no jerk). 0.8px/line — invisible on the savePost beats.
+    // publishPost/saveDraft as customTypes → tokenizer always types them 'type' (constant), so the
+    // line-diff KEEPS them across every morph (no 'plain'↔'method' flip at the paren = no re-type /
+    // "перезатёрлись"). They're still painted DOMAIN-blue by the RULES (colour ≠ tokenizer-type).
+    const fn = makeBlock({code: NAME_ONLY, y: 0, fontSize: FS, lineHeight: 53.2, width: 1100, noClip: true,
+        customTypes: ['publishPost', 'saveDraft']});
     fn.mount(view);
     dressBlock(fn);
     const fnBlur = createSignal(10);
@@ -377,7 +498,7 @@ export default makeScene2D(function* (view) {
     yield* all(
         fn.morphTo(SIGNATURE_FLAG, TYPE),
         fn.node.scale(1, 0.7, easeInOutCubic),
-        fn.node.x(centerX(SIGNATURE_FLAG, 1), 0.7, easeInOutCubic),
+        fn.node.x(centerX(SIGNATURE_FLAG, 1) + SPLIT_DX, 0.7, easeInOutCubic),
     );
     yield* waitFor(0.9);
 
@@ -417,13 +538,18 @@ export default makeScene2D(function* (view) {
     );
     yield* waitFor(0.35);
 
-    // 5b — the body builds instantly (no flash), then CASCADES in top→bottom, each line
-    // emerging from the one above ("словно строка из строки"): every body line starts
-    // hidden and lifted 24px toward the line above, then fades + settles DOWN into its
-    // slot, one after another. The signature does NOT move: no x-recentre (savePost's
-    // left edge stays put — the line only extends right as ` {` is added) and no y-lift.
+    // 5b — the body builds instantly (no flash) then CASCADES in top→bottom, AND THE CARD
+    // ARRIVES WITH IT (Anton: «карточка появится вместе с появлением тела метода»): the
+    // published card descends + settles in the SAME beat the method body grows, not as a
+    // later step. Each body line starts hidden + lifted 24px toward the line above, then
+    // fades + settles DOWN into its slot. The signature does NOT move (left edge fixed).
     yield* fn.morphTo(CODE_FLAG, BODY_BUILD);
     dressBlock(fn);
+
+    const IF_LINE     = 1;
+    const RET_PUBLISH = 2;
+    const IF_CLOSE    = 3;
+    const RET_DRAFT   = 5;   // blank line sits above it (index 4)
 
     const cascade: ThreadGenerator[] = [];
     for (const i of [1, 2, 3, 4, 5, 6]) {
@@ -437,54 +563,33 @@ export default makeScene2D(function* (view) {
             ln.node.y(restY, 0.34, easeOutCubic),   // settle down into its slot
         ));
     }
-    yield* sequence(0.10, ...cascade);
-    yield* waitFor(0.5);
 
-    // The two paths the switch routes between — surfaced one at a time, each made
-    // concrete by the product card it produces. Draft path first.
-    const IF_LINE     = 1;
-    const RET_PUBLISH = 2;
-    const IF_CLOSE    = 3;
-    const RET_DRAFT   = 5;   // blank line sits above it (index 4)
-
-    // The card, parked just above the static method and flat on the page, ready to
-    // lift in when the publish path (top if-block) lights. The code never moves.
-    // Symmetric between the KUROSHIMA header (y=-820) and the signature (y=0):
-    // card centre at the midpoint → equal 218px gaps above and below.
+    // The card — sharp, "placed & settles" (short descent + shadow tightening); set up flat,
+    // then revealed CONCURRENTLY with the body cascade below. Parked above the method, centred
+    // between KUROSHIMA (y=-820) and the signature (y=0).
     const SHEET_Y = -410;
     const card = buildDraftCard();
     view.add(card.jsx);
+    // disabled-look driver: when OFF/draft the card content fades + desaturates (not the surface)
+    const cardSat = createSignal(1);
+    card.content().filters(() => [saturate(cardSat())]);
+    card.node().y(SHEET_Y - 44);
+    card.ambient().shadowBlur(48); card.ambient().shadowOffset([0, 26]);
+    card.panel().shadowBlur(15);   card.panel().shadowOffset([0, 9]);
 
-    // Entrance — the whole record DEVELOPS as ONE: the surface + typography resolve out of
-    // soft focus together (a single focus-pull blurs the whole cached node, so every line
-    // sharpens TOGETHER — never a per-element fade-in), the panel eases forward + drops a
-    // few px, and the two-layer shadow blooms from flat = the soft elevation. The NODE
-    // never fades; coming-into-focus + the shadow ARE the reveal. Then dead still.
-    const cardBlur = createSignal(11);
-    card.node().filters(() => [blur(cardBlur())]);
-    card.node().scale(0.97);
-    card.node().y(SHEET_Y - 10);
-    card.ambient().shadowBlur(2);          // shadows start flat → bloom = the elevation
-    card.ambient().shadowOffset([0, 6]);
-    card.panel().shadowBlur(2);
-    card.panel().shadowOffset([0, 2]);
-
-    // The card materialises in ONE tempo with the code dimming: the spotlight drops the
-    // non-publish lines to DIM_OP (easeInOutCubic — CodeLine.setOpacity) while the card
-    // sharpens out of focus + the shadow blooms on the SAME duration and SAME curve, so
-    // the two read as a single synchronized move, not two overlapping animations.
-    const REVEAL_DUR = 0.6;
+    // body grows AND card lands — TOGETHER, one beat.
     yield* all(
-        spotlight(fn, [IF_LINE, RET_PUBLISH, IF_CLOSE], REVEAL_DUR),
-        cardBlur(0, REVEAL_DUR, easeInOutCubic),
-        card.node().scale(1, REVEAL_DUR, easeInOutCubic),
-        card.node().y(SHEET_Y, REVEAL_DUR, easeInOutCubic),
-        card.ambient().shadowBlur(46, REVEAL_DUR, easeInOutCubic),
-        card.ambient().shadowOffset([0, 20], REVEAL_DUR, easeInOutCubic),
-        card.panel().shadowBlur(12, REVEAL_DUR, easeInOutCubic),
-        card.panel().shadowOffset([0, 5], REVEAL_DUR, easeInOutCubic),
+        sequence(0.10, ...cascade),
+        card.node().y(SHEET_Y, 0.8, easeOutCubic),
+        card.ambient().shadowBlur(30, 0.8, easeOutCubic),
+        card.ambient().shadowOffset([0, 15], 0.8, easeOutCubic),
+        card.panel().shadowBlur(9, 0.8, easeOutCubic),
+        card.panel().shadowOffset([0, 4], 0.8, easeOutCubic),
     );
-    yield* waitFor(1.4);
+
+    // now FOCUS the publish branch — pairs the (published) card with the path that produces it.
+    yield* spotlight(fn, [IF_LINE, RET_PUBLISH, IF_CLOSE], 0.5, linear);
+    yield* waitFor(1.0);
 
     // Phase 2 — the flag drops. The DEFAULT branch (saveDraft, bottom) lights AND the
     // card flips back to draft in one gesture. Cause→effect, not a simultaneous recolour
@@ -494,6 +599,8 @@ export default makeScene2D(function* (view) {
     // post, only its state. One name, two contracts.
     yield* all(
         spotlight(fn, [RET_DRAFT], 0.45),
+        card.content().opacity(0.68, 0.55, easeInOutCubic),   // OFF → the card goes DISABLED:
+        cardSat(0.3, 0.55, easeInOutCubic),                   // content fades + desaturates (avatar greys)
         (function* () {
             yield* sequence(0.12,
                 all(   // the gesture (cause) leads — knob slides OFF, track drains the publish-green
@@ -513,7 +620,197 @@ export default makeScene2D(function* (view) {
     );
     yield* waitFor(1.4);
 
-    // Restore the full method — end on the whole truth + the published card.
-    yield* fn.showAllLines(0.4);
+    // ════════════════════════════════════════════════════════════════
+    //  THE SPLIT — the body already NAMES both methods (publishPost in the if-branch, saveDraft
+    //  in the default). (0) flip BACK to the publish branch one more time — re-light the if-block
+    //  AND switch the toggle ON, exactly like the entrance (after this the toggle is never touched
+    //  again). (1) PLACE — savePost dissolves and the two CALLS fly STRAIGHT to their final stacked
+    //  positions (publishPost top, saveDraft bottom — already small, with the card-gap built in via
+    //  blank lines); (2) GROW — function/params/bodies sprout AROUND each name, IN PLACE (the two
+    //  blocks share one line-structure, so the names never move); (3) the DRAFT card drops into the
+    //  gap. publishPost/PUBLISHED on top, saveDraft/DRAFT below.
+    // ════════════════════════════════════════════════════════════════
+    const GAP = 10;   // blank lines between the two functions = room for the DRAFT card +
+                      // a real SEPARATION above it, so the two [card+method] pairs read as
+                      // two distinct groups (not a uniform card-method-card-method list).
+    // THREE shared line-structures. The names travel to their FINAL point in ONE diagonal MOVE
+    // (Anton: «методы должны приехать СРАЗУ в целевую точку, не сначала правее потом сдвинулись»):
+    //   STRIPPED   (6 lines)  — only the two bare names survive, at their BODY columns (15/11) —
+    //                           exactly where the body left them, so STRIP→STRIPPED is teleport-free.
+    //   NAMES_ONLY (18 lines) — the same two names re-laid into their FINAL stacked slots AND already
+    //                           indented to column 9 (their FINAL column). pairBySimilarity (on in
+    //                           MOVE_OPTS) pairs each STRIPPED name-line with its NAMES_ONLY twin by
+    //                           trimmed text, so the name SLIDES col15/11→col9 AND relocates its line
+    //                           index in one move = a clean diagonal straight to the target. NO later
+    //                           horizontal shift.
+    //   CODE_GROWN (18 lines) — signatures + bodies sprout AROUND the names, which are ALREADY at col 9
+    //                           ("function " is 9 chars) → GROW types `function ` into cols 0..8 and the
+    //                           name does NOT move (col9→col9).
+    // CRITICAL: all three share TWO leading blank lines so publishPost sits at line index 2
+    // in every state. Without them, the LCS line-diff (it maximises matched lines) would rather
+    // pair STRIPPED's leading blanks than keep `publishPost`, demoting it to remove+add — which
+    // CROSS-FADES the name instead of sliding it. Matched leading blanks keep both names as
+    // `keep` lines, so they GLIDE to their stations at full opacity.
+    const LEAD = ['', ''];   // two blank lines above publishPost — shared by all three states
+    // Target (Anton, verbatim): `function publishPost(post: Post) { return feed.publish(post) }`
+    // and the saveDraft twin. So the names carry empty call-parens `NAME()` in STRIPPED/NAMES_ONLY
+    // and grow into `function NAME(post: Post) {`. The name lines are indented 9 spaces = width of
+    // "function " — so during GROW the `function ` keyword TYPES INTO that reserved indent and the
+    // name does NOT move (it was already at its final column 9). The `()` keeps the name a KEPT
+    // token: the tokenizer types `publishPost` as 'method' whenever it's followed by '(' (a BARE
+    // `publishPost` would be 'plain'); diffTokens keys on text+type, so 'method'→'method' across
+    // all three states keeps the name + its `(`/`)` GLIDING, never re-typing. Growth: `function `
+    // types into the indent, the `()` fills with `post: Post`, the `)` slides right, the body appears.
+    // CRITICAL: the body-slot lines are a SINGLE SPACE ' ' (SLOT), while the GAP lines are EMPTY ''.
+    // Both render invisible, but the line-diff (LCS) treats ' ' and '' as DIFFERENT lines — so the
+    // GAP blanks can ONLY pair with each other and can't be shuffled into the body slots. Without
+    // this, the LCS re-aligns the GAP blanks onto the pub body slots and ORPHANS the second name
+    // (saveDraft), demoting it to remove+add so it re-types char-by-char in GROW.
+    const SLOT = ' ';
+    // BARE names (no parens). STRIPPED holds them at BODY columns (publishPost 15, saveDraft 11) so
+    // they appear EXACTLY where the body left them (no teleport on collapse). Because they're
+    // customTypes ('type'), diffTokens KEEPS them across every morph; combined with pairBySimilarity
+    // (which pairs the col-15/11 line with the col-9 line by trimmed text), the MOVE slides each name
+    // col15/11→col9 + relocates its line in ONE diagonal — landing at the FINAL column. GROW then
+    // grows `function ` to the LEFT with the name fixed at col 9 (no re-type, no shift).
+    // SB = STRIPPED's blank line. It is THREE spaces — a whitespace string that matches NOTHING in
+    // NAMES_ONLY (whose blanks are '' for the GAP/LEAD and ' ' for the SLOTs). That makes the MOVE's
+    // line-diff score LCS=0 (no shared lines) → every old line is a remove, every new line an add, all
+    // in ONE group → pairBySimilarity pairs BOTH name-lines (pub15↔pub9, sav11↔sav9) by trimmed text,
+    // so BOTH names become 'modify' = a kept-token SLIDE, neither cross-fades. (The earlier bug: with
+    // '' blanks, the LCS kept the LEAD blanks at LATE indices, splitting publishPost's remove from its
+    // add into different groups → it cross-faded while saveDraft happened to slide.) SB still renders
+    // invisible. publishPost stays at body line 2, saveDraft at line 5 (no collapse teleport).
+    const SB = '   ';
+    const STRIPPED   = [SB, SB, '               publishPost', SB, SB, '           saveDraft'].join('\n');
+    const NAMES_ONLY = [...LEAD, '         publishPost', SLOT, SLOT,
+        ...Array(GAP).fill(''), '         saveDraft', SLOT, SLOT].join('\n');
+    const CODE_GROWN = [...LEAD, 'function publishPost(post: Post) {', '  return feed.publish(post)', '}',
+        ...Array(GAP).fill(''), 'function saveDraft(post: Post) {', '  return drafts.save(post)', '}'].join('\n');
+
+    // STRIP = dissolve everything but the names (fade, no typing); MOVE = glide the names to
+    // their stations (slide, no add/remove); GROW = type the structure in around them.
+    // STRIP_COLLAPSE runs AFTER a manual simultaneous cruft fade (see below) — the cruft is
+    // already invisible, so this morphTo is an instant structural cleanup (it must NOT re-fade
+    // anything or re-type the kept names, hence 0.01 durations + no token slide).
+    const STRIP_COLLAPSE = {
+        addStyle: 'fade' as const, moveDuration: 0.01, removeDuration: 0.01, charDelay: 0,
+        blockOrder: 'parallel' as const, lineOrder: 'parallel' as const,
+        tokenSlideDuration: 0, scrollStrategy: 'block' as const,
+    };
+    const MOVE_OPTS = {
+        addStyle: 'fade' as const, moveDuration: 0.7, removeDuration: 0.3, charDelay: 0,
+        blockOrder: 'parallel' as const, lineOrder: 'parallel' as const,
+        tokenSlideDuration: 0.7, pairBySimilarity: true, scrollStrategy: 'block' as const,
+    };
+    const GROW_OPTS = {
+        addStyle: 'typewriter' as const, charDelay: 0.02, moveDuration: 0.6, removeDuration: 0.3,
+        blockOrder: 'parallel' as const, lineOrder: 'parallel' as const,
+        tokenSlideDuration: 0.6, pairBySimilarity: true, scrollStrategy: 'block' as const,
+    };
+    const FN_S    = 1.0;      // NO shrink — the split code stays the exact size it was before
+    const PP_Y    = -297;     // block origin (compensates the 53.2 lineHeight so publishPost stays put)
+    const CARD_S  = 0.82;
+    const PUB_CARD_Y = -460;  // PUBLISHED card — sits ~110px ABOVE publishPost (no crowding)
+    const DRAFT_CARD_Y = 232; // DRAFT card — ~110px above saveDraft (raised 10 with its block)
+    const DIVIDER_Y = 0;      // beige rule — dead-centre of the gap between the two groups (publishPost } ↔ DRAFT card)
+    const DIVIDER_W = VIEW_W; // full-bleed, edge to edge (Anton: «от левого до правого края без гапов»)
+
+    // (0) flip BACK to the publish branch — NO if-block spotlight here (Anton: «верни не
+    //     выделение if блока, а просто покажи код без подсветки»): the whole method lights up
+    //     FULL, undimmed, while the toggle switches ON once more. The toggle is NOT touched after.
+    yield* all(
+        fn.showAllLines(0.5),                              // full code, no highlight/dim
+        card.content().opacity(1, 0.55, easeInOutCubic),   // ON → the card comes back to life:
+        cardSat(1, 0.55, easeInOutCubic),                  // content full opacity + full colour
+        (function* () {
+            yield* sequence(0.12,
+                all(
+                    card.knob().x(20, 0.5, easeInOutCubic),
+                    card.track().fill('rgba(168,207,152,0.85)', 0.5, easeInOutCubic),
+                    card.track().stroke('rgba(168,207,152,0.55)', 0.5, easeInOutCubic),
+                ),
+                sequence(0.05,
+                    all(card.statusDot().fill(PUB_GREEN, 0.42, easeInOutCubic), retextColored(card.statusLabel(), 'PUBLISHED', INK)),
+                    retext(card.visibility(), 'Live · anyone can see this'),
+                ),
+            );
+        })(),
+    );
+    yield* waitFor(1.1);
+
+    // (1) STRIP — everything dissolves except the two method NAMES, left standing at the EXACT
+    // spot they held in the body. NO x change, NO recenter (Anton: «savePost зачем-то двинулся
+    // вправо… publishPost дергаешь влево — это лишнее движение»). Pure dissolve, names don't budge.
+    // Anton: «токены должны ОДНОВРЕМЕННО плавно исчезать… сейчас вразнобой». The morphTo's own
+    // remove pass is uneven (whole removed LINES fade over removeDuration, but cruft tokens that
+    // sit inside a KEPT name-line get .remove()'d instantly) — so we fade EVERY non-name token by
+    // hand in one all(), guaranteeing a single uniform dissolve, THEN collapse the (now-invisible)
+    // structure with the instant STRIP_COLLAPSE morphTo. Names (publishPost/saveDraft) are skipped
+    // → they hold full opacity at their body line/column the whole time, no budge.
+    const cruftFade: ThreadGenerator[] = [];
+    for (let li = 0; li < fn.lineCount; li++) {
+        const line = fn.getLine(li);
+        if (!line) continue;
+        for (const td of line.tokens) {
+            const t = td.text.trim();
+            if (t.length === 0 || t === 'publishPost' || t === 'saveDraft') continue;
+            cruftFade.push(td.ref().opacity(0, 0.5, easeInOutCubic));
+        }
+    }
+    yield* all(...cruftFade);
+    yield* fn.morphTo(STRIPPED, STRIP_COLLAPSE);
+    dressBlock(fn);
+    yield* waitFor(0.4);
+
+    // (2) MOVE — the names go STRAIGHT to their target stations (publishPost rises, saveDraft slides
+    // straight down — clean KEEP-slides, no relocation cross-fade). They keep their body columns here;
+    // alignment to column 9 happens later in GROW. BOTH split cards LOSE their shadow as they move,
+    // so they settle FLAT (Anton: «карточки утратят тень перед тем как поставятся… двух последних»).
+    // The DRAFT card drops in over the TAIL of the movement (on screen by the time the names settle).
+    const draftCard = buildStateCard('draft');
+    view.add(draftCard.jsx);
+    draftCard.node().scale(CARD_S); draftCard.node().x(0); draftCard.node().y(DRAFT_CARD_Y - 16); draftCard.node().opacity(0);
+    // A thin beige rule splits the frame between the two [card+method] groups (Anton: «полоску
+    // тонкую бежевую начерти разделяющую экран горизонтально»). It DRAWS from the centre outward
+    // (scaleX 0→1) over the front of the MOVE, so it is in place before the names settle.
+    const divider = createRef<Rect>();
+    view.add(<Rect ref={divider} y={DIVIDER_Y} width={DIVIDER_W} height={2}
+        fill={INK} opacity={0.32} scale={[0, 1]} />);
+    yield* all(
+        divider().scale([1, 1], 0.5, easeOutCubic),
+        fn.morphTo(NAMES_ONLY, MOVE_OPTS),
+        fn.node.y(PP_Y, 0.7, easeInOutCubic),
+        card.node().x(0, 0.7, easeInOutCubic),
+        card.node().y(PUB_CARD_Y, 0.7, easeInOutCubic),
+        card.node().scale(CARD_S, 0.7, easeInOutCubic),
+        // PUBLISHED card sheds its shadow BEFORE it settles → flat
+        card.ambient().shadowBlur(0, 0.42, easeInOutCubic),
+        card.ambient().shadowOffset([0, 0], 0.42, easeInOutCubic),
+        card.panel().shadowBlur(0, 0.42, easeInOutCubic),
+        card.panel().shadowOffset([0, 0], 0.42, easeInOutCubic),
+        (function* () {
+            yield* waitFor(0.34);   // the card emerges over the last ~0.4s of the rise
+            yield* all(
+                draftCard.node().opacity(1, 0.42, easeOutCubic),
+                draftCard.node().y(DRAFT_CARD_Y, 0.42, easeOutCubic),
+                // DRAFT card also drops its shadow as it lands → flat
+                draftCard.ambient().shadowBlur(0, 0.34, easeInOutCubic),
+                draftCard.ambient().shadowOffset([0, 0], 0.34, easeInOutCubic),
+                draftCard.panel().shadowBlur(0, 0.34, easeInOutCubic),
+                draftCard.panel().shadowOffset([0, 0], 0.34, easeInOutCubic),
+            );
+        })(),
+    );
+    dressBlock(fn);
+    yield* waitFor(0.32);   // brief hold — both cards + the two bare method names — then bodies grow
+
+    // (3) GROW — function/params/bodies + the close brace TYPE IN around each planted name. Names
+    // stay fixed (column 9); x is unchanged. Structure sprouts around them.
+    yield* all(
+        fn.morphTo(CODE_GROWN, GROW_OPTS),
+        fn.node.y(PP_Y, 0.7, easeInOutCubic),
+    );
+    dressBlock(fn);   // publish/save come up blue from the first frame (RULES, onlyTypes:'method')
     yield* waitFor(2.4);
 });
