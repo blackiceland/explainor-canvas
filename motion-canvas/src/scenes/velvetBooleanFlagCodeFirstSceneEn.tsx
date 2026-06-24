@@ -76,20 +76,21 @@ const FLAT_CARD = {
 } as const;
 
 // ── Code states ──────────────────────────────────────────────────────
-// The cold open: a method name with parens, alone — a promise of what it does.
-const NAME_ONLY = `savePost()`;
+// The cold open: a function name with parens, alone — a promise of what it does.
+const NAME_ONLY = `function savePost()`;
 
 // One parameter resolves inside the parens. Still honest: a post, fully typed.
-const SIGNATURE = `savePost(post: Post)`;
+const SIGNATURE = `function savePost(post: Post)`;
 
 // One boolean, typed in as a foreign element the name never accounted for.
-const SIGNATURE_FLAG = `savePost(post: Post, publish: boolean)`;
+const SIGNATURE_FLAG = `function savePost(post: Post, publish: boolean)`;
 
 // The body the name hides: save means write a draft — unless the flag is set,
-// and then it doesn't save, it publishes, live to everyone. The signature keeps
-// its types (matches SIGNATURE_FLAG); no `function` keyword — the hero is the
-// bare name, every morph keeps its left edge, reads as a method.
-const CODE_FLAG = `savePost(post: Post, publish: boolean) {
+// and then it doesn't save, it publishes, live to everyone. `function` is on EVERY
+// state (cold open → split) so the register never changes: the only thing the payoff
+// alters on screen is the NAME — `function` is the same keyword that was already there,
+// not a syntactic surprise born in the split. Every beat is valid top-level TS.
+const CODE_FLAG = `function savePost(post: Post, publish: boolean) {
     if (publish) {
         return publishPost(post)
     }
@@ -452,14 +453,21 @@ export default makeScene2D(function* (view) {
     };
     const FS = 38;                                          // larger working size
     const LEFT_LOCAL = -1100 / 2 + getCodePaddingX(FS);    // local x where text starts
-    const HERO_SCALE = 1.6;   // big, but the shrink-to-fit at the boolean stays gentle + in-frame
     const widthOf = (code: string): number =>
         Math.max(...code.split('\n').map(l => textWidth(l, F_MONO, FS)));
     const centerX = (code: string, scale: number): number => -(LEFT_LOCAL + widthOf(code) / 2) * scale;
-    // The split functions (narrower than savePost) sit left of centre when left-aligned at savePost's
-    // edge; nudge the whole block +20px right so they read centred. Baked from the signature step so
-    // it is CONSTANT through the split (no horizontal move during the morph). Anton: «сдвинь на 20 правее».
-    const SPLIT_DX = 20;
+    // GEOMETRY — fit every beat to the frame so the widest line of each state ALWAYS clears both
+    // edges by >= MARGIN px (Anton: «функция всегда геометрически правильно — отступы слева и справа,
+    // без налезания на края»). centerX puts a state's widest line dead-centre → on-screen half-width
+    // is widthOf/2 * scale, so the scale leaving exactly MARGIN per side is (VIEW_W − 2·MARGIN)/widthOf;
+    // cap it so a short line doesn't balloon. Driven by the engine's REAL glyph widths (textWidth),
+    // never guessed: NAME_ONLY≈397, SIGNATURE≈606, SIGNATURE_FLAG≈982, CODE_FLAG≈1024 (its signature
+    // line is the WIDEST in the scene → it sets WORK_S), CODE_GROWN≈710 (narrower → re-centred in MOVE).
+    const MARGIN = 80;
+    const fitScale = (code: string, cap: number): number =>
+        Math.min(cap, (VIEW_W - 2 * MARGIN) / widthOf(code));
+    const HERO_S = fitScale(SIGNATURE, 1.6);    // cold-open + signature (SIGNATURE is the wider of the two)
+    const WORK_S = fitScale(CODE_FLAG, 1.0);    // boolean → body → split: shrink EARNED by CODE_FLAG's width
 
     // lineHeight 53.2 (not 54): a hair tighter so saveDraft (13 lines below publishPost in the split)
     // lands ~10px HIGHER than publishPost — Anton's «нижний блок на 10 выше», BAKED into the layout
@@ -476,8 +484,8 @@ export default makeScene2D(function* (view) {
 
     // 1 — the method name with parens, alone and large. (A name is a promise.)
     fn.node.opacity(0);
-    fn.node.scale(HERO_SCALE);
-    fn.node.x(centerX(NAME_ONLY, HERO_SCALE));
+    fn.node.scale(HERO_S);
+    fn.node.x(centerX(NAME_ONLY, HERO_S));
     yield* all(
         fn.node.opacity(1, 0.8, easeOutCubic),
         fnBlur(0, 0.8, easeOutCubic),
@@ -488,17 +496,19 @@ export default makeScene2D(function* (view) {
     // outward from the centre. One param is no reason to shrink.
     yield* all(
         fn.morphTo(SIGNATURE, TYPE),
-        fn.node.x(centerX(SIGNATURE, HERO_SCALE), 0.7, easeInOutCubic),
+        fn.node.x(centerX(SIGNATURE, HERO_S), 0.7, easeInOutCubic),
     );
     yield* waitFor(0.9);
 
     // 3 — the boolean TYPES in as the foreign flag, and the line SHRINKS to admit
     // it (the shrink is EARNED by the width it needs). Type + scale + recentre in
     // one move, so the boolean's arrival is what makes the method give ground.
+    // Shrink to WORK_S and centre on CODE_FLAG (the body's signature line is the widest in the scene)
+    // so when the body builds below it NOTHING moves and NOTHING clips — body symmetric at MARGIN/side.
     yield* all(
         fn.morphTo(SIGNATURE_FLAG, TYPE),
-        fn.node.scale(1, 0.7, easeInOutCubic),
-        fn.node.x(centerX(SIGNATURE_FLAG, 1) + SPLIT_DX, 0.7, easeInOutCubic),
+        fn.node.scale(WORK_S, 0.7, easeInOutCubic),
+        fn.node.x(centerX(CODE_FLAG, WORK_S), 0.7, easeInOutCubic),
     );
     yield* waitFor(0.9);
 
@@ -630,9 +640,11 @@ export default makeScene2D(function* (view) {
     //  blocks share one line-structure, so the names never move); (3) the DRAFT card drops into the
     //  gap. publishPost/PUBLISHED on top, saveDraft/DRAFT below.
     // ════════════════════════════════════════════════════════════════
-    const GAP = 10;   // blank lines between the two functions = room for the DRAFT card +
-                      // a real SEPARATION above it, so the two [card+method] pairs read as
-                      // two distinct groups (not a uniform card-method-card-method list).
+    const GAP = 12;   // blank lines between the two functions = the rigid SEPARATION of the two methods
+                      // (they are ONE block; saveDraft = SEP = (3+GAP)·lineSpacing below publishPost).
+                      // 12 (not 11): GAP 11 made SEP too SHORT → the bottom group rode up, leaving a big
+                      // VOID below saveDraft (it «приливало» to its card). 12 drops the bottom group so
+                      // saveDraft sits ~82px above ISSUE — matched to the card↔KUROSHIMA margin up top.
     // THREE shared line-structures. The names travel to their FINAL point in ONE diagonal MOVE
     // (Anton: «методы должны приехать СРАЗУ в целевую точку, не сначала правее потом сдвинулись»):
     //   STRIPPED   (6 lines)  — only the two bare names survive, at their BODY columns (15/11) —
@@ -708,11 +720,30 @@ export default makeScene2D(function* (view) {
         blockOrder: 'parallel' as const, lineOrder: 'parallel' as const,
         tokenSlideDuration: 0.6, pairBySimilarity: true, scrollStrategy: 'block' as const,
     };
-    const FN_S    = 1.0;      // NO shrink — the split code stays the exact size it was before
-    const PP_Y    = -297;     // block origin (compensates the 53.2 lineHeight so publishPost stays put)
-    const CARD_S  = 0.82;
-    const PUB_CARD_Y = -460;  // PUBLISHED card — sits ~110px ABOVE publishPost (no crowding)
-    const DRAFT_CARD_Y = 232; // DRAFT card — ~110px above saveDraft (raised 10 with its block)
+    // CARDS and CODE are matched in WIDTH so the centred composition reads cleanly (Anton: «геометрия —
+    // отступы, позиции компонентов»). The fixed narrow card (680×388) made a big centred code stick out
+    // ~147px past it on each side. Fix: bring both to ~the same on-screen width (~720–746px, ~170px/side
+    // margins), both centred → left AND right edges line up, consistent margins, nothing near the frame
+    // edge. SPLIT_S 1.05 (code still bigger than the body's WORK_S 0.9, +17%); CARD_S 1.05 (the split
+    // cards GROW from the early scale-1 card rather than shrink — same width family as the code).
+    // SPLIT code scale — BIG, so the method NAMES visibly GROW as they travel (Anton, repeated:
+    // «названия должны становиться больше во время движения; разделённый код крупнее в кадре»). The MOVE
+    // scales the block WORK_S 0.9 → SPLIT_S 1.05 (+17%), so publishPost/saveDraft enlarge while they fly to
+    // their stations. (Widest code line ≈740 > the 680 card by ~30px/side — the code is its own, wider
+    // element; the earlier «проблема отступа» was the VERTICAL imbalance below, fixed by GAP 12 + positions.)
+    const SPLIT_S = 1.05;
+    const CARD_S  = 1.0;                                         // cards = the REFERENCE card size (Anton:
+                                                                 // «карточки не делать больше чем карточка
+                                                                 // референс») — panel 680 wide, half 194.
+    // Vertical — EVERY breathing gap balanced. The two [card|method] groups are placed so the stack is
+    // symmetric about y=0 (equal ~82px outer margins card→KUROSHIMA and saveDraft→ISSUE) AND the divider is
+    // dead-centre between the groups (equal ~106px each side). Each card sits OFFSET = 303 above ITS function
+    // (cardHalf 194 + ~91px CLEAR gap + 17 glyph-top) — SAME top and bottom, so the publishPost↔PUBLISHED and
+    // saveDraft↔DRAFT gaps are IDENTICAL (91px). Block is TOP-anchored (line i at localY = i·53.2; at SPLIT_S
+    // 1.05 lineSpacing 55.86, publishPost[line2], saveDraft[line17 with GAP 12]).
+    const PP_Y    = -347;     // publishPost → sceneY −235, saveDraft → +603
+    const PUB_CARD_Y = -538;  // PUBLISHED card — 303 above publishPost (≈91px clear gap)
+    const DRAFT_CARD_Y = 300; // DRAFT card — 303 above saveDraft (SAME ≈91px clear gap)
     const DIVIDER_Y = 0;      // beige rule — dead-centre of the gap between the two groups (publishPost } ↔ DRAFT card)
     const DIVIDER_W = VIEW_W; // full-bleed, edge to edge (Anton: «от левого до правого края без гапов»)
 
@@ -781,6 +812,14 @@ export default makeScene2D(function* (view) {
         divider().scale([1, 1], 0.5, easeOutCubic),
         fn.morphTo(NAMES_ONLY, MOVE_OPTS),
         fn.node.y(PP_Y, 0.7, easeInOutCubic),
+        // GROW the code as the names rise (Anton: «при движении названий сделай их больше; разделённый
+        // код крупнее»): scale WORK_S → SPLIT_S in the same lift, so the names enlarge while they travel.
+        fn.node.scale(SPLIT_S, 0.7, easeInOutCubic),
+        // re-centre on the split (CODE_GROWN is narrower than the body it grew from). FOLDED INTO
+        // the lift so the names travel to their final centred station in ONE diagonal — no separate
+        // horizontal shift afterwards (Anton: «приехать СРАЗУ в целевую точку»). x is then constant
+        // through GROW, so the split sits dead-centre with MARGIN/side and nothing moves again.
+        fn.node.x(centerX(CODE_GROWN, SPLIT_S), 0.7, easeInOutCubic),
         card.node().x(0, 0.7, easeInOutCubic),
         card.node().y(PUB_CARD_Y, 0.7, easeInOutCubic),
         card.node().scale(CARD_S, 0.7, easeInOutCubic),

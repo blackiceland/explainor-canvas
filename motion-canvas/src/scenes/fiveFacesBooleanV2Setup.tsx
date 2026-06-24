@@ -1452,11 +1452,11 @@ export function createFiveFacesStage(view: View2D) {
     const SUBTLE  = 'rgba(244, 241, 235, 0.65)';
     view.add(
       <Node ref={safetyViz} x={VIZ_X} y={VIZ_Y} opacity={0}>
-        {/* Argument label above the table */}
+        {/* Argument label — centred BELOW the table */}
         <Txt
           ref={safetyArgTxt}
-          x={-TABLE_W / 2 + 18}
-          y={-TABLE_H / 2 - 36}
+          x={-75}
+          y={TABLE_H / 2 + 36}
           offset={[-1, 0]}
           text={'soft = '}
           fontFamily={Fonts.code}
@@ -1466,8 +1466,8 @@ export function createFiveFacesStage(view: View2D) {
         />
         <Txt
           ref={safetyValTxt}
-          x={-TABLE_W / 2 + 18 + 100}
-          y={-TABLE_H / 2 - 36}
+          x={-75 + 100}
+          y={TABLE_H / 2 + 36}
           offset={[-1, 0]}
           text={'true'}
           fontFamily={Fonts.code}

@@ -148,10 +148,10 @@ export default makeProject({
         // fiveFacesPermissionSceneRuV2,
 
         // 02
-          fiveFacesModeSceneRuV2,
+        //  fiveFacesModeSceneRuV2,
 
         // 03
-         // fiveFacesSafetySceneRuV2,
+        fiveFacesSafetySceneRuV2,
 
         // 04
         // fiveFacesShortcutSceneRuV2,
