@@ -127,12 +127,23 @@ const paintModeParams = (code: Manticore): void => {
   }
 };
 
-// Big enum for the epilogue showcase.
+// The enum grows in place at the end of the face beat: the two original states
+// gain the two the domain already needs (CRITICAL/BACKGROUND).
+const ENUM_GROWN = `enum class NotificationMode {
+    DEFAULT,
+    SILENT,
+    CRITICAL,
+    BACKGROUND,
+}`;
+
+// Epilogue showcase — the same type keeps absorbing modes a boolean never could.
 const BIG_ENUM = `enum class NotificationMode {
     DEFAULT,
     SILENT,
     CRITICAL,
     BACKGROUND,
+    SCHEDULED,
+    DIGEST,
 }`;
 
 // ── Scene ────────────────────────────────────────────────────────────
@@ -345,13 +356,29 @@ export default makeScene2D(function* (view) {
   s.callCodes[1].colorize(MODE_RULES);
   paintModeParams(s.callCodes[1]);
   s.callCodes[1].recenterContent();
-  yield* waitFor(2.5);
+  yield* waitFor(1.6);
 
-  // ── Payoff: the enum can grow ───────────────────────────────────────
-  // Clear the code, then let the type we just introduced gain the modes
-  // the domain will need — DEFAULT/SILENT stay, CRITICAL/BACKGROUND grow in.
-  // It is the same enum reflowing through states, so the brace slides down
-  // and the new constants type in (no reserved empty rows).
+  // ── The enum grows in place ─────────────────────────────────────────
+  // Still in context, below send: the type we just introduced gains the two
+  // modes the domain already needs. DEFAULT/SILENT stay; CRITICAL/BACKGROUND
+  // type in below, the brace sliding down. Top-pinned (no reserved rows, and
+  // it never reaches up into the function). A boolean could not have done this.
+  yield* enumMC.morphTo(ENUM_GROWN, {
+    removeDuration: 0.2,
+    moveDuration: 0.45,
+    charDelay: 0.02,
+    addStyle: 'typewriter',
+    scrollStrategy: 'block',
+  });
+  enumMC.colorize(MODE_RULES);
+  enumMC.recenterContent();
+  yield* waitFor(1.8);
+
+  // ── Payoff: the enum keeps growing ──────────────────────────────────
+  // Clear the code and re-show the type alone, already at the four modes it
+  // reached in context — then enrich it by another couple (SCHEDULED/DIGEST).
+  // Same enum reflowing through states: the brace slides down and the new
+  // constants type in (no reserved empty rows).
 
   yield* all(
     s.hideCallCode(1, 0.6),
@@ -360,7 +387,7 @@ export default makeScene2D(function* (view) {
   );
   yield* waitFor(0.4);
 
-  const growEnum = Manticore.create(ENUM_CODE, {
+  const growEnum = Manticore.create(ENUM_GROWN, {
     x: -100,
     y: 0,
     width: 900,

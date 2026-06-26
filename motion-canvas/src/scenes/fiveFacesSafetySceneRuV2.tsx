@@ -1,6 +1,6 @@
 import {makeScene2D} from '@motion-canvas/2d';
 import {Rect} from '@motion-canvas/2d';
-import {all, createRef, easeInOutSine, waitFor} from '@motion-canvas/core';
+import {all, createRef, easeInOutSine, linear, waitFor} from '@motion-canvas/core';
 import {CodeLine} from '../core/code/components/CodeLine';
 import {ColorRule, Manticore} from '../core/code/components/Manticore';
 import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
@@ -11,7 +11,7 @@ import {
   FACES,
   CODE_RULES, CODE_LH,
   CALL_X, CALL_W,
-  METHOD_COLOR, PARAM_DARK, NAMED_PARAMS,
+  METHOD_COLOR, PARAM_DARK, NAMED_PARAMS, METHOD_NAMES,
   CUSTOM_TYPES, TRANSPARENT_CARD,
   blockLines,
   paintNamedParams,
@@ -98,42 +98,11 @@ const paintNamedArgsLine = (line: CodeLine): void => {
   }
 };
 
-// ── CODA: when the boolean flag is actually justified ────────────────────
-// A separate aside, centre stage, after the face resolves. Splitting into two
-// named methods is right for THIS short example — but the trade-off flips once
-// soft/hard delete share real setup. Told purely in code, three states:
-//   A) two clean one-line methods — no shared logic, no flag needed.
-//   B) the same two, each grown the identical pre-delete ritual — the
-//      duplication IS the twin four-line block typing into both at once.
-//   C) lift that shared ritual into one private delete(hard: Boolean): the
-//      duplication is gone and the boolean survives as a justified INTERNAL
-//      detail, hidden behind the two safe public names. Lands here.
-const CODA_TWO_METHODS = `fun softDelete(userId: UserId) {
-    users.markDeleted(userId)
-}
-
-fun hardDelete(userId: UserId) {
-    users.deletePermanently(userId)
-}`;
-
-const CODA_DUPLICATED = `fun softDelete(userId: UserId) {
-    val user = users.requireById(userId)
-    checkPermissions(user)
-    writeAuditLog(user)
-    closeSessions(user)
-
-    users.markDeleted(user.id)
-}
-
-fun hardDelete(userId: UserId) {
-    val user = users.requireById(userId)
-    checkPermissions(user)
-    writeAuditLog(user)
-    closeSessions(user)
-
-    users.deletePermanently(user.id)
-}`;
-
+// ── CODA: the extracted solution, revealed top-down ──────────────────────
+// A separate aside after the face resolves, shown centred. First the public API —
+// the two safe named methods the callers use — then the shared private
+// delete(hard: Boolean) appears below them. The boolean survives as a justified
+// INTERNAL detail, hidden behind the two names.
 const CODA_EXTRACTED = `fun softDelete(userId: UserId) {
     delete(userId, hard = false)
 }
@@ -182,14 +151,44 @@ const paintCodaParams = (code: Manticore): void => {
   }
 };
 
-// The SAFETY name stays lit in the top spotlight while the coda elaborates
-// beneath it; the rating is withheld and blinks in only after the whole code is
-// shown. The coda is TOP-anchored and SMALL (24/35) so it clears the spotlight
-// glow instead of running into it: State A (7 lines) is centred here, softDelete
-// lands ≈ -215 (below the lamp, well under the name row), and every morph grows
-// the block downward from that fixed line — softDelete never rises. State C (20
-// lines) bottoms out ≈ 450, clear of the frame edge.
-const CODA_Y = -110;
+// CODA ONLY: method calls take a clean, restrained rose (solid — no alpha, so it
+// doesn't muddy against the background) so the named definitions stand out. A
+// definition is the method token right after `fun`; every other method token
+// (calls) takes the gentle tone. The main face is untouched.
+const CALL_SOFT = '#E89DAB';
+const METHOD_TOKENS = new Set<string>([
+  ...METHOD_NAMES,
+  'softDelete', 'hardDelete',
+  'checkPermissions', 'writeAuditLog', 'closeSessions',
+]);
+const paintMethodRolesLine = (line: CodeLine): void => {
+  const toks = line.tokens;
+  for (let i = 0; i < toks.length; i++) {
+    const tok = toks[i];
+    if (!METHOD_TOKENS.has(tok.text)) continue;
+    let p = i - 1;
+    while (p >= 0 && toks[p].text.trim() === '') p--;
+    const prev = p >= 0 ? toks[p].text.trim() : '';
+    tok.ref().fill(prev === 'fun' ? METHOD_COLOR : CALL_SOFT);
+  }
+};
+const paintMethodRoles = (code: Manticore): void => {
+  for (let i = 0; i < code.lineCount; i++) {
+    const line = code.getLine(i);
+    if (line) paintMethodRolesLine(line);
+  }
+};
+
+// Single centred coda block (24/36), TOP-anchored at CODA_TOP — raised so it sits
+// a bit higher while still clearing the spotlight glow (which fades by ≈ -340).
+// 20 lines bottom out ≈ +414. Revealed top-down: the two public methods first,
+// then the shared private delete below them. The rating blinks in last.
+const CODA_FS  = 24;
+const CODA_LH  = 36;
+const CODA_TOP = -270;
+const codaY = (src: string): number =>
+  CODA_TOP + ((src.split('\n').length - 1) / 2) * CODA_LH;
+const CODA_CX = 65;   // container centre (text starts at CODA_CX - width/2) so the full block sits centred
 
 // ── Scene ────────────────────────────────────────────────────────────
 
@@ -320,15 +319,16 @@ export default makeScene2D(function* (view) {
   );
   yield* waitFor(0.4);
 
-  // ── CODA ─────────────────────────────────────────────────────────────
-  // A: two clean one-line methods. For this short example the split is the
-  // whole answer — there is no shared logic to justify a flag.
-  const coda = Manticore.create(CODA_TWO_METHODS, {
-    x: 284,
-    y: CODA_Y,
-    width: 1300,
-    fontSize: 24,
-    lineHeight: 35,
+  // ── CODA: the extracted solution, revealed top-down ────────────────────
+  // One centred block. First the public API (softDelete / hardDelete), then the
+  // shared private delete(hard: Boolean) below it. Each section develops as one
+  // (no per-line stagger); nothing moves once placed.
+  const coda = Manticore.create(CODA_EXTRACTED, {
+    x: CODA_CX,
+    y: codaY(CODA_EXTRACTED),
+    width: 900,
+    fontSize: CODA_FS,
+    lineHeight: CODA_LH,
     fontFamily: Fonts.code,
     theme: DryFiltersV3CodeTheme,
     noClip: true,
@@ -339,60 +339,49 @@ export default makeScene2D(function* (view) {
   coda.mount(view);
   coda.colorize(SAFETY_RULES);
   paintCodaParams(coda);
-  coda.node.opacity(0);
+  paintMethodRoles(coda);   // definitions full rose, calls pale
+  // Node visible, every line hidden — so we can reveal in two beats.
+  coda.node.opacity(1);
+  for (let i = 0; i < coda.lineCount; i++) {
+    const ln = coda.getLine(i);
+    if (ln) ln.node.opacity(0);
+  }
 
-  yield* coda.node.opacity(1, 0.55, easeInOutSine);
-  yield* waitFor(1.8);
-
-  // B: now imagine real setup — the identical pre-delete ritual grows into BOTH
-  // methods at once. Top-anchored: no slide, no recentre — softDelete holds its
-  // line and the duplication types in downward beneath it. Parallel reveal so no
-  // half-typed rows. (7 → 17 lines.)
-  yield* coda.morphTo(CODA_DUPLICATED, {
-    removeDuration: 0.25,
-    moveDuration: 0.5,
-    charDelay: 0.013,
-    addStyle: 'typewriter',
-    scrollStrategy: 'block',
-    lineOrder: 'parallel',
-    blockOrder: 'parallel',
-    recolorLine: paintCodaParamsLine,
-  });
-  coda.colorize(SAFETY_RULES);
-  paintCodaParams(coda);
+  // 1. The public API first — the two named methods the callers actually see.
+  const PUBLIC_LINES = 7;   // softDelete + blank + hardDelete (lines 0..6)
+  const publicAnims: any[] = [];
+  for (let i = 0; i < PUBLIC_LINES; i++) {
+    const ln = coda.getLine(i);
+    if (ln) publicAnims.push(ln.node.opacity(1, 0.6, easeInOutSine));
+  }
+  yield* all(...publicAnims);
   yield* waitFor(2.2);
 
-  // C: lift the shared ritual into one private delete(hard: Boolean). The
-  // duplication collapses; outside stay two safe named methods, inside the
-  // boolean lives on — now a justified implementation detail, not a public
-  // trap. This is the only shape where keeping the flag earns its place. Again
-  // top-anchored — softDelete stays put, the private method appears below.
-  yield* coda.morphTo(CODA_EXTRACTED, {
-    removeDuration: 0.25,
-    moveDuration: 0.5,
-    charDelay: 0.013,
-    addStyle: 'typewriter',
-    scrollStrategy: 'block',
-    lineOrder: 'parallel',
-    blockOrder: 'parallel',
-    recolorLine: paintCodaParamsLine,
-  });
-  coda.colorize(SAFETY_RULES);
-  paintCodaParams(coda);
-  yield* waitFor(1.6);   // let the whole final code be read before the verdict
+  // 2. Then the shared delete underneath — where the boolean actually lives,
+  //    justified and out of the callers' sight. Reveals as one block below.
+  const deleteAnims: any[] = [];
+  for (let i = PUBLIC_LINES; i < coda.lineCount; i++) {
+    const ln = coda.getLine(i);
+    if (ln) deleteAnims.push(ln.node.opacity(1, 0.7, easeInOutSine));
+  }
+  yield* all(...deleteAnims);
+  yield* waitFor(1.8);
 
-  // ── Verdict — only now, with the entire coda on screen, the rating registers,
-  // blinking in (on/off a couple of times, then settling lit). ──────────────
+  // 3. Verdict — now, with the whole solution on screen, the rating blinks in.
+  //    Crisp on/off (linear snaps) with a beat held between each, then settles lit.
   const verdict = s.smallScaleNodes[2]();
-  yield* verdict.opacity(1, 0.07);
-  yield* verdict.opacity(0, 0.07);
-  yield* verdict.opacity(1, 0.07);
-  yield* verdict.opacity(0, 0.07);
-  yield* verdict.opacity(1, 0.12);
+  yield* verdict.opacity(1, 0.05, linear);
+  yield* waitFor(0.1);
+  yield* verdict.opacity(0, 0.05, linear);
+  yield* waitFor(0.08);
+  yield* verdict.opacity(1, 0.05, linear);
+  yield* waitFor(0.1);
+  yield* verdict.opacity(0, 0.05, linear);
+  yield* waitFor(0.08);
+  yield* verdict.opacity(1, 0.1, linear);
   yield* waitFor(1.7);
 
-  // Close everything together — the coda fades with the SAFETY verdict it
-  // belonged to.
+  // Close everything together.
   yield* all(
     coda.node.opacity(0, 0.7, easeInOutSine),
     s.nameRefs[2]().opacity(0, 0.7, easeInOutSine),
