@@ -8,6 +8,9 @@ import fiveFacesBooleanSceneRuV2 from "./scenes/fiveFacesBooleanSceneRuV2?scene"
 import fiveFacesPermissionSceneRuV2 from "./scenes/fiveFacesPermissionSceneRuV2?scene";
 import fiveFacesModeSceneRuV2 from "./scenes/fiveFacesModeSceneRuV2?scene";
 import fiveFacesSafetySceneRuV2 from "./scenes/fiveFacesSafetySceneRuV2?scene";
+// import booleanDecisionsSceneRu from "./scenes/booleanDecisionsSceneRu?scene";  // отложена — не подошла
+import flagTimelapseSceneRu from "./scenes/flagTimelapseSceneRu?scene";
+import flagGateChainSceneRu from "./scenes/flagGateChainSceneRu?scene";
 import fiveFacesShortcutSceneRuV2 from "./scenes/fiveFacesShortcutSceneRuV2?scene";
 import fiveFacesPoorModelSceneRuV2 from "./scenes/fiveFacesPoorModelSceneRuV2?scene";
 import fiveFacesFinaleSceneRuV2 from "./scenes/fiveFacesFinaleSceneRuV2?scene";
@@ -148,10 +151,16 @@ export default makeProject({
         // fiveFacesPermissionSceneRuV2,
 
         // 02
-        fiveFacesModeSceneRuV2,
+        // fiveFacesModeSceneRuV2,
 
         // 03
         fiveFacesSafetySceneRuV2,
+
+        // ПАУЗА между лицами — статичный флаг, код таймлапсом вокруг
+        flagTimelapseSceneRu,
+
+        // абстрактный эпиграф — фиксированные ворота, цепочка растёт вправо
+        flagGateChainSceneRu,
 
         // 04
         // fiveFacesShortcutSceneRuV2,

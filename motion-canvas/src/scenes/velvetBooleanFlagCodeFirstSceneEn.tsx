@@ -889,7 +889,7 @@ export default makeScene2D(function* (view) {
     //  Cards + divider leave on the first beat.
     // ════════════════════════════════════════════════════════════════
     const MERGE_S = WORK_S;
-    const MERGE_TOP = -670;   // signature high — the method GROWS DOWN as logic piles on (final 29 lines
+    const MERGE_TOP = -527;   // signature high — the method GROWS DOWN as logic piles on (final 23 lines
                               // incl. the inner-if framing blanks, centred about y=0). Top-anchored: line 0 stays.
 
     // The block-transform model (screen = node + scale·local) BENDS a token's path whenever scale
@@ -935,37 +935,36 @@ export default makeScene2D(function* (view) {
     // hand back to the block (its STRIPPED names sit exactly where the overlays ended); drop overlays
     fn.node.opacity(1); dressBlock(fn);
     ovPub().remove(); ovSav().remove();
-    yield* waitFor(0.1);
 
-    // (3) FRAME — the savePost body re-forms as ONE cascade (Anton: «не две анимации появления кода
-    //     вокруг имён»). Build the whole body INSTANTLY (0 frames), then reveal top→bottom in a SINGLE
-    //     sequence: structural lines drop in from above; the two name lines are anchors kept VISIBLE but
-    //     DIM (a faint placeholder, never a bright bare word) until the cascade reaches them, then they
-    //     BRIGHTEN and gain their return/(post) wrappers in the same beat. So nothing pops separately —
-    //     the body materialises around the names as one continuous motion.
+    // (3) FRAME — the savePost body re-forms. CRITICAL (Anton, 4×): this moment must NOT lag. Every past
+    //     attempt left the two just-arrived names SITTING in dead air while the shell slowly filled from
+    //     the top — a post-glide freeze (the old `waitFor(0.1)`) + the bottom name bare for ~0.27s = the
+    //     «лаг». FIX, two parts: (a) NO freeze — the reveal starts the instant the glide hands off; (b)
+    //     the reveal STARTS AT THE NAMES — the eye is already on them, so the two return-calls complete
+    //     FIRST (their return/(post) wraps fade in around the kept, still names), THEN the function shell
+    //     cascades around them. The two calls "come home" and savePost reforms around them: one fast
+    //     continuous motion, no element ever sits bare, the names never hitch.
     yield* fn.morphTo(CODE_FLAG, BODY_BUILD);   // instant build (moveDuration 0 / parallel) — no flash
     dressBlock(fn);
     const MERGE_NAMES = new Set(['publishPost', 'saveDraft']);
-    const reform: ThreadGenerator[] = [];
+    const nameAnims: ThreadGenerator[] = [];    // the two return-calls (revealed FIRST)
+    const shellAnims: ThreadGenerator[] = [];   // signature / if / braces (cascade around them)
     for (let i = 0; i < fn.lineCount; i++) {
         const ln = fn.getLine(i);
         if (!ln || ln.tokens.length === 0) continue;   // skip blank lines
         const nameTok = ln.tokens.find(t => MERGE_NAMES.has(t.text));
         if (nameTok) {
+            // name LEFT UNTOUCHED (already lit, already placed). Only the wraps materialise around it.
             const wraps = ln.tokens.filter(t => !MERGE_NAMES.has(t.text));
-            nameTok.ref().opacity(0.28);                 // faint placeholder until this line's turn
             for (const t of wraps) t.ref().opacity(0);
-            reform.push(all(
-                nameTok.ref().opacity(1, 0.26, easeOutCubic),
-                ...wraps.map(t => t.ref().opacity(1, 0.26, easeOutCubic)),
-            ));
+            nameAnims.push(all(...wraps.map(t => t.ref().opacity(1, 0.2, easeOutCubic))));
         } else {
             const restY = ln.node.y();
-            ln.node.opacity(0); ln.node.y(restY - 20);
-            reform.push(all(ln.node.opacity(1, 0.2, easeOutCubic), ln.node.y(restY, 0.26, easeOutCubic)));
+            ln.node.opacity(0); ln.node.y(restY - 12);
+            shellAnims.push(all(ln.node.opacity(1, 0.2, easeOutCubic), ln.node.y(restY, 0.24, easeOutCubic)));
         }
     }
-    yield* sequence(0.07, ...reform);
+    yield* sequence(0.045, ...nameAnims, ...shellAnims);
     yield* waitFor(1.0);
 
     // ════════════════════════════════════════════════════════════════
@@ -991,31 +990,22 @@ export default makeScene2D(function* (view) {
         tokenSlideDuration: 0, scrollStrategy: 'block' as const,
     };
     // Code states — each ADDS lines (returns shift down, never rewritten). A blank line precedes
-    // every return; stripe slots open BETWEEN the real lines and that blank. The bloat is WIDER, more
-    // realistic code (Anton: «тело замени, придумай более широкий код»), and the inline guards are
-    // PROPER braced blocks with indentation (Anton: «блок if {} пишем правильно — с отступами»).
-    // The INNER if-blocks (post.scheduled / post.collaborators) are framed with a blank line BEFORE and
-    // AFTER (Anton «выдели if блоки отступами, кроме первого») — the trailing blank also serves as the
-    // gap before the stripes/return. The FIRST `if (publish)` is NOT framed (sits under the signature).
+    // every return; a blank ALSO precedes each stripe group (Anton «перед полосками строки отступа
+    // добавь») so the placeholder stripes are framed by air above and below, not jammed onto the last
+    // real line. The bloat is WIDER, more realistic code (Anton «тело замени, придумай более широкий
+    // код»). Only the BOOLEAN guard `if (publish)` remains — the inner nested ifs were removed (Anton
+    // «тело перегружено, уберём if блоки кроме булевского») so the bloat reads as flat statements.
     const SIG = 'function savePost(post: Post, publish: boolean) {';
     const BIF = '    if (publish) {';
     const IF_BODY = [
         '        const url = buildPublicUrl(post, locale)',
         '        await notifySubscribers(post.author)',
-        '',                                              // отступ before the inner if
-        '        if (post.scheduled) {',
-        '            queuePublication(post, post.runAt)',
-        '        }',
-        '',                                              // отступ after the inner if
+        '        await queuePublication(post, post.runAt)',
     ];
     const OUT_BODY = [
         '    const snapshot = serializeDraft(post, rev)',
         '    await persistAutosave(snapshot, workspace)',
-        '',                                              // отступ before the inner if
-        '    if (post.collaborators) {',
-        '        broadcastChanges(post, post.team)',
-        '    }',
-        '',                                              // отступ after the inner if
+        '    await broadcastChanges(post, post.team)',
     ];
     const C_IF_REAL = [
         SIG, BIF, ...IF_BODY,
@@ -1025,7 +1015,8 @@ export default makeScene2D(function* (view) {
     ].join('\n');
     const C_IF_SLOTS = [
         SIG, BIF, ...IF_BODY,
-        '', '', '',                                              // 9,10,11  if-stripe slots
+        '',                                                      // отступ before the if-stripes
+        '', '', '',                                              // 6,7,8  if-stripe slots
         '',
         '        return publishPost(post)', '    }',
         '',
@@ -1033,6 +1024,7 @@ export default makeScene2D(function* (view) {
     ].join('\n');
     const C_OUT_REAL = [
         SIG, BIF, ...IF_BODY,
+        '',
         '', '', '',
         '',
         '        return publishPost(post)', '    }',
@@ -1042,25 +1034,27 @@ export default makeScene2D(function* (view) {
     ].join('\n');
     const C_OUT_SLOTS = [
         SIG, BIF, ...IF_BODY,
+        '',
         '', '', '',
         '',
         '        return publishPost(post)', '    }',
         '',
         ...OUT_BODY,
-        '', '', '',                                              // 23,24,25  out-stripe slots
+        '',                                                      // отступ before the out-stripes
+        '', '', '',                                              // 17,18,19  out-stripe slots
         '',
         '    return saveDraft(post)', '}',
     ].join('\n');
 
-    // stripes ride the code's grid (same x/y/scale as fn). if-stripes at lines 9,10,11 (indent 8);
-    // out-stripes at 23,24,25 (indent 4). Insertions are always BELOW existing stripes → no stripe
-    // ever moves. Solid bars (reference style); created width 0, grown back-to-back (easeOutCubic).
-    // Widths bumped «чуть шире» to sit with the wider real code.
+    // stripes ride the code's grid (same x/y/scale as fn). if-stripes at lines 6,7,8 (indent 8);
+    // out-stripes at 17,18,19 (indent 4) — each group has a blank отступ on the line above it.
+    // Insertions are always BELOW existing stripes → no stripe ever moves. Solid bars (reference
+    // style); created width 0, grown back-to-back (easeOutCubic). Widths «чуть шире» for the wider code.
     const STR_LH = 53.2;
     const ind8 = textWidth('        ', F_MONO, FS);
     const ind4 = textWidth('    ', F_MONO, FS);
-    const IF_L  = [9, 10, 11];
-    const OUT_L = [23, 24, 25];
+    const IF_L  = [6, 7, 8];
+    const OUT_L = [17, 18, 19];
     const IF_W  = [760, 840, 600];
     const OUT_W = [840, 700, 910];
     const barsNode = createRef<Node>();
