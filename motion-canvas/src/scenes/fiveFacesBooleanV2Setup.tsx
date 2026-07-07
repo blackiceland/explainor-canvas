@@ -1,4 +1,4 @@
-import {Circle, Gradient, Line, Node, Rect, Txt, View2D, blur, makeScene2D} from '@motion-canvas/2d';
+import {Circle, Gradient, Layout, Line, Node, Rect, Txt, View2D, blur, makeScene2D} from '@motion-canvas/2d';
 import {
   all,
   createRef,
@@ -16,6 +16,26 @@ import {ColorRule, Manticore} from '../core/code/components/Manticore';
 import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
 import {Fonts, Screen} from '../core/theme';
 import {applyBackground} from '../core/utils';
+import {Canon} from '../core/code/model/paletteCanon';
+
+// ── FLAT viz · единый стиль для всех лиц ───────────────────────────────
+// Круговой scrim цвета фона с плавным фейдом (не карточка, маскирует код).
+const vizScrim = () => (
+  <Rect
+    width={480}
+    height={480}
+    fill={new Gradient({
+      type: 'radial', from: new Vector2(0, 0), to: new Vector2(0, 0),
+      fromRadius: 0, toRadius: 240,
+      stops: [
+        {offset: 0, color: '#1B1D24'},
+        {offset: 0.5, color: '#16181F'},
+        {offset: 1, color: 'rgba(16,18,24,0)'},
+      ],
+    })}
+  />
+);
+const VIZ_DIM = 'rgba(244,241,235,0.14)';   // нейтральная заливка FLAT-примитива
 
 // ── Palette ───────────────────────────────────────────────────────────
 export const TEXT_PRIMARY  = '#F4F1EB';
@@ -1275,299 +1295,135 @@ export function createFiveFacesStage(view: View2D) {
     return sig;
   });
 
-  // ── PERMISSION viz — VERTICAL: request circle hits a barrier ──────
-  const permissionViz   = createRef<Node>();
+  // ── PERMISSION viz — FLAT: поток проходит гейт ──────────────────────
+  const permissionViz    = createRef<Node>();
   const permRequest      = createRef<Circle>();
   const permRequestLabel = createRef<Txt>();
   const permBarrier      = createRef<Rect>();
   const permTarget       = createRef<Rect>();
   {
+    const INK70 = 'rgba(244,241,235,0.70)';
     view.add(
       <Node ref={permissionViz} x={VIZ_X} y={VIZ_Y} opacity={0}>
-        {/* Request token — top */}
-        <Circle
-          ref={permRequest}
-          x={0}
-          y={-200}
-          width={56}
-          height={56}
-          fill={'rgba(100, 180, 255, 0.85)'}
-        />
-        <Txt
-          ref={permRequestLabel}
-          x={0}
-          y={-200 + 56}
-          text={'request'}
-          fontFamily={Fonts.code}
-          fontSize={20}
-          fill={'rgba(244, 241, 235, 0.70)'}
-          letterSpacing={2}
-        />
-        {/* Barrier — thin rose line, blocks the path by default */}
-        <Rect
-          ref={permBarrier}
-          x={0}
-          y={-50}
-          width={240}
-          height={10}
-          fill={'#FF8CA3'}
-          radius={1}
-        />
-        {/* Target — bottom (green; starts grey-tinted, ignites on pass) */}
-        <Rect
-          ref={permTarget}
-          x={0}
-          y={100}
-          width={80}
-          height={80}
-          fill={'rgba(244, 241, 235, 0.10)'}
-          radius={6}
-        />
-        <Txt
-          x={0}
-          y={100 + 60}
-          text={'save'}
-          fontFamily={Fonts.code}
-          fontSize={20}
-          fill={'rgba(244, 241, 235, 0.70)'}
-          letterSpacing={2}
-        />
+        {vizScrim()}
+        <Circle ref={permRequest} x={0} y={-140} width={64} height={64} fill={Canon.param} />
+        <Txt ref={permRequestLabel} x={0} y={-92} text={'request'} fontFamily={Fonts.code} fontSize={18} letterSpacing={1} fill={INK70} />
+        {/* гейт — закрыт по умолчанию (rose = флаг) */}
+        <Rect ref={permBarrier} x={0} y={-6} width={190} height={10} radius={5} fill={Canon.methodDef} />
+        {/* цель */}
+        <Rect ref={permTarget} x={0} y={130} width={78} height={78} radius={8} fill={VIZ_DIM} />
+        <Txt x={0} y={190} text={'save'} fontFamily={Fonts.code} fontSize={18} letterSpacing={1} fill={INK70} />
       </Node>,
     );
   }
 
   const vizBlur = createSignal(0);
-  permissionViz().cache(true);
-  permissionViz().cachePadding(60);
-  permissionViz().filters(() => [blur(vizBlur())]);
 
-  // ── MODE viz ────────────────────────────────────────────────────────
+  // ── MODE viz — FLAT: два круга, флип default→silent ─────────────────
   const modeViz       = createRef<Node>();
   const modeTopCircle = createRef<Circle>();
   const modeBotCircle = createRef<Circle>();
   const modeLoudTxt   = createRef<Txt>();
   const modeSilentTxt = createRef<Txt>();
   {
+    const DIMTXT = 'rgba(244,241,235,0.42)';
     view.add(
       <Node ref={modeViz} x={VIZ_X} y={VIZ_Y} opacity={0}>
-        {/* Left — active by default (orange filled) */}
-        <Circle
-          ref={modeTopCircle}
-          x={-130}
-          y={-70}
-          width={120}
-          height={120}
-          fill={'#FF9F43'}
-        />
-        <Txt
-          ref={modeLoudTxt}
-          x={-130}
-          y={22}
-          text={'default'}
-          fontFamily={Fonts.code}
-          fontSize={20}
-          letterSpacing={2}
-          fill={'#FF9F43'}
-        />
-
-        {/* Right — inactive by default (lilac outline) */}
-        <Circle
-          ref={modeBotCircle}
-          x={70}
-          y={-70}
-          width={120}
-          height={120}
-          fill={'rgba(201, 176, 232, 0)'}
-          stroke={'rgba(201, 176, 232, 0.45)'}
-          lineWidth={3}
-        />
-        <Txt
-          ref={modeSilentTxt}
-          x={70}
-          y={22}
-          text={'silent'}
-          fontFamily={Fonts.code}
-          fontSize={20}
-          letterSpacing={2}
-          fill={'rgba(201, 176, 232, 0.45)'}
-        />
+        {vizScrim()}
+        {/* default — активен по умолчанию (blue) */}
+        <Circle ref={modeTopCircle} x={-96} y={-16} width={84} height={84} fill={Canon.param} />
+        <Txt ref={modeLoudTxt} x={-96} y={50} text={'default'} fontFamily={Fonts.code} fontSize={18} letterSpacing={1} fill={Canon.param} />
+        {/* silent — выключен */}
+        <Circle ref={modeBotCircle} x={96} y={-16} width={84} height={84} fill={VIZ_DIM} />
+        <Txt ref={modeSilentTxt} x={96} y={50} text={'silent'} fontFamily={Fonts.code} fontSize={18} letterSpacing={1} fill={DIMTXT} />
       </Node>,
     );
   }
 
-  // ── SHORTCUT viz ────────────────────────────────────────────────────
+  // ── SHORTCUT viz — FLAT: пайплайн-бары, validate обходят ────────────
   const shortcutViz = createRef<Node>();
   const scCells: Rect[] = [];
   const scTexts: Txt[]  = [];
   {
+    const BAR_W = 210, BAR_H = 44, GAP = 14;
+    const barY = (i: number): number => (i - 1.5) * (BAR_H + GAP);   // -87,-29,29,87
+    const LABELS = ['input', 'validate', 'process', 'finalize'];
+    const FILL   = [Canon.param, Canon.methodDef, VIZ_DIM, Canon.constant];
+    const TXTCOL = ['#0B0C10', '#0B0C10', '#F4F1EB', '#0B0C10'];
     view.add(
       <Node ref={shortcutViz} x={VIZ_X} y={VIZ_Y} opacity={0}>
-        {STEPS.map((s, i) => (
-          <Rect
-            ref={makeRef(scCells, i)}
-            x={0}
-            y={cellY(i)}
-            width={SC_STEP_W}
-            height={SC_STEP_H}
-            fill={SC_FILLS[i]}
-            stroke={SC_COLOURS[i]}
-            lineWidth={3}
-            radius={6}
-          />
+        {vizScrim()}
+        {LABELS.map((s, i) => (
+          <Rect ref={makeRef(scCells, i)} x={0} y={barY(i)} width={BAR_W} height={BAR_H} radius={6} fill={FILL[i]} />
         ))}
-        {STEPS.map((s, i) => (
-          <Txt
-            ref={makeRef(scTexts, i)}
-            x={0}
-            y={cellY(i)}
-            text={s}
-            fontFamily={Fonts.code}
-            fontSize={20}
-            letterSpacing={2}
-            fill={SC_COLOURS[i]}
-            fontWeight={600}
-          />
+        {LABELS.map((s, i) => (
+          <Txt ref={makeRef(scTexts, i)} x={0} y={barY(i)} text={s} fontFamily={Fonts.code} fontSize={18} letterSpacing={1} fontWeight={600} fill={TXTCOL[i]} />
         ))}
       </Node>,
     );
   }
 
-  // ── SAFETY viz ──────────────────────────────────────────────────────
-  const safetyViz   = createRef<Node>();
+  // ── SAFETY viz — FLAT: строки-бары, Bob сохранён (тил) → стёрт ───────
+  const safetyViz    = createRef<Node>();
   const safetyArgTxt = createRef<Txt>();
   const safetyValTxt = createRef<Txt>();
-  const sRowFill    = createRef<Rect>();
-  const sBobRow     = createRef<Node>();
-  const sBobDate    = createRef<Txt>();
+  const sBob         = createRef<Rect>();
+  const sBobRow      = createRef<Node>();
+  const sBobDate     = createRef<Txt>();
   {
-    const HDR_Y   = -90;
-    const ROW_GAP = 48;
-    const COL_X   = [-160, -50, 100];
-    const TABLE_W = 420;
-    const TABLE_H = 280;
-    const ROW_W   = TABLE_W - 16;
-    const ROW_H   = 40;
-    const FONT_SZ = 20;
-    const INK     = '#F4F1EB';
-    const SUBTLE  = 'rgba(244, 241, 235, 0.65)';
+    const BAR_W = 300, BAR_H = 44, GAP = 16;
+    const rowY = (i: number): number => (i - 1) * (BAR_H + GAP);   // -60, 0, 60
+    const NAME_X = -BAR_W / 2 + 18;
+    const ST_X   = BAR_W / 2 - 18;
+    const INK    = '#F4F1EB';
+    const SUBTLE = 'rgba(244,241,235,0.50)';
+    const row = (i: number, id: string, nm: string) => (
+      <>
+        <Rect x={0} y={rowY(i)} width={BAR_W} height={BAR_H} radius={6} fill={VIZ_DIM} />
+        <Txt x={NAME_X} y={rowY(i)} offset={[-1, 0]} text={nm} fontFamily={Fonts.code} fontSize={19} fill={INK} />
+        <Txt x={ST_X} y={rowY(i)} offset={[1, 0]} text={'—'} fontFamily={Fonts.code} fontSize={17} fill={SUBTLE} />
+      </>
+    );
     view.add(
       <Node ref={safetyViz} x={VIZ_X} y={VIZ_Y} opacity={0}>
-        {/* Argument label — centred BELOW the table */}
-        <Txt
-          ref={safetyArgTxt}
-          x={-75}
-          y={TABLE_H / 2 + 36}
-          offset={[-1, 0]}
-          text={'soft = '}
-          fontFamily={Fonts.code}
-          fontSize={22}
-          letterSpacing={1}
-          fill={PARAM_DARK}
-        />
-        <Txt
-          ref={safetyValTxt}
-          x={-75 + 100}
-          y={TABLE_H / 2 + 36}
-          offset={[-1, 0]}
-          text={'true'}
-          fontFamily={Fonts.code}
-          fontSize={22}
-          letterSpacing={1}
-          fill={PARAM_DARK}
-        />
-        {/* Outer table border */}
-        <Rect
-          width={TABLE_W}
-          height={TABLE_H}
-          stroke={'rgba(244, 241, 235, 0.75)'}
-          lineWidth={3}
-          radius={6}
-          fill={'rgba(244, 241, 235, 0.06)'}
-        />
-        {/* Header row */}
-        <Txt x={COL_X[0]} y={HDR_Y} text={'id'}         fontFamily={Fonts.code} fontSize={FONT_SZ} fill={SUBTLE} fontWeight={600} letterSpacing={1} />
-        <Txt x={COL_X[1]} y={HDR_Y} text={'name'}       fontFamily={Fonts.code} fontSize={FONT_SZ} fill={SUBTLE} fontWeight={600} letterSpacing={1} />
-        <Txt x={COL_X[2]} y={HDR_Y} text={'deleted_at'} fontFamily={Fonts.code} fontSize={FONT_SZ} fill={SUBTLE} fontWeight={600} letterSpacing={1} />
-        <Line
-          points={[[-ROW_W / 2, HDR_Y + 26], [ROW_W / 2, HDR_Y + 26]]}
-          stroke={'rgba(244, 241, 235, 0.55)'}
-          lineWidth={2}
-        />
-
-        {/* Row 1 — Alice */}
-        <Txt x={COL_X[0]} y={HDR_Y +     ROW_GAP} text={'1'}     fontFamily={Fonts.code} fontSize={FONT_SZ} fill={INK} />
-        <Txt x={COL_X[1]} y={HDR_Y +     ROW_GAP} text={'Alice'} fontFamily={Fonts.code} fontSize={FONT_SZ} fill={INK} />
-        <Txt x={COL_X[2]} y={HDR_Y +     ROW_GAP} text={'—'}     fontFamily={Fonts.code} fontSize={FONT_SZ} fill={SUBTLE} />
-
-        {/* Row 2 — Bob (target) */}
+        {vizScrim()}
+        {row(0, '1', 'Alice')}
+        {/* Bob — цель */}
         <Node ref={sBobRow}>
-          <Rect ref={sRowFill} x={0} y={HDR_Y + 2 * ROW_GAP} width={ROW_W} height={ROW_H} fill={'rgba(255, 140, 163, 0.10)'} radius={6} />
-          <Txt              x={COL_X[0]} y={HDR_Y + 2 * ROW_GAP} text={'2'}   fontFamily={Fonts.code} fontSize={FONT_SZ} fill={INK} />
-          <Txt              x={COL_X[1]} y={HDR_Y + 2 * ROW_GAP} text={'Bob'} fontFamily={Fonts.code} fontSize={FONT_SZ} fill={INK} />
-          <Txt ref={sBobDate} x={COL_X[2]} y={HDR_Y + 2 * ROW_GAP} text={'—'} fontFamily={Fonts.code} fontSize={FONT_SZ} fill={SUBTLE} />
+          <Rect ref={sBob} x={0} y={rowY(1)} width={BAR_W} height={BAR_H} radius={6} fill={VIZ_DIM} />
+          <Txt x={NAME_X} y={rowY(1)} offset={[-1, 0]} text={'Bob'} fontFamily={Fonts.code} fontSize={19} fill={INK} />
+          <Txt ref={sBobDate} x={ST_X} y={rowY(1)} offset={[1, 0]} text={'—'} fontFamily={Fonts.code} fontSize={17} fill={SUBTLE} />
         </Node>
-
-        {/* Row 3 — Carol */}
-        <Txt x={COL_X[0]} y={HDR_Y + 3 * ROW_GAP} text={'3'}     fontFamily={Fonts.code} fontSize={FONT_SZ} fill={INK} />
-        <Txt x={COL_X[1]} y={HDR_Y + 3 * ROW_GAP} text={'Carol'} fontFamily={Fonts.code} fontSize={FONT_SZ} fill={INK} />
-        <Txt x={COL_X[2]} y={HDR_Y + 3 * ROW_GAP} text={'—'}     fontFamily={Fonts.code} fontSize={FONT_SZ} fill={SUBTLE} />
+        {row(2, '3', 'Carol')}
+        {/* soft = true — центрировано под таблицей (x=0) */}
+        <Layout layout direction={'row'} alignItems={'center'} gap={8} x={0} y={rowY(2) + 58}>
+          <Txt ref={safetyArgTxt} text={'soft ='} fontFamily={Fonts.code} fontSize={21} letterSpacing={1} fill={Canon.param} />
+          <Txt ref={safetyValTxt} text={'true'} fontFamily={Fonts.code} fontSize={21} letterSpacing={1} fill={Canon.param} />
+        </Layout>
       </Node>,
     );
   }
 
-  // ── POOR MODEL viz — six-node campaign lifecycle ───────────────────
+  // ── POOR MODEL viz — FLAT: 6 состояний-квадратов (булев их не описывает) ──
   const poorViz = createRef<Node>();
   const poorNodes:  Rect[] = [];
   const poorLabels: Txt[]  = [];
-  const poorLinks:  Line[] = [];
+  const poorLinks:  Line[] = [];   // FLAT — без связей
   {
-    const labelX = (p: [number, number, string, string]): number =>
-      p[3] === 'below' ? p[0] : p[0] + POOR_NODE_R + 14;
-    const labelY = (p: [number, number, string, string]): number =>
-      p[3] === 'below' ? p[1] + POOR_NODE_R + 22 : p[1];
-    const labelOffset = (p: [number, number, string, string]): [number, number] =>
-      p[3] === 'below' ? [0, 0] : [-1, 0];
+    const POS: [number, number][] = [
+      [-120, -64], [0, -64], [120, -64],   // draft, scheduled, running
+      [-120, 60], [0, 60], [120, 60],       // paused, completed, archived
+    ];
+    const FILL = [VIZ_DIM, VIZ_DIM, Canon.param, VIZ_DIM, Canon.constant, VIZ_DIM];
+    const SQ = 66;
     view.add(
       <Node ref={poorViz} x={VIZ_X} y={VIZ_Y} opacity={0}>
-        {poorEdges.map(([a, b], i) => (
-          <Line
-            ref={makeRef(poorLinks, i)}
-            points={[
-              [poorPositions[a][0], poorPositions[a][1] + POOR_NODE_R],
-              [poorPositions[b][0], poorPositions[b][1] - POOR_NODE_R],
-            ]}
-            stroke={'rgba(244, 241, 235, 0.32)'}
-            lineWidth={3}
-            opacity={0}
-            end={0}
-          />
+        {vizScrim()}
+        {POS.map((p, i) => (
+          <Rect ref={makeRef(poorNodes, i)} x={p[0]} y={p[1]} width={SQ} height={SQ} radius={8} fill={FILL[i]} opacity={0} />
         ))}
-        {poorPositions.map((p, i) => (
-          <Rect
-            ref={makeRef(poorNodes, i)}
-            x={p[0]}
-            y={p[1]}
-            width={POOR_NODE_R * 2}
-            height={POOR_NODE_R * 2}
-            stroke={p[2]}
-            lineWidth={3}
-            radius={6}
-            opacity={0}
-          />
-        ))}
-        {poorPositions.map((p, i) => (
-          <Txt
-            ref={makeRef(poorLabels, i)}
-            x={labelX(p)}
-            y={labelY(p)}
-            offset={labelOffset(p)}
-            text={poorStateLabels[i]}
-            fontFamily={Fonts.code}
-            fontSize={18}
-            letterSpacing={1}
-            fill={p[2]}
-            opacity={0}
-          />
+        {POS.map((p, i) => (
+          <Txt ref={makeRef(poorLabels, i)} x={p[0]} y={p[1] + SQ / 2 + 17} text={poorStateLabels[i]} fontFamily={Fonts.code} fontSize={14} letterSpacing={1} fill={'rgba(244,241,235,0.6)'} opacity={0} />
         ))}
       </Node>,
     );
@@ -1621,63 +1477,61 @@ export function createFiveFacesStage(view: View2D) {
   function* permissionDriver(): ThreadGenerator {
     yield* waitFor(0.3);
     yield* permRequestLabel().opacity(0, 0.25, easeInOutSine);
-    yield* permRequest().position.y(-82, 0.5, easeInOutCubic);
-    yield* permRequest().fill('#E63946', 0.32, easeInOutSine);
-    yield* waitFor(0.8);
+    yield* permRequest().position.y(-44, 0.5, easeInOutCubic);   // спускается к гейту
+    yield* waitFor(0.6);
+    // overwrite = true: гейт открывается
     yield* all(
       permBarrier().scale.x(0, 0.4, easeInOutCubic),
       permBarrier().opacity(0, 0.4),
     );
-    yield* permRequest().fill('rgba(100, 180, 255, 0.85)', 0.25, easeInOutSine);
-    yield* permRequest().position.y(100, 0.55, easeInOutCubic);
+    yield* permRequest().position.y(130, 0.55, easeInOutCubic);   // проходит к цели
     yield* all(
-      permTarget().fill('rgba(134, 176, 122, 0.92)', 0.35, easeInOutSine),
+      permTarget().fill('rgba(162,205,214,0.30)', 0.35, easeInOutSine),   // цель зажигается (тил)
       permRequest().opacity(0, 0.35, easeInOutSine),
     );
   }
 
   function* modeDriver(): ThreadGenerator {
     yield* waitFor(0.4);
+    // флип default→silent: активный круг всегда blue
     yield* all(
-      modeTopCircle().fill('rgba(255, 159, 67, 0)', 0.5, easeInOutSine),
-      modeTopCircle().stroke('rgba(255, 159, 67, 0.45)', 0.5, easeInOutSine),
-      modeTopCircle().lineWidth(4, 0.5, easeInOutSine),
-      modeBotCircle().fill('#C9B0E8', 0.5, easeInOutSine),
-      modeBotCircle().stroke('rgba(201, 176, 232, 0)', 0.5, easeInOutSine),
-      modeLoudTxt().fill('rgba(255, 159, 67, 0.45)', 0.5, easeInOutSine),
-      modeSilentTxt().fill('#C9B0E8', 0.5, easeInOutSine),
+      modeTopCircle().fill(VIZ_DIM, 0.5, easeInOutSine),
+      modeBotCircle().fill(Canon.param, 0.5, easeInOutSine),
+      modeLoudTxt().fill('rgba(244,241,235,0.42)', 0.5, easeInOutSine),
+      modeSilentTxt().fill(Canon.param, 0.5, easeInOutSine),
     );
   }
 
   function* shortcutDriver(): ThreadGenerator {
     yield* waitFor(0.35);
+    const COLLAPSE = 58;
+    // validate обходят — уезжает вправо и гаснет
     yield* all(
       scCells[1].position.x(220, 0.45, easeInOutCubic),
       scCells[1].opacity(0, 0.45, easeInOutSine),
       scTexts[1].position.x(220, 0.45, easeInOutCubic),
       scTexts[1].opacity(0, 0.45, easeInOutSine),
     );
-    const collapseDist = SC_STEP_H + SC_GAP;
+    // process, finalize схлопываются вверх
     yield* all(
-      scCells[2].position.y(cellY(2) - collapseDist, 0.55, easeInOutCubic),
-      scTexts[2].position.y(cellY(2) - collapseDist, 0.55, easeInOutCubic),
-      scCells[3].position.y(cellY(3) - collapseDist, 0.55, easeInOutCubic),
-      scTexts[3].position.y(cellY(3) - collapseDist, 0.55, easeInOutCubic),
+      scCells[2].position.y(scCells[2].position.y() - COLLAPSE, 0.55, easeInOutCubic),
+      scTexts[2].position.y(scTexts[2].position.y() - COLLAPSE, 0.55, easeInOutCubic),
+      scCells[3].position.y(scCells[3].position.y() - COLLAPSE, 0.55, easeInOutCubic),
+      scTexts[3].position.y(scTexts[3].position.y() - COLLAPSE, 0.55, easeInOutCubic),
     );
   }
 
   function* safetyDriver(): ThreadGenerator {
     yield* waitFor(0.35);
-    yield* sRowFill().fill('rgba(255, 140, 163, 0.22)', 0.3, easeInOutSine);
-    yield* waitFor(0.3);
-    yield* sBobDate().text('2026-05-16', 0.55);
-    yield* sBobDate().fill('#86B07A', 0.001);
+    // soft = true: Bob сохранён — бар тинтуется в тил, появляется дата
+    yield* sBob().fill('rgba(162,205,214,0.22)', 0.35, easeInOutSine);
     yield* waitFor(0.25);
-    yield* all(
-      sRowFill().fill('rgba(244, 241, 235, 0.05)', 0.5, easeInOutSine),
-      sBobRow().opacity(0.45, 0.5, easeInOutSine),
-    );
+    yield* sBobDate().text('2026-05-16', 0.5);
+    yield* sBobDate().fill(Canon.constant, 0.001);
+    yield* waitFor(0.3);
+    yield* sBobRow().opacity(0.5, 0.5, easeInOutSine);
     yield* waitFor(1.5);
+    // flip на false: hard delete — строка стирается
     yield* all(
       safetyValTxt().text('false', 0.5),
       safetyValTxt().fill(METHOD_COLOR, 0.5, easeInOutSine),
@@ -1688,20 +1542,13 @@ export function createFiveFacesStage(view: View2D) {
 
   function* poorDriver(): ThreadGenerator {
     yield* waitFor(0.25);
-    yield* all(
-      poorNodes[0].opacity(1, 0.32, easeInOutSine),
-      poorLabels[0].opacity(0.95, 0.32, easeInOutSine),
-    );
-    for (let k = 0; k < poorEdges.length; k++) {
-      const child = poorEdges[k][1];
+    // 6 состояний проявляются по очереди — булев их не описывает
+    for (let i = 0; i < poorNodes.length; i++) {
       yield* all(
-        poorLinks[k].opacity(1, 0.14),
-        poorLinks[k].end(1, 0.24, easeOutCubic),
+        poorNodes[i].opacity(1, 0.24, easeInOutSine),
+        poorLabels[i].opacity(1, 0.24, easeInOutSine),
       );
-      yield* all(
-        poorNodes[child].opacity(1, 0.24, easeInOutSine),
-        poorLabels[child].opacity(0.95, 0.26, easeInOutSine),
-      );
+      yield* waitFor(0.05);
     }
   }
 
@@ -1782,7 +1629,7 @@ export function createFiveFacesStage(view: View2D) {
     safetyViz,
     safetyArgTxt,
     safetyValTxt,
-    sRowFill,
+    sBob,
     sBobRow,
     sBobDate,
     poorViz,

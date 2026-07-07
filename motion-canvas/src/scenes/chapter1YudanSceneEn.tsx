@@ -25,6 +25,8 @@ const QUOTE_BEIGE = 'rgba(232, 207, 174, 0.96)';
 const MUTED       = 'rgba(244, 241, 235, 0.6)';
 const PARAM_LIGHT = 'rgba(244, 241, 235, 0.92)';
 const TYPE_CLEAN  = 'rgba(220, 215, 255, 0.85)';
+// Epigraph colour — light beige, same as the opening phrases (t1/t2).
+const EPIGRAPH_COL = QUOTE_BEIGE;
 
 // ── Code signatures ─────────────────────────────────────────────────────
 const SIG_ONE   = `fun save(file: File, data: Data, overwrite: Boolean = false)`;
@@ -525,35 +527,6 @@ export default makeScene2D(function* (view) {
     for (const c of s.children) shiftSubtree(c, SIBLING_DROOP);
   }
 
-  // ── The lone "capillary" branch — make it read woodier ─────────────────
-  // The branch that droops LOWEST off the beat-1 fork and only comes into
-  // frame as the camera starts pulling back (it lives in restGroup) read
-  // like a blood vessel, not a branch: too thin, too smooth, uniform taper.
-  // Pick the sibling subtree reaching FURTHEST DOWN (max local y) and later
-  // render just it thicker + with irregular woody edges. Everything else is
-  // left exactly as-is.
-  const capillarySet = new Set<Branch>();
-  {
-    const subtreeMaxY = (b: Branch): number => {
-      let m = Math.max(b.start.y, b.end.y, b.ctrl1.y, b.ctrl2.y);
-      for (const c of b.children) m = Math.max(m, subtreeMaxY(c));
-      return m;
-    };
-    let pick: Branch | null = null;
-    let lowest = -Infinity;
-    for (const s of beat1Siblings) {
-      const y = subtreeMaxY(s);
-      if (y > lowest) { lowest = y; pick = s; }
-    }
-    if (pick) {
-      const paint = (b: Branch) => {
-        capillarySet.add(b);
-        for (const c of b.children) paint(c);
-      };
-      paint(pick);
-    }
-  }
-
   // Branches that descend from beat-1 LEAVES are excluded from rendering
   // entirely — that way the camera pull-back doesn't sprout extra twigs
   // out of the visible fork-tips. The big tree continues to grow ELSEWHERE
@@ -580,15 +553,11 @@ export default makeScene2D(function* (view) {
     if (skipFromBigTree.has(b)) continue;   // descendants of beat-1 leaves
     const target = beat1Set.has(b) ? beat1Group() : restGroup();
     const lumpAmt = b.depth === 0 ? TRUNK_LUMP_BOOST : (b.depth === 1 ? 1.0 : 0.4);
-    // Capillary arm: thicker (wScale) + woody irregular edges (lumpMain).
-    const isCapillary = capillarySet.has(b);
-    const wScale = isCapillary ? 2.1 : 1.0;
-    const lumpMain = isCapillary ? 1.7 : lumpAmt;
     target.add(
       <Line
         points={() => strokeShape(
           b.start, b.end, b.ctrl1, b.ctrl2, b.startW, b.endW, b.isTip, b.seed,
-          b.grow(), wScale, 0.5, lumpMain,
+          b.grow(), 1.0, 0.5, lumpAmt,
         )}
         closed
         fill={DROP_SHADOW}
@@ -604,7 +573,7 @@ export default makeScene2D(function* (view) {
       <Line
         points={() => strokeShape(
           b.start, b.end, b.ctrl1, b.ctrl2, b.startW, b.endW, b.isTip, b.seed,
-          b.grow(), wScale, 0.5, lumpMain,
+          b.grow(), 1.0, 0.5, lumpAmt,
         )}
         closed
         fill={TREE_FILL}
@@ -617,7 +586,7 @@ export default makeScene2D(function* (view) {
       <Line
         points={() => strokeShape(
           b.start, b.end, b.ctrl1, b.ctrl2, b.startW, b.endW, b.isTip, b.seed,
-          b.grow(), 0.32 * wScale, 0.95, lumpMain * 0.4,
+          b.grow(), 0.32, 0.95, lumpAmt * 0.4,
         )}
         closed
         fill={HILITE_FILL}
@@ -959,35 +928,20 @@ export default makeScene2D(function* (view) {
   // the right. No discrete pan-then-zoom: position and scale animate
   // together with one ease curve so the move reads as a single sweep.
   // ═══════════════════════════════════════════════════════════════════════
-  // Epigraph — set in the chapter-title face (Space Grotesk), a distinct
-  // "title" register apart from the code mono. One warm voice, no colour
-  // tricks: the turn is carried by the italic second line — contrast by
-  // style, not hue.
+  // Epigraph — one compact line, warm beige (Space Grotesk), sitting at the
+  // vertical centre of the right-hand negative space.
   const inscriptionRef = createRef<Node>();
   view.add(
-    <Node ref={inscriptionRef} x={532} y={-6} opacity={0}>
+    <Node ref={inscriptionRef} x={520} y={0} opacity={0}>
       <Txt
-        y={-40}
         fontFamily={Fonts.primary}
-        fontSize={58}
+        fontSize={40}
         fontWeight={400}
         letterSpacing={0.5}
         textAlign={'center'}
-        fill={WARM_CREAM}
+        fill={EPIGRAPH_COL}
       >
-        A Boolean is never
-      </Txt>
-      <Txt
-        y={40}
-        fontFamily={Fonts.primary}
-        fontSize={58}
-        fontWeight={400}
-        fontStyle={'italic'}
-        letterSpacing={0.5}
-        textAlign={'center'}
-        fill={WARM_CREAM}
-      >
-        just a Boolean
+        A Boolean is never just a Boolean
       </Txt>
     </Node>,
   );
@@ -1033,7 +987,7 @@ export default makeScene2D(function* (view) {
   );
 
   // ═══════════════════════════════════════════════════════════════════════
-  // PHASE 3 — chapter title YŪDAN.
+  // PHASE 3 — chapter title FACES.
   // ═══════════════════════════════════════════════════════════════════════
   yield* all(
     treeGroup().opacity(0, 1.4, easeInOutCubic),
@@ -1057,19 +1011,21 @@ export default makeScene2D(function* (view) {
         letterSpacing={12}
         fill={MUTED}
         textAlign={'center'}
-        x={0}
+        // +letterSpacing/2: cancel the trailing letter-space so the block
+        // sits on the true frame centre, not ~6px left of it.
+        x={6}
         y={-58}
       />
       <Txt
         ref={titleRef}
-        text={'YŪDAN'}
+        text={'FACES'}
         fontFamily={Fonts.primary}
         fontWeight={700}
         fontSize={96}
         letterSpacing={12}
         fill={WARM_CREAM}
         textAlign={'center'}
-        x={0}
+        x={6}
         y={48}
       />
     </Node>,

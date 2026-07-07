@@ -1,27 +1,19 @@
 import {makeScene2D, Rect, Gradient} from '@motion-canvas/2d';
 import {waitFor, Vector2} from '@motion-canvas/core';
-import {Manticore, ColorRule} from '../core/code/components/Manticore';
-import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
+import {Manticore} from '../core/code/components/Manticore';
 import {getCodePaddingX} from '../core/code/shared/TextMeasure';
 import {Fonts} from '../core/theme';
-import {CODE_RULES, TRANSPARENT_CARD} from './fiveFacesBooleanV2Setup';
+import {TRANSPARENT_CARD} from './fiveFacesBooleanV2Setup';
+import {
+  CanonBg,
+  CanonCodeTheme,
+  buildCanonRules,
+  paintCanonParams,
+  paintCanonMethodCalls,
+} from '../core/code/model/paletteCanon';
 
-// ── PALETTE LAB · выбранный костяк, крупно ────────────────────────────
-// Фон поднятый графит; типы освежены ~5%; поля (котлин-дефолты) свежие;
-// константы — воздушный тил (BL); методы — продакшн rose (тон вызовов ещё
-// не зафиксирован).
-
-const BG_FROM = '#15161A';
-const BG_TO   = '#1C1E24';
-
-const FIX_TYPE  = 'rgba(205,198,250,0.90)';  // тип, освежён ~5%
-const FIX_PARAM = '#85B0DC';                 // поля-аргументы (fee =), свежие
-const FIX_CONST = '#A2CDD6';                 // константы — воздушный тил (BL)
-const CALL_TONE = '#FFAEC0';                 // вызовы — чистый пастельный роуз (тинт К БЕЛОМУ, не к серому)
-const NUM_COLOR = '#A3CDFF';                 // числа — как ключевые слова
-const STRING_FRESH = '#94C086';              // строки, освежены ~10% (чище/светлее, меньше оливы)
-
-const METHODS = new Set(['place', 'charge', 'save', 'require']);
+// ── PALETTE LAB · эталон из paletteCanon (дог-фуд) ────────────────────
+// Сцена теперь НЕ хардкодит цвета — всё из канон-модуля. Служит референсом.
 
 const SAMPLE = `@Service
 class OrderService(
@@ -48,52 +40,7 @@ const SAMPLE_TYPES = [
   'Service', 'OrderService', 'OrderRepository', 'PaymentGateway',
   'Order', 'Boolean', 'Result', 'Placed', 'OrderStatus',
 ];
-
-const RULES: ColorRule[] = [
-  ...CODE_RULES,
-  {match: /^[A-Z][a-zA-Z0-9]*$/, color: FIX_TYPE, onlyTypes: ['type'] as const},
-  {match: new RegExp('^(' + SAMPLE_TYPES.join('|') + ')$'), color: FIX_TYPE},
-  {match: /^[A-Z][A-Z0-9_]+$/, color: FIX_CONST},
-  {match: /./, color: NUM_COLOR, onlyTypes: ['number'] as const},     // числа = ключевые
-  {match: /./, color: STRING_FRESH, onlyTypes: ['string'] as const},  // строки освежены
-];
-
-const prevNonSpace = (toks: any[], i: number): string => {
-  let p = i - 1;
-  while (p >= 0 && toks[p].text.trim() === '') p--;
-  return p >= 0 ? toks[p].text.trim() : '';
-};
-
-const paintParams = (mc: Manticore): void => {
-  for (let li = 0; li < mc.lineCount; li++) {
-    const line = mc.getLine(li);
-    if (!line) continue;
-    const toks = line.tokens;
-    for (let i = 0; i < toks.length; i++) {
-      if (!/^[a-z][a-zA-Z0-9_]*$/.test(toks[i].text.trim())) continue;
-      let n = i + 1;
-      while (n < toks.length && toks[n].text.trim() === '') n++;
-      if (n >= toks.length || toks[n].text.trim() !== '=') continue;
-      const prev = prevNonSpace(toks, i);
-      if (prev === 'val' || prev === 'var') continue;
-      toks[i].ref().fill(FIX_PARAM);
-    }
-  }
-};
-
-// Вызовы метода → CALL_TONE; определение (после `fun`) остаётся rose.
-const paintCalls = (mc: Manticore): void => {
-  for (let li = 0; li < mc.lineCount; li++) {
-    const line = mc.getLine(li);
-    if (!line) continue;
-    const toks = line.tokens;
-    for (let i = 0; i < toks.length; i++) {
-      if (!METHODS.has(toks[i].text.trim())) continue;
-      if (prevNonSpace(toks, i) === 'fun') continue;   // определение — не трогаем
-      toks[i].ref().fill(CALL_TONE);
-    }
-  }
-};
+const SAMPLE_METHODS = ['place', 'charge', 'save', 'require'];
 
 const FS = 24;
 const LH = 34;
@@ -106,7 +53,7 @@ export default makeScene2D(function* (view) {
         type: 'linear',
         from: new Vector2(0, -540),
         to: new Vector2(0, 540),
-        stops: [{offset: 0, color: BG_FROM}, {offset: 1, color: BG_TO}],
+        stops: [{offset: 0, color: CanonBg.from}, {offset: 1, color: CanonBg.to}],
       })}
     />,
   );
@@ -115,15 +62,15 @@ export default makeScene2D(function* (view) {
     x: -504, y: 0,
     width: getCodePaddingX(FS) * 2,
     fontSize: FS, lineHeight: LH,
-    fontFamily: Fonts.code, theme: DryFiltersV3CodeTheme,
+    fontFamily: Fonts.code, theme: CanonCodeTheme,
     noClip: true, cardStyle: TRANSPARENT_CARD, glowAccent: false,
     customTypes: SAMPLE_TYPES,
   });
   mc.mount(view);
   mc.node.opacity(1);
-  mc.colorize(RULES);
-  paintParams(mc);
-  paintCalls(mc);
+  mc.colorize(buildCanonRules({types: SAMPLE_TYPES, methods: SAMPLE_METHODS}));
+  paintCanonParams(mc);
+  paintCanonMethodCalls(mc);
 
   yield* waitFor(2);
 });

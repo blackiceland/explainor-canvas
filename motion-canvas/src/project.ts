@@ -9,6 +9,7 @@ import fiveFacesPermissionSceneRuV2 from "./scenes/fiveFacesPermissionSceneRuV2?
 import fiveFacesModeSceneRuV2 from "./scenes/fiveFacesModeSceneRuV2?scene";
 import fiveFacesSafetySceneRuV2 from "./scenes/fiveFacesSafetySceneRuV2?scene";
 import paletteLabSceneRu from "./scenes/paletteLabSceneRu?scene";
+import unifiedFacesVizSceneRu from "./scenes/unifiedFacesVizSceneRu?scene";
 // import booleanDecisionsSceneRu from "./scenes/booleanDecisionsSceneRu?scene";  // отложена — не подошла
 import flagTimelapseSceneRu from "./scenes/flagTimelapseSceneRu?scene";
 import flagGateChainSceneRu from "./scenes/flagGateChainSceneRu?scene";
@@ -156,16 +157,19 @@ export default makeProject({
         // fiveFacesBooleanSceneRuV2,
 
         // 01
-        // fiveFacesPermissionSceneRuV2,
+         fiveFacesPermissionSceneRuV2,
 
         // 02
-        // fiveFacesModeSceneRuV2,
+         fiveFacesModeSceneRuV2,
 
         // 03
          fiveFacesSafetySceneRuV2,
 
         // ЛАБОРАТОРИЯ ПАЛИТРЫ — сравнение цветовых систем (эксперимент)
          paletteLabSceneRu,
+
+        // УНИФИЦИРОВАННЫЙ ВИД 5 лиц — одна диаграммная грамматика
+        //  unifiedFacesVizSceneRu,
 
         // ПАУЗА между лицами — статичный флаг, код таймлапсом вокруг
         // flagTimelapseSceneRu,
@@ -192,8 +196,8 @@ export default makeProject({
         flagYudanTimelapseSceneRu,
 
         // 04
-        // fiveFacesShortcutSceneRuV2,
-        // fiveFacesPoorModelSceneRuV2,
+         fiveFacesShortcutSceneRuV2,
+         fiveFacesPoorModelSceneRuV2,
         // fiveFacesFinaleSceneRuV2,
 
 
