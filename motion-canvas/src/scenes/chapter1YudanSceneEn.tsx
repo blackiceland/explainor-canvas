@@ -525,6 +525,44 @@ export default makeScene2D(function* (view) {
     for (const c of s.children) shiftSubtree(c, SIBLING_DROOP);
   }
 
+  // ── The lone "capillary" arm — make it read woodier ────────────────────
+  // The thin arm that droops LEFT off the beat-1 sub-tree's first fork read
+  // like a blood vessel, not a branch: too thin, too smooth, uniform taper.
+  // Select ONLY that arm's subtree (the first-fork child reaching furthest
+  // LEFT) and later render it thicker + with irregular woody edges. Every
+  // other branch is left exactly as-is.
+  const capillarySet = new Set<Branch>();
+  {
+    const beat1Child = (b: Branch) => b.children.filter(c => beat1Set.has(c));
+    let firstFork: Branch | null = null;
+    const queue: Branch[] = [beat1Tree];
+    while (queue.length) {
+      const x = queue.shift()!;
+      if (beat1Child(x).length >= 2) { firstFork = x; break; }
+      queue.push(...beat1Child(x));
+    }
+    if (firstFork) {
+      const leftmostX = (b: Branch): number => {
+        let m = Math.min(b.start.x, b.end.x, b.ctrl1.x, b.ctrl2.x);
+        for (const c of beat1Child(b)) m = Math.min(m, leftmostX(c));
+        return m;
+      };
+      let pick: Branch | null = null;
+      let best = Infinity;
+      for (const k of beat1Child(firstFork)) {
+        const lx = leftmostX(k);
+        if (lx < best) { best = lx; pick = k; }
+      }
+      if (pick) {
+        const paint = (b: Branch) => {
+          capillarySet.add(b);
+          for (const c of beat1Child(b)) paint(c);
+        };
+        paint(pick);
+      }
+    }
+  }
+
   // Branches that descend from beat-1 LEAVES are excluded from rendering
   // entirely — that way the camera pull-back doesn't sprout extra twigs
   // out of the visible fork-tips. The big tree continues to grow ELSEWHERE
@@ -551,11 +589,15 @@ export default makeScene2D(function* (view) {
     if (skipFromBigTree.has(b)) continue;   // descendants of beat-1 leaves
     const target = beat1Set.has(b) ? beat1Group() : restGroup();
     const lumpAmt = b.depth === 0 ? TRUNK_LUMP_BOOST : (b.depth === 1 ? 1.0 : 0.4);
+    // Capillary arm: thicker (wScale) + woody irregular edges (lumpMain).
+    const isCapillary = capillarySet.has(b);
+    const wScale = isCapillary ? 2.1 : 1.0;
+    const lumpMain = isCapillary ? 1.7 : lumpAmt;
     target.add(
       <Line
         points={() => strokeShape(
           b.start, b.end, b.ctrl1, b.ctrl2, b.startW, b.endW, b.isTip, b.seed,
-          b.grow(), 1.0, 0.5, lumpAmt,
+          b.grow(), wScale, 0.5, lumpMain,
         )}
         closed
         fill={DROP_SHADOW}
@@ -571,7 +613,7 @@ export default makeScene2D(function* (view) {
       <Line
         points={() => strokeShape(
           b.start, b.end, b.ctrl1, b.ctrl2, b.startW, b.endW, b.isTip, b.seed,
-          b.grow(), 1.0, 0.5, lumpAmt,
+          b.grow(), wScale, 0.5, lumpMain,
         )}
         closed
         fill={TREE_FILL}
@@ -584,7 +626,7 @@ export default makeScene2D(function* (view) {
       <Line
         points={() => strokeShape(
           b.start, b.end, b.ctrl1, b.ctrl2, b.startW, b.endW, b.isTip, b.seed,
-          b.grow(), 0.32, 0.95, lumpAmt * 0.4,
+          b.grow(), 0.32 * wScale, 0.95, lumpMain * 0.4,
         )}
         closed
         fill={HILITE_FILL}
@@ -926,22 +968,33 @@ export default makeScene2D(function* (view) {
   // the right. No discrete pan-then-zoom: position and scale animate
   // together with one ease curve so the move reads as a single sweep.
   // ═══════════════════════════════════════════════════════════════════════
-  const inscriptionRef = createRef<Txt>();
+  // Epigraph as a chiasmus: the two "Boolean" words carry the code's
+  // Boolean-type colour (the lavender from the signature), bracketing the
+  // human turn "is never just" — set smaller + italic so the eye lands on
+  // the twist. Contrast, not decoration.
+  const inscriptionRef = createRef<Node>();
   view.add(
-    <Txt
-      ref={inscriptionRef}
-      text={'A Boolean is never just a Boolean'}
-      x={520}
-      y={-40}
-      width={680}
-      textWrap={true}
-      textAlign={'center'}
-      fontFamily={F}
-      fontSize={QUOTE_FONT}
-      lineHeight={QUOTE_FONT + 16}
-      fill={QUOTE_BEIGE}
-      opacity={0}
-    />,
+    <Node ref={inscriptionRef} x={540} y={-24} opacity={0}>
+      <Txt y={-84} fontFamily={F} fontSize={QUOTE_FONT} textAlign={'center'}>
+        <Txt fill={QUOTE_BEIGE}>A </Txt>
+        <Txt fill={TYPE_CLEAN}>Boolean</Txt>
+      </Txt>
+      <Txt
+        y={4}
+        fontFamily={F}
+        fontSize={QUOTE_FONT - 10}
+        fontStyle={'italic'}
+        letterSpacing={1}
+        textAlign={'center'}
+        fill={MUTED}
+      >
+        is never just
+      </Txt>
+      <Txt y={88} fontFamily={F} fontSize={QUOTE_FONT} textAlign={'center'}>
+        <Txt fill={QUOTE_BEIGE}>a </Txt>
+        <Txt fill={TYPE_CLEAN}>Boolean</Txt>
+      </Txt>
+    </Node>,
   );
 
   const INV_DUR = 5.4;            // longer for cinematic pull-back

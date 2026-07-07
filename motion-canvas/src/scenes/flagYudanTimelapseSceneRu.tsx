@@ -1,45 +1,48 @@
-import {makeScene2D, Node, Txt} from '@motion-canvas/2d';
-import {all, createRef, easeInOutCubic, easeOutCubic, ThreadGenerator, waitFor} from '@motion-canvas/core';
+import {blur, makeScene2D, Node} from '@motion-canvas/2d';
+import {all, createRef, easeInCubic, easeInOutSine, easeOutCubic, linear, ThreadGenerator, waitFor} from '@motion-canvas/core';
 import {ColorRule, Manticore} from '../core/code/components/Manticore';
 import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
 import {getCodePaddingX} from '../core/code/shared/TextMeasure';
-import {textWidth} from '../core/utils/textMeasure';
 import {Fonts} from '../core/theme';
 import {applyBackground} from '../core/utils';
 
 // ─────────────────────────────────────────────────────────────────────────
-// YUDAN — the flag stayed the same; the system around it did not.
-// A big, sharp, static core in the centre (the flag's decision, unchanged).
-// Around it, ~5s of code lines riffling through years of the surrounding
-// system. The centre never moves. Everything around it keeps changing.
+// YUDAN — full-size code states passing a stationary anchor like high-speed
+// trains, with long-exposure directional trails.
+//
+// The camera is fixed. A sharp `if (fromImport) { … }` block is pinned dead
+// centre on its own layer and never moves. Around it, full-size versions of
+// register() are hurled horizontally through the frame — the old one flung
+// left, the next arriving from the right — each dragging phase-lagged ghost
+// copies behind it, so a line briefly exists in several places at once
+// (bright now + fainter earlier + faintest far trail). Nothing shrinks; the
+// only difference between the anchor and the rest is motion and sharpness.
+// The passes accelerate, then stop dead on the final overgrown method, where
+// every `fromImport` lights at once.
 // ─────────────────────────────────────────────────────────────────────────
 
-// ── Palette (matches the Yudan chapter) ────────────────────────────────────
 const VAR_LIGHT   = 'rgba(244,241,235,0.96)';
 const TYPE_LILAC  = 'rgba(201,180,255,0.82)';
 const METHOD_ROSE = '#FF8CA3';
 const CONST_LILAC = 'rgba(201,180,255,0.80)';
 const KEY_BLUE    = 'rgba(163,205,255,0.85)';
-const CHURN_INK   = 'rgba(236,230,220,1)';   // surrounding lines, opacity drives the dim
+const AMBER       = '#F6C87E';
+const AMBER_GLOW  = 'rgba(246,200,126,0.7)';
 
-const F = Fonts.code;
+const CUSTOM_TYPES = [
+  'RegisterCustomer', 'Customer', 'CustomerSource', 'CustomerStatus', 'CustomerPlan', 'Boolean', 'EmailRequired',
+];
+const METHODS = ['register', 'save', 'findByEmail', 'trim', 'lowercase', 'start', 'schedule'];
 
-// ── The static centre — the flag's decision, frozen ────────────────────────
-const HERO = `if (fromImport) {
-    source = CustomerSource.IMPORT
-}`;
-
-const HERO_FS = 48;
-const HERO_LH = 66;
-const HERO_W  = 1400;
-
-const HERO_TYPES = ['CustomerSource', 'CustomerStatus', 'CustomerPlan', 'Customer', 'RegisterCustomer', 'Boolean'];
-const HERO_RULES: ColorRule[] = [
-  {match: /^(if|else|return|throw|val|var|fun|true|false|null)$/, color: KEY_BLUE},
-  {match: new RegExp('^(' + HERO_TYPES.join('|') + ')$'), color: TYPE_LILAC},
-  {match: /^[A-Z][A-Z0-9_]+$/, color: CONST_LILAC},
+const RULES: ColorRule[] = [
   {match: /^[a-z][a-zA-Z0-9_]*$/, color: VAR_LIGHT},
+  {match: /^[A-Z][a-zA-Z0-9]*$/, color: TYPE_LILAC, onlyTypes: ['type'] as const},
+  {match: new RegExp('^(' + CUSTOM_TYPES.join('|') + ')$'), color: TYPE_LILAC},
   {match: /^[a-z][a-zA-Z0-9_]*$/, color: METHOD_ROSE, onlyTypes: ['method'] as const},
+  {match: new RegExp('^(' + METHODS.join('|') + ')$'), color: METHOD_ROSE},
+  {match: /^[A-Z][A-Z0-9_]+$/, color: CONST_LILAC},
+  {match: /^(class|object|fun|val|var|private|public|internal|return|if|else|is|in|when|for|while|throw|null|true|false)$/, color: KEY_BLUE},
+  {match: /^@\w+$/, color: KEY_BLUE},
 ];
 
 const TRANSPARENT_CARD = {
@@ -48,126 +51,357 @@ const TRANSPARENT_CARD = {
   shadowOffsetX: 0, shadowOffsetY: 0,
 } as const;
 
-// ── The churning system around it — real fragments from register()'s history.
-const POOL = [
-  'val email = command.email',
-  'email = email.trim().lowercase()',
-  'if (!fromImport && email == null) {',
-  'throw EmailRequired()',
-  'existing = customers.findByEmail(email)',
-  'if (existing != null) {',
-  'return existing',
-  'throw CustomerAlreadyExists(existing.id)',
-  'var verified = command.emailVerified',
-  'verified = true',
-  'status = CustomerStatus.ACTIVE',
-  'var plan = CustomerPlan.FREE',
-  'plan = CustomerPlan.BUSINESS',
-  'val customer = Customer(email, source)',
-  'val saved = customers.save(customer)',
-  'verification.start(saved.id)',
-  'outbox.add(CustomerRegistered(saved.id))',
-  'welcomeMessages.schedule(saved.id)',
-  'return saved',
-];
+// The pinned anchor — the flag's decision, present unchanged in every version.
+const ANCHOR = `    if (fromImport) {
+        source = CustomerSource.IMPORT`;
+const ANCHOR_LINE = '    if (fromImport) {';
 
-// One churning row: for `duration` seconds, riffle through the pool with a
-// quick fade + upward slip on each swap, speeding up as time passes.
-interface Row {
-  txt: Txt;
-  baseY: number;
-  dim: number;
-  startIdx: number;
-  stride: number;
-  phase: number;
-}
+// ── The full-size method, version by version (the trains) ──────────────────
+const V1 = `@Transactional
+fun register(command: RegisterCustomer, fromImport: Boolean): Customer {
+    var source = CustomerSource.SIGN_UP
 
-const CHURN_FS  = 27;
-const CHURN_DUR = 5.0;
+    if (fromImport) {
+        source = CustomerSource.IMPORT
+    }
 
-// Rows framing the centre — nearer rows brighter, farther rows fainter.
-const ROW_SPECS = [
-  {y: -175, dim: 0.52, startIdx: 0,  stride: 1, phase: 0.00},
-  {y: -248, dim: 0.42, startIdx: 5,  stride: 2, phase: 0.09},
-  {y: -321, dim: 0.33, startIdx: 9,  stride: 1, phase: 0.18},
-  {y: -394, dim: 0.25, startIdx: 13, stride: 3, phase: 0.27},
-  {y:  175, dim: 0.52, startIdx: 3,  stride: 2, phase: 0.05},
-  {y:  248, dim: 0.42, startIdx: 8,  stride: 1, phase: 0.14},
-  {y:  321, dim: 0.33, startIdx: 12, stride: 2, phase: 0.23},
-  {y:  394, dim: 0.25, startIdx: 16, stride: 1, phase: 0.32},
-];
+    return customers.save(
+        Customer(source)
+    )
+}`;
 
-function* churn(row: Row): ThreadGenerator {
-  yield* waitFor(row.phase);
-  let t = row.phase;
-  let k = row.startIdx;
-  while (t < CHURN_DUR) {
-    const frac = t / CHURN_DUR;
-    const interval = 0.32 - 0.16 * frac;   // riffle speeds up: 0.32 → 0.16
-    row.txt.text(POOL[((k % POOL.length) + POOL.length) % POOL.length]);
-    row.txt.opacity(0.06);
-    row.txt.position.y(row.baseY + 6);
-    yield* all(
-      row.txt.opacity(row.dim, 0.11, easeOutCubic),
-      row.txt.position.y(row.baseY, 0.13, easeOutCubic),
-    );
-    yield* waitFor(Math.max(0.03, interval - 0.13));
-    t += interval;
-    k += row.stride;
-  }
-}
+const V2 = `@Transactional
+fun register(command: RegisterCustomer, fromImport: Boolean): Customer {
+    var email = command.email
+
+    if (!fromImport && email == null) {
+        throw EmailRequired()
+    }
+
+    var source = CustomerSource.SIGN_UP
+
+    if (fromImport) {
+        source = CustomerSource.IMPORT
+    }
+
+    return customers.save(
+        Customer(email, source)
+    )
+}`;
+
+const V3 = `@Transactional
+fun register(command: RegisterCustomer, fromImport: Boolean): Customer {
+    var email = command.email
+
+    if (!fromImport && email == null) {
+        throw EmailRequired()
+    }
+
+    val existing = customers.findByEmail(email)
+
+    if (existing != null && fromImport) {
+        return existing
+    }
+
+    var source = CustomerSource.SIGN_UP
+
+    if (fromImport) {
+        source = CustomerSource.IMPORT
+    }
+
+    return customers.save(
+        Customer(email, source)
+    )
+}`;
+
+const V4 = `@Transactional
+fun register(command: RegisterCustomer, fromImport: Boolean): Customer {
+    var email = command.email
+
+    if (!fromImport && email == null) {
+        throw EmailRequired()
+    }
+
+    val existing = customers.findByEmail(email)
+
+    if (existing != null && fromImport) {
+        return existing
+    }
+
+    var source = CustomerSource.SIGN_UP
+    var status = CustomerStatus.PENDING
+    var plan = CustomerPlan.FREE
+
+    if (fromImport) {
+        source = CustomerSource.IMPORT
+        status = CustomerStatus.ACTIVE
+        plan = CustomerPlan.BUSINESS
+    }
+
+    return customers.save(
+        Customer(email, source, status, plan)
+    )
+}`;
+
+const V5 = `@Transactional
+fun register(command: RegisterCustomer, fromImport: Boolean): Customer {
+    var email = command.email
+
+    if (email != null) {
+        email = email.trim().lowercase()
+    }
+
+    if (!fromImport && email == null) {
+        throw EmailRequired()
+    }
+
+    val existing = customers.findByEmail(email)
+
+    if (existing != null && fromImport) {
+        return existing
+    }
+
+    var source = CustomerSource.SIGN_UP
+    var status = CustomerStatus.PENDING
+    var plan = CustomerPlan.FREE
+
+    if (fromImport) {
+        source = CustomerSource.IMPORT
+        status = CustomerStatus.ACTIVE
+        plan = CustomerPlan.BUSINESS
+    }
+
+    return customers.save(
+        Customer(email, source, status, plan)
+    )
+}`;
+
+const V6 = `@Transactional
+fun register(command: RegisterCustomer, fromImport: Boolean): Customer {
+    var email = command.email
+
+    if (email != null) {
+        email = email.trim().lowercase()
+    }
+
+    if (!fromImport && email == null) {
+        throw EmailRequired()
+    }
+
+    val existing = customers.findByEmail(email)
+
+    if (existing != null && fromImport) {
+        return existing
+    }
+
+    var source = CustomerSource.SIGN_UP
+    var status = CustomerStatus.PENDING
+    var plan = CustomerPlan.FREE
+
+    if (fromImport) {
+        source = CustomerSource.IMPORT
+        status = CustomerStatus.ACTIVE
+        plan = CustomerPlan.BUSINESS
+    }
+
+    val customer = customers.save(
+        Customer(email, source, status, plan)
+    )
+
+    if (!fromImport) {
+        verification.start(customer.id)
+        welcomeMessages.schedule(customer.id)
+    }
+
+    return customer
+}`;
+
+const CODES = [V1, V2, V3, V4, V5, V6];
+
+// ── Geometry ───────────────────────────────────────────────────────────────
+const FS   = 28;
+const LH   = 36;
+const W     = 1650;
+const PAD_X = getCodePaddingX(FS);
+const TARGET_LEFT = -330;                 // screen x of the code's left margin
+const REST_X = TARGET_LEFT + W / 2 - PAD_X;
+const OFF    = 1550;                       // how far a train flies off-frame
+const FINAL_BUDGET = 1010;                 // vertical room for the final pull-back
+
+// Where the anchor line sits inside `code`, so we can pin it to screen y = 0.
+const anchorIndex = (code: string): number => code.split('\n').indexOf(ANCHOR_LINE);
+// Container y that places the anchor line at local y = 0 (top-anchored on it).
+const codeY = (code: string): number => {
+  const n = code.split('\n').length;
+  return ((n - 1) / 2 - anchorIndex(code)) * LH;
+};
 
 // ── Scene ──────────────────────────────────────────────────────────────────
 export default makeScene2D(function* (view) {
   applyBackground(view);
 
-  // Centre the hero block horizontally about x = 0.
-  const heroLines = HERO.split('\n');
-  const heroMaxW = Math.max(...heroLines.map(l => textWidth(l, F, HERO_FS)));
-  const heroLeftEdge = -HERO_W / 2 + getCodePaddingX(HERO_FS);
-  const heroX = -(heroLeftEdge + heroMaxW / 2);
+  const flow = createRef<Node>();
+  view.add(<Node ref={flow} />);
+  const stream = createRef<Node>();
+  flow().add(<Node ref={stream} />);   // trains + ghosts live here, below the anchor
 
-  const hero = Manticore.create(HERO, {
-    x: heroX, y: 0, width: HERO_W,
-    fontSize: HERO_FS, lineHeight: HERO_LH, fontFamily: F,
-    theme: DryFiltersV3CodeTheme, noClip: true,
-    cardStyle: TRANSPARENT_CARD, glowAccent: false, customTypes: HERO_TYPES,
-  });
-  hero.mount(view);
-  hero.colorize(HERO_RULES);
-  hero.node.opacity(1);
-  hero.node.scale(0.92);
-  const heroLayer = hero.node;
-  heroLayer.opacity(0);
+  interface Version { mc: Manticore; code: string; y: number; }
 
-  // Surrounding churn rows.
-  const surround = createRef<Node>();
-  view.add(<Node ref={surround} opacity={0} />);
-  const rows: Row[] = ROW_SPECS.map((spec, i) => {
-    const txt = new Txt({
-      text: POOL[spec.startIdx % POOL.length],
-      x: 0, y: spec.y,
-      fontFamily: F, fontSize: CHURN_FS,
-      fill: CHURN_INK, opacity: spec.dim,
+  // The two stable anchor lines are pinned by the overlay, so the passing
+  // trains must NOT carry them through the centre — hide them in every copy.
+  const hideAnchorLines = (mc: Manticore, code: string): void => {
+    const a = code.split('\n').indexOf(ANCHOR_LINE);
+    mc.getLine(a)?.node.opacity(0);
+    mc.getLine(a + 1)?.node.opacity(0);
+  };
+
+  const buildVersion = (code: string): Version => {
+    const y = codeY(code);
+    const mc = Manticore.create(code, {
+      x: REST_X, y, width: W,
+      fontSize: FS, lineHeight: LH, fontFamily: Fonts.code,
+      theme: DryFiltersV3CodeTheme, noClip: true,
+      cardStyle: TRANSPARENT_CARD, glowAccent: false, customTypes: CUSTOM_TYPES,
     });
-    surround().add(txt);
-    return {txt, baseY: spec.y, dim: spec.dim, startIdx: spec.startIdx, stride: spec.stride, phase: spec.phase};
+    mc.mount(stream());
+    mc.colorize(RULES);
+    mc.node.opacity(0);
+    hideAnchorLines(mc, code);
+    return {mc, code, y};
+  };
+
+  // A faint, softly-blurred copy used as one temporal position of a trail.
+  const buildGhost = (code: string): Manticore => {
+    const mc = Manticore.create(code, {
+      x: REST_X, y: codeY(code), width: W,
+      fontSize: FS, lineHeight: LH, fontFamily: Fonts.code,
+      theme: DryFiltersV3CodeTheme, noClip: true,
+      cardStyle: TRANSPARENT_CARD, glowAccent: false, customTypes: CUSTOM_TYPES,
+    });
+    mc.mount(stream());
+    mc.colorize(RULES);
+    mc.node.opacity(0);
+    hideAnchorLines(mc, code);
+    mc.node.cache(true);
+    mc.node.cachePadding(60);
+    mc.node.filters([blur(5)]);   // small, uniform — the DIRECTION comes from the offset copies
+    return mc;
+  };
+
+  const versions = CODES.map(buildVersion);
+
+  // The pinned sharp anchor, on top of the stream, dead centre, never moves.
+  const anchor = Manticore.create(ANCHOR, {
+    x: REST_X, y: LH / 2, width: W,
+    fontSize: FS, lineHeight: LH, fontFamily: Fonts.code,
+    theme: DryFiltersV3CodeTheme, noClip: true,
+    cardStyle: TRANSPARENT_CARD, glowAccent: false, customTypes: CUSTOM_TYPES,
   });
+  anchor.mount(flow());     // mounted after `stream` → renders above the trains
+  anchor.colorize(RULES);
+  anchor.node.opacity(0);
 
-  // ── Intro — the core arrives, the system settles faintly around it. ──────
+  // ── One pass — old train flung left, next train arriving from the right,
+  //    each dragging phase-lagged ghost trails. The anchor holds sharp. ──────
+  function* pass(oldV: Version, nextV: Version, dur: number): ThreadGenerator {
+    const oldGhosts = [buildGhost(oldV.code), buildGhost(oldV.code)];
+    const newGhosts = [buildGhost(nextV.code), buildGhost(nextV.code)];
+
+    // Seed positions/opacities.
+    nextV.mc.node.x(REST_X + OFF);
+    nextV.mc.node.opacity(0);
+    const gOp = [0.42, 0.22];
+    oldGhosts.forEach((g, j) => { g.node.x(REST_X); g.node.y(oldV.y); g.node.opacity(gOp[j]); });
+    newGhosts.forEach((g, j) => { g.node.x(REST_X + OFF); g.node.y(nextV.y); g.node.opacity(gOp[j]); });
+
+    yield* all(
+      // OLD — flung left, fading.
+      oldV.mc.node.x(REST_X - OFF, dur, easeInCubic),
+      oldV.mc.node.opacity(0, dur * 0.9, easeInCubic),
+      // OLD ghosts — slower ⇒ they lag to the right, smearing back along the path.
+      ...oldGhosts.flatMap((g, j) => {
+        const d = dur * (1 + 0.30 * (j + 1));
+        return [g.node.x(REST_X - OFF, d, easeInCubic), g.node.opacity(0, d, linear)];
+      }),
+
+      // NEW — hurled in from the right to rest, materialising as it arrives.
+      nextV.mc.node.x(REST_X, dur, easeOutCubic),
+      nextV.mc.node.opacity(1, dur * 0.7, easeOutCubic),
+      // NEW ghosts — lag to the right behind the arriving train, then vanish.
+      ...newGhosts.flatMap((g, j) => {
+        const d = dur * (1 + 0.30 * (j + 1));
+        return [g.node.x(REST_X, d, easeOutCubic), g.node.opacity(0, d, linear)];
+      }),
+    );
+
+    oldV.mc.node.remove();
+    [...oldGhosts, ...newGhosts].forEach(g => g.node.remove());
+  }
+
+  // ── Arrival — the first version and the anchor settle in, readable. ───────
+  versions[0].mc.node.opacity(0);
+  versions[0].mc.node.x(REST_X + OFF);
   yield* all(
-    heroLayer.opacity(1, 0.7, easeOutCubic),
-    heroLayer.scale(1, 0.7, easeOutCubic),
-    surround().opacity(1, 0.7, easeOutCubic),
+    versions[0].mc.node.x(REST_X, 0.7, easeOutCubic),
+    versions[0].mc.node.opacity(1, 0.6, easeOutCubic),
+    anchor.node.opacity(1, 0.6, easeOutCubic),
   );
-  yield* waitFor(0.5);
+  yield* waitFor(2.0);
 
-  // ── The timelapse — ~5s of the surrounding system churning through years,
-  //    while the centre holds perfectly still. ──────────────────────────────
-  yield* all(...rows.map(r => churn(r)));
+  // ── The passes — sparse at first, then faster and faster. ─────────────────
+  const STEPS = [
+    {dur: 0.50, hold: 1.40},
+    {dur: 0.40, hold: 0.85},
+    {dur: 0.30, hold: 0.50},
+    {dur: 0.22, hold: 0.30},
+    {dur: 0.16, hold: 0.00},   // last, fastest — into the dead stop
+  ];
+  for (let i = 0; i < STEPS.length; i++) {
+    yield* pass(versions[i], versions[i + 1], STEPS[i].dur);
+    if (STEPS[i].hold > 0) yield* waitFor(STEPS[i].hold);
+  }
 
-  // ── Settle — the churn stops, the surroundings fade back, the flag remains.
+  // ── Dead stop. Silence on the overgrown final method. ─────────────────────
+  const final = versions[versions.length - 1];
+  yield* waitFor(0.9);
+
+  // The final version owns its anchor lines again; the overlay hands off and
+  // fades. A slight pull-back — only as far as needed to fit the longer method
+  // — centred on the whole method so the signature isn't clipped.
+  const aFin = final.code.split('\n').indexOf(ANCHOR_LINE);
+  final.mc.getLine(aFin)?.node.opacity(1);
+  final.mc.getLine(aFin + 1)?.node.opacity(1);
+
+  const finalScale = Math.min(1, FINAL_BUDGET / ((final.code.split('\n').length - 1) * LH));
+  const finalFlowY = -final.y * finalScale;
+  yield* all(
+    anchor.node.opacity(0, 0.5, easeInOutSine),
+    flow().scale(finalScale, 1.1, easeInOutSine),
+    flow().position.y(finalFlowY, 1.1, easeInOutSine),
+  );
   yield* waitFor(0.6);
-  yield* all(...rows.map(r => r.txt.opacity(r.dim * 0.4, 0.8, easeInOutCubic)));
-  yield* waitFor(1.0);
+
+  // Every `fromImport` occurrence, lit top-to-bottom then held together.
+  const flagTokens = final.code
+    .split('\n')
+    .map((line, i) => (line.includes('fromImport') ? final.mc.getLine(i) : null))
+    .map(cl => cl?.tokens.find(td => td.text === 'fromImport')?.ref())
+    .filter((t): t is NonNullable<typeof t> => !!t);
+
+  for (const t of flagTokens) {
+    yield* all(
+      t.fill(AMBER, 0.26, easeInOutSine),
+      t.shadowColor(AMBER_GLOW, 0.26),
+      t.shadowBlur(14, 0.26),
+    );
+    yield* waitFor(0.12);
+  }
+
+  yield* waitFor(0.5);
+  yield* all(...flagTokens.map(t => t.shadowBlur(22, 0.55, easeInOutSine)));
+  yield* all(...flagTokens.map(t => t.shadowBlur(13, 0.7, easeInOutSine)));
+  yield* waitFor(3.6);
+
+  yield* flow().opacity(0, 1.0, easeInOutSine);
+  yield* waitFor(0.3);
 });
