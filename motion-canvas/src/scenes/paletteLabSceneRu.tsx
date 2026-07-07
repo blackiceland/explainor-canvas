@@ -18,19 +18,25 @@ const FIX_TYPE  = 'rgba(205,198,250,0.90)';  // тип, освежён ~5%
 const FIX_PARAM = '#85B0DC';                 // поля-аргументы (fee =), свежие
 const FIX_CONST = '#A2CDD6';                 // константы — воздушный тил (BL)
 const CALL_TONE = '#FFAEC0';                 // вызовы — чистый пастельный роуз (тинт К БЕЛОМУ, не к серому)
+const NUM_COLOR = '#A3CDFF';                 // числа — как ключевые слова
+const STRING_FRESH = '#94C086';              // строки, освежены ~10% (чище/светлее, меньше оливы)
 
-const METHODS = new Set(['place', 'charge', 'save']);
+const METHODS = new Set(['place', 'charge', 'save', 'require']);
 
 const SAMPLE = `@Service
 class OrderService(
     private val repo: OrderRepository,
     private val payments: PaymentGateway,
 ) {
+    // places an order and charges the customer
     fun place(order: Order, express: Boolean = false): Result {
+        require(order.total > 0) { "amount must be positive" }
+
         val fee = if (express) EXPRESS_FEE else STANDARD_FEE
         val payment = payments.charge(
             account = order.account,
             amount = order.total + fee,
+            attempts = 3,
             capture = true,
         )
         val saved = repo.save(order = order, fee = fee, status = PLACED)
@@ -48,6 +54,8 @@ const RULES: ColorRule[] = [
   {match: /^[A-Z][a-zA-Z0-9]*$/, color: FIX_TYPE, onlyTypes: ['type'] as const},
   {match: new RegExp('^(' + SAMPLE_TYPES.join('|') + ')$'), color: FIX_TYPE},
   {match: /^[A-Z][A-Z0-9_]+$/, color: FIX_CONST},
+  {match: /./, color: NUM_COLOR, onlyTypes: ['number'] as const},     // числа = ключевые
+  {match: /./, color: STRING_FRESH, onlyTypes: ['string'] as const},  // строки освежены
 ];
 
 const prevNonSpace = (toks: any[], i: number): string => {

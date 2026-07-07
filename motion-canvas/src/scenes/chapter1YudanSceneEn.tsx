@@ -525,41 +525,32 @@ export default makeScene2D(function* (view) {
     for (const c of s.children) shiftSubtree(c, SIBLING_DROOP);
   }
 
-  // ── The lone "capillary" arm — make it read woodier ────────────────────
-  // The thin arm that droops LEFT off the beat-1 sub-tree's first fork read
+  // ── The lone "capillary" branch — make it read woodier ─────────────────
+  // The branch that droops LOWEST off the beat-1 fork and only comes into
+  // frame as the camera starts pulling back (it lives in restGroup) read
   // like a blood vessel, not a branch: too thin, too smooth, uniform taper.
-  // Select ONLY that arm's subtree (the first-fork child reaching furthest
-  // LEFT) and later render it thicker + with irregular woody edges. Every
-  // other branch is left exactly as-is.
+  // Pick the sibling subtree reaching FURTHEST DOWN (max local y) and later
+  // render just it thicker + with irregular woody edges. Everything else is
+  // left exactly as-is.
   const capillarySet = new Set<Branch>();
   {
-    const beat1Child = (b: Branch) => b.children.filter(c => beat1Set.has(c));
-    let firstFork: Branch | null = null;
-    const queue: Branch[] = [beat1Tree];
-    while (queue.length) {
-      const x = queue.shift()!;
-      if (beat1Child(x).length >= 2) { firstFork = x; break; }
-      queue.push(...beat1Child(x));
+    const subtreeMaxY = (b: Branch): number => {
+      let m = Math.max(b.start.y, b.end.y, b.ctrl1.y, b.ctrl2.y);
+      for (const c of b.children) m = Math.max(m, subtreeMaxY(c));
+      return m;
+    };
+    let pick: Branch | null = null;
+    let lowest = -Infinity;
+    for (const s of beat1Siblings) {
+      const y = subtreeMaxY(s);
+      if (y > lowest) { lowest = y; pick = s; }
     }
-    if (firstFork) {
-      const leftmostX = (b: Branch): number => {
-        let m = Math.min(b.start.x, b.end.x, b.ctrl1.x, b.ctrl2.x);
-        for (const c of beat1Child(b)) m = Math.min(m, leftmostX(c));
-        return m;
+    if (pick) {
+      const paint = (b: Branch) => {
+        capillarySet.add(b);
+        for (const c of b.children) paint(c);
       };
-      let pick: Branch | null = null;
-      let best = Infinity;
-      for (const k of beat1Child(firstFork)) {
-        const lx = leftmostX(k);
-        if (lx < best) { best = lx; pick = k; }
-      }
-      if (pick) {
-        const paint = (b: Branch) => {
-          capillarySet.add(b);
-          for (const c of beat1Child(b)) paint(c);
-        };
-        paint(pick);
-      }
+      paint(pick);
     }
   }
 
@@ -968,31 +959,35 @@ export default makeScene2D(function* (view) {
   // the right. No discrete pan-then-zoom: position and scale animate
   // together with one ease curve so the move reads as a single sweep.
   // ═══════════════════════════════════════════════════════════════════════
-  // Epigraph as a chiasmus: the two "Boolean" words carry the code's
-  // Boolean-type colour (the lavender from the signature), bracketing the
-  // human turn "is never just" — set smaller + italic so the eye lands on
-  // the twist. Contrast, not decoration.
+  // Epigraph — set in the chapter-title face (Space Grotesk), a distinct
+  // "title" register apart from the code mono. One warm voice, no colour
+  // tricks: the turn is carried by the italic second line — contrast by
+  // style, not hue.
   const inscriptionRef = createRef<Node>();
   view.add(
-    <Node ref={inscriptionRef} x={540} y={-24} opacity={0}>
-      <Txt y={-84} fontFamily={F} fontSize={QUOTE_FONT} textAlign={'center'}>
-        <Txt fill={QUOTE_BEIGE}>A </Txt>
-        <Txt fill={TYPE_CLEAN}>Boolean</Txt>
+    <Node ref={inscriptionRef} x={532} y={-6} opacity={0}>
+      <Txt
+        y={-40}
+        fontFamily={Fonts.primary}
+        fontSize={58}
+        fontWeight={400}
+        letterSpacing={0.5}
+        textAlign={'center'}
+        fill={WARM_CREAM}
+      >
+        A Boolean is never
       </Txt>
       <Txt
-        y={4}
-        fontFamily={F}
-        fontSize={QUOTE_FONT - 10}
+        y={40}
+        fontFamily={Fonts.primary}
+        fontSize={58}
+        fontWeight={400}
         fontStyle={'italic'}
-        letterSpacing={1}
+        letterSpacing={0.5}
         textAlign={'center'}
-        fill={MUTED}
+        fill={WARM_CREAM}
       >
-        is never just
-      </Txt>
-      <Txt y={88} fontFamily={F} fontSize={QUOTE_FONT} textAlign={'center'}>
-        <Txt fill={QUOTE_BEIGE}>a </Txt>
-        <Txt fill={TYPE_CLEAN}>Boolean</Txt>
+        just a Boolean
       </Txt>
     </Node>,
   );

@@ -1,5 +1,5 @@
 import {blur, makeScene2D, Node} from '@motion-canvas/2d';
-import {all, createRef, easeInCubic, easeInOutSine, easeOutCubic, linear, ThreadGenerator, waitFor} from '@motion-canvas/core';
+import {all, chain, createRef, createSignal, easeInCubic, easeInOutSine, easeOutCubic, linear, ThreadGenerator, waitFor} from '@motion-canvas/core';
 import {ColorRule, Manticore} from '../core/code/components/Manticore';
 import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
 import {getCodePaddingX} from '../core/code/shared/TextMeasure';
@@ -226,6 +226,7 @@ const PAD_X = getCodePaddingX(FS);
 const TARGET_LEFT = -330;                 // screen x of the code's left margin
 const REST_X = TARGET_LEFT + W / 2 - PAD_X;
 const OFF    = 1550;                       // how far a train flies off-frame
+const BLUR_MOVE = 7;                        // slow-shutter drag on a train in motion
 const FINAL_BUDGET = 1010;                 // vertical room for the final pull-back
 
 // Where the anchor line sits inside `code`, so we can pin it to screen y = 0.
@@ -245,7 +246,7 @@ export default makeScene2D(function* (view) {
   const stream = createRef<Node>();
   flow().add(<Node ref={stream} />);   // trains + ghosts live here, below the anchor
 
-  interface Version { mc: Manticore; code: string; y: number; }
+  interface Version { mc: Manticore; code: string; y: number; blur: ReturnType<typeof createSignal<number>>; }
 
   // The two stable anchor lines are pinned by the overlay, so the passing
   // trains must NOT carry them through the centre — hide them in every copy.
@@ -267,7 +268,13 @@ export default makeScene2D(function* (view) {
     mc.colorize(RULES);
     mc.node.opacity(0);
     hideAnchorLines(mc, code);
-    return {mc, code, y};
+    // The moving train itself smears — a slow-shutter drag while it flies,
+    // snapping to 0 (dead sharp) only when it comes to rest.
+    const b = createSignal(0);
+    mc.node.cache(true);
+    mc.node.cachePadding(90);
+    mc.node.filters(() => [blur(b())]);
+    return {mc, code, y, blur: b};
   };
 
   // A faint, softly-blurred copy used as one temporal position of a trail.
@@ -304,46 +311,51 @@ export default makeScene2D(function* (view) {
   // ── One pass — old train flung left, next train arriving from the right,
   //    each dragging phase-lagged ghost trails. The anchor holds sharp. ──────
   function* pass(oldV: Version, nextV: Version, dur: number): ThreadGenerator {
-    const oldGhosts = [buildGhost(oldV.code), buildGhost(oldV.code)];
-    const newGhosts = [buildGhost(nextV.code), buildGhost(nextV.code)];
+    // A dense comb of offset copies — spread along the motion axis they blend
+    // into one continuous horizontal streak, not two discrete ghosts.
+    const combOld = [buildGhost(oldV.code), buildGhost(oldV.code), buildGhost(oldV.code)];
+    const combNew = [buildGhost(nextV.code), buildGhost(nextV.code), buildGhost(nextV.code)];
 
-    // Seed positions/opacities.
+    // Shutter opens — both trains smear. Next starts off-frame to the right.
+    oldV.blur(BLUR_MOVE);
     nextV.mc.node.x(REST_X + OFF);
-    nextV.mc.node.opacity(0);
-    const gOp = [0.42, 0.22];
-    oldGhosts.forEach((g, j) => { g.node.x(REST_X); g.node.y(oldV.y); g.node.opacity(gOp[j]); });
-    newGhosts.forEach((g, j) => { g.node.x(REST_X + OFF); g.node.y(nextV.y); g.node.opacity(gOp[j]); });
+    nextV.mc.node.opacity(1);
+    nextV.blur(BLUR_MOVE);
+
+    const gOp = [0.50, 0.32, 0.18];
+    combOld.forEach((g, j) => { g.node.x(REST_X); g.node.y(oldV.y); g.node.opacity(gOp[j]); });
+    combNew.forEach((g, j) => { g.node.x(REST_X + OFF); g.node.y(nextV.y); g.node.opacity(gOp[j]); });
 
     yield* all(
-      // OLD — flung left, fading.
+      // OLD — flung left, dropping to a faint blurred streak (reads unreadable).
       oldV.mc.node.x(REST_X - OFF, dur, easeInCubic),
-      oldV.mc.node.opacity(0, dur * 0.9, easeInCubic),
-      // OLD ghosts — slower ⇒ they lag to the right, smearing back along the path.
-      ...oldGhosts.flatMap((g, j) => {
-        const d = dur * (1 + 0.30 * (j + 1));
+      oldV.mc.node.opacity(0, dur * 0.8, easeInCubic),
+      ...combOld.flatMap((g, j) => {
+        const d = dur * (1 + 0.20 * (j + 1));
         return [g.node.x(REST_X - OFF, d, easeInCubic), g.node.opacity(0, d, linear)];
       }),
 
-      // NEW — hurled in from the right to rest, materialising as it arrives.
+      // NEW — hurled in from the right, then SNAPS to dead sharp on arrival.
       nextV.mc.node.x(REST_X, dur, easeOutCubic),
-      nextV.mc.node.opacity(1, dur * 0.7, easeOutCubic),
-      // NEW ghosts — lag to the right behind the arriving train, then vanish.
-      ...newGhosts.flatMap((g, j) => {
-        const d = dur * (1 + 0.30 * (j + 1));
+      chain(waitFor(dur * 0.66), nextV.blur(0, dur * 0.34, easeOutCubic)),
+      ...combNew.flatMap((g, j) => {
+        const d = dur * (1 + 0.20 * (j + 1));
         return [g.node.x(REST_X, d, easeOutCubic), g.node.opacity(0, d, linear)];
       }),
     );
 
     oldV.mc.node.remove();
-    [...oldGhosts, ...newGhosts].forEach(g => g.node.remove());
+    [...combOld, ...combNew].forEach(g => g.node.remove());
+    nextV.blur(0);
   }
 
-  // ── Arrival — the first version and the anchor settle in, readable. ───────
-  versions[0].mc.node.opacity(0);
+  // ── Arrival — the first train streaks in blurred, snaps sharp, holds. ─────
+  versions[0].mc.node.opacity(1);
   versions[0].mc.node.x(REST_X + OFF);
+  versions[0].blur(BLUR_MOVE);
   yield* all(
     versions[0].mc.node.x(REST_X, 0.7, easeOutCubic),
-    versions[0].mc.node.opacity(1, 0.6, easeOutCubic),
+    chain(waitFor(0.42), versions[0].blur(0, 0.3, easeOutCubic)),
     anchor.node.opacity(1, 0.6, easeOutCubic),
   );
   yield* waitFor(2.0);
@@ -364,6 +376,10 @@ export default makeScene2D(function* (view) {
   // ── Dead stop. Silence on the overgrown final method. ─────────────────────
   const final = versions[versions.length - 1];
   yield* waitFor(0.9);
+
+  // Drop the blur pipeline on the resting final so token recolours render.
+  final.mc.node.filters([]);
+  final.mc.node.cache(false);
 
   // The final version owns its anchor lines again; the overlay hands off and
   // fades. A slight pull-back — only as far as needed to fit the longer method
