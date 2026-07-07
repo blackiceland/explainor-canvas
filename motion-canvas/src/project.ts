@@ -8,9 +8,17 @@ import fiveFacesBooleanSceneRuV2 from "./scenes/fiveFacesBooleanSceneRuV2?scene"
 import fiveFacesPermissionSceneRuV2 from "./scenes/fiveFacesPermissionSceneRuV2?scene";
 import fiveFacesModeSceneRuV2 from "./scenes/fiveFacesModeSceneRuV2?scene";
 import fiveFacesSafetySceneRuV2 from "./scenes/fiveFacesSafetySceneRuV2?scene";
+import paletteLabSceneRu from "./scenes/paletteLabSceneRu?scene";
 // import booleanDecisionsSceneRu from "./scenes/booleanDecisionsSceneRu?scene";  // отложена — не подошла
 import flagTimelapseSceneRu from "./scenes/flagTimelapseSceneRu?scene";
 import flagGateChainSceneRu from "./scenes/flagGateChainSceneRu?scene";
+import flagBlocksStylesSceneRu from "./scenes/flagBlocksStylesSceneRu?scene";
+import flagCodeGraphSceneRu from "./scenes/flagCodeGraphSceneRu?scene";
+import flagYudanPostersSceneRu from "./scenes/flagYudanPostersSceneRu?scene";
+import flagYudanGraphicSceneRu from "./scenes/flagYudanGraphicSceneRu?scene";
+import flagYudanBlocksSceneRu from "./scenes/flagYudanBlocksSceneRu?scene";
+import flagYudanWallSceneRu from "./scenes/flagYudanWallSceneRu?scene";
+import flagYudanTimelapseSceneRu from "./scenes/flagYudanTimelapseSceneRu?scene";
 import fiveFacesShortcutSceneRuV2 from "./scenes/fiveFacesShortcutSceneRuV2?scene";
 import fiveFacesPoorModelSceneRuV2 from "./scenes/fiveFacesPoorModelSceneRuV2?scene";
 import fiveFacesFinaleSceneRuV2 from "./scenes/fiveFacesFinaleSceneRuV2?scene";
@@ -139,7 +147,7 @@ export default makeProject({
 
         // IV
 
-         // chapter1YudanSceneEn,
+          chapter1YudanSceneEn,
          // messageDeliverySelectionSceneEn,
          // whatsappCodePairSceneEn,
          // oneMethodManyVersionsSceneEn,
@@ -154,13 +162,34 @@ export default makeProject({
         // fiveFacesModeSceneRuV2,
 
         // 03
-        fiveFacesSafetySceneRuV2,
+         fiveFacesSafetySceneRuV2,
+
+        // ЛАБОРАТОРИЯ ПАЛИТРЫ — сравнение цветовых систем (эксперимент)
+         paletteLabSceneRu,
 
         // ПАУЗА между лицами — статичный флаг, код таймлапсом вокруг
-        flagTimelapseSceneRu,
+        // flagTimelapseSceneRu,
 
         // абстрактный эпиграф — фиксированные ворота, цепочка растёт вправо
-        flagGateChainSceneRu,
+        // flagGateChainSceneRu,
+
+        // ВЫБОР СТИЛЯ блоков — 3 статичных варианта (временная)
+        // flagBlocksStylesSceneRu,
+
+        // // НОВЫЙ дизайн: чёрный фон, код слева + Ч/Б граф системы справа
+        // flagCodeGraphSceneRu,
+        //
+        // // ПОСТЕР-БОРД 2: юдан в графическом стиле (Shapes-режим) — 3 разные геометрии
+        // flagYudanGraphicSceneRu,
+        //
+        // // ① DOMAIN блоками (тот же графический стиль) — rest + flip
+        // flagYudanBlocksSceneRu,
+        //
+        // // MERGED: код слева + кирпичная стена справа (юдан, целиком)
+        // flagYudanWallSceneRu,
+
+        // ЮДАН-ТАЙМЛАПС: код-снимки register() сменяются motion-blur/ghost переходами
+        flagYudanTimelapseSceneRu,
 
         // 04
         // fiveFacesShortcutSceneRuV2,

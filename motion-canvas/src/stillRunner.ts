@@ -216,6 +216,7 @@ async function exportStillWithOverlay(
   globalFrame: number,
   fps: number,
   timeoutMs: number,
+  showGrid: boolean,
 ) {
   const playback = (renderer as any).playback;
 
@@ -227,8 +228,8 @@ async function exportStillWithOverlay(
   await playback.seek(globalFrame);
   await renderer.stage.render(playback.currentScene, playback.previousScene);
 
-  // Draw overlay onto the rendered frame.
-  drawOverlay(renderer.stage.finalBuffer);
+  // Draw overlay onto the rendered frame (debug grid; suppress with grid=off).
+  if (showGrid) drawOverlay(renderer.stage.finalBuffer);
 
   if (!import.meta.hot) {
     throw new Error('HMR is not available. Run via `npm run dev` (Vite dev server).');
@@ -253,6 +254,7 @@ async function main() {
   const globalFrameParam = parseNumber(params.get('globalFrame'));
   const sceneName = params.get('scene') ?? '';
   const timeoutMs = parseNumber(params.get('timeoutMs')) ?? 60_000;
+  const showGrid = params.get('grid') !== 'off';
 
   const renderer = new Renderer(project);
   const playback = (renderer as any).playback;
@@ -305,7 +307,7 @@ async function main() {
   setStatus('Exporting…');
   setDetails(`project=${project.name} scene=${sceneName || '(timeline)'} globalFrame=${globalFrame} fps=${fps}`);
 
-  await exportStillWithOverlay(renderer, settings as any, globalFrame, fps, timeoutMs);
+  await exportStillWithOverlay(renderer, settings as any, globalFrame, fps, timeoutMs, showGrid);
 
   setStatus('Done');
   $('status').classList.add('ok');

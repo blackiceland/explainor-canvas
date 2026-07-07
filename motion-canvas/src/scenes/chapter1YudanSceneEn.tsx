@@ -1,4 +1,4 @@
-import {Circle, Gradient, Line, Node, Rect, Txt, makeScene2D} from '@motion-canvas/2d';
+import {Circle, Gradient, Line, Node, Txt, makeScene2D} from '@motion-canvas/2d';
 import {
   all,
   chain,
@@ -645,15 +645,14 @@ export default makeScene2D(function* (view) {
   console.log(`[yudan] branches=${allBranches.length} beat1=${beat1Set.size} forks=${countForks(beat1Tree)} depth=${beat1Tree.depth}`);
   console.log(`[yudan] beat1Scale=${beat1Scale.toFixed(2)} pos=(${beat1X.toFixed(0)}, ${beat1Y.toFixed(0)})`);
 
-  // ── LIMBO atmospherics layer (fog + drifting motes + vignette) ─────────
-  // Stays at opacity 0 during BEAT 1; fades in during the camera move on
-  // INVERSION so the world goes from clean dark void to LIMBO mood as the
-  // tree's true scale is revealed.
-  // limboGroup is visible from scene t=0. Snow's motion AND visibility are
-  // both constant from the very first frame — there's no "field arriving"
-  // moment that the eye can mistake for snow accelerating.
+  // ── SNOW / atmospherics layer (fog + drifting motes + snow) ────────────
+  // limboGroup starts INVISIBLE (opacity 0) and fades in during the
+  // INVERSION camera pull-back, so the snow appears TOGETHER with the tree
+  // — not during the opening titles. Snow's motion runs at a constant rate
+  // from scene t=0 (off-stage, behind opacity 0), so by the time it fades
+  // in the field is ALREADY in steady state. No vignette.
   const limboGroup = createRef<Node>();
-  view.add(<Node ref={limboGroup} opacity={1} />);
+  view.add(<Node ref={limboGroup} opacity={0} />);
 
   for (const fog of [
     {x: -200, y: 200, r: 720, op: 0.10},
@@ -722,20 +721,13 @@ export default makeScene2D(function* (view) {
     const phase = snowRand() * Math.PI * 2;
     // Per-flake delay before motion begins. Until snowTime crosses this
     // threshold, the flake sits at startY (below frame, invisible). After
-    // that, it rises at constant speed, wrapping mod 1. This makes the
-    // snow population grow ORGANICALLY — flakes drift up from below the
-    // frame at staggered times — instead of the whole field popping into
-    // view at once at INVERSION start.
+    // that, it rises at constant speed, wrapping mod 1.
     const startDelay = snowRand();
     const radius = 0.7 + snowRand() * 1.4;
     const op = 0.30 + snowRand() * 0.45;
     limboGroup().add(
       <Circle
         x={() => startX + Math.sin(phase + snowTime() * swayFreq * Math.PI * 2) * swayAmp}
-        // Looping rise with delay: progress is clamped to 0 before
-        // startDelay, so the flake stays off-frame until its turn. After
-        // that, modulo wrap makes it teleport from off-frame top back to
-        // off-frame bottom unseen, cycling forever.
         y={() => {
           const eff = Math.max(0, snowTime() - startDelay);
           const progress = ((eff % 1) + 1) % 1;
@@ -749,38 +741,14 @@ export default makeScene2D(function* (view) {
     );
   }
 
-  // Vignette
-  limboGroup().add(
-    <Rect
-      width={SCREEN_W}
-      height={SCREEN_H}
-      fill={new Gradient({
-        type: 'radial',
-        from: new Vector2(0, 0),
-        to: new Vector2(0, 0),
-        fromRadius: 0,
-        toRadius: SCREEN_W * 0.55,
-        stops: [
-          {offset: 0,    color: 'rgba(0, 0, 0, 0)'},
-          {offset: 0.65, color: 'rgba(0, 0, 0, 0)'},
-          {offset: 1,    color: 'rgba(0, 0, 0, 0.85)'},
-        ],
-      })}
-    />,
-  );
-
   // ── Code group ─────────────────────────────────────────────────────────
   const codeGroup = createRef<Node>();
   view.add(<Node ref={codeGroup} />);
 
   // Snow advances at ONE constant rate from the very first frame of the
-  // scene, regardless of which narrative phase is on screen. limboGroup
-  // is invisible during BEAT 1, so the snow circulates off-stage; by the
-  // time the camera pulls back at INVERSION the field is ALREADY in
-  // steady state, so the user sees full snow motion appear with the
-  // visibility ramp — not snow that "wakes up" at the scene change. No
-  // velocity discontinuity, no density build-up coinciding with phase
-  // boundaries.
+  // scene. limboGroup is invisible (opacity 0) until INVERSION, so the snow
+  // circulates off-stage during the titles + code beats; by the time it
+  // fades in with the tree the field is already in steady state.
   runConcurrent(snowTime(0.115 * 30, 30, linear));
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -791,11 +759,10 @@ export default makeScene2D(function* (view) {
   const QUOTE_FONT = 60;
 
   const t1 = new Txt({
-    text: "Bad code isn't complex.",
-    fontFamily: Fonts.primary,
-    fontSize: 72,
-    fontWeight: 600,
-    fill: 'rgba(255, 170, 185, 0.86)',
+    text: "Bad code isn't complex",
+    fontFamily: F,
+    fontSize: QUOTE_FONT,
+    fill: QUOTE_BEIGE,
     textAlign: 'center',
     x: 0,
     y: 0,
@@ -803,28 +770,26 @@ export default makeScene2D(function* (view) {
   });
   view.add(t1);
 
-  yield* t1.opacity(1, 0.6, easeInOutCubic);
-  yield* waitFor(1.6);
-  yield* t1.opacity(0, 0.5, easeInOutCubic);
-  yield* waitFor(0.2);
+  yield* t1.opacity(1, 0.35, easeInOutCubic);
+  yield* waitFor(0.85);
+  yield* t1.opacity(0, 0.35, easeInOutCubic);
+  yield* waitFor(0.05);
 
   const t2 = new Txt({
-    text: "It's code that pretends\nto be simple.",
-    fontFamily: Fonts.primary,
-    fontSize: 72,
-    fontWeight: 600,
-    fill: 'rgba(255, 170, 185, 0.86)',
+    text: "It's code that pretends to be simple.",
+    fontFamily: F,
+    fontSize: QUOTE_FONT,
+    fill: QUOTE_BEIGE,
     textAlign: 'center',
-    lineHeight: 96,
     x: 0,
     y: 0,
     opacity: 0,
   });
   view.add(t2);
 
-  yield* t2.opacity(1, 0.6, easeInOutCubic);
-  yield* waitFor(2.2);
-  yield* t2.opacity(0, 0.6, easeInOutCubic);
+  yield* t2.opacity(1, 0.35, easeInOutCubic);
+  yield* waitFor(1.4);
+  yield* t2.opacity(0, 0.45, easeInOutCubic);
   yield* waitFor(0.05);
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -999,17 +964,17 @@ export default makeScene2D(function* (view) {
     // multi-line — just the original one-line method receding.
     codeRoot().opacity(0, INV_DUR * 0.55, easeInOutCubic),
 
+    // Snow / atmosphere fades in WITH the tree pull-back — the field
+    // (already drifting in steady state off-stage) becomes visible exactly
+    // as the tree's true scale is revealed. Motes drift up over the move.
+    limboGroup().opacity(1, INV_DUR, easeInOutCubic),
+    moteTime(1, INV_DUR, easeInOutCubic),
+
     // Inscription rises only as the camera settles — appears at the end.
     chain(
       waitFor(INV_DUR * 0.72),
       inscriptionRef().opacity(1, INV_DUR * 0.32, easeInOutCubic),
     ),
-
-    // LIMBO atmospherics — limboGroup is already at full opacity since
-    // scene start, so nothing ramps here. Only motes evolve their drift
-    // over the move; snow continues at the constant rate set by the
-    // master spawn().
-    moteTime(1, INV_DUR, easeInOutCubic),
 
     // All big-tree labels appear together with the tree — no cascade,
     // no extra "branching" effect during the camera pull-back.
@@ -1020,9 +985,7 @@ export default makeScene2D(function* (view) {
   );
 
   // ═══════════════════════════════════════════════════════════════════════
-  // PHASE 3 — chapter title YŪDAN. Snow keeps drifting at the same
-  //           constant rate set by the master spawn() — every phase
-  //           boundary here is a no-op for snow motion.
+  // PHASE 3 — chapter title YŪDAN.
   // ═══════════════════════════════════════════════════════════════════════
   yield* all(
     treeGroup().opacity(0, 1.4, easeInOutCubic),
@@ -1064,11 +1027,14 @@ export default makeScene2D(function* (view) {
     </Node>,
   );
 
-  yield* chapterContainer().opacity(1, 1.0, easeInOutCubic);
-  // Title held — snow keeps drifting at the same constant rate (driven
-  // by the master spawn), and limbo fades out simultaneously so motion +
-  // atmosphere die TOGETHER, not in two separate steps.
-  yield* limboGroup().opacity(0, 2.6, easeInOutCubic);
+  yield* all(
+    chapterContainer().opacity(1, 1.0, easeInOutCubic),
+    // Snow + atmosphere fade out as the title settles — motion and
+    // atmosphere die together, not in two separate steps.
+    limboGroup().opacity(0, 2.6, easeInOutCubic),
+  );
+  // Title held.
+  yield* waitFor(1.0);
 
   yield* chapterContainer().opacity(0, 1.2, easeInOutCubic);
   yield* waitFor(0.3);
