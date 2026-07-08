@@ -16,21 +16,23 @@ import {ColorRule, Manticore} from '../core/code/components/Manticore';
 import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
 import {Fonts, Screen} from '../core/theme';
 import {applyBackground} from '../core/utils';
-import {Canon} from '../core/code/model/paletteCanon';
+import {Canon, buildCanonRules} from '../core/code/model/paletteCanon';
 
 // ── FLAT viz · единый стиль для всех лиц ───────────────────────────────
-// Круговой scrim цвета фона с плавным фейдом (не карточка, маскирует код).
+// Круговой scrim = МАСКА цвета локального фона: невидим над фоном, но
+// «стирает» код, на который наезжает виж. Непрозрачный центр (маскирует),
+// растушёванный край (код не обрезается резко). Это НЕ видимая плашка.
 const vizScrim = () => (
   <Rect
-    width={480}
-    height={480}
+    width={520}
+    height={520}
     fill={new Gradient({
       type: 'radial', from: new Vector2(0, 0), to: new Vector2(0, 0),
-      fromRadius: 0, toRadius: 240,
+      fromRadius: 0, toRadius: 260,
       stops: [
-        {offset: 0, color: '#1B1D24'},
-        {offset: 0.5, color: '#16181F'},
-        {offset: 1, color: 'rgba(16,18,24,0)'},
+        {offset: 0, color: '#101217'},        // цвет локального фона — невидим
+        {offset: 0.62, color: '#101217'},      // непрозрачный центр — маскирует код
+        {offset: 1, color: 'rgba(16,18,23,0)'},// растушёванный край
       ],
     })}
   />

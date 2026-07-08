@@ -548,6 +548,19 @@ export default makeScene2D(function* (view) {
   };
   for (const leaf of beat1Leaves) collectDescendants(leaf);
 
+  // ── Prune the drooped sibling's finest twigs ───────────────────────────
+  // The sibling's terminal filigree (near-zero-width tips) reads as a
+  // circulatory/vein network rather than a branch. Drop only the thinnest
+  // offshoots — startW below the natural width gap (1.7 → 2.9) — so the
+  // sibling keeps its woody skeleton and tapered tips but sheds the hair.
+  // Target sibling ONLY; every other branch keeps its full canopy.
+  const SIBLING_TWIG_MIN_W = 2.0;
+  const pruneThinTwigs = (b: Branch) => {
+    if (b.startW < SIBLING_TWIG_MIN_W) skipFromBigTree.add(b);
+    for (const c of b.children) pruneThinTwigs(c);
+  };
+  for (const s of beat1Siblings) pruneThinTwigs(s);
+
   // ── Render branches: route to beat1Group or restGroup ──────────────────
   for (const b of allBranches) {
     if (skipFromBigTree.has(b)) continue;   // descendants of beat-1 leaves

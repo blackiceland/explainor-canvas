@@ -147,7 +147,7 @@ export default makeProject({
         // chapter2ReversibilitySceneEn,
 
         // IV
-
+         // стартовый текст и древо
           chapter1YudanSceneEn,
          // messageDeliverySelectionSceneEn,
          // whatsappCodePairSceneEn,
@@ -157,16 +157,16 @@ export default makeProject({
         // fiveFacesBooleanSceneRuV2,
 
         // 01
-         fiveFacesPermissionSceneRuV2,
-
-        // 02
-         fiveFacesModeSceneRuV2,
-
-        // 03
-         fiveFacesSafetySceneRuV2,
-
-        // ЛАБОРАТОРИЯ ПАЛИТРЫ — сравнение цветовых систем (эксперимент)
-         paletteLabSceneRu,
+        //  fiveFacesPermissionSceneRuV2,
+        //
+        // // 02
+        //  fiveFacesModeSceneRuV2,
+        //
+        // // 03
+           fiveFacesSafetySceneRuV2,
+        //
+        // // ЛАБОРАТОРИЯ ПАЛИТРЫ — сравнение цветовых систем (эксперимент)
+        //  paletteLabSceneRu,
 
         // УНИФИЦИРОВАННЫЙ ВИД 5 лиц — одна диаграммная грамматика
         //  unifiedFacesVizSceneRu,
@@ -193,11 +193,11 @@ export default makeProject({
         // flagYudanWallSceneRu,
 
         // ЮДАН-ТАЙМЛАПС: код-снимки register() сменяются motion-blur/ghost переходами
-        flagYudanTimelapseSceneRu,
-
-        // 04
-         fiveFacesShortcutSceneRuV2,
-         fiveFacesPoorModelSceneRuV2,
+         flagYudanTimelapseSceneRu,
+        //
+        // // 04
+        //  fiveFacesShortcutSceneRuV2,
+        //  fiveFacesPoorModelSceneRuV2,
         // fiveFacesFinaleSceneRuV2,
 
 
