@@ -9,14 +9,14 @@ import {applyBackground} from '../core/utils';
 // ─────────────────────────────────────────────────────────────────────────
 // YUDAN
 //   0. Show a SHORT register method (blank lines around the if block).
-//   1. 8s of the approved cinematic time-lapse ON it: every line/part changes
-//      at once (whole-line swaps to different code + partial token swaps). The
-//      signature swaps to a code line and two lines appear above it (one is a
-//      new register signature); three lines are added below. Only the
-//      `if (fromImport)` body is static.
-//   2. Right before the zoom, the SAME swap time-lapse EXPANDS the method to the
-//      final size — the method moves together with the time-lapse — then it
-//      settles onto the catastrophe and the camera parks it LEFT.
+//   1. 8s of the approved cinematic time-lapse ON it: every BODY line/part
+//      churns at once (whole-line swaps to different code + partial token swaps).
+//      The method stays WHOLE — the signature, returns, braces, block headers
+//      and the blank separators never churn; @Transactional appears above and
+//      the body grows. Only the `if (fromImport)` block is fully static.
+//   2. The SAME swap time-lapse EXPANDS the method to the final size while the
+//      camera zooms out LEFT; the churn then stops and the code settles onto the
+//      catastrophe so the last line is ready BEFORE the zoom-out finishes.
 // ─────────────────────────────────────────────────────────────────────────
 
 const VAR_LIGHT   = 'rgba(244,241,235,0.96)';
@@ -64,11 +64,13 @@ const SHORT = [
   '}',
 ];
 
-// After beat-1 edits: +2 lines above (one a new signature, old sig → validate),
-// +3 lines below. Every MID line is also in FINAL (so MID→FINAL is pure inserts).
+// After beat-1 edits: @Transactional above the (unchanged) signature, validate
+// below it, and three lines at the bottom. The signature, `return` and `}` are
+// KEPT verbatim across SHORT/MID/FINAL, so register is never removed. Every MID
+// line is also in FINAL (so MID→FINAL is pure inserts).
 const MID = [
   '@Transactional',
-  'fun register(command: RegisterCustomer, fromImport: Boolean, dryRun: Boolean): Customer {',
+  'fun register(command: RegisterCustomer, fromImport: Boolean): Customer {',
   '    validate(command)',
   '    var email = command.email',
   '    var source = CustomerSource.SIGN_UP',
@@ -86,7 +88,7 @@ const MID = [
 
 const FINAL = [
   '@Transactional',
-  'fun register(command: RegisterCustomer, fromImport: Boolean, dryRun: Boolean): Customer {',
+  'fun register(command: RegisterCustomer, fromImport: Boolean): Customer {',
   '    validate(command)',
   '    var email = command.email',
   '    var source = CustomerSource.SIGN_UP',
@@ -176,6 +178,17 @@ function findPartial(text: string): {head: string; tail: string; aMid: string; b
   return null;
 }
 
+// The load-bearing frame of the method — never churned into random code so the
+// method stays whole: signature, annotation, returns, braces, block headers,
+// and the blank separators between logical blocks.
+const isBlankT  = (t: string) => t.trim() === '';
+const isSigT    = (t: string) => /\bfun register\b/.test(t);
+const isAnnotT  = (t: string) => t.trimStart().startsWith('@');
+const isReturnT = (t: string) => t.trimStart().startsWith('return');
+const isBraceT  = (t: string) => t.trim() === '}';
+const isHeadT   = (t: string) => t.trimEnd().endsWith('{');
+const isFrameT  = (t: string) => isSigT(t) || isAnnotT(t) || isReturnT(t) || isBraceT(t) || isHeadT(t);
+
 // ── Geometry / timing ────────────────────────────────────────────────────────
 const FS = 26;
 const LH = 38;
@@ -187,13 +200,14 @@ const OFF = 1600;
 const OFF_TOK = 300;
 const TRAIL = 4;
 const SHOW_HOLD = 2.0;
-const A1_DUR = 2.0;                 // short → mid (top + bottom edits)
+const A1_SWAP = 0.35;               // short → mid: per-op swap / cadence
+const A1_CAD  = 0.5;
 const A2_DUR = 6.0;                 // dense cinematic churn on the mid method
-const GROW_B = 3.0;                 // mid → final, right before / into the zoom
+const GROW_SWAP = 0.3;              // mid → final growth: per-op swap / cadence
+const GROW_CAD  = 0.55;
 const SWAP_DUR = 0.4;
 const CHURN_GAP = 0.4;
-const ZOOM_DUR = 4.5;
-const SETTLE_B = 3.3;               // code lands on the catastrophe, inside the zoom
+const SETTLE_STAGGER = 0.9;         // settle finishes inside the zoom window
 const SCALE_END = 0.55;
 const LEFT_END = -520;
 const END_HOLD = 2.0;
@@ -233,6 +247,21 @@ function groupOps(ops: Op[]): GOp[] {
   return out;
 }
 
+// Predict how long growthDiff(from,to,swapDur,cadence) takes, so the zoom can be
+// sized to end just after the settle. Mirrors insertBlock's per-line stagger
+// (`dur*0.1 + k*0.03` lead + `dur*0.9` move ⇒ a block of L lines takes
+// dur + (L-1)*0.03) and the per-op cadence wait.
+function growDuration(from: string[], to: string[], swapDur: number, cadence: number): number {
+  const gap = Math.max(0.02, cadence - swapDur);
+  let t = 0;
+  for (const op of groupOps(diffLines(from, to))) {
+    if (op.kind === 'keep') continue;
+    const opDur = op.kind === 'ins' ? swapDur + (op.texts!.length - 1) * 0.03 : swapDur;
+    t += opDur + gap;
+  }
+  return t;
+}
+
 // ── Scene ──────────────────────────────────────────────────────────────────
 export default makeScene2D(function* (view) {
   applyBackground(view);
@@ -252,8 +281,18 @@ export default makeScene2D(function* (view) {
   let variantPtr = 0;
 
   const isStatic = (i: number) => i >= anchorIdx && i <= anchorIdx + 2;
+  // A line is left alone by the churn if it is the anchor block, a blank
+  // separator, or part of the load-bearing frame (register / return / braces).
+  const noChurn = (i: number) => isStatic(i) || isBlankT(buf[i].text) || isFrameT(buf[i].text);
   const restOp = (i: number) => lerp(0.72, 0.34, Math.min(Math.abs(i - anchorIdx), 10) / 10);
-  const opFor = (i: number) => (!receded || isStatic(i)) ? 1 : restOp(i);
+  // Opacity from (index, text) — safe to call before a line is spliced into buf.
+  const opForText = (i: number, text: string) => {
+    if (!receded) return 1;
+    if (isStatic(i)) return 1;                    // anchor if-block: brightest focus
+    if (isFrameT(text)) return 0.85;              // method skeleton stays readable
+    return restOp(i);                             // churning body: dimmed
+  };
+  const opFor = (i: number) => opForText(i, buf[i].text);
 
   const mkLine = (text: string, x: number, y: number, op: number, home: string): Line => {
     const mc = Manticore.create(text || ' ', {
@@ -299,6 +338,11 @@ export default makeScene2D(function* (view) {
     const slotX = LINE_X + measureText(p.head, FS);
     const oldTailX = slotX + measureText(p.aMid, FS);
     const newTailX = slotX + measureText(p.bMid, FS);
+    // Commit the resolved line to buf IMMEDIATELY (kept hidden) so a concurrent
+    // insertBlock splice shifts the right entry — no orphaned node at the end.
+    const resolved = mkLine(p.next, LINE_X, y, op, home);
+    resolved.node.opacity(0);
+    buf[i] = resolved;
     old.node.remove();
     const head = mkLine(p.head, LINE_X, y, op, p.head);
     const tail = p.tail.length ? mkLine(p.tail, oldTailX, y, op, p.tail) : null;
@@ -317,18 +361,18 @@ export default makeScene2D(function* (view) {
     if (tail && Math.abs(newTailX - oldTailX) > 0.5) anims.push(tail.node.x(newTailX, dur, easeOutCubic));
     yield* all(...anims);
     head.node.remove(); tail?.node.remove(); om?.node.remove(); nm?.node.remove(); trash.forEach(g => g.remove());
-    buf[i] = mkLine(p.next, LINE_X, y, op, home);
+    resolved.node.opacity(op);
   }
 
   function* insertBlock(pos: number, texts: string[], dur: number, dir: number): ThreadGenerator {
-    const objs = texts.map((t, k) => mkLine(t, LINE_X + dir * OFF, 0, opFor(pos + k), t));
+    const objs = texts.map((t, k) => mkLine(t, LINE_X + dir * OFF, 0, opForText(pos + k, t), t));
     buf.splice(pos, 0, ...objs);
     if (pos <= anchorIdx) anchorIdx += texts.length;
     const anims: ThreadGenerator[] = [layoutShift(dur)]; const trash: Txt[] = [];
     objs.forEach((o, k) => {
       o.node.y(targetY(pos + k));
-      const g = comb(o.text, targetY(pos + k), LINE_X + dir * OFF, LINE_X, dur, easeOutCubic, opFor(pos + k)); trash.push(...g.ghosts);
-      anims.push(chain(waitFor(dur * 0.16 + k * 0.05), all(o.node.x(LINE_X, dur * 0.84, easeOutCubic), ...g.anims)));
+      const g = comb(o.text, targetY(pos + k), LINE_X + dir * OFF, LINE_X, dur, easeOutCubic, opForText(pos + k, o.text)); trash.push(...g.ghosts);
+      anims.push(chain(waitFor(dur * 0.1 + k * 0.03), all(o.node.x(LINE_X, dur * 0.9, easeOutCubic), ...g.anims)));
     });
     yield* all(...anims); trash.forEach(g => g.remove());
   }
@@ -340,20 +384,20 @@ export default makeScene2D(function* (view) {
     o.node.remove(); g.ghosts.forEach(g2 => g2.remove());
   }
 
-  // Apply a diff from `fromArr`→`toArr` over `total` seconds (structural growth).
-  function* growthDiff(fromArr: string[], toArr: string[], total: number): ThreadGenerator {
+  // Apply a diff from `fromArr`→`toArr`, one structural op every `cadence`
+  // seconds (each op's swap runs for `swapDur`). cadence ≥ swapDur keeps the
+  // total duration predictable so the settle can be gated inside the zoom.
+  function* growthDiff(fromArr: string[], toArr: string[], swapDur: number, cadence: number): ThreadGenerator {
     const grouped = groupOps(diffLines(fromArr, toArr));
-    const structural = Math.max(1, grouped.filter(o => o.kind !== 'keep').length);
-    const per = total / structural;
     let cursor = 0, flip = 0;
     for (const op of grouped) {
       const dir = flip % 2 === 0 ? 1 : -1;
       if (op.kind === 'keep') { cursor++; continue; }
-      if (op.kind === 'chg') { yield* swapLine(cursor, op.b!, SWAP_DUR, dir, op.b!); cursor++; }
-      else if (op.kind === 'ins') { yield* insertBlock(cursor, op.texts!, SWAP_DUR, dir); cursor += op.texts!.length; }
-      else { yield* deleteLine(cursor, SWAP_DUR, dir); }
+      if (op.kind === 'chg') { yield* swapLine(cursor, op.b!, swapDur, dir, op.b!); cursor++; }
+      else if (op.kind === 'ins') { yield* insertBlock(cursor, op.texts!, swapDur, dir); cursor += op.texts!.length; }
+      else { yield* deleteLine(cursor, swapDur, dir); }
       flip++;
-      yield* waitFor(Math.max(0.02, per - SWAP_DUR));
+      yield* waitFor(Math.max(0.02, cadence - swapDur));
     }
   }
 
@@ -367,14 +411,14 @@ export default makeScene2D(function* (view) {
   function* churnLine(i: number): ThreadGenerator {
     yield* waitFor(((i * 7) % 13) * 0.045);
     while (churnActive) {
-      if (!isStatic(i)) yield* churnOnce(i); else yield* waitFor(SWAP_DUR);
+      if (!noChurn(i)) yield* churnOnce(i); else yield* waitFor(SWAP_DUR);
       yield* waitFor(CHURN_GAP + ((i * 3) % 5) * 0.02);
     }
   }
   // worker churn (survives index shifts during growth)
   const pickChurn = (guess: number): number => {
     const N = buf.length;
-    for (let t = 0; t < N; t++) { const i = ((guess + t) % N + N) % N; if (!isStatic(i) && buf[i].text.trim().length > 0) return i; }
+    for (let t = 0; t < N; t++) { const i = ((guess + t) % N + N) % N; if (!noChurn(i)) return i; }
     return -1;
   };
   function* churnWorker(w: number): ThreadGenerator {
@@ -387,13 +431,18 @@ export default makeScene2D(function* (view) {
 
   function* settle(): ThreadGenerator {
     churnActive = false;
-    yield* waitFor(SWAP_DUR + 0.08);
     receded = false;
+    const N = buf.length;
     yield* all(...buf.map((l, i) => {
-      const d = (Math.abs(i - anchorIdx) / buf.length) * 0.9;
-      if (isStatic(i) || l.text === l.home) return chain(waitFor(d), l.node.opacity(1, 0.6, easeOutCubic));
+      const d = (Math.abs(i - anchorIdx) / N) * SETTLE_STAGGER;
+      if (isStatic(i) || l.text === l.home) return chain(waitFor(d), l.node.opacity(1, 0.5, easeOutCubic));
       return chain(waitFor(d), swapLine(i, l.home, SWAP_DUR, i % 2 === 0 ? 1 : -1, l.home) as unknown as ThreadGenerator);
     }));
+    // Sweep any orphan nodes left by churn/growth races — the final frame must
+    // be exactly the catastrophe, nothing doubled over a settled line.
+    const live = new Set(buf.map(l => l.node));
+    [...lineLayer().children()].forEach(n => { if (!live.has(n)) n.remove(); });
+    [...ghostLayer().children()].forEach(n => n.remove());
   }
 
   // ── Beat 0 — show the short method. ───────────────────────────────────────
@@ -402,33 +451,46 @@ export default makeScene2D(function* (view) {
   yield* all(...buf.map(l => l.node.opacity(1, 0.6, easeOutCubic)));
   yield* waitFor(SHOW_HOLD);
 
-  // ── Beat 1a — the edits: +2 above (one a new signature), +3 below. ────────
+  // ── Beat 1a — the edits: @Transactional above the (kept) signature, validate
+  //    below it, and three lines grow at the bottom; register / return / } stay. ─
   receded = true;
   yield* all(
-    growthDiff(SHORT, MID, A1_DUR),
-    ...buf.map((l, i) => isStatic(i) ? waitFor(0) : l.node.opacity(restOp(i), 0.5, easeOutCubic)),
+    growthDiff(SHORT, MID, A1_SWAP, A1_CAD),
+    ...buf.map((l, i) => l.node.opacity(opFor(i), 0.5, easeOutCubic)),
   );
 
-  // ── Beat 1b — cinematic time-lapse: EVERY non-static line churns at once. ──
+  // ── Beat 1b — cinematic time-lapse: every body line churns at once; the
+  //    signature, return, braces and blank separators stay put (method whole). ─
   churnActive = true;
   yield* all(
-    ...buf.map((_, i) => isStatic(i) ? waitFor(0) : churnLine(i)),
+    ...buf.map((_, i) => noChurn(i) ? waitFor(0) : churnLine(i)),
     chain(waitFor(A2_DUR), (function* () { churnActive = false; })()),
   );
 
   // ── Beat 2 — expand to the final size with the SAME swap time-lapse, moving
-  //    together with it; zoom out LEFT; settle onto the catastrophe. ──────────
+  //    together with the zoom; then the churn STOPS and the code settles onto the
+  //    catastrophe so the last line is ready BEFORE the zoom-out finishes. ──────
   churnActive = true;
   const finalAnchor = FINAL.indexOf(ANCHOR_LINE);
   const centerLocal = ((FINAL.length - 1) / 2 - finalAnchor) * LH;
+  // Size the zoom off the ACTUAL content timeline: growth → drain → settle, plus
+  // a short tail so the camera keeps moving a beat after the catastrophe lands.
+  const drainT  = SWAP_DUR + 0.1;
+  const settleT = SETTLE_STAGGER + Math.max(SWAP_DUR, 0.5) + 0.05;
+  const contentT = growDuration(MID, FINAL, GROW_SWAP, GROW_CAD) + drainT + settleT;
+  const zoomDur = contentT + 0.85;   // camera glides to rest a beat after the code lands
   yield* all(
-    growthDiff(MID, FINAL, GROW_B),
-    ...Array.from({length: 6}, (_, w) => churnWorker(w)),
     all(
-      codeRoot().scale(SCALE_END, ZOOM_DUR, easeInOutCubic),
-      codeRoot().position([LEFT_END, -centerLocal * SCALE_END], ZOOM_DUR, easeInOutCubic),
+      codeRoot().scale(SCALE_END, zoomDur, easeInOutCubic),
+      codeRoot().position([LEFT_END, -centerLocal * SCALE_END], zoomDur, easeInOutCubic),
     ),
-    chain(waitFor(SETTLE_B), settle()),
+    ...Array.from({length: 6}, (_, w) => churnWorker(w)),
+    chain(
+      growthDiff(MID, FINAL, GROW_SWAP, GROW_CAD),
+      (function* () { churnActive = false; })(),
+      waitFor(drainT),
+      settle(),
+    ),
   );
 
   yield* waitFor(END_HOLD);

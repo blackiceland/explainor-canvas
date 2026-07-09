@@ -109,6 +109,7 @@ const GLOW_TYPE = 'rgba(201,180,255,0.45)';
 
 export default makeScene2D(function* (view) {
   const s = createFiveFacesStage(view);
+  const T0 = view.globalTime(); // DBG
 
   // Канон-палитра на код лица (начальный вид — setup красил старым CODE_RULES)
   s.callCodes[3].colorize(SHORT_RULES);
@@ -251,7 +252,30 @@ export default makeScene2D(function* (view) {
     vd.node.opacity(1, 0.6, easeInOutSine),
     s.implCodes[3].node.position.y(implLiftY, 0.6, easeInOutSine),
   );
-  yield* waitFor(3.0);
+
+  // ── Make the guarantee legible without Kotlin fluency ──────────────
+  // `companion object` is the only Kotlin-only token in the five faces and
+  // carries no meaning on its own — the guarantee rests on two facts. Glow
+  // them in reading order so a non-Kotlin viewer infers the mechanism:
+  //   1. `private constructor` — the door is locked; you can't build one directly
+  //   2. `throw InvalidOrder`   — the one entrance (`from`) rejects the invalid
+  // ⇒ holding a ValidatedOrder is proof it passed. Cool halo = the structural
+  //   lock; rose = the rejection (the flag's old risk, now an enforced throw).
+  {
+    const doorLine = vd.getLine(0);   // class ValidatedOrder private constructor(…)
+    const gateLine = vd.getLine(5);   // throw InvalidOrder(order.id)
+    yield* waitFor(0.4);
+    if (doorLine) yield* doorLine.setTokensGlow(['private', 'constructor'], 12, GLOW_TYPE, 0.45);
+    console.log('DBG_ERROR doorGlow=' + Math.round((view.globalTime() - T0) * 30)); // DBG
+    yield* waitFor(0.8);
+    if (gateLine) yield* gateLine.setTokensGlow(['throw', 'InvalidOrder'], 12, METHOD_COLOR, 0.45);
+    console.log('DBG_ERROR gateGlow=' + Math.round((view.globalTime() - T0) * 30)); // DBG
+    yield* waitFor(1.4);
+    yield* all(
+      doorLine ? doorLine.resetTokensGlow(['private', 'constructor'], 0.5) : waitFor(0),
+      gateLine ? gateLine.resetTokensGlow(['throw', 'InvalidOrder'], 0.5) : waitFor(0),
+    );
+  }
 
   // ── Close morph section ────────────────────────────────────────────
 

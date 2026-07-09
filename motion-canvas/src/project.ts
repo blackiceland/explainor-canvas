@@ -173,7 +173,7 @@ export default makeProject({
         // //
         // // // 04
          fiveFacesShortcutSceneRuV2,
-        // fiveFacesPoorModelSceneRuV2,
+         fiveFacesPoorModelSceneRuV2,
         // fiveFacesFinaleSceneRuV2,
 
 
