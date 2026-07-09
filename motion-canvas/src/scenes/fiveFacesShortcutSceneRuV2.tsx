@@ -104,12 +104,14 @@ const TYPE_RULES: ColorRule[] = [
 // Glow for the instant the flag's meaning lands in the type (vs PERMISSION,
 // where it split into two method names). A cool type-coloured halo.
 const GLOW_TYPE = 'rgba(201,180,255,0.45)';
+// Brighter cool halo for the `private constructor` lock — the pale type halo
+// washes out on blue keyword tokens against the dark bg; this one pops.
+const GLOW_LOCK = 'rgba(184,206,255,0.85)';
 
 // ── Scene ────────────────────────────────────────────────────────────
 
 export default makeScene2D(function* (view) {
   const s = createFiveFacesStage(view);
-  const T0 = view.globalTime(); // DBG
 
   // Канон-палитра на код лица (начальный вид — setup красил старым CODE_RULES)
   s.callCodes[3].colorize(SHORT_RULES);
@@ -265,11 +267,9 @@ export default makeScene2D(function* (view) {
     const doorLine = vd.getLine(0);   // class ValidatedOrder private constructor(…)
     const gateLine = vd.getLine(5);   // throw InvalidOrder(order.id)
     yield* waitFor(0.4);
-    if (doorLine) yield* doorLine.setTokensGlow(['private', 'constructor'], 12, GLOW_TYPE, 0.45);
-    console.log('DBG_ERROR doorGlow=' + Math.round((view.globalTime() - T0) * 30)); // DBG
+    if (doorLine) yield* doorLine.setTokensGlow(['private', 'constructor'], 16, GLOW_LOCK, 0.45);
     yield* waitFor(0.8);
     if (gateLine) yield* gateLine.setTokensGlow(['throw', 'InvalidOrder'], 12, METHOD_COLOR, 0.45);
-    console.log('DBG_ERROR gateGlow=' + Math.round((view.globalTime() - T0) * 30)); // DBG
     yield* waitFor(1.4);
     yield* all(
       doorLine ? doorLine.resetTokensGlow(['private', 'constructor'], 0.5) : waitFor(0),

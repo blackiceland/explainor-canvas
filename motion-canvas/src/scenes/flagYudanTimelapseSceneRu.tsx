@@ -206,7 +206,7 @@ const A2_DUR = 6.0;                 // dense cinematic churn on the mid method
 const GROW_SWAP = 0.3;              // mid → final growth: per-op swap / cadence
 const GROW_CAD  = 0.55;
 const SWAP_DUR = 0.4;
-const CHURN_GAP = 0.4;
+const CHURN_GAP = 0.2;              // flat, dense gap between swaps (steady flow)
 const SETTLE_STAGGER = 0.9;         // settle finishes inside the zoom window
 const SCALE_END = 0.55;
 const LEFT_END = -520;
@@ -249,14 +249,14 @@ function groupOps(ops: Op[]): GOp[] {
 
 // Predict how long growthDiff(from,to,swapDur,cadence) takes, so the zoom can be
 // sized to end just after the settle. Mirrors insertBlock's per-line stagger
-// (`dur*0.1 + k*0.03` lead + `dur*0.9` move ⇒ a block of L lines takes
-// dur + (L-1)*0.03) and the per-op cadence wait.
+// (`dur*0.08 + k*0.02` lead + `dur*0.92` move ⇒ a block of L lines takes
+// dur + (L-1)*0.02) and the per-op cadence wait.
 function growDuration(from: string[], to: string[], swapDur: number, cadence: number): number {
   const gap = Math.max(0.02, cadence - swapDur);
   let t = 0;
   for (const op of groupOps(diffLines(from, to))) {
     if (op.kind === 'keep') continue;
-    const opDur = op.kind === 'ins' ? swapDur + (op.texts!.length - 1) * 0.03 : swapDur;
+    const opDur = op.kind === 'ins' ? swapDur + (op.texts!.length - 1) * 0.02 : swapDur;
     t += opDur + gap;
   }
   return t;
@@ -307,7 +307,7 @@ export default makeScene2D(function* (view) {
   };
 
   const targetY = (i: number) => (i - anchorIdx) * LH;
-  const layoutShift = (dur: number) => all(...buf.map((l, i) => l.node.y(targetY(i), dur, easeOutCubic)));
+  const layoutShift = (dur: number) => all(...buf.map((l, i) => l.node.y(targetY(i), dur, linear)));
   const comb = (text: string, y: number, sx: number, ex: number, dur: number, ease: typeof easeInCubic, op0: number) => {
     const anims: ThreadGenerator[] = []; const ghosts: Txt[] = [];
     for (let k = 1; k <= TRAIL; k++) {
@@ -324,11 +324,11 @@ export default makeScene2D(function* (view) {
     const old = buf[i]; const y = targetY(i); const op = opFor(i);
     const next = mkLine(newText, LINE_X + dir * OFF, y, op, home ?? old.home);
     buf[i] = next;
-    const gN = comb(newText, y, LINE_X + dir * OFF, LINE_X, dur, easeOutCubic, op);
-    const gO = comb(old.text, y, LINE_X, LINE_X - dir * OFF, dur, easeInCubic, op);
+    const gN = comb(newText, y, LINE_X + dir * OFF, LINE_X, dur, linear, op);
+    const gO = comb(old.text, y, LINE_X, LINE_X - dir * OFF, dur, linear, op);
     yield* all(
-      old.node.x(LINE_X - dir * OFF, dur, easeInCubic), old.node.opacity(0, dur * 0.92, easeInCubic),
-      next.node.x(LINE_X, dur, easeOutCubic), ...gN.anims, ...gO.anims,
+      old.node.x(LINE_X - dir * OFF, dur, linear), old.node.opacity(0, dur * 0.92, linear),
+      next.node.x(LINE_X, dur, linear), ...gN.anims, ...gO.anims,
     );
     old.node.remove(); [...gN.ghosts, ...gO.ghosts].forEach(g => g.remove());
   }
@@ -350,15 +350,15 @@ export default makeScene2D(function* (view) {
     let om: Line | null = null, nm: Line | null = null;
     if (p.aMid.length) {
       om = mkLine(p.aMid, slotX, y, op, p.aMid);
-      const g = comb(p.aMid, y, slotX, slotX - dir * OFF_TOK, dur, easeInCubic, op); trash.push(...g.ghosts);
-      anims.push(om.node.x(slotX - dir * OFF_TOK, dur, easeInCubic), om.node.opacity(0, dur * 0.9, easeInCubic), ...g.anims);
+      const g = comb(p.aMid, y, slotX, slotX - dir * OFF_TOK, dur, linear, op); trash.push(...g.ghosts);
+      anims.push(om.node.x(slotX - dir * OFF_TOK, dur, linear), om.node.opacity(0, dur * 0.9, linear), ...g.anims);
     }
     if (p.bMid.length) {
       nm = mkLine(p.bMid, slotX + dir * OFF_TOK, y, op, p.bMid);
-      const g = comb(p.bMid, y, slotX + dir * OFF_TOK, slotX, dur, easeOutCubic, op); trash.push(...g.ghosts);
-      anims.push(nm.node.x(slotX, dur, easeOutCubic), ...g.anims);
+      const g = comb(p.bMid, y, slotX + dir * OFF_TOK, slotX, dur, linear, op); trash.push(...g.ghosts);
+      anims.push(nm.node.x(slotX, dur, linear), ...g.anims);
     }
-    if (tail && Math.abs(newTailX - oldTailX) > 0.5) anims.push(tail.node.x(newTailX, dur, easeOutCubic));
+    if (tail && Math.abs(newTailX - oldTailX) > 0.5) anims.push(tail.node.x(newTailX, dur, linear));
     yield* all(...anims);
     head.node.remove(); tail?.node.remove(); om?.node.remove(); nm?.node.remove(); trash.forEach(g => g.remove());
     resolved.node.opacity(op);
@@ -371,16 +371,16 @@ export default makeScene2D(function* (view) {
     const anims: ThreadGenerator[] = [layoutShift(dur)]; const trash: Txt[] = [];
     objs.forEach((o, k) => {
       o.node.y(targetY(pos + k));
-      const g = comb(o.text, targetY(pos + k), LINE_X + dir * OFF, LINE_X, dur, easeOutCubic, opForText(pos + k, o.text)); trash.push(...g.ghosts);
-      anims.push(chain(waitFor(dur * 0.1 + k * 0.03), all(o.node.x(LINE_X, dur * 0.9, easeOutCubic), ...g.anims)));
+      const g = comb(o.text, targetY(pos + k), LINE_X + dir * OFF, LINE_X, dur, linear, opForText(pos + k, o.text)); trash.push(...g.ghosts);
+      anims.push(chain(waitFor(dur * 0.08 + k * 0.02), all(o.node.x(LINE_X, dur * 0.92, linear), ...g.anims)));
     });
     yield* all(...anims); trash.forEach(g => g.remove());
   }
 
   function* deleteLine(pos: number, dur: number, dir: number): ThreadGenerator {
     const o = buf[pos]; buf.splice(pos, 1); if (pos < anchorIdx) anchorIdx--;
-    const g = comb(o.text, o.node.y(), LINE_X, LINE_X + dir * OFF, dur, easeInCubic, 0.6);
-    yield* all(o.node.x(LINE_X + dir * OFF, dur, easeInCubic), layoutShift(dur), ...g.anims);
+    const g = comb(o.text, o.node.y(), LINE_X, LINE_X + dir * OFF, dur, linear, 0.6);
+    yield* all(o.node.x(LINE_X + dir * OFF, dur, linear), layoutShift(dur), ...g.anims);
     o.node.remove(); g.ghosts.forEach(g2 => g2.remove());
   }
 
@@ -407,12 +407,16 @@ export default makeScene2D(function* (view) {
     if (p) yield* partialSwap(i, p, SWAP_DUR, dir);
     else yield* swapLine(i, POOL[variantPtr++ % POOL.length], SWAP_DUR, dir);
   };
-  // per-line churn (fixed structure) — every non-static line at once
+  // per-line churn (fixed structure) — every non-static line at once. Uniform
+  // rhythm: flat gap between swaps + a low-discrepancy phase offset spread evenly
+  // across the cycle (golden-ratio, not a modulo) so the stream is a steady
+  // even flow, not clustered pulses.
+  const churnPeriod = SWAP_DUR + CHURN_GAP;
   function* churnLine(i: number): ThreadGenerator {
-    yield* waitFor(((i * 7) % 13) * 0.045);
+    yield* waitFor(((i * 0.6180339887) % 1) * churnPeriod);
     while (churnActive) {
       if (!noChurn(i)) yield* churnOnce(i); else yield* waitFor(SWAP_DUR);
-      yield* waitFor(CHURN_GAP + ((i * 3) % 5) * 0.02);
+      yield* waitFor(CHURN_GAP);
     }
   }
   // worker churn (survives index shifts during growth)
@@ -435,7 +439,7 @@ export default makeScene2D(function* (view) {
     const N = buf.length;
     yield* all(...buf.map((l, i) => {
       const d = (Math.abs(i - anchorIdx) / N) * SETTLE_STAGGER;
-      if (isStatic(i) || l.text === l.home) return chain(waitFor(d), l.node.opacity(1, 0.5, easeOutCubic));
+      if (isStatic(i) || l.text === l.home) return chain(waitFor(d), l.node.opacity(1, 0.5, linear));
       return chain(waitFor(d), swapLine(i, l.home, SWAP_DUR, i % 2 === 0 ? 1 : -1, l.home) as unknown as ThreadGenerator);
     }));
     // Sweep any orphan nodes left by churn/growth races — the final frame must
