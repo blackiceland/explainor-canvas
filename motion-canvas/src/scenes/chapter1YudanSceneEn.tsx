@@ -549,17 +549,31 @@ export default makeScene2D(function* (view) {
   for (const leaf of beat1Leaves) collectDescendants(leaf);
 
   // ── Prune the drooped sibling's finest twigs ───────────────────────────
-  // The sibling's terminal filigree (near-zero-width tips) reads as a
-  // circulatory/vein network rather than a branch. Drop only the thinnest
-  // offshoots — startW below the natural width gap (1.7 → 2.9) — so the
-  // sibling keeps its woody skeleton and tapered tips but sheds the hair.
-  // Target sibling ONLY; every other branch keeps its full canopy.
+  // The parent fork spawns two siblings besides beat-1: an UPPER one that
+  // climbs into the canopy and a LOWER one that droops below the main branch
+  // (the twig that swings into frame as the camera pulls back). Only the
+  // lower/target sibling's terminal filigree read as a circulatory vein
+  // network; the upper sibling must keep its full canopy of twigs.
+  // Pick the target = the sibling whose subtree reaches the lowest point
+  // (largest end.y), then drop only its thinnest offshoots — startW below
+  // the natural width gap (1.7 → 2.9) — leaving its woody skeleton intact.
+  const subtreeMaxY = (b: Branch): number => {
+    let m = b.end.y;
+    for (const c of b.children) m = Math.max(m, subtreeMaxY(c));
+    return m;
+  };
+  let targetSibling: Branch | null = null;
+  let lowestY = -Infinity;
+  for (const s of beat1Siblings) {
+    const m = subtreeMaxY(s);
+    if (m > lowestY) { lowestY = m; targetSibling = s; }
+  }
   const SIBLING_TWIG_MIN_W = 2.0;
   const pruneThinTwigs = (b: Branch) => {
     if (b.startW < SIBLING_TWIG_MIN_W) skipFromBigTree.add(b);
     for (const c of b.children) pruneThinTwigs(c);
   };
-  for (const s of beat1Siblings) pruneThinTwigs(s);
+  if (targetSibling) pruneThinTwigs(targetSibling);
 
   // ── Render branches: route to beat1Group or restGroup ──────────────────
   for (const b of allBranches) {
@@ -669,13 +683,18 @@ export default makeScene2D(function* (view) {
   const limboGroup = createRef<Node>();
   view.add(<Node ref={limboGroup} opacity={0} />);
 
+  // The soft fog GLOW lives in its own group so it can die with the tree while
+  // the snow keeps falling under the chapter title.
+  const glowGroup = createRef<Node>();
+  view.add(<Node ref={glowGroup} opacity={0} />);
+
   for (const fog of [
     {x: -200, y: 200, r: 720, op: 0.10},
     {x:  300, y:  60, r: 620, op: 0.07},
     {x: -120, y: -160, r: 520, op: 0.05},
     {x:  500, y: 240, r: 560, op: 0.06},
   ]) {
-    limboGroup().add(
+    glowGroup().add(
       <Circle
         x={fog.x}
         y={fog.y}
@@ -983,6 +1002,7 @@ export default makeScene2D(function* (view) {
     // (already drifting in steady state off-stage) becomes visible exactly
     // as the tree's true scale is revealed. Motes drift up over the move.
     limboGroup().opacity(1, INV_DUR, easeInOutCubic),
+    glowGroup().opacity(1, INV_DUR, easeInOutCubic),
     moteTime(1, INV_DUR, easeInOutCubic),
 
     // Inscription rises only as the camera settles — appears at the end.
@@ -999,12 +1019,18 @@ export default makeScene2D(function* (view) {
     ),
   );
 
+  // Hold the fully-revealed tree + epigraph in frame before the fade.
+  yield* waitFor(1.5);
+
   // ═══════════════════════════════════════════════════════════════════════
   // PHASE 3 — chapter title FACES.
   // ═══════════════════════════════════════════════════════════════════════
   yield* all(
     treeGroup().opacity(0, 1.4, easeInOutCubic),
     inscriptionRef().opacity(0, 1.4, easeInOutCubic),
+    // Only the soft fog GLOW dies together with the tree + epigraph, smoothly.
+    // The snow keeps falling (it fades later, under the title).
+    glowGroup().opacity(0, 1.4, easeInOutCubic),
   );
   // Brief gap before the title.
   yield* waitFor(0.4);
@@ -1046,8 +1072,7 @@ export default makeScene2D(function* (view) {
 
   yield* all(
     chapterContainer().opacity(1, 1.0, easeInOutCubic),
-    // Snow + atmosphere fade out as the title settles — motion and
-    // atmosphere die together, not in two separate steps.
+    // Snow fades out as the title settles (the glow already died with the tree).
     limboGroup().opacity(0, 2.6, easeInOutCubic),
   );
   // Title held.

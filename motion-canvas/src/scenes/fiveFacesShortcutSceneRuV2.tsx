@@ -2,12 +2,13 @@ import {makeScene2D, Txt} from '@motion-canvas/2d';
 import {all, createRef, easeInOutSine, waitFor} from '@motion-canvas/core';
 import {ColorRule, Manticore} from '../core/code/components/Manticore';
 import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
+import {Canon, CanonCodeTheme, paintCanonParams, paintCanonMethodCalls, paintCanonMethodCallsLine} from '../core/code/model/paletteCanon';
 import {Fonts} from '../core/theme';
 import {
   createFiveFacesStage,
   NAME_XS,
   FACES,
-  CODE_RULES, CODE_LH,
+  CODE_RULES, CANON_CODE_RULES, CODE_LH,
   IMPL_X, IMPL_W,
   IMPL_FONT_SIZE, IMPL_LH,
   TRANSPARENT_CARD, CUSTOM_TYPES,
@@ -18,25 +19,10 @@ import {
 
 // ── Morph targets — clean diffs, two impl steps + one call step ──────
 
-// Step 1: the flag leaves — and with it the dead `if (!skipValidation)`
-// branch. Order → ValidatedOrder. Body keeps its wrapped val lines.
-const IMPL_STEP1 = `fun process(order: ValidatedOrder, source: OrderSource): ProcessingResult {
-    val normalized = normalizer
-        .normalize(order.value, source)
-    val reserved = inventory
-        .reserve(normalized)
-    val payment = payments
-        .authorize(normalized)
-
-    return ProcessingResult.Accepted(
-        orderId = normalized.id,
-        reservationId = reserved.id,
-        paymentId = payment.id,
-    )
-}`;
-
-// Step 2: the body collapses to clean one-liners — cosmetic tidy-up.
-const IMPL_STEP2 = `fun process(order: ValidatedOrder, source: OrderSource): ProcessingResult {
+// After-state: the flag leaves — and with it the dead `if (!skipValidation)`
+// branch. Order → ValidatedOrder. The body is already one-liners (the impl
+// starts that way now), so this is a single clean morph, no reflow step.
+const IMPL_AFTER = `fun process(order: ValidatedOrder, source: OrderSource): ProcessingResult {
     val normalized = normalizer.normalize(order.value, source)
     val reserved = inventory.reserve(normalized)
     val payment = payments.authorize(normalized)
@@ -100,8 +86,8 @@ const VALIDATED_ORDER = `class ValidatedOrder private constructor(val value: Ord
 const SHORT_TYPES = [...CUSTOM_TYPES, 'ValidatedOrder', 'OrderRules', 'InvalidOrder'];
 
 const SHORT_RULES: ColorRule[] = [
-  ...CODE_RULES,
-  {match: /^ValidatedOrder$/, color: TYPE_CLEAN},
+  ...CANON_CODE_RULES,
+  {match: /^ValidatedOrder$/, color: Canon.type},
 ];
 
 // `constructor`/`companion`/`object` aren't in the tokenizer's keyword
@@ -112,7 +98,7 @@ const VD_RULES: ColorRule[] = [
 ];
 
 const TYPE_RULES: ColorRule[] = [
-  {match: /^[A-Z][A-Za-z]*$/, color: TYPE_CLEAN},
+  {match: /^[A-Z][A-Za-z]*$/, color: Canon.type},
 ];
 
 // Glow for the instant the flag's meaning lands in the type (vs PERMISSION,
@@ -123,6 +109,23 @@ const GLOW_TYPE = 'rgba(201,180,255,0.45)';
 
 export default makeScene2D(function* (view) {
   const s = createFiveFacesStage(view);
+
+  // Канон-палитра на код лица (начальный вид — setup красил старым CODE_RULES)
+  s.callCodes[3].colorize(SHORT_RULES);
+  paintCanonParams(s.callCodes[3]);
+  paintCanonMethodCalls(s.callCodes[3]);
+  s.implCodes[3].colorize(SHORT_RULES);
+  paintCanonParams(s.implCodes[3]);
+  paintCanonMethodCalls(s.implCodes[3]);
+
+  // Nudge the right (impl) column left — the wider single-line signature needs
+  // the extra right-edge margin (−50), plus a further −10 balance tweak. The
+  // ValidatedOrder def below shares this x.
+  const IMPL_X_SHORT = IMPL_X - 60;
+  s.implCodes[3].node.position.x(IMPL_X_SHORT);
+  // Balance: code 10px left, animation 10px right.
+  s.callCodes[3].node.position.x(s.callCodes[3].node.position.x() - 10);
+  s.shortcutViz().position.x(s.shortcutViz().position.x() + 10);
 
   s.baseX(NAME_XS[2]);
   s.bgCover().opacity(0);
@@ -147,12 +150,12 @@ export default makeScene2D(function* (view) {
   yield* waitFor(1.0);
 
   // ── Beat A: the escape hatch turns red (impl only) ─────────────────
-  // line 0: ..., skipValidation: Boolean = false   (параметр)
-  // line 2: if (!skipValidation)                    (гард в теле)
+  // line 0: ..., skipValidation: Boolean   (параметр, сигнатура в строку)
+  // line 1: if (!skipValidation)           (гард в теле)
 
   {
     const paramLine = s.implCodes[3].getLine(0);
-    const guardLine = s.implCodes[3].getLine(2);
+    const guardLine = s.implCodes[3].getLine(1);
     const anims: any[] = [];
     if (paramLine) anims.push(...paramLine.colorizeByRuleAnimated('skipValidation', METHOD_COLOR, 0.4));
     if (guardLine) anims.push(...guardLine.colorizeByRuleAnimated('skipValidation', METHOD_COLOR, 0.4));
@@ -165,7 +168,7 @@ export default makeScene2D(function* (view) {
   // Right carries the red flash (removed smell); the left stays clean.
 
   yield* all(
-    s.implCodes[3].morphTo(IMPL_STEP1, {
+    s.implCodes[3].morphTo(IMPL_AFTER, {
       removeDuration: 0.35,
       moveDuration: 0.5,
       charDelay: 0.015,
@@ -173,6 +176,7 @@ export default makeScene2D(function* (view) {
       flashRemovedDuration: 0.2,
       addStyle: 'typewriter',
       scrollStrategy: 'block',
+      recolorLine: paintCanonMethodCallsLine,
     }),
     s.callCodes[3].morphTo(CALL_AFTER, {
       removeDuration: 0.3,
@@ -180,13 +184,16 @@ export default makeScene2D(function* (view) {
       charDelay: 0.015,
       addStyle: 'typewriter',
       scrollStrategy: 'block',
+      recolorLine: paintCanonMethodCallsLine,
     }),
   );
   s.implCodes[3].colorize(SHORT_RULES);
-  paintNamedParams(s.implCodes[3]);
+  paintCanonParams(s.implCodes[3]);
+  paintCanonMethodCalls(s.implCodes[3]);
   s.implCodes[3].recenterContent();
   s.callCodes[3].colorize(SHORT_RULES);
-  paintNamedParams(s.callCodes[3]);
+  paintCanonParams(s.callCodes[3]);
+  paintCanonMethodCalls(s.callCodes[3]);
   s.callCodes[3].recenterContent();
 
   // ── Contrast with PERMISSION ───────────────────────────────────────
@@ -203,13 +210,7 @@ export default makeScene2D(function* (view) {
   }
   yield* waitFor(0.8);
 
-  // ── MORPH 2 (impl only): wrapped val lines REFLOW into one-liners ───
-  // The trailing calls glide up onto their `val` line (no retype); the
-  // lines below settle up to fill. reflowTo keeps the block centred.
-
-  yield* s.implCodes[3].reflowTo(IMPL_STEP2, {duration: 0.6});
-  s.implCodes[3].colorize(SHORT_RULES);
-  paintNamedParams(s.implCodes[3]);
+  // (No reflow step — the body is already one-liners from the start.)
   yield* waitFor(1.0);
 
   // ── ValidatedOrder definition appears below the method ─────────────
@@ -222,13 +223,13 @@ export default makeScene2D(function* (view) {
   const vdY = callBottomY - ((vdLineCount - 1) / 2) * IMPL_LH;
 
   const vd = Manticore.create(VALIDATED_ORDER, {
-    x: IMPL_X,
+    x: IMPL_X_SHORT,
     y: vdY,
     width: IMPL_W,
     fontSize: IMPL_FONT_SIZE,
     lineHeight: IMPL_LH,
     fontFamily: Fonts.code,
-    theme: DryFiltersV3CodeTheme,
+    theme: CanonCodeTheme,
     noClip: true,
     cardStyle: TRANSPARENT_CARD,
     glowAccent: false,
@@ -236,6 +237,7 @@ export default makeScene2D(function* (view) {
   });
   vd.mount(view);
   vd.colorize(VD_RULES);
+  paintCanonMethodCalls(vd);
   vd.node.opacity(0);
 
   // Lift the method so its real bottom line sits one blank line above the
@@ -276,7 +278,7 @@ export default makeScene2D(function* (view) {
     fontSize: 52,
     lineHeight: 70,
     fontFamily: Fonts.code,
-    theme: DryFiltersV3CodeTheme,
+    theme: CanonCodeTheme,
     noClip: true,
     cardStyle: TRANSPARENT_CARD,
     glowAccent: false,
@@ -304,7 +306,7 @@ export default makeScene2D(function* (view) {
       text={''}
       fontFamily={Fonts.code}
       fontSize={52}
-      fill={TYPE_CLEAN}
+      fill={Canon.type}
       opacity={0}
     />,
   );

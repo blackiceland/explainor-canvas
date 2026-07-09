@@ -1,5 +1,6 @@
 import {makeScene2D, Txt, blur} from '@motion-canvas/2d';
 import {all, createSignal, easeInOutCubic, easeInOutSine, waitFor} from '@motion-canvas/core';
+import {paintCanonParams, paintCanonMethodCalls, paintCanonMethodCallsLine} from '../core/code/model/paletteCanon';
 import {
   createFiveFacesStage,
   NAME_XS,
@@ -13,7 +14,7 @@ import {
   IMPL_WRITE,
   IMPL_SAVE_OR_REPLACE,
   CALL_PERMISSION_CLEAN,
-  CODE_RULES,
+  CODE_RULES, CANON_CODE_RULES,
   METHOD_COLOR,
   blockLines,
   yForCode,
@@ -22,6 +23,13 @@ import {
 
 export default makeScene2D(function* (view) {
   const s = createFiveFacesStage(view);
+
+  // Канон-палитра на код лица + payoff-блоки (setup красил старым CODE_RULES)
+  for (const mc of [s.callCodes[0], s.implCodes[0], s.writeMC, s.saveOrReplaceMC, s.complexSaveCode]) {
+    mc.colorize(CANON_CODE_RULES);
+    paintCanonParams(mc);
+    paintCanonMethodCalls(mc);
+  }
 
   // Pre-roll — brief darkness while the eye adapts.
   yield* waitFor(0.45);
@@ -74,11 +82,11 @@ export default makeScene2D(function* (view) {
 
     // One blur signal per region; all start sharp (0) to match the screen.
     const bLeft = createSignal(0);   // call site, minus `overwrite = true`
-    const bArg  = createSignal(0);   // impl: overwrite: Boolean = false   (2)
-    const bIf   = createSignal(0);   // impl: the if block                  (3)
-    const bKey  = createSignal(0);   // impl: val key = storage.put(...)    (4)
-    const bRet  = createSignal(0);   // impl: return StoredFile(key)        (5)
-    const bRest = createSignal(0);   // impl: fun signature, `): tail`, brace
+    const bArg  = createSignal(0);   // impl: `overwrite: Boolean` param (in sig line 0)
+    const bIf   = createSignal(0);   // impl: the if block                  (1-3)
+    const bKey  = createSignal(0);   // impl: val key = storage.put(...)    (5-9)
+    const bRet  = createSignal(0);   // impl: return StoredFile(key)        (11)
+    const bRest = createSignal(0);   // impl: fun signature, closing brace
 
     // CALL — everything soft except `overwrite = true,` (line 15).
     for (let i = 0; i < callMC.lineCount; i++) {
@@ -87,19 +95,20 @@ export default makeScene2D(function* (view) {
     }
 
     // IMPL — partition into the boolean's path vs the plumbing.
-    for (const t of nonWs(implMC, 0)) attach(t.ref(), bRest);
+    // Line 0 is the whole (now single-line) signature; isolate the
+    // `overwrite: Boolean` param (bArg) from the rest of the signature (bRest).
     {
-      // Line 1 splits: `overwrite: Boolean = false` | `): StoredFile {`.
-      let tail = false;
-      for (const t of nonWs(implMC, 1)) {
-        attach(t.ref(), tail ? bRest : bArg);
-        if (t.text === 'false') tail = true;
+      let inArg = false;
+      for (const t of nonWs(implMC, 0)) {
+        if (t.text === 'overwrite') inArg = true;
+        attach(t.ref(), inArg ? bArg : bRest);
+        if (t.text === 'Boolean') inArg = false;
       }
     }
-    for (const li of [2, 3, 4])         for (const t of nonWs(implMC, li)) attach(t.ref(), bIf);
-    for (const li of [6, 7, 8, 9, 10])  for (const t of nonWs(implMC, li)) attach(t.ref(), bKey);
-    for (const t of nonWs(implMC, 12)) attach(t.ref(), bRet);
-    for (const t of nonWs(implMC, 13)) attach(t.ref(), bRest);
+    for (const li of [1, 2, 3])        for (const t of nonWs(implMC, li)) attach(t.ref(), bIf);
+    for (const li of [5, 6, 7, 8, 9])  for (const t of nonWs(implMC, li)) attach(t.ref(), bKey);
+    for (const t of nonWs(implMC, 11)) attach(t.ref(), bRet);
+    for (const t of nonWs(implMC, 12)) attach(t.ref(), bRest);
 
     // 1) Defocus everything but `overwrite = true`.
     yield* all(
@@ -143,8 +152,8 @@ export default makeScene2D(function* (view) {
 
   // MORPH: boolean → three explicit methods.
   {
-    const sigLine = s.implCodes[0].getLine(1);
-    const ifLine = s.implCodes[0].getLine(2);
+    const sigLine = s.implCodes[0].getLine(0);   // single-line sig: `… overwrite: Boolean …`
+    const ifLine = s.implCodes[0].getLine(1);    // if (storage.exists(path) && !overwrite)
     if (sigLine) yield* sigLine.colorizeByRuleAnimated('overwrite', METHOD_COLOR, 0.4);
     if (ifLine) yield* ifLine.colorizeByRuleAnimated('overwrite', METHOD_COLOR, 0.4);
   }
@@ -157,9 +166,11 @@ export default makeScene2D(function* (view) {
     flashRemovedDuration: 0.2,
     addStyle: 'typewriter',
     scrollStrategy: 'block',
+    recolorLine: paintCanonMethodCallsLine,
   });
-  s.implCodes[0].colorize(CODE_RULES);
-  paintNamedParams(s.implCodes[0]);
+  s.implCodes[0].colorize(CANON_CODE_RULES);
+  paintCanonParams(s.implCodes[0]);
+  paintCanonMethodCalls(s.implCodes[0]);
   s.implCodes[0].recenterContent();
   yield* waitFor(0.8);
 
@@ -200,9 +211,11 @@ export default makeScene2D(function* (view) {
     flashRemovedDuration: 0.2,
     addStyle: 'typewriter',
     scrollStrategy: 'block',
+    recolorLine: paintCanonMethodCallsLine,
   });
-  s.callCodes[0].colorize(CODE_RULES);
-  paintNamedParams(s.callCodes[0]);
+  s.callCodes[0].colorize(CANON_CODE_RULES);
+  paintCanonParams(s.callCodes[0]);
+  paintCanonMethodCalls(s.callCodes[0]);
   yield* waitFor(1.8);
 
   // BIG METHOD — trade-off reveal: one real save(), no class, no injects.

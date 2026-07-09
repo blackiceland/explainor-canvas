@@ -123,17 +123,23 @@ export const paintCanonParams = (mc: Manticore, color: string = Canon.param): vo
 // Вызовы метода → methodCall; определение (после `fun`) остаётся methodDef.
 // Структурно: lowercase-имя, за которым `(`, но НЕ управляющее слово и НЕ после fun.
 const CALL_STOP = new Set(['if', 'for', 'while', 'when', 'catch', 'synchronized']);
+
+// Пер-строчная версия — годится как recolorLine-хук в morphTo (чтобы вызовы
+// печатались пастелью УЖЕ во время морфа, а не вспыхивали полным rose).
+export const paintCanonMethodCallsLine = (line: any, color: string = Canon.methodCall): void => {
+  const toks = line.tokens;
+  for (let i = 0; i < toks.length; i++) {
+    const t = toks[i].text.trim();
+    if (!/^[a-z][a-zA-Z0-9_]*$/.test(t) || CALL_STOP.has(t)) continue;
+    if (nextNonSpace(toks, i) !== '(') continue;      // это вызов/определение
+    if (prevNonSpace(toks, i) === 'fun') continue;    // определение — не трогаем
+    toks[i].ref().fill(color);
+  }
+};
+
 export const paintCanonMethodCalls = (mc: Manticore, color: string = Canon.methodCall): void => {
   for (let li = 0; li < mc.lineCount; li++) {
     const line = mc.getLine(li);
-    if (!line) continue;
-    const toks = line.tokens;
-    for (let i = 0; i < toks.length; i++) {
-      const t = toks[i].text.trim();
-      if (!/^[a-z][a-zA-Z0-9_]*$/.test(t) || CALL_STOP.has(t)) continue;
-      if (nextNonSpace(toks, i) !== '(') continue;      // это вызов/определение
-      if (prevNonSpace(toks, i) === 'fun') continue;    // определение — не трогаем
-      toks[i].ref().fill(color);
-    }
+    if (line) paintCanonMethodCallsLine(line, color);
   }
 };

@@ -4,12 +4,13 @@ import {all, createRef, easeInOutSine, linear, waitFor} from '@motion-canvas/cor
 import {CodeLine} from '../core/code/components/CodeLine';
 import {ColorRule, Manticore} from '../core/code/components/Manticore';
 import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
+import {Canon, CanonCodeTheme, paintCanonParams, paintCanonMethodCalls, paintCanonMethodCallsLine} from '../core/code/model/paletteCanon';
 import {Fonts} from '../core/theme';
 import {
   createFiveFacesStage,
   NAME_XS,
   FACES,
-  CODE_RULES, CODE_LH,
+  CODE_RULES, CANON_CODE_RULES, CODE_LH,
   CALL_X, CALL_W,
   METHOD_COLOR, PARAM_DARK, NAMED_PARAMS, METHOD_NAMES,
   CUSTOM_TYPES, TRANSPARENT_CARD,
@@ -72,7 +73,7 @@ class AccountDeletionService(
 }`;
 
 const SAFETY_RULES: ColorRule[] = [
-  ...CODE_RULES,
+  ...CANON_CODE_RULES,
   {match: /^(softDelete|hardDelete)$/, color: METHOD_COLOR},
 ];
 
@@ -93,25 +94,33 @@ const paintNamedArgsLine = (line: CodeLine): void => {
     let n = i + 1;
     while (n < toks.length && toks[n].text.trim() === '') n++;
     if (n < toks.length && toks[n].text.trim() === '=') {
-      tok.ref().fill(PARAM_DARK);
+      tok.ref().fill(Canon.param);
     }
   }
 };
 
-// ── CODA: the extracted solution, revealed top-down ──────────────────────
-// A separate aside after the face resolves, shown centred. First the public API —
-// the two safe named methods the callers use — then the shared private
-// delete(hard: Boolean) appears below them. The boolean survives as a justified
-// INTERNAL detail, hidden behind the two names.
-const CODA_EXTRACTED = `fun softDelete(userId: UserId) {
+// Комбинированный recolorLine для морфов: поля + вызовы (пастель) — чтобы во
+// время удаления/печати вызовы НЕ вспыхивали полным rose.
+const recolorCanonLine = (line: CodeLine): void => {
+  paintNamedArgsLine(line);
+  paintCanonMethodCallsLine(line);
+};
+
+// ── FINALE: the extracted solution, staged left→right ────────────────────
+// The two public named methods stand up BIG, one on each side — softDelete
+// (records) on the left, hardDelete (erases) on the right. Then they slide left
+// and shrink into a compact public-API column, and the shared private
+// delete(hard: Boolean) appears on the right — the boolean survives as a
+// justified INTERNAL detail, hidden behind the two names the callers use.
+const FIN_SOFT = `fun softDelete(userId: UserId) {
     delete(userId, hard = false)
-}
+}`;
 
-fun hardDelete(userId: UserId) {
+const FIN_HARD = `fun hardDelete(userId: UserId) {
     delete(userId, hard = true)
-}
+}`;
 
-private fun delete(userId: UserId, hard: Boolean) {
+const FIN_DELETE = `private fun delete(userId: UserId, hard: Boolean) {
     val user = users.requireById(userId)
     checkPermissions(user)
     writeAuditLog(user)
@@ -139,7 +148,7 @@ const paintCodaParamsLine = (line: CodeLine): void => {
     let n = i + 1;
     while (n < toks.length && toks[n].text.trim() === '') n++;
     if (n < toks.length && toks[n].text.trim() === '=') {
-      tok.ref().fill(PARAM_DARK);
+      tok.ref().fill(Canon.param);
     }
   }
 };
@@ -155,7 +164,7 @@ const paintCodaParams = (code: Manticore): void => {
 // doesn't muddy against the background) so the named definitions stand out. A
 // definition is the method token right after `fun`; every other method token
 // (calls) takes the gentle tone. The main face is untouched.
-const CALL_SOFT = '#E89DAB';
+const CALL_SOFT = Canon.methodCall;   // канон: вызовы — пастельный роуз
 const METHOD_TOKENS = new Set<string>([
   ...METHOD_NAMES,
   'softDelete', 'hardDelete',
@@ -179,16 +188,27 @@ const paintMethodRoles = (code: Manticore): void => {
   }
 };
 
-// Single centred coda block (24/36), TOP-anchored at CODA_TOP — raised so it sits
-// a bit higher while still clearing the spotlight glow (which fades by ≈ -340).
-// 20 lines bottom out ≈ +414. Revealed top-down: the two public methods first,
-// then the shared private delete below them. The rating blinks in last.
-const CODA_FS  = 24;
-const CODA_LH  = 36;
-const CODA_TOP = -270;
-const codaY = (src: string): number =>
-  CODA_TOP + ((src.split('\n').length - 1) / 2) * CODA_LH;
-const CODA_CX = 65;   // container centre (text starts at CODA_CX - width/2) so the full block sits centred
+// Finale layout: the named pair first stands up BIG (34/50), one on each side
+// of centre; then it shrinks (scale FIN_COL_SCALE) into a left column while the
+// shared private delete (22/32) fades in on the right.
+const FIN_FS = 34;
+const FIN_LH = 50;
+const FIN_BIG_Y = 25;      // vertical centre of the big pair
+const FIN_BIG_DX = 400;    // ±x of the big pair around centre
+const FIN_BIG_W = 720;     // container width ≈ text width, so x tracks the visual centre
+const FIN_COL_X = -560;    // left column centre after the shrink
+// 34 · 0.647 ≈ 22 (and 50 · 0.647 ≈ 32) — the shrunk pair ends the SAME size as
+// the shared delete on the right (22/32), not smaller.
+const FIN_COL_SCALE = 0.647;
+// Stacked pair top-aligned to the delete block: its first line lands on the same
+// horizontal line as `private fun delete` (block first line ≈ local y -141).
+const FIN_COL_SOFT_Y = -109;
+const FIN_COL_HARD_Y = 20;
+const FIN_DEL_X = 260;     // shared delete, right part of the frame (100 left of before)
+const FIN_DEL_Y = 35;
+const FIN_DEL_FS = 22;
+const FIN_DEL_LH = 32;
+const FIN_DEL_W = 620;
 
 // ── Scene ────────────────────────────────────────────────────────────
 
@@ -201,6 +221,14 @@ export default makeScene2D(function* (view) {
 
   const callMC = s.callCodes[2];
   const implMC = s.implCodes[2];
+
+  // Канон-палитра на код лица (начальный вид — setup красил старым CODE_RULES)
+  callMC.colorize(SAFETY_RULES);
+  paintCanonParams(callMC);
+  paintCanonMethodCalls(callMC);
+  implMC.colorize(SAFETY_RULES);
+  paintCanonParams(implMC);
+  paintCanonMethodCalls(implMC);
 
   // ── Face beat ──────────────────────────────────────────────────────
   yield* s.baseX(NAME_XS[2], 0.9, easeInOutSine);
@@ -249,10 +277,11 @@ export default makeScene2D(function* (view) {
     scrollStrategy: 'block',
     lineOrder: 'parallel',
     blockOrder: 'parallel',
-    recolorLine: paintNamedArgsLine,
+    recolorLine: recolorCanonLine,
   });
   implMC.colorize(SAFETY_RULES);
-  paintNamedParams(implMC);
+  paintCanonParams(implMC);
+  paintCanonMethodCalls(implMC);
   implMC.recenterContent();
   yield* waitFor(0.6);
 
@@ -287,7 +316,7 @@ export default makeScene2D(function* (view) {
       charDelay: 0.015,
       addStyle: 'typewriter',
       scrollStrategy: 'block',
-      recolorLine: paintNamedArgsLine,
+      recolorLine: recolorCanonLine,
     }),
     (function* () {
       yield* waitFor(0.25);
@@ -295,7 +324,8 @@ export default makeScene2D(function* (view) {
     })(),
   );
   callMC.colorize(SAFETY_RULES);
-  paintNamedParams(callMC);
+  paintCanonParams(callMC);
+  paintCanonMethodCalls(callMC);
   callMC.recenterContent();
   yield* waitFor(0.6);
 
@@ -319,55 +349,53 @@ export default makeScene2D(function* (view) {
   );
   yield* waitFor(0.4);
 
-  // ── CODA: the extracted solution, revealed top-down ────────────────────
-  // One centred block. First the public API (softDelete / hardDelete), then the
-  // shared private delete(hard: Boolean) below it. Each section develops as one
-  // (no per-line stagger); nothing moves once placed.
-  const coda = Manticore.create(CODA_EXTRACTED, {
-    x: CODA_CX,
-    y: codaY(CODA_EXTRACTED),
-    width: 900,
-    fontSize: CODA_FS,
-    lineHeight: CODA_LH,
-    fontFamily: Fonts.code,
-    theme: DryFiltersV3CodeTheme,
-    noClip: true,
-    cardStyle: TRANSPARENT_CARD,
-    glowAccent: false,
-    customTypes: CUSTOM_TYPES,
-  });
-  coda.mount(view);
-  coda.colorize(SAFETY_RULES);
-  paintCodaParams(coda);
-  paintMethodRoles(coda);   // definitions full rose, calls pale
-  // Node visible, every line hidden — so we can reveal in two beats.
-  coda.node.opacity(1);
-  for (let i = 0; i < coda.lineCount; i++) {
-    const ln = coda.getLine(i);
-    if (ln) ln.node.opacity(0);
-  }
+  // ── FINALE: named pair big (L/R) → shrink left → shared delete on the right ─
+  const makeFinBlock = (
+    src: string, x: number, y: number, fs: number, lh: number, width: number,
+  ): Manticore => {
+    const mc = Manticore.create(src, {
+      x, y, width,
+      fontSize: fs,
+      lineHeight: lh,
+      fontFamily: Fonts.code,
+      theme: CanonCodeTheme,
+      noClip: true,
+      cardStyle: TRANSPARENT_CARD,
+      glowAccent: false,
+      customTypes: CUSTOM_TYPES,
+    });
+    mc.mount(view);
+    mc.colorize(SAFETY_RULES);
+    paintCodaParams(mc);
+    paintMethodRoles(mc);   // definition full rose, calls pale
+    return mc;   // container opacity starts at 0
+  };
 
-  // 1. The public API first — the two named methods the callers actually see.
-  const PUBLIC_LINES = 7;   // softDelete + blank + hardDelete (lines 0..6)
-  const publicAnims: any[] = [];
-  for (let i = 0; i < PUBLIC_LINES; i++) {
-    const ln = coda.getLine(i);
-    if (ln) publicAnims.push(ln.node.opacity(1, 0.6, easeInOutSine));
-  }
-  yield* all(...publicAnims);
-  yield* waitFor(2.2);
+  // 1. The two named methods stand up BIG — softDelete left, hardDelete right.
+  const softMC = makeFinBlock(FIN_SOFT, -FIN_BIG_DX, FIN_BIG_Y, FIN_FS, FIN_LH, FIN_BIG_W);
+  const hardMC = makeFinBlock(FIN_HARD, FIN_BIG_DX, FIN_BIG_Y, FIN_FS, FIN_LH, FIN_BIG_W);
+  yield* all(
+    softMC.node.opacity(1, 0.7, easeInOutSine),
+    hardMC.node.opacity(1, 0.7, easeInOutSine),
+  );
+  yield* waitFor(2.0);
 
-  // 2. Then the shared delete underneath — where the boolean actually lives,
-  //    justified and out of the callers' sight. Reveals as one block below.
-  const deleteAnims: any[] = [];
-  for (let i = PUBLIC_LINES; i < coda.lineCount; i++) {
-    const ln = coda.getLine(i);
-    if (ln) deleteAnims.push(ln.node.opacity(1, 0.7, easeInOutSine));
-  }
-  yield* all(...deleteAnims);
-  yield* waitFor(1.8);
+  // 2. Both slide left and shrink into a compact column (soft over hard).
+  yield* all(
+    softMC.node.position([FIN_COL_X, FIN_COL_SOFT_Y], 0.85, easeInOutSine),
+    softMC.node.scale(FIN_COL_SCALE, 0.85, easeInOutSine),
+    hardMC.node.position([FIN_COL_X, FIN_COL_HARD_Y], 0.85, easeInOutSine),
+    hardMC.node.scale(FIN_COL_SCALE, 0.85, easeInOutSine),
+  );
+  yield* waitFor(0.4);
 
-  // 3. Verdict — now, with the whole solution on screen, the rating blinks in.
+  // 3. The shared private delete appears on the right — where the boolean lives,
+  //    justified and out of the callers' sight. Develops as one block.
+  const deleteMC = makeFinBlock(FIN_DELETE, FIN_DEL_X, FIN_DEL_Y, FIN_DEL_FS, FIN_DEL_LH, FIN_DEL_W);
+  yield* deleteMC.node.opacity(1, 0.7, easeInOutSine);
+  yield* waitFor(2.0);
+
+  // 4. Verdict — now, with the whole solution on screen, the rating blinks in.
   //    Crisp on/off (linear snaps) with a beat held between each, then settles lit.
   const verdict = s.smallScaleNodes[2]();
   yield* verdict.opacity(1, 0.05, linear);
@@ -383,7 +411,9 @@ export default makeScene2D(function* (view) {
 
   // Close everything together.
   yield* all(
-    coda.node.opacity(0, 0.7, easeInOutSine),
+    softMC.node.opacity(0, 0.7, easeInOutSine),
+    hardMC.node.opacity(0, 0.7, easeInOutSine),
+    deleteMC.node.opacity(0, 0.7, easeInOutSine),
     s.nameRefs[2]().opacity(0, 0.7, easeInOutSine),
     verdict.opacity(0, 0.7, easeInOutSine),
   );

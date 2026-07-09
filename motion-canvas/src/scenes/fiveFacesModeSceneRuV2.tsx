@@ -3,12 +3,13 @@ import {Circle, Node, Rect, Txt} from '@motion-canvas/2d';
 import {all, createRef, createSignal, easeInOutCubic, easeInOutSine, waitFor} from '@motion-canvas/core';
 import {ColorRule, Manticore} from '../core/code/components/Manticore';
 import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
+import {Canon, CanonCodeTheme, paintCanonParams, paintCanonMethodCalls, paintCanonMethodCallsLine} from '../core/code/model/paletteCanon';
 import {Fonts} from '../core/theme';
 import {
   createFiveFacesStage,
   NAME_XS,
   FACES,
-  CODE_RULES,
+  CODE_RULES, CANON_CODE_RULES,
   IMPL_X, IMPL_W,
   IMPL_FONT_SIZE, IMPL_LH,
   TRANSPARENT_CARD, CUSTOM_TYPES,
@@ -93,12 +94,12 @@ const ENUM_CODE = `enum class NotificationMode {
 const MODE_TYPES = [...CUSTOM_TYPES, 'NotificationMode'];
 
 const MODE_RULES: ColorRule[] = [
-  ...CODE_RULES,
+  ...CANON_CODE_RULES,
   {match: /^(when|enum)$/, color: FUN_BLUE},
   // NotificationMode is not in the shared CUSTOM_TYPES the call/impl Manticores
   // are built with, so the tokenizer marks it `plain` and it falls through to
   // the cream variable colour. Force it to the type colour by text.
-  {match: /^NotificationMode$/, color: TYPE_CLEAN},
+  {match: /^NotificationMode$/, color: Canon.type},
 ];
 
 const MODE_PARAMS = [...NAMED_PARAMS, 'mode'];
@@ -115,7 +116,7 @@ const paintModeParamsLine = (line: any): void => {
     let n = i + 1;
     while (n < toks.length && toks[n].text.trim() === '') n++;
     if (n < toks.length && toks[n].text.trim() === '=') {
-      tok.ref().fill(PARAM_DARK);
+      tok.ref().fill(Canon.param);
     }
   }
 };
@@ -125,6 +126,12 @@ const paintModeParams = (code: Manticore): void => {
     const line = code.getLine(lineIdx);
     if (line) paintModeParamsLine(line);
   }
+};
+
+// Комбинированный recolorLine для морфов: поля + вызовы (пастель).
+const recolorModeCanonLine = (line: any): void => {
+  paintModeParamsLine(line);
+  paintCanonMethodCallsLine(line);
 };
 
 // The enum grows in place at the end of the face beat: the two original states
@@ -153,6 +160,14 @@ export default makeScene2D(function* (view) {
 
   s.baseX(NAME_XS[0]);
   s.bgCover().opacity(0);
+
+  // Канон-палитра на код лица (начальный вид — setup красил старым CODE_RULES)
+  s.callCodes[1].colorize(MODE_RULES);
+  paintModeParams(s.callCodes[1]);
+  paintCanonMethodCalls(s.callCodes[1]);
+  s.implCodes[1].colorize(MODE_RULES);
+  paintModeParams(s.implCodes[1]);
+  paintCanonMethodCalls(s.implCodes[1]);
 
   // ── Face beat ──────────────────────────────────────────────────────
 
@@ -283,16 +298,18 @@ export default makeScene2D(function* (view) {
 
   s.implCodes[1].colorize(MODE_RULES);
   paintModeParams(s.implCodes[1]);
+  paintCanonMethodCalls(s.implCodes[1]);
   yield* s.implCodes[1].morphTo(IMPL_STEP1, {
     removeDuration: 0.22,
     moveDuration: 0.3,
     charDelay: 0.01,
     addStyle: 'typewriter',
     scrollStrategy: 'block',
-    recolorLine: paintModeParamsLine,
+    recolorLine: recolorModeCanonLine,
   });
   s.implCodes[1].colorize(MODE_RULES);
   paintModeParams(s.implCodes[1]);
+  paintCanonMethodCalls(s.implCodes[1]);
   s.implCodes[1].recenterContent();
   yield* waitFor(1.5);
 
@@ -304,10 +321,11 @@ export default makeScene2D(function* (view) {
     charDelay: 0.01,
     addStyle: 'typewriter',
     scrollStrategy: 'block',
-    recolorLine: paintModeParamsLine,
+    recolorLine: recolorModeCanonLine,
   });
   s.implCodes[1].colorize(MODE_RULES);
   paintModeParams(s.implCodes[1]);
+  paintCanonMethodCalls(s.implCodes[1]);
   s.implCodes[1].recenterContent();
   yield* waitFor(2.0);
 
@@ -327,7 +345,7 @@ export default makeScene2D(function* (view) {
     fontSize: IMPL_FONT_SIZE,
     lineHeight: IMPL_LH,
     fontFamily: Fonts.code,
-    theme: DryFiltersV3CodeTheme,
+    theme: CanonCodeTheme,
     noClip: true,
     cardStyle: TRANSPARENT_CARD,
     glowAccent: false,
@@ -345,16 +363,18 @@ export default makeScene2D(function* (view) {
 
   s.callCodes[1].colorize(MODE_RULES);
   paintModeParams(s.callCodes[1]);
+  paintCanonMethodCalls(s.callCodes[1]);
   yield* s.callCodes[1].morphTo(CALL_MODE_AFTER, {
     removeDuration: 0.22,
     moveDuration: 0.3,
     charDelay: 0.01,
     addStyle: 'typewriter',
     scrollStrategy: 'block',
-    recolorLine: paintModeParamsLine,
+    recolorLine: recolorModeCanonLine,
   });
   s.callCodes[1].colorize(MODE_RULES);
   paintModeParams(s.callCodes[1]);
+  paintCanonMethodCalls(s.callCodes[1]);
   s.callCodes[1].recenterContent();
   yield* waitFor(1.6);
 
@@ -394,7 +414,7 @@ export default makeScene2D(function* (view) {
     fontSize: 48,
     lineHeight: 68,
     fontFamily: Fonts.code,
-    theme: DryFiltersV3CodeTheme,
+    theme: CanonCodeTheme,
     noClip: true,
     cardStyle: TRANSPARENT_CARD,
     glowAccent: false,

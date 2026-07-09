@@ -148,7 +148,7 @@ export default makeProject({
 
         // IV
          // стартовый текст и древо
-          chapter1YudanSceneEn,
+         // chapter1YudanSceneEn,
          // messageDeliverySelectionSceneEn,
          // whatsappCodePairSceneEn,
          // oneMethodManyVersionsSceneEn,
@@ -156,48 +156,24 @@ export default makeProject({
         // fiveFacesBooleanSceneRu,
         // fiveFacesBooleanSceneRuV2,
 
-        // 01
+        // // 01
         //  fiveFacesPermissionSceneRuV2,
         //
         // // 02
         //  fiveFacesModeSceneRuV2,
         //
         // // 03
-           fiveFacesSafetySceneRuV2,
-        //
+        //   fiveFacesSafetySceneRuV2,
+
         // // ЛАБОРАТОРИЯ ПАЛИТРЫ — сравнение цветовых систем (эксперимент)
         //  paletteLabSceneRu,
 
-        // УНИФИЦИРОВАННЫЙ ВИД 5 лиц — одна диаграммная грамматика
-        //  unifiedFacesVizSceneRu,
-
-        // ПАУЗА между лицами — статичный флаг, код таймлапсом вокруг
-        // flagTimelapseSceneRu,
-
-        // абстрактный эпиграф — фиксированные ворота, цепочка растёт вправо
-        // flagGateChainSceneRu,
-
-        // ВЫБОР СТИЛЯ блоков — 3 статичных варианта (временная)
-        // flagBlocksStylesSceneRu,
-
-        // // НОВЫЙ дизайн: чёрный фон, код слева + Ч/Б граф системы справа
-        // flagCodeGraphSceneRu,
-        //
-        // // ПОСТЕР-БОРД 2: юдан в графическом стиле (Shapes-режим) — 3 разные геометрии
-        // flagYudanGraphicSceneRu,
-        //
-        // // ① DOMAIN блоками (тот же графический стиль) — rest + flip
-        // flagYudanBlocksSceneRu,
-        //
-        // // MERGED: код слева + кирпичная стена справа (юдан, целиком)
-        // flagYudanWallSceneRu,
-
         // ЮДАН-ТАЙМЛАПС: код-снимки register() сменяются motion-blur/ghost переходами
-         flagYudanTimelapseSceneRu,
-        //
-        // // 04
-        //  fiveFacesShortcutSceneRuV2,
-        //  fiveFacesPoorModelSceneRuV2,
+          flagYudanTimelapseSceneRu,
+        // //
+        // // // 04
+         fiveFacesShortcutSceneRuV2,
+        // fiveFacesPoorModelSceneRuV2,
         // fiveFacesFinaleSceneRuV2,
 
 

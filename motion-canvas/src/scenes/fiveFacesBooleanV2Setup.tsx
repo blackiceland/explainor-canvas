@@ -19,24 +19,10 @@ import {applyBackground} from '../core/utils';
 import {Canon, buildCanonRules} from '../core/code/model/paletteCanon';
 
 // ── FLAT viz · единый стиль для всех лиц ───────────────────────────────
-// Круговой scrim = МАСКА цвета локального фона: невидим над фоном, но
-// «стирает» код, на который наезжает виж. Непрозрачный центр (маскирует),
-// растушёванный край (код не обрезается резко). Это НЕ видимая плашка.
-const vizScrim = () => (
-  <Rect
-    width={520}
-    height={520}
-    fill={new Gradient({
-      type: 'radial', from: new Vector2(0, 0), to: new Vector2(0, 0),
-      fromRadius: 0, toRadius: 260,
-      stops: [
-        {offset: 0, color: '#101217'},        // цвет локального фона — невидим
-        {offset: 0.62, color: '#101217'},      // непрозрачный центр — маскирует код
-        {offset: 1, color: 'rgba(16,18,23,0)'},// растушёванный край
-      ],
-    })}
-  />
-);
+// Scrim отключён: сплошной диск не совпадает с градиент-фоном+прожектором
+// (читается как круг), а код виж в этих раскладках не перекрывает. No-op.
+// Если виж начнёт наезжать на код — маскировать точечным фейдом токенов.
+const vizScrim = () => (<Rect opacity={0} />);
 const VIZ_DIM = 'rgba(244,241,235,0.14)';   // нейтральная заливка FLAT-примитива
 
 // ── Palette ───────────────────────────────────────────────────────────
@@ -242,7 +228,7 @@ export const COMPLEX_SAVE_CODE = `class FileStorageService(
 // PERMISSION big-method view — the SAME real save(), but ONLY the method:
 // no class header, no constructor injects. Shows how big one method already is,
 // so "just split it" is not free. De-indented one level (standalone method).
-export const COMPLEX_SAVE_METHOD = `fun save(path: String, content: Bytes, contentType: String, overwrite: Boolean = false): StoredFile {
+export const COMPLEX_SAVE_METHOD = `fun save(path: String, content: Bytes, contentType: String, overwrite: Boolean): StoredFile {
     require(path.isNotBlank()) { "Path must not be blank" }
     require(content.size > 0) { "Content must not be empty" }
 
@@ -406,8 +392,7 @@ private fun write(path: String, content: Bytes, contentType: String): StoredFile
     return StoredFile(key)
 }`;
 
-export const IMPL_PERMISSION = `fun save(path: String, content: Bytes, contentType: String,
-    overwrite: Boolean = false): StoredFile {
+export const IMPL_PERMISSION = `fun save(path: String, content: Bytes, contentType: String, overwrite: Boolean): StoredFile {
     if (storage.exists(path) && !overwrite) {
         throw FileAlreadyExists(path)
     }
@@ -495,7 +480,7 @@ class AccountDeletionService(
     }
 }`;
 
-export const IMPL_SAFETY = `fun delete(userId: UserId, soft: Boolean = true, deletedAt: Instant,
+export const IMPL_SAFETY = `fun delete(userId: UserId, soft: Boolean, deletedAt: Instant,
     deletedBy: UserId): DeletedUser {
     val user = users.requireById(userId)
 
@@ -538,18 +523,14 @@ class ErpOrderImportJob(
     }
 }`;
 
-export const IMPL_SHORTCUT = `fun process(order: Order, source: OrderSource, skipValidation: Boolean = false
-): ProcessingResult {
+export const IMPL_SHORTCUT = `fun process(order: Order, source: OrderSource, skipValidation: Boolean): ProcessingResult {
     if (!skipValidation) {
         validator.requireValid(order)
     }
 
-    val normalized = normalizer
-        .normalize(order, source)
-    val reserved = inventory
-        .reserve(normalized)
-    val payment = payments
-        .authorize(normalized)
+    val normalized = normalizer.normalize(order, source)
+    val reserved = inventory.reserve(normalized)
+    val payment = payments.authorize(normalized)
 
     return ProcessingResult.Accepted(
         orderId = normalized.id,
@@ -748,6 +729,15 @@ export const CODE_RULES: ColorRule[] = [
   {match: /./, color: STRING_GREEN, onlyTypes: ['string'] as const},
 ];
 
+// Канон-палитра кода (аддитивно; старый CODE_RULES не трогаем — его импортируют
+// флаг-сцены). Свежие типы, тил-константы, синие числа, свежий зелёный строк,
+// синие поля-аргументы. Применяется точечно в лицах, что переключены на канон.
+export const CANON_CODE_RULES: ColorRule[] = buildCanonRules({
+  types: CUSTOM_TYPES,
+  methods: METHOD_NAMES,
+  vars: VAR_NAMES,
+});
+
 // ── Code layout constants ─────────────────────────────────────────────
 export const CODE_FONT_SIZE = 19;
 export const CODE_LH        = 28;
@@ -860,7 +850,7 @@ export const paintNamedParams = (code: Manticore): void => {
 
 // ── Stage factory ─────────────────────────────────────────────────────
 export function createFiveFacesStage(view: View2D) {
-  // ── Project background (canon vertical gradient) ───────────────────
+  // ── Project background (старый графитовый градиент) ─────────────────
   applyBackground(view);
 
   const bgCover = createRef<Rect>();
