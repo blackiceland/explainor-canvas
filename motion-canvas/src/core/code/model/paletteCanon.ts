@@ -105,18 +105,24 @@ const nextNonSpace = (toks: any[], i: number): string => {
 };
 
 // Поля-аргументы: идентификатор перед `=` (не после val/var) → param.
+// Пер-строчная версия — годится как recolorLine-хук в morphTo (чтобы поля
+// печатались slate УЖЕ во время морфа, а не вспыхивали белым VAR_LIGHT до
+// пост-морф перекраски).
+export const paintCanonParamsLine = (line: any, color: string = Canon.param): void => {
+  const toks = line.tokens;
+  for (let i = 0; i < toks.length; i++) {
+    if (!/^[a-z][a-zA-Z0-9_]*$/.test(toks[i].text.trim())) continue;
+    if (nextNonSpace(toks, i) !== '=') continue;
+    const prev = prevNonSpace(toks, i);
+    if (prev === 'val' || prev === 'var') continue;
+    toks[i].ref().fill(color);
+  }
+};
+
 export const paintCanonParams = (mc: Manticore, color: string = Canon.param): void => {
   for (let li = 0; li < mc.lineCount; li++) {
     const line = mc.getLine(li);
-    if (!line) continue;
-    const toks = line.tokens;
-    for (let i = 0; i < toks.length; i++) {
-      if (!/^[a-z][a-zA-Z0-9_]*$/.test(toks[i].text.trim())) continue;
-      if (nextNonSpace(toks, i) !== '=') continue;
-      const prev = prevNonSpace(toks, i);
-      if (prev === 'val' || prev === 'var') continue;
-      toks[i].ref().fill(color);
-    }
+    if (line) paintCanonParamsLine(line, color);
   }
 };
 

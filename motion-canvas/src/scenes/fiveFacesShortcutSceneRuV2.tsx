@@ -2,7 +2,7 @@ import {makeScene2D, Txt} from '@motion-canvas/2d';
 import {all, createRef, easeInOutSine, waitFor} from '@motion-canvas/core';
 import {ColorRule, Manticore} from '../core/code/components/Manticore';
 import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
-import {Canon, CanonCodeTheme, paintCanonParams, paintCanonMethodCalls, paintCanonMethodCallsLine} from '../core/code/model/paletteCanon';
+import {Canon, CanonCodeTheme, paintCanonParams, paintCanonParamsLine, paintCanonMethodCalls, paintCanonMethodCallsLine} from '../core/code/model/paletteCanon';
 import {Fonts} from '../core/theme';
 import {
   createFiveFacesStage,
@@ -71,6 +71,7 @@ class ErpOrderImportJob(
 const VALIDATED_ORDER = `class ValidatedOrder private constructor(val value: Order) {
 
     companion object {
+
         fun from(order: Order): ValidatedOrder {
             if (!OrderRules.isValid(order)) {
                 throw InvalidOrder(order.id)
@@ -104,9 +105,6 @@ const TYPE_RULES: ColorRule[] = [
 // Glow for the instant the flag's meaning lands in the type (vs PERMISSION,
 // where it split into two method names). A cool type-coloured halo.
 const GLOW_TYPE = 'rgba(201,180,255,0.45)';
-// Brighter cool halo for the `private constructor` lock — the pale type halo
-// washes out on blue keyword tokens against the dark bg; this one pops.
-const GLOW_LOCK = 'rgba(184,206,255,0.85)';
 
 // ── Scene ────────────────────────────────────────────────────────────
 
@@ -130,13 +128,17 @@ export default makeScene2D(function* (view) {
   s.callCodes[3].node.position.x(s.callCodes[3].node.position.x() - 10);
   s.shortcutViz().position.x(s.shortcutViz().position.x() + 10);
 
-  s.baseX(NAME_XS[2]);
-  s.bgCover().opacity(0);
+  s.baseX(NAME_XS[3]);
+  s.bgCover().opacity(1);
+  s.bgCover().moveToTop();   // above the spotlight + names, so this is a true black screen
 
   // ── Face beat ──────────────────────────────────────────────────────
 
-  yield* s.baseX(NAME_XS[3], 0.9, easeInOutSine);
+  // Cold open: black screen, then the flashlight is revealed already parked on
+  // SHORTCUT — no slide-in from a neighbouring face.
+  yield* waitFor(0.45);
   s.arrivalTime(view.globalTime());
+  yield* s.bgCover().opacity(0, 1.4, easeInOutSine);
   yield* waitFor(0.18);
   yield* s.showCallCode(3);
   yield* waitFor(4.5);
@@ -170,6 +172,14 @@ export default makeScene2D(function* (view) {
   // leave the method ↔ validation appears at the call-site boundary. ──
   // Right carries the red flash (removed smell); the left stays clean.
 
+  // During the morph, colour BOTH method calls and named params per line, so
+  // freshly typed tokens land in their final colour instead of flashing white
+  // (VAR_LIGHT) until the post-morph paintCanonParams runs.
+  const recolorMorphLine = (line: any) => {
+    paintCanonMethodCallsLine(line);
+    paintCanonParamsLine(line);
+  };
+
   yield* all(
     s.implCodes[3].morphTo(IMPL_AFTER, {
       removeDuration: 0.35,
@@ -179,7 +189,7 @@ export default makeScene2D(function* (view) {
       flashRemovedDuration: 0.2,
       addStyle: 'typewriter',
       scrollStrategy: 'block',
-      recolorLine: paintCanonMethodCallsLine,
+      recolorLine: recolorMorphLine,
     }),
     s.callCodes[3].morphTo(CALL_AFTER, {
       removeDuration: 0.3,
@@ -187,7 +197,7 @@ export default makeScene2D(function* (view) {
       charDelay: 0.015,
       addStyle: 'typewriter',
       scrollStrategy: 'block',
-      recolorLine: paintCanonMethodCallsLine,
+      recolorLine: recolorMorphLine,
     }),
   );
   s.implCodes[3].colorize(SHORT_RULES);
@@ -254,38 +264,68 @@ export default makeScene2D(function* (view) {
     vd.node.opacity(1, 0.6, easeInOutSine),
     s.implCodes[3].node.position.y(implLiftY, 0.6, easeInOutSine),
   );
+  yield* waitFor(0.6);
 
-  // ── Make the guarantee legible without Kotlin fluency ──────────────
-  // `companion object` is the only Kotlin-only token in the five faces and
-  // carries no meaning on its own — the guarantee rests on two facts. Glow
-  // them in reading order so a non-Kotlin viewer infers the mechanism:
-  //   1. `private constructor` — the door is locked; you can't build one directly
-  //   2. `throw InvalidOrder`   — the one entrance (`from`) rejects the invalid
-  // ⇒ holding a ValidatedOrder is proof it passed. Cool halo = the structural
-  //   lock; rose = the rejection (the flag's old risk, now an enforced throw).
-  {
-    const doorLine = vd.getLine(0);   // class ValidatedOrder private constructor(…)
-    const gateLine = vd.getLine(5);   // throw InvalidOrder(order.id)
-    yield* waitFor(0.4);
-    if (doorLine) yield* doorLine.setTokensGlow(['private', 'constructor'], 16, GLOW_LOCK, 0.45);
-    yield* waitFor(0.8);
-    if (gateLine) yield* gateLine.setTokensGlow(['throw', 'InvalidOrder'], 12, METHOD_COLOR, 0.45);
-    yield* waitFor(1.4);
-    yield* all(
-      doorLine ? doorLine.resetTokensGlow(['private', 'constructor'], 0.5) : waitFor(0),
-      gateLine ? gateLine.resetTokensGlow(['throw', 'InvalidOrder'], 0.5) : waitFor(0),
-    );
-  }
-
-  // ── Close morph section ────────────────────────────────────────────
-
-  yield* s.showSmallScale(3);
+  // ── Focus-pull: isolate the `from` factory + its call site ─────────
+  // Classic dim-the-rest focus. Bright: the `from` method with its body
+  // (the gate) on the right, and the one place it's called on the left
+  // (`ValidatedOrder.from(order)`). Everything else — the process method
+  // and the surrounding job class — recedes by opacity.
+  const FOCUS_DIM = 0.15;
+  yield* all(
+    s.spotlightLines(vd, [4, 5, 6, 7, 8, 9, 10], FOCUS_DIM, 0.6),
+    s.spotlightLines(s.callCodes[3], [13], FOCUS_DIM, 0.6),
+    s.implCodes[3].node.opacity(FOCUS_DIM, 0.6, easeInOutSine),
+  );
   yield* waitFor(2.0);
 
+  // ── Shift focus to the process binding ─────────────────────────────
+  // The validated order flows into `process`. Bring the process signature
+  // (right) and its call (left) up, dim the gate, then highlight the ONE
+  // parameter that carries the guarantee — `order` (whose type is now
+  // ValidatedOrder, the old skipValidation flag's replacement) — at the
+  // definition, where it's unwrapped into `normalize`, and at the call, and
+  // blink so the binding reads. `source` is left alone: it's an ordinary
+  // param, not part of the flag's story.
+  yield* all(
+    s.implCodes[3].node.opacity(1, 0.6, easeInOutSine),
+    s.spotlightLines(s.callCodes[3], [13, 15, 16, 17, 18], FOCUS_DIM, 0.6),
+    s.spotlightLines(vd, [], FOCUS_DIM, 0.6),
+  );
+  yield* waitFor(0.6);
+
+  const PARAM_HL = '#FFB562';
+  const paramToks: any[] = [];
+  const pushToks = (line: any, names: string[]) => {
+    if (!line) return;
+    for (const t of line.tokens) {
+      if (names.includes(t.text.trim())) paramToks.push(t.ref());
+    }
+  };
+  pushToks(s.implCodes[3].getLine(0), ['order']);  // the parameter at the definition
+  pushToks(s.implCodes[3].getLine(1), ['order']);  // the same order, unwrapped into normalize
+  pushToks(s.callCodes[3].getLine(16), ['order']); // the argument at the call
+  const paramOrig = paramToks.map(r => r.fill());
+  yield* all(...paramToks.map(r => r.fill(PARAM_HL, 0.2, easeInOutSine)));
+  for (let k = 0; k < 2; k++) {
+    yield* all(...paramToks.map(r => r.opacity(0.25, 0.16, easeInOutSine)));
+    yield* all(...paramToks.map(r => r.opacity(1, 0.16, easeInOutSine)));
+  }
+  yield* waitFor(0.8);
+  yield* all(...paramToks.map((r, i) => r.fill(paramOrig[i], 0.4, easeInOutSine)));
+
+  yield* waitFor(0.5);
+  yield* all(
+    s.restoreLines(vd, 0.6),
+    s.restoreLines(s.callCodes[3], 0.6),
+    s.implCodes[3].node.opacity(1, 0.6, easeInOutSine),
+  );
+  yield* waitFor(1.0);
+
+  // ── Close morph section (the rating now blinks in at the very end) ──
   yield* all(
     s.hideCallCode(3, 0.5),
     s.hideImplCode(3, 0.5),
-    s.hideSmallScale(3, 0.4),
     vd.node.opacity(0, 0.5, easeInOutSine),
   );
   yield* waitFor(0.5);
@@ -296,7 +336,7 @@ export default makeScene2D(function* (view) {
   // never just one. The question made literal.
 
   const base = Manticore.create('ValidatedOrder', {
-    x: 150,
+    x: 200,
     y: 0,
     width: 760,
     fontSize: 52,
@@ -352,9 +392,21 @@ export default makeScene2D(function* (view) {
     }
   }
 
+  // ── Rating: blinks in now, once the ending is on screen — the same
+  //    beat the other faces use (fade in, blink twice, then hold). ────
+  yield* s.showSmallScale(3);
+  const scaleNode = s.smallScaleNodes[3]();
+  yield* waitFor(0.25);
+  for (let k = 0; k < 2; k++) {
+    yield* scaleNode.opacity(0.18, 0.16, easeInOutSine);
+    yield* scaleNode.opacity(1, 0.16, easeInOutSine);
+  }
+  yield* waitFor(1.2);
+
   yield* all(
     base.node.opacity(0, 0.6, easeInOutSine),
     prefix().opacity(0, 0.6, easeInOutSine),
+    s.hideSmallScale(3, 0.6),
   );
   yield* waitFor(0.4);
 });

@@ -1,10 +1,9 @@
-import {makeScene2D, Node, Txt} from '@motion-canvas/2d';
-import {all, chain, createRef, easeInCubic, easeInOutCubic, easeOutCubic, linear, ThreadGenerator, waitFor} from '@motion-canvas/core';
-import {ColorRule, Manticore} from '../core/code/components/Manticore';
-import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
+import {makeScene2D, Node, Txt, Circle, Rect, Line as EdgeLine} from '@motion-canvas/2d';
+import {all, chain, createRef, easeInCubic, easeInOutCubic, easeInOutSine, easeOutCubic, linear, makeRef, ThreadGenerator, waitFor} from '@motion-canvas/core';
+import {Manticore} from '../core/code/components/Manticore';
+import {CanonCodeTheme, buildCanonRules, paintCanonParams, paintCanonMethodCalls} from '../core/code/model/paletteCanon';
 import {getCodePaddingX, measureText} from '../core/code/shared/TextMeasure';
 import {Fonts} from '../core/theme';
-import {applyBackground} from '../core/utils';
 
 // ─────────────────────────────────────────────────────────────────────────
 // YUDAN
@@ -19,28 +18,18 @@ import {applyBackground} from '../core/utils';
 //      catastrophe so the last line is ready BEFORE the zoom-out finishes.
 // ─────────────────────────────────────────────────────────────────────────
 
-const VAR_LIGHT   = 'rgba(244,241,235,0.96)';
-const TYPE_LILAC  = 'rgba(201,180,255,0.86)';
-const METHOD_ROSE = '#FF8CA3';
-const CONST_LILAC = 'rgba(201,180,255,0.84)';
-const KEY_BLUE    = 'rgba(163,205,255,0.9)';
-
+// Канон-палитра кода — единый источник цвета (эталон fiveFacesPermissionSceneRuV2
+// / paletteCanon): свежая лаванда типов, тил-константы, синие ключевые+числа,
+// methodDef-роуз в определении + пастель-роуз на вызовах, синие поля-аргументы,
+// зелёные строки. Аннотация `@Transactional` красится темой (annotation→keyword).
+// Раньше сцена красилась старым локальным RULES (лиловые константы, один rose).
 const CUSTOM_TYPES = [
   'RegisterCustomer', 'Customer', 'CustomerSource', 'CustomerStatus', 'CustomerPlan',
   'Boolean', 'EmailRequired', 'CustomerAlreadyExists', 'CustomerRegistered', 'Region', 'Locale',
 ];
 const METHODS = ['register', 'save', 'findByEmail', 'findByHandle', 'trim', 'lowercase', 'start', 'schedule', 'add', 'record', 'increment', 'debug', 'validate'];
 
-const RULES: ColorRule[] = [
-  {match: /^[a-z][a-zA-Z0-9_]*$/, color: VAR_LIGHT},
-  {match: /^[A-Z][a-zA-Z0-9]*$/, color: TYPE_LILAC, onlyTypes: ['type'] as const},
-  {match: new RegExp('^(' + CUSTOM_TYPES.join('|') + ')$'), color: TYPE_LILAC},
-  {match: /^[a-z][a-zA-Z0-9_]*$/, color: METHOD_ROSE, onlyTypes: ['method'] as const},
-  {match: new RegExp('^(' + METHODS.join('|') + ')$'), color: METHOD_ROSE},
-  {match: /^[A-Z][A-Z0-9_]+$/, color: CONST_LILAC},
-  {match: /^(class|object|fun|val|var|private|public|internal|return|if|else|is|in|when|for|while|throw|null|true|false)$/, color: KEY_BLUE},
-  {match: /^@\w+$/, color: KEY_BLUE},
-];
+const RULES = buildCanonRules({types: CUSTOM_TYPES, methods: METHODS});
 
 const TRANSPARENT_CARD = {
   radius: 0, fill: 'rgba(0,0,0,0)', stroke: 'rgba(0,0,0,0)', strokeWidth: 0,
@@ -82,6 +71,7 @@ const MID = [
   '    var status = CustomerStatus.PENDING',
   '    val existing = customers.findByEmail(email)',
   '    val saved = customers.save(customer)',
+  '',
   '    return saved',
   '}',
 ];
@@ -137,6 +127,7 @@ const FINAL = [
 ];
 
 // Throwaway variants the lines churn THROUGH (different code, never identical).
+// Deliberately wide so no row loops the same few states over several seconds.
 const POOL = [
   '    logger.debug("register", command.email)',
   '    val now = clock.instant()',
@@ -150,6 +141,20 @@ const POOL = [
   '    val locale = command.locale ?: Locale.ROOT',
   '    val trimmed = command.email?.trim()',
   '    source = CustomerSource.REFERRAL',
+  '    val country = command.country',
+  '    val phone = command.phone?.trim()',
+  '    cache.evict(command.email)',
+  '    session.touch(command.actor)',
+  '    val device = command.device',
+  '    val consent = command.consent == true',
+  '    rateLimiter.acquire(command.actor)',
+  '    val tags = command.tags.orEmpty()',
+  '    val score = riskEngine.score(command)',
+  '    notifications.enqueue(command.email)',
+  '    val ip = command.ipAddress',
+  '    featureFlags.check("register")',
+  '    val handle = command.handle?.lowercase()',
+  '    outbox.publish("customer.created")',
 ];
 
 const TOKEN_SWAPS: [string, string][] = [
@@ -198,15 +203,17 @@ const CONTENT_OFF = W / 2 - PAD_X;
 const LINE_X = -560;
 const OFF = 1600;
 const OFF_TOK = 300;
-const TRAIL = 4;
+const TRAIL = 3;
+const SHUTTER = 0.28;              // slow-shutter smear (was .345; −~20% → trains more intangible)
+const TRAIN_INTANGIBLE = 0.66;    // incoming swap line materializes from a faint streak (intangible)
 const SHOW_HOLD = 2.0;
-const A1_SWAP = 0.35;               // short → mid: per-op swap / cadence
-const A1_CAD  = 0.5;
+const A1_SWAP = 0.28;               // short → mid: per-op swap / cadence (snappy)
+const A1_CAD  = 0.34;
 const A2_DUR = 6.0;                 // dense cinematic churn on the mid method
 const GROW_SWAP = 0.3;              // mid → final growth: per-op swap / cadence
 const GROW_CAD  = 0.55;
-const SWAP_DUR = 0.4;
-const CHURN_GAP = 0.2;              // flat, dense gap between swaps (steady flow)
+const SWAP_DUR = 0.3;               // snappy swap — reads as a time-lapse, not smooth editing
+const CHURN_GAP = 0.36;             // flat gap between swaps (dense but render-safe)
 const SETTLE_STAGGER = 0.9;         // settle finishes inside the zoom window
 const SCALE_END = 0.55;
 const LEFT_END = -520;
@@ -264,7 +271,9 @@ function growDuration(from: string[], to: string[], swapDur: number, cadence: nu
 
 // ── Scene ──────────────────────────────────────────────────────────────────
 export default makeScene2D(function* (view) {
-  applyBackground(view);
+  // Pure black stage (author direction: this yudan scene plays on black, like
+  // the other flag scenes — not the graphite gradient/vignette of applyBackground).
+  view.add(<Rect width={3200} height={2200} fill={'#000000'} />);
 
   const codeRoot = createRef<Node>();
   const ghostLayer = createRef<Node>();
@@ -273,7 +282,7 @@ export default makeScene2D(function* (view) {
   codeRoot().add(<Node ref={ghostLayer} />);
   codeRoot().add(<Node ref={lineLayer} />);
 
-  interface Line { node: Node; text: string; home: string; }
+  interface Line { node: Node; text: string; home: string; mc: Manticore; }
   const buf: Line[] = [];
   let anchorIdx = 0;
   let receded = false;
@@ -297,21 +306,22 @@ export default makeScene2D(function* (view) {
   const mkLine = (text: string, x: number, y: number, op: number, home: string): Line => {
     const mc = Manticore.create(text || ' ', {
       x, y, width: W, fontSize: FS, lineHeight: LH, fontFamily: Fonts.code,
-      theme: DryFiltersV3CodeTheme, noClip: true, cardStyle: TRANSPARENT_CARD,
+      theme: CanonCodeTheme, noClip: true, cardStyle: TRANSPARENT_CARD,
       glowAccent: false, customTypes: CUSTOM_TYPES, contentOffsetX: CONTENT_OFF,
     });
     mc.mount(lineLayer());
     mc.colorize(RULES);
+    paintCanonParams(mc);        // поля-аргументы `x =` → синий (канон)
+    paintCanonMethodCalls(mc);   // вызовы → пастель-роуз; определение остаётся methodDef
     mc.node.opacity(op);
-    return {node: mc.node, text, home};
+    return {node: mc.node, text, home, mc};
   };
 
   const targetY = (i: number) => (i - anchorIdx) * LH;
-  const layoutShift = (dur: number) => all(...buf.map((l, i) => l.node.y(targetY(i), dur, linear)));
-  const comb = (text: string, y: number, sx: number, ex: number, dur: number, ease: typeof easeInCubic, op0: number) => {
+  const comb = (text: string, y: number, sx: number, ex: number, dur: number, ease: typeof easeInCubic, op0: number, trailN: number = TRAIL) => {
     const anims: ThreadGenerator[] = []; const ghosts: Txt[] = [];
-    for (let k = 1; k <= TRAIL; k++) {
-      const op = (0.3 / (k * 0.9 + 0.6)) * op0;
+    for (let k = 1; k <= trailN; k++) {
+      const op = (SHUTTER / (k * 0.9 + 0.6)) * op0;
       const g = new Txt({x: sx, y, text: text || ' ', offset: [-1, 0], fontFamily: Fonts.code, fontSize: FS, fill: `rgba(242,240,235,${op})`});
       ghostLayer().add(g); ghosts.push(g);
       anims.push(chain(waitFor(k * 0.014), all(g.position.x(ex, dur, ease), g.opacity(0, dur, linear))));
@@ -319,16 +329,17 @@ export default makeScene2D(function* (view) {
     return {anims, ghosts};
   };
 
-  function* swapLine(i: number, newText: string, dur: number, dir: number, home?: string): ThreadGenerator {
+  function* swapLine(i: number, newText: string, dur: number, dir: number, off: number = OFF, trailN: number = TRAIL, home?: string): ThreadGenerator {
     if (i < 0 || i >= buf.length) return;
     const old = buf[i]; const y = targetY(i); const op = opFor(i);
-    const next = mkLine(newText, LINE_X + dir * OFF, y, op, home ?? old.home);
+    const next = mkLine(newText, LINE_X + dir * off, y, op, home ?? old.home);
+    next.node.opacity(op * TRAIN_INTANGIBLE);   // train materializes from a faint streak, not a solid car
     buf[i] = next;
-    const gN = comb(newText, y, LINE_X + dir * OFF, LINE_X, dur, linear, op);
-    const gO = comb(old.text, y, LINE_X, LINE_X - dir * OFF, dur, linear, op);
+    const gN = comb(newText, y, LINE_X + dir * off, LINE_X, dur, linear, op, trailN);
+    const gO = comb(old.text, y, LINE_X, LINE_X - dir * off, dur, linear, op, trailN);
     yield* all(
-      old.node.x(LINE_X - dir * OFF, dur, linear), old.node.opacity(0, dur * 0.92, linear),
-      next.node.x(LINE_X, dur, linear), ...gN.anims, ...gO.anims,
+      old.node.x(LINE_X - dir * off, dur, linear), old.node.opacity(0, dur * 0.92, linear),
+      next.node.x(LINE_X, dur, linear), next.node.opacity(op, dur, linear), ...gN.anims, ...gO.anims,
     );
     old.node.remove(); [...gN.ghosts, ...gO.ghosts].forEach(g => g.remove());
   }
@@ -368,11 +379,13 @@ export default makeScene2D(function* (view) {
     const objs = texts.map((t, k) => mkLine(t, LINE_X + dir * OFF, 0, opForText(pos + k, t), t));
     buf.splice(pos, 0, ...objs);
     if (pos <= anchorIdx) anchorIdx += texts.length;
-    const anims: ThreadGenerator[] = [layoutShift(dur)]; const trash: Txt[] = [];
+    // NO vertical glide: every existing line SNAPS to its slot; only the new
+    // lines move, and only horizontally (the growth IS the time-lapse swap).
+    buf.forEach((l, i) => l.node.y(targetY(i)));
+    const anims: ThreadGenerator[] = []; const trash: Txt[] = [];
     objs.forEach((o, k) => {
-      o.node.y(targetY(pos + k));
       const g = comb(o.text, targetY(pos + k), LINE_X + dir * OFF, LINE_X, dur, linear, opForText(pos + k, o.text)); trash.push(...g.ghosts);
-      anims.push(chain(waitFor(dur * 0.08 + k * 0.02), all(o.node.x(LINE_X, dur * 0.92, linear), ...g.anims)));
+      anims.push(chain(waitFor(k * 0.02), all(o.node.x(LINE_X, dur, linear), ...g.anims)));
     });
     yield* all(...anims); trash.forEach(g => g.remove());
   }
@@ -380,7 +393,8 @@ export default makeScene2D(function* (view) {
   function* deleteLine(pos: number, dur: number, dir: number): ThreadGenerator {
     const o = buf[pos]; buf.splice(pos, 1); if (pos < anchorIdx) anchorIdx--;
     const g = comb(o.text, o.node.y(), LINE_X, LINE_X + dir * OFF, dur, linear, 0.6);
-    yield* all(o.node.x(LINE_X + dir * OFF, dur, linear), layoutShift(dur), ...g.anims);
+    buf.forEach((l, i) => l.node.y(targetY(i)));            // snap, no glide
+    yield* all(o.node.x(LINE_X + dir * OFF, dur, linear), ...g.anims);
     o.node.remove(); g.ghosts.forEach(g2 => g2.remove());
   }
 
@@ -393,7 +407,7 @@ export default makeScene2D(function* (view) {
     for (const op of grouped) {
       const dir = flip % 2 === 0 ? 1 : -1;
       if (op.kind === 'keep') { cursor++; continue; }
-      if (op.kind === 'chg') { yield* swapLine(cursor, op.b!, swapDur, dir, op.b!); cursor++; }
+      if (op.kind === 'chg') { yield* swapLine(cursor, op.b!, swapDur, dir, OFF, TRAIL, op.b!); cursor++; }
       else if (op.kind === 'ins') { yield* insertBlock(cursor, op.texts!, swapDur, dir); cursor += op.texts!.length; }
       else { yield* deleteLine(cursor, swapDur, dir); }
       flip++;
@@ -401,11 +415,43 @@ export default makeScene2D(function* (view) {
     }
   }
 
+  // Keep the swapped-in variant at the SAME indentation as the slot it lands in
+  // (a line inside an if-block stays 8-space indented, not dedented to 4).
+  const indentOf = (s: string) => s.match(/^\s*/)?.[0] ?? '';
+  const reindent = (text: string, indent: string) => indent + text.replace(/^\s+/, '');
+  // Well-mixed variant pick (Knuth hash of seq⊕row) — no obvious cycle, never a
+  // no-op, so a row shows a stream of DIFFERENT code, not the same few states.
+  const pickVariant = (i: number, seq: number): string => {
+    const cur = buf[i].text; const indent = indentOf(cur);
+    for (let t = 0; t < POOL.length; t++) {
+      const h = (Math.imul(seq + t + 1, 2654435761) ^ Math.imul(i + 1, 40503)) >>> 0;
+      const cand = reindent(POOL[h % POOL.length], indent);
+      if (cand !== cur) return cand;
+    }
+    return reindent(POOL[(seq + i) % POOL.length], indent);
+  };
+  // Per-swap MOTION character (deterministic, well-mixed): so the movement never
+  // looks like one repeated slide — speed, throw distance, side and smear length
+  // all vary swap-to-swap while the rhythm stays even.
+  const swapStyle = (seq: number, i: number) => {
+    const h = (Math.imul(seq * 2 + 1, 2246822519) ^ Math.imul(i + 1, 3266489917)) >>> 0;
+    const a = (h & 1023) / 1023;
+    const b = ((h >>> 10) & 1023) / 1023;
+    return {
+      dur: 0.2 + a * 0.34,                 // 0.20 .. 0.54  (snappy ↔ long-drag)
+      off: OFF * (0.55 + b * 1.05),        // near ↔ far throw (fast ↔ slow visual)
+      dir: (h >>> 20) & 1 ? 1 : -1,        // enter from either side
+      trail: 2 + ((h >>> 21) % 4),         // 2 .. 5 smear length
+    };
+  };
   const churnOnce = function* (i: number): ThreadGenerator {
+    const seq = variantPtr++;
+    const st = swapStyle(seq, i);
     const p = findPartial(buf[i].text);
-    const dir = i % 2 === 0 ? 1 : -1;
-    if (p) yield* partialSwap(i, p, SWAP_DUR, dir);
-    else yield* swapLine(i, POOL[variantPtr++ % POOL.length], SWAP_DUR, dir);
+    // Mostly swap the WHOLE line to a fresh variant (variety); only occasionally
+    // flip a single token, so no row sits oscillating A↔B for seconds.
+    if (p && (seq + i) % 4 === 0) yield* partialSwap(i, p, st.dur, st.dir);
+    else yield* swapLine(i, pickVariant(i, seq), st.dur, st.dir, st.off, st.trail);
   };
   // per-line churn (fixed structure) — every non-static line at once. Uniform
   // rhythm: flat gap between swaps + a low-discrepancy phase offset spread evenly
@@ -440,7 +486,7 @@ export default makeScene2D(function* (view) {
     yield* all(...buf.map((l, i) => {
       const d = (Math.abs(i - anchorIdx) / N) * SETTLE_STAGGER;
       if (isStatic(i) || l.text === l.home) return chain(waitFor(d), l.node.opacity(1, 0.5, linear));
-      return chain(waitFor(d), swapLine(i, l.home, SWAP_DUR, i % 2 === 0 ? 1 : -1, l.home) as unknown as ThreadGenerator);
+      return chain(waitFor(d), swapLine(i, l.home, SWAP_DUR, i % 2 === 0 ? 1 : -1, OFF, TRAIL, l.home) as unknown as ThreadGenerator);
     }));
     // Sweep any orphan nodes left by churn/growth races — the final frame must
     // be exactly the catastrophe, nothing doubled over a settled line.
@@ -455,12 +501,18 @@ export default makeScene2D(function* (view) {
   yield* all(...buf.map(l => l.node.opacity(1, 0.6, easeOutCubic)));
   yield* waitFor(SHOW_HOLD);
 
-  // ── Beat 1a — the edits: @Transactional above the (kept) signature, validate
-  //    below it, and three lines grow at the bottom; register / return / } stay. ─
+  // ── Beat 1a — the time-lapse STARTS immediately: churn runs while the method
+  //    grows SHORT→MID (@Transactional above the kept signature, validate below,
+  //    three lines at the bottom). Snappy, so the opening reads as a time-lapse. ─
   receded = true;
+  churnActive = true;
   yield* all(
-    growthDiff(SHORT, MID, A1_SWAP, A1_CAD),
-    ...buf.map((l, i) => l.node.opacity(opFor(i), 0.5, easeOutCubic)),
+    chain(
+      growthDiff(SHORT, MID, A1_SWAP, A1_CAD),
+      (function* () { churnActive = false; })(),
+    ),
+    ...Array.from({length: 4}, (_, w) => churnWorker(w)),
+    ...buf.map((l, i) => l.node.opacity(opFor(i), 0.4, linear)),
   );
 
   // ── Beat 1b — cinematic time-lapse: every body line churns at once; the
@@ -497,5 +549,165 @@ export default makeScene2D(function* (view) {
     ),
   );
 
+  yield* waitFor(0.7);
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // CONTINUATION — the catastrophe has settled small on the LEFT.
+  //   Beat 3: YUDAN (the term) blooms on the RIGHT + a short English gloss.
+  //   Beat 4: push INTO the code on the left (readable scale); YUDAN sweeps off
+  //           to the right as the push passes it — logical parallax, not a blink.
+  //   Beat 5: scroll down the method (scaffold from registerFlagOptionsSceneRu:
+  //           codeRoot.y centers a line, dim the rest) — but on the buf[] of
+  //           per-line Manticores, not a single mc. On the RIGHT a fan accretes:
+  //           one leaf per fork = the single flag taking on ever more
+  //           responsibility, cool→red as the load compounds (yudan). No logic
+  //           text — a scheme + one label, sync sells the code↔fan link.
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // ── Beat 3 — YUDAN term, GLUED to the code canvas ─────────────────────────
+  // It is a CHILD of codeRoot (not a screen overlay), so the zoom transforms it
+  // together with the code — logical parallax, not a detached sideways crawl.
+  // Authored at screen px and counter-scaled by 1/SCALE_END so it reads at
+  // natural size over the settled catastrophe. Just the label + one text style.
+  const S0 = SCALE_END;                                             // codeRoot scale after Beat 2
+  const centerLocal2 = ((FINAL.length - 1) / 2 - FINAL.indexOf(ANCHOR_LINE)) * LH;
+  const cRootY0 = -centerLocal2 * S0;                               // codeRoot.y after Beat 2
+  // Left-aligned block: the label and both lines share ONE left edge (geometric).
+  // yuScreenX is that shared left edge on screen in Beat 3.
+  const yuScreenX = 44, yuScreenY = -6;
+  const yudan = createRef<Node>();
+  const yuTitle = createRef<Txt>();
+  const yuL1 = createRef<Txt>();
+  const yuL2 = createRef<Txt>();
+  codeRoot().add(
+    <Node
+      ref={yudan}
+      x={(yuScreenX - LEFT_END) / S0}
+      y={(yuScreenY - cRootY0) / S0}
+      scale={1 / S0}
+      opacity={0}
+    >
+      <Txt ref={yuTitle} y={-54} text={'YUDAN'} fontFamily={Fonts.primary} fontSize={136}
+           fontWeight={600} letterSpacing={2} fill={'#F4F1EB'} />
+      <Txt ref={yuL1} offset={[-1, 0]} x={0} y={56} text={'a slow-motion catastrophe of a lowered guard –'}
+           fontFamily={Fonts.primary} fontSize={29} fill={'rgba(244,241,235,0.72)'} />
+      <Txt ref={yuL2} offset={[-1, 0]} x={0} y={95} text={'each move looks safe, until the game is already lost.'}
+           fontFamily={Fonts.primary} fontSize={29} fill={'rgba(244,241,235,0.72)'} />
+    </Node>,
+  );
+  // Geometry: the two lines are left-aligned into a block (shared left edge at 0);
+  // YUDAN is CENTERED over that block, not stuck to its left edge.
+  const yuBlockW = Math.max(yuL1().width(), yuL2().width());
+  yuTitle().x(yuBlockW / 2);
+  yield* yudan().opacity(1, 0.9, easeOutCubic);            // whole label appears as one
+  yield* waitFor(2.8);
+
+  // ── Beat 4 — bring the camera to the TOP of the code with a zoom (NOT a push
+  //    that shoves the code down to frame-centre). YUDAN, glued to the canvas,
+  //    scales and moves WITH the code as the camera closes in, then dissolves. ─
+  const READ_SCALE = 0.92;
+  const READ_X = -355;   // left-anchored: keeps @Transactional/fun on-screen, forks clear of the fan
+  const DIMLINE = 0.2;
+  const centerY = (c: number) => -READ_SCALE * targetY(c);
+  const TOP_Y = -430;                                      // @Transactional lands near the frame top
+  const topFrameY = TOP_Y - READ_SCALE * targetY(0);
+  const SIG_FOCUS = [0, 1, 2, 3, 4];
+  const ZIN = 1.7;
+  yield* all(
+    codeRoot().scale(READ_SCALE, ZIN, easeInOutCubic),
+    codeRoot().position([READ_X, topFrameY], ZIN, easeInOutCubic),
+    yudan().opacity(0, ZIN * 0.62, easeInOutSine),         // dissolves as the canvas carries it off
+    ...buf.map((l, i) => l.node.opacity(SIG_FOCUS.includes(i) ? 1 : DIMLINE, ZIN, easeInOutSine)),
+  );
+  yudan().remove();
+  yield* waitFor(0.9);
+
+  // ── Beat 5 — scroll the forks; the responsibility fan accretes on the right ─
+  const dimExcept = (focus: number[], dur: number) =>
+    buf.map((l, i) => l.node.opacity(focus.includes(i) ? 1 : DIMLINE, dur, easeInOutSine));
+
+  // Fan HUD (screen space, drawn over the scrolling code). cool → red = the flag
+  // taking on more than one job at a time until it is overloaded.
+  const LOAD = ['#8FC0FF', '#C9A6E8', '#F0896F', '#FF4757'];
+  // Each leaf NAMES the responsibility (a role noun, not the if-logic).
+  const LEAF_LABEL = ['record source', 'trust state', 'email rule', 'side-effects'];
+  const ROOT: [number, number] = [330, 12];
+  const LEAF_X = 726;
+  const LEAF_Y = [-156, -52, 52, 156];
+  const rootDot = createRef<Circle>();
+  const rootRing = createRef<Circle>();
+  const leafDot: Circle[] = [];
+  const leafLabel: Txt[] = [];
+  const edge: EdgeLine[] = [];
+  const fan = createRef<Node>();
+  view.add(
+    <Node ref={fan} opacity={0}>
+      <Txt x={528} y={-252} text={'RESPONSIBILITIES'} fontFamily={Fonts.primary}
+           fontSize={23} fontWeight={600} letterSpacing={5} fill={'rgba(244,241,235,0.5)'} />
+      <Circle ref={rootRing} x={ROOT[0]} y={ROOT[1]} width={80} height={80}
+              lineWidth={2} stroke={'rgba(244,241,235,0.16)'} />
+      <Circle ref={rootDot} x={ROOT[0]} y={ROOT[1]} width={52} height={52} fill={'#8FC0FF'} />
+      <Txt x={ROOT[0]} y={ROOT[1] + 60} text={'fromImport'} fontFamily={Fonts.code}
+           fontSize={21} fill={'rgba(244,241,235,0.55)'} />
+      {LEAF_Y.map((ly, i) => (
+        <EdgeLine ref={makeRef(edge, i)} points={[[ROOT[0], ROOT[1]], [LEAF_X, ly]]}
+                  lineWidth={2.5} stroke={LOAD[i]} end={0} opacity={0.5} />
+      ))}
+      {LEAF_Y.map((ly, i) => (
+        <Circle ref={makeRef(leafDot, i)} x={LEAF_X} y={ly} width={30} height={30}
+                fill={LOAD[i]} opacity={0} scale={0.4} />
+      ))}
+      {LEAF_Y.map((ly, i) => (
+        <Txt ref={makeRef(leafLabel, i)} x={LEAF_X + 32} y={ly} offset={[-1, 0]}
+             text={LEAF_LABEL[i]} fontFamily={Fonts.code} fontSize={20}
+             fill={'rgba(244,241,235,0.62)'} opacity={0} />
+      ))}
+    </Node>,
+  );
+  yield* fan().opacity(1, 0.5, easeInOutSine);
+
+  // Show the top, then move DOWN only (monotonic). The first fork sits near the
+  // top after the zoom, so it is lit IN PLACE (no scroll-up); every later fork is
+  // reached by a strictly downward scroll — no pointless down-then-up.
+  const BEATS = [
+    {fork: 6,  focus: [6, 7, 8],            scrollY: topFrameY},
+    {fork: 13, focus: [13, 14, 15, 16],     scrollY: centerY(14)},
+    {fork: 22, focus: [22, 23, 24],         scrollY: centerY(23)},
+    {fork: 39, focus: [39, 40, 41, 42, 43], scrollY: centerY(41)},
+  ];
+  for (let b = 0; b < BEATS.length; b++) {
+    const beat = BEATS[b];
+    yield* all(
+      codeRoot().position.y(beat.scrollY, 1.1, easeInOutCubic),
+      ...dimExcept(beat.focus, 1.1),
+      ...buf[beat.fork].mc.getLine(0)!.colorizeByRuleAnimated('fromImport', LOAD[b], 0.6),
+      edge[b].end(1, 0.7, easeInOutCubic),
+      leafDot[b].opacity(1, 0.5, easeInOutSine),
+      leafDot[b].scale(1, 0.5, easeOutCubic),
+      chain(waitFor(0.25), leafLabel[b].opacity(1, 0.5, easeInOutSine)),
+    );
+    yield* waitFor(1.6);
+  }
+
+  // The flag is overloaded — the core reddens (yudan: the safe-looking lead lost).
+  yield* all(
+    rootDot().fill('#FF4757', 0.7, easeInOutSine),
+    rootRing().stroke('rgba(255,71,87,0.5)', 0.7, easeInOutSine),
+    rootRing().lineWidth(3, 0.7, easeInOutSine),
+  );
   yield* waitFor(END_HOLD);
+
+  // ── Outro — zoom BACK OUT to the whole method at full opacity, so the viewer
+  //    takes in the entire catastrophe once more; then everything fades to black.
+  yield* all(
+    codeRoot().scale(SCALE_END, 1.6, easeInOutCubic),
+    codeRoot().position([LEFT_END, cRootY0], 1.6, easeInOutCubic),
+    ...buf.map(l => l.node.opacity(1, 1.3, easeInOutSine)),   // restore full opacity (undim)
+  );
+  yield* waitFor(1.4);
+  yield* all(
+    codeRoot().opacity(0, 1.4, easeInOutSine),
+    fan().opacity(0, 1.4, easeInOutSine),
+  );
+  yield* waitFor(0.5);
 });

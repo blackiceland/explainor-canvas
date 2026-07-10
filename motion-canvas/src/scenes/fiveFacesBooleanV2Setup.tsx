@@ -392,7 +392,8 @@ private fun write(path: String, content: Bytes, contentType: String): StoredFile
     return StoredFile(key)
 }`;
 
-export const IMPL_PERMISSION = `fun save(path: String, content: Bytes, contentType: String, overwrite: Boolean): StoredFile {
+export const IMPL_PERMISSION = `fun save(path: String, content: Bytes, contentType: String, overwrite: Boolean):
+        StoredFile {
     if (storage.exists(path) && !overwrite) {
         throw FileAlreadyExists(path)
     }
@@ -570,8 +571,7 @@ class CampaignLauncher(
     }
 }`;
 
-export const IMPL_POOR = `fun update(campaignId: CampaignId, active: Boolean, startedAt: Instant
-): Campaign {
+export const IMPL_POOR = `fun update(campaignId: CampaignId, active: Boolean, startedAt: Instant): Campaign {
     val campaign = requireById(campaignId)
 
     val updated = campaign.copy(
@@ -1396,27 +1396,32 @@ export function createFiveFacesStage(view: View2D) {
     );
   }
 
-  // ── POOR MODEL viz — FLAT: 6 состояний-квадратов (булев их не описывает) ──
+  // ── POOR MODEL viz — FLAT: 6 состояний схлопываются в 2 значения ──────
+  // Реальный жизненный цикл (draft…archived) давится булевым active в два
+  // значения: 4 состояния наслаиваются в один false, 2 — в один true.
+  // Разные состояния совпадают в точке → их уже не различить.
   const poorViz = createRef<Node>();
-  const poorNodes:  Rect[] = [];
-  const poorLabels: Txt[]  = [];
-  const poorLinks:  Line[] = [];   // FLAT — без связей
+  const poorNodes:  Rect[] = [];   // 6 квадратов-состояний (источник)
+  const poorLabels: Txt[]  = [];   // подписи состояний
+  const poorLinks:  Line[] = [];   // не используется (FLAT — без связей)
+  const poorFalseLbl = createRef<Txt>();
+  const poorTrueLbl  = createRef<Txt>();
   {
-    const POS: [number, number][] = [
-      [-120, -64], [0, -64], [120, -64],   // draft, scheduled, running
-      [-120, 60], [0, 60], [120, 60],       // paused, completed, archived
-    ];
-    const FILL = [VIZ_DIM, VIZ_DIM, Canon.param, VIZ_DIM, Canon.constant, VIZ_DIM];
-    const SQ = 66;
+    const SQ = 58, COL_X = -120, PITCH = 64;
+    const yAt = (i: number): number => (i - 2.5) * PITCH;   // -160..160
+    const INK70 = 'rgba(244,241,235,0.70)';
     view.add(
       <Node ref={poorViz} x={VIZ_X} y={VIZ_Y} opacity={0}>
         {vizScrim()}
-        {POS.map((p, i) => (
-          <Rect ref={makeRef(poorNodes, i)} x={p[0]} y={p[1]} width={SQ} height={SQ} radius={8} fill={FILL[i]} opacity={0} />
+        {poorStateLabels.map((s, i) => (
+          <Rect ref={makeRef(poorNodes, i)} x={COL_X} y={yAt(i)} width={SQ} height={SQ} radius={10} fill={VIZ_DIM} />
         ))}
-        {POS.map((p, i) => (
-          <Txt ref={makeRef(poorLabels, i)} x={p[0]} y={p[1] + SQ / 2 + 17} text={poorStateLabels[i]} fontFamily={Fonts.code} fontSize={14} letterSpacing={1} fill={'rgba(244,241,235,0.6)'} opacity={0} />
+        {poorStateLabels.map((s, i) => (
+          <Txt ref={makeRef(poorLabels, i)} x={COL_X + SQ / 2 + 12} y={yAt(i)} offset={[-1, 0]} text={s} fontFamily={Fonts.code} fontSize={18} letterSpacing={1} fill={INK70} />
         ))}
+        {/* цели схлопа — два значения бита */}
+        <Txt ref={poorFalseLbl} x={152} y={-70} offset={[-1, 0]} text={'false'} fontFamily={Fonts.code} fontSize={22} letterSpacing={1} fill={INK70} opacity={0} />
+        <Txt ref={poorTrueLbl} x={152} y={70} offset={[-1, 0]} text={'true'} fontFamily={Fonts.code} fontSize={22} letterSpacing={1} fill={Canon.param} opacity={0} />
       </Node>,
     );
   }
@@ -1533,15 +1538,27 @@ export function createFiveFacesStage(view: View2D) {
   }
 
   function* poorDriver(): ThreadGenerator {
-    yield* waitFor(0.25);
-    // 6 состояний проявляются по очереди — булев их не описывает
+    yield* waitFor(0.5);
+    // Схлоп: 6 состояний сходятся в 2 стопки. running/paused → true (blue),
+    // остальные 4 → false (dim), наслаиваясь в одной точке.
+    const fC: [number, number] = [100, -70];
+    const tC: [number, number] = [100, 70];
+    const anims: ThreadGenerator[] = [];
+    let fk = 0, tk = 0;
     for (let i = 0; i < poorNodes.length; i++) {
-      yield* all(
-        poorNodes[i].opacity(1, 0.24, easeInOutSine),
-        poorLabels[i].opacity(1, 0.24, easeInOutSine),
-      );
-      yield* waitFor(0.05);
+      const isTrue = i === 2 || i === 3;   // running, paused
+      const base = isTrue ? tC : fC;
+      const k = isTrue ? tk++ : fk++;
+      const tgt: [number, number] = [base[0] + k * 5, base[1] + k * 5];
+      anims.push(poorNodes[i].position(tgt, 0.75, easeInOutCubic));
+      anims.push(poorNodes[i].fill(isTrue ? Canon.param : VIZ_DIM, 0.75, easeInOutSine));
+      anims.push(poorLabels[i].opacity(0, 0.5, easeInOutSine));
     }
+    yield* all(...anims);
+    yield* all(
+      poorFalseLbl().opacity(1, 0.45, easeInOutSine),
+      poorTrueLbl().opacity(1, 0.45, easeInOutSine),
+    );
   }
 
   const vizRefs    = [permissionViz, modeViz, safetyViz, shortcutViz, poorViz];

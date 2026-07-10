@@ -22,6 +22,8 @@ import flagYudanWallSceneRu from "./scenes/flagYudanWallSceneRu?scene";
 import flagYudanTimelapseSceneRu from "./scenes/flagYudanTimelapseSceneRu?scene";
 import fiveFacesShortcutSceneRuV2 from "./scenes/fiveFacesShortcutSceneRuV2?scene";
 import fiveFacesPoorModelSceneRuV2 from "./scenes/fiveFacesPoorModelSceneRuV2?scene";
+import poorModelOptionsSceneRu from "./scenes/poorModelOptionsSceneRu?scene";
+import registerFlagOptionsSceneRu from "./scenes/registerFlagOptionsSceneRu?scene";
 import fiveFacesFinaleSceneRuV2 from "./scenes/fiveFacesFinaleSceneRuV2?scene";
 import fiveFacesBooleanMorphSceneRu from "./scenes/fiveFacesBooleanMorphSceneRu?scene";
 import messageDeliverySelectionSceneEn from "./scenes/messageDeliverySelectionSceneEn?scene";
@@ -157,7 +159,7 @@ export default makeProject({
         // fiveFacesBooleanSceneRuV2,
 
         // // 01
-        //  fiveFacesPermissionSceneRuV2,
+          fiveFacesPermissionSceneRuV2,
         //
         // // 02
         //  fiveFacesModeSceneRuV2,
@@ -171,9 +173,13 @@ export default makeProject({
         // ЮДАН-ТАЙМЛАПС: код-снимки register() сменяются motion-blur/ghost переходами
           flagYudanTimelapseSceneRu,
         // //
-        // // // 04
-         fiveFacesShortcutSceneRuV2,
-         fiveFacesPoorModelSceneRuV2,
+        // 04
+          fiveFacesShortcutSceneRuV2,
+          fiveFacesPoorModelSceneRuV2,
+        // // POOR MODEL — 3 варианта виз подряд (полигон выбора)
+        //  poorModelOptionsSceneRu,
+        // REGISTER flag-argument — 3 варианта виз (код слева + подсветка)
+        // registerFlagOptionsSceneRu,
         // fiveFacesFinaleSceneRuV2,
 
 

@@ -50,10 +50,15 @@ export default makeScene2D(function* (view) {
   );
   yield* waitFor(2.0);
   yield* s.permissionDriver();
-  yield* s.restoreLines(s.callCodes[0], 0.8);
-  yield* waitFor(1.2);
-  yield* s.hideViz(0, 0.5);
-  yield* waitFor(0.8);
+  // The request has landed in `save`; retire the viz promptly instead of letting
+  // the lit square hang. Brief beat to register the arrival, then fade the whole
+  // viz out smoothly, concurrent with the call-code restore.
+  yield* waitFor(0.5);
+  yield* all(
+    s.restoreLines(s.callCodes[0], 0.8),
+    s.hideViz(0, 0.9),
+  );
+  yield* waitFor(0.6);
 
   // ── Rack-focus: trace the boolean through the code ────────────────────
   // The blur lifts one landing at a time, walking the path the flag travels:
@@ -95,8 +100,9 @@ export default makeScene2D(function* (view) {
     }
 
     // IMPL — partition into the boolean's path vs the plumbing.
-    // Line 0 is the whole (now single-line) signature; isolate the
+    // The signature spans lines 0-1 (return type wrapped to line 1); isolate the
     // `overwrite: Boolean` param (bArg) from the rest of the signature (bRest).
+    // `overwrite` is on line 0; the wrapped `StoredFile {` on line 1 is bRest.
     {
       let inArg = false;
       for (const t of nonWs(implMC, 0)) {
@@ -105,10 +111,11 @@ export default makeScene2D(function* (view) {
         if (t.text === 'Boolean') inArg = false;
       }
     }
-    for (const li of [1, 2, 3])        for (const t of nonWs(implMC, li)) attach(t.ref(), bIf);
-    for (const li of [5, 6, 7, 8, 9])  for (const t of nonWs(implMC, li)) attach(t.ref(), bKey);
-    for (const t of nonWs(implMC, 11)) attach(t.ref(), bRet);
-    for (const t of nonWs(implMC, 12)) attach(t.ref(), bRest);
+    for (const t of nonWs(implMC, 1))       attach(t.ref(), bRest);   // wrapped return type
+    for (const li of [2, 3, 4])          for (const t of nonWs(implMC, li)) attach(t.ref(), bIf);
+    for (const li of [6, 7, 8, 9, 10])   for (const t of nonWs(implMC, li)) attach(t.ref(), bKey);
+    for (const t of nonWs(implMC, 12))      attach(t.ref(), bRet);
+    for (const t of nonWs(implMC, 13))      attach(t.ref(), bRest);
 
     // 1) Defocus everything but `overwrite = true`.
     yield* all(
@@ -152,8 +159,8 @@ export default makeScene2D(function* (view) {
 
   // MORPH: boolean → three explicit methods.
   {
-    const sigLine = s.implCodes[0].getLine(0);   // single-line sig: `… overwrite: Boolean …`
-    const ifLine = s.implCodes[0].getLine(1);    // if (storage.exists(path) && !overwrite)
+    const sigLine = s.implCodes[0].getLine(0);   // sig line carrying `overwrite: Boolean`
+    const ifLine = s.implCodes[0].getLine(2);    // if (storage.exists(path) && !overwrite)
     if (sigLine) yield* sigLine.colorizeByRuleAnimated('overwrite', METHOD_COLOR, 0.4);
     if (ifLine) yield* ifLine.colorizeByRuleAnimated('overwrite', METHOD_COLOR, 0.4);
   }
