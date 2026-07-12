@@ -709,5 +709,21 @@ export default makeScene2D(function* (view) {
     codeRoot().opacity(0, 1.4, easeInOutSine),
     fan().opacity(0, 1.4, easeInOutSine),
   );
-  yield* waitFor(0.5);
+  yield* waitFor(0.6);
+
+  // ── Chapter hand-off — CHAPTER 2 · YUDAN, in the same title formatting as
+  //    the FACES card (chapter1YudanSceneEn PHASE 3); then the scene ends black.
+  const chapterCard = createRef<Node>();
+  view.add(
+    <Node ref={chapterCard} opacity={0}>
+      <Txt text={'CHAPTER 2'} fontFamily={Fonts.primary} fontWeight={500} fontSize={36}
+           letterSpacing={12} fill={'rgba(244,241,235,0.6)'} textAlign={'center'} x={6} y={-58} />
+      <Txt text={'YUDAN'} fontFamily={Fonts.primary} fontWeight={700} fontSize={96}
+           letterSpacing={12} fill={'rgba(244,241,235,0.95)'} textAlign={'center'} x={6} y={48} />
+    </Node>,
+  );
+  yield* chapterCard().opacity(1, 1.0, easeInOutCubic);
+  yield* waitFor(1.4);
+  yield* chapterCard().opacity(0, 1.2, easeInOutCubic);
+  yield* waitFor(0.4);
 });

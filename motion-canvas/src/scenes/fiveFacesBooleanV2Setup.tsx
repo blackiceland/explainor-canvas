@@ -973,6 +973,11 @@ export function createFiveFacesStage(view: View2D) {
   const finaleMix  = createSignal(0);
   const sceneAlpha = createSignal(1);
 
+  // The face labels sit inside the bright flashlight halo and are big + bold, so
+  // the code's near-white plain-ink value (Canon.ink) reads as pure white on them.
+  // A deliberately darker/warmer beige is needed so the labels READ as beige — it
+  // is intentionally NOT the exact ink value the small code uses.
+  const NAME_LABEL_FILL = '#CBC0A0';
   const nameRefs: ReturnType<typeof createRef<Txt>>[] = [];
   for (let i = 0; i < FACES.length; i++) {
     const x = NAME_XS[i];
@@ -989,7 +994,7 @@ export function createFiveFacesStage(view: View2D) {
         fontSize={NAME_FONT_SIZE}
         fontWeight={500}
         letterSpacing={NAME_LETTER_SP}
-        fill={TEXT_PRIMARY}
+        fill={NAME_LABEL_FILL}   // warm beige, darker than code ink so it reads beige under the halo
         opacity={() => Math.max(brightnessAt(x), finaleMix()) * sceneAlpha()}
         shadowColor={() => `rgba(0, 0, 0, ${brightnessAt(x) * 0.9})`}
         shadowBlur={() => 6 + (1 - brightnessAt(x)) * 10}

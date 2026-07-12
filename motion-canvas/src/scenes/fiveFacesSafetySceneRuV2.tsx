@@ -190,24 +190,25 @@ const paintMethodRoles = (code: Manticore): void => {
 
 // Finale layout: the named pair first stands up BIG (34/50), one on each side
 // of centre; then it shrinks (scale FIN_COL_SCALE) into a left column while the
-// shared private delete (22/32) fades in on the right.
+// shared private delete (29/42) fades in on the right.
 const FIN_FS = 34;
 const FIN_LH = 50;
 const FIN_BIG_Y = 25;      // vertical centre of the big pair
 const FIN_BIG_DX = 400;    // ±x of the big pair around centre
 const FIN_BIG_W = 720;     // container width ≈ text width, so x tracks the visual centre
 const FIN_COL_X = -560;    // left column centre after the shrink
-// 34 · 0.647 ≈ 22 (and 50 · 0.647 ≈ 32) — the shrunk pair ends the SAME size as
-// the shared delete on the right (22/32), not smaller.
-const FIN_COL_SCALE = 0.647;
+// 34 · 0.853 ≈ 29 (and 50 · 0.853 ≈ 42) — the shrunk pair ends the SAME size as
+// the shared delete on the right (29/42), not smaller. Larger than before so the
+// final two-method + one-method composition reads bigger and fills the whitespace.
+const FIN_COL_SCALE = 0.853;
 // Stacked pair top-aligned to the delete block: its first line lands on the same
-// horizontal line as `private fun delete` (block first line ≈ local y -141).
-const FIN_COL_SOFT_Y = -109;
-const FIN_COL_HARD_Y = 20;
-const FIN_DEL_X = 260;     // shared delete, right part of the frame (100 left of before)
+// horizontal line as `private fun delete` (block first line ≈ local y -196 at 42 LH).
+const FIN_COL_SOFT_Y = -153;
+const FIN_COL_HARD_Y = 17;
+const FIN_DEL_X = 260;     // shared delete, right part of the frame
 const FIN_DEL_Y = 35;
-const FIN_DEL_FS = 22;
-const FIN_DEL_LH = 32;
+const FIN_DEL_FS = 29;
+const FIN_DEL_LH = 42;
 const FIN_DEL_W = 620;
 
 // ── Scene ────────────────────────────────────────────────────────────
