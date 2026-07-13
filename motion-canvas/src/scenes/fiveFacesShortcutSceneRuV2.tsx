@@ -117,7 +117,7 @@ const GLOW_TYPE = 'rgba(201,180,255,0.45)';
 
 // Grown: years of work accreted AFTER the same unreconsidered `if`. Pricing,
 // shipping, persistence, outbox, audit — an unvalidated order now reaches all of
-// it. This overflows the frame; the bottom simply runs off-screen.
+// it. The method grows UPWARD (each new line pushes the ones above it up).
 const GROWN = `fun process(order: Order, source: OrderSource, skipValidation: Boolean): ProcessingResult {
     if (!skipValidation) {
         validator.requireValid(order)
@@ -139,12 +139,7 @@ const GROWN = `fun process(order: Order, source: OrderSource, skipValidation: Bo
     outbox.add(OrderProcessed(saved.id))
     audit.recordProcessed(saved.id, source)
 
-    return ProcessingResult.Accepted(
-        orderId = saved.id,
-        reservationId = reserved.id,
-        paymentId = payment.id,
-        shipmentId = shipment.id,
-    )
+    return ProcessingResult.Accepted(saved.id, reserved.id, payment.id, shipment.id)
 }`;
 
 // Contract morphed FROM the grown state: the signature line is edited IN PLACE
@@ -208,6 +203,19 @@ function groupOps(ops: GDOp[]): GGOp[] {
     else { out.push(ops[i]); i++; }
   }
   return out;
+}
+
+// Predict gGrowthDiff's total duration so a concurrent camera move (the rise) can
+// match it. Every non-keep op — including each inserted line individually — costs
+// one cadence step (the growth types lines in ONE AT A TIME, not as a block).
+function growDuration(from: string[], to: string[], swapDur: number, cadence: number): number {
+  const step = swapDur + Math.max(0.02, cadence - swapDur);
+  let t = 0;
+  for (const op of groupOps(diffLines(from, to))) {
+    if (op.kind === 'keep') continue;
+    t += (op.kind === 'ins' ? op.texts!.length : 1) * step;
+  }
+  return t;
 }
 
 // ── Scene ────────────────────────────────────────────────────────────
@@ -274,13 +282,16 @@ export default makeScene2D(function* (view) {
   };
 
   // Grow the original method IN PLACE. Build a per-line buffer that overlays
-  // implCodes[3] EXACTLY — same left edge, size, single-line signature — swap to
-  // it invisibly, and anchor the SIGNATURE where it already sits. Only the body
-  // grows downward; the signature never moves.
+  // implCodes[3] EXACTLY (same left edge, size), swap to it invisibly. The method
+  // grows UPWARD: the buffer is BOTTOM-anchored — the last line stays put and each
+  // new line pushes everything ABOVE it up (no smooth camera pan).
   const origImpl = s.implCodes[3];
   const implHomeX = origImpl.node.position.x();
   const G_X = implHomeX + origImpl.getLeftEdge();                    // shared text left edge
-  const G_SIG_Y = origImpl.node.position.y() + origImpl.getLineY(0); // signature line — fixed
+  const G_SIG_Y = origImpl.node.position.y() + origImpl.getLineY(0); // original signature line
+  // Anchor the buffer's bottom at the original method's bottom line, so the seed
+  // overlays it and growth pushes the signature up from there.
+  const GROW_BOTTOM_Y = origImpl.node.position.y() + origImpl.getLineY(origImpl.lineCount - 1);
 
   // ── Buffer geometry — MATCHES the impl exactly (no size/position change) ──
   const GFS = IMPL_FONT_SIZE, GLH = IMPL_LH, GW = IMPL_W;
@@ -293,7 +304,7 @@ export default makeScene2D(function* (view) {
   const growRoot = createRef<Node>();
   const gGhost = createRef<Node>();
   const gLine = createRef<Node>();
-  view.add(<Node ref={growRoot} x={G_X} y={G_SIG_Y} />);
+  view.add(<Node ref={growRoot} x={G_X} y={GROW_BOTTOM_Y} />);
   growRoot().add(<Node ref={gGhost} />);   // token comet-tails (the streak)
   growRoot().add(<Node ref={gLine} />);    // the sharp lines, shown at rest
   gGhost().cache(true);
@@ -302,7 +313,9 @@ export default makeScene2D(function* (view) {
 
   interface GLn { node: Node; text: string; mc: Manticore; }
   const gbuf: GLn[] = [];
-  const gTargetY = (i: number) => i * GLH;
+  // Bottom-anchored: the last line sits at local y=0, earlier lines above it.
+  // Adding a line (length grows) shifts every existing line UP by one GLH.
+  const gTargetY = (i: number) => (i - (gbuf.length - 1)) * GLH;
 
   const gMk = (text: string, y: number, op: number): GLn => {
     const mc = Manticore.create(text || ' ', {
@@ -345,10 +358,17 @@ export default makeScene2D(function* (view) {
   }
 
   function* gInsert(pos: number, texts: string[], dur: number, dir: number): ThreadGenerator {
-    const objs = texts.map((t, k) => gMk(t, gTargetY(pos + k), 0));
+    const objs = texts.map(t => gMk(t, 0, 0));
+    const objSet = new Set(objs);
     gbuf.splice(pos, 0, ...objs);
-    gbuf.forEach((l, i) => l.node.y(gTargetY(i)));   // survivors SNAP to slot
     const anims: ThreadGenerator[] = []; const trash: Txt[] = [];
+    // Bottom-anchored: the new line lands at its slot; every line ABOVE it glides
+    // UP by one GLH to make room (this IS the "raise what's above" per new line).
+    gbuf.forEach((l, i) => {
+      const ny = gTargetY(i);
+      if (objSet.has(l)) l.node.y(ny);
+      else anims.push(l.node.y(ny, dur, easeOutCubic));
+    });
     objs.forEach((o, k) => {
       const g = gComb(o.text, gTargetY(pos + k), dir * G_THROW, 0, dur, 1); trash.push(...g.ghosts);
       anims.push(chain(waitFor(k * 0.02), all(...g.anims, chain(waitFor(dur * 0.72), o.node.opacity(1, dur * 0.28, linear)))));
@@ -371,15 +391,27 @@ export default makeScene2D(function* (view) {
 
   function* gGrowthDiff(fromArr: string[], toArr: string[], swapDur: number, cadence: number, smoothDelete = false): ThreadGenerator {
     const grouped = groupOps(diffLines(fromArr, toArr));
+    const gap = Math.max(0.02, cadence - swapDur);
     let cursor = 0, flip = 0;
     for (const op of grouped) {
-      const dir = flip % 2 === 0 ? 1 : -1;
       if (op.kind === 'keep') { cursor++; continue; }
-      if (op.kind === 'chg') { yield* gSwap(cursor, op.b!, swapDur, dir); cursor++; }
-      else if (op.kind === 'ins') { yield* gInsert(cursor, op.texts!, swapDur, dir); cursor += op.texts!.length; }
-      else { yield* gDelete(cursor, smoothDelete ? swapDur * 1.3 : swapDur, dir); }
-      flip++;
-      yield* waitFor(Math.max(0.02, cadence - swapDur));
+      if (op.kind === 'chg') {
+        const dir = flip % 2 === 0 ? 1 : -1; flip++;
+        yield* gSwap(cursor, op.b!, swapDur, dir); cursor++;
+        yield* waitFor(gap);
+      } else if (op.kind === 'ins') {
+        // Type inserted lines in ONE AT A TIME (not as a block), each from an
+        // alternating side, so the time-lapse reads as line-by-line accretion.
+        for (const text of op.texts!) {
+          const dir = flip % 2 === 0 ? 1 : -1; flip++;
+          yield* gInsert(cursor, [text], swapDur, dir); cursor++;
+          yield* waitFor(gap);
+        }
+      } else {
+        const dir = flip % 2 === 0 ? 1 : -1; flip++;
+        yield* gDelete(cursor, smoothDelete ? swapDur * 1.3 : swapDur, dir);
+        yield* waitFor(gap);
+      }
     }
   }
 
@@ -406,20 +438,23 @@ export default makeScene2D(function* (view) {
 
   // ── Seed the buffer with the EXACT current method, cut over invisibly ─
   const seed = FACES[3].implCode.split('\n');
-  seed.forEach((t, i) => gbuf.push(gMk(t, gTargetY(i), 1)));
+  seed.forEach(t => gbuf.push(gMk(t, 0, 1)));
+  gbuf.forEach((l, i) => l.node.y(gTargetY(i)));   // bottom-anchored (full length known)
   for (const l of gbuf) glowFlagTokens(l.mc);   // flag glows from the first frame
   origImpl.node.opacity(0);   // instant swap — the buffer already draws identical pixels
   yield* waitFor(0.6);
 
-  yield* gGrowthDiff(seed, GROWN.split('\n'), 0.3, 0.5);
+  // ── GROW UPWARD ─────────────────────────────────────────────────────
+  // Lines type in one-by-one; each new line pushes everything ABOVE it up
+  // (bottom-anchored). No smooth camera pan — the rise IS the per-line push.
+  const growSeq = GROWN.split('\n');
+  yield* gGrowthDiff(seed, growSeq, 0.3, 0.5);
   clearGhosts();
-  yield* waitFor(0.8);
-
-  // ── Raise the grown method so it clears the label and leaves room below
-  //    for the ValidatedOrder definition once the body compacts. ─────────
-  const RAISED_SIG_Y = -335;
-  yield* growRoot().position.y(RAISED_SIG_Y, 0.9, easeInOutCubic);
   yield* waitFor(0.6);
+
+  // Where the buffer's final signature line ended up — grownMc + the morph
+  // anchor to it (top-anchored from here so the compact form leaves room below).
+  const GROW_SIG_FINAL = GROW_BOTTOM_Y - (gbuf.length - 1) * GLH;
 
   // ── Convert the time-lapse buffer into ONE Manticore, so the contract morph
   //    uses the SAME visual logic as PERMISSION (Manticore.morphTo, no
@@ -435,7 +470,7 @@ export default makeScene2D(function* (view) {
   paintCanonParams(grownMc);
   paintCanonMethodCalls(grownMc);
   grownMc.node.opacity(1);
-  grownMc.node.position.y(RAISED_SIG_Y - grownMc.getLineY(0));   // signature on the raised line
+  grownMc.node.position.y(GROW_SIG_FINAL - grownMc.getLineY(0));   // signature on the grown line
   glowFlagTokens(grownMc);
   growRoot().remove();
   origImpl.node.remove();
@@ -469,7 +504,7 @@ export default makeScene2D(function* (view) {
   grownMc.colorize(GROWTH_RULES);
   paintCanonParams(grownMc);
   paintCanonMethodCalls(grownMc);
-  grownMc.node.position.y(RAISED_SIG_Y - grownMc.getLineY(0));   // keep the signature on its line
+  grownMc.node.position.y(GROW_SIG_FINAL - grownMc.getLineY(0));   // keep the signature on its line
   s.callCodes[3].colorize(SHORT_RULES);
   paintCanonParams(s.callCodes[3]);
   paintCanonMethodCalls(s.callCodes[3]);
