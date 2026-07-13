@@ -1,4 +1,4 @@
-import {makeScene2D, Node, Txt, Circle, Rect, Line as EdgeLine} from '@motion-canvas/2d';
+import {makeScene2D, Node, Txt, Circle, Rect, Line as EdgeLine, blur} from '@motion-canvas/2d';
 import {all, chain, createRef, easeInCubic, easeInOutCubic, easeInOutSine, easeOutCubic, linear, makeRef, ThreadGenerator, waitFor} from '@motion-canvas/core';
 import {Manticore} from '../core/code/components/Manticore';
 import {CanonCodeTheme, buildCanonRules, paintCanonParams, paintCanonMethodCalls} from '../core/code/model/paletteCanon';
@@ -203,9 +203,9 @@ const CONTENT_OFF = W / 2 - PAD_X;
 const LINE_X = -560;
 const OFF = 1600;
 const OFF_TOK = 300;
-const TRAIL = 3;
-const SHUTTER = 0.28;              // slow-shutter smear (was .345; −~20% → trains more intangible)
-const TRAIN_INTANGIBLE = 0.66;    // incoming swap line materializes from a faint streak (intangible)
+const TRAIL = 10;                  // LONG dense token tail — THE main effect: a moving token drags a comet-tail of its own copies, so the line dissolves into an unreadable streak from the TAIL itself, not from blur
+const SHUTTER = 0.85;              // tail prominence — copies are strong near the token, fading down the streak (the slow-shutter trail is the dominant look)
+const GHOST_BLUR = 2;              // LIGHT gaussian (~10% of the effect) — only fuses the discrete tail copies into one smooth streak; NOT the mechanism. Moving content rides this layer; still lines snap to the sharp layer.
 const SHOW_HOLD = 2.0;
 const A1_SWAP = 0.28;               // short → mid: per-op swap / cadence (snappy)
 const A1_CAD  = 0.34;
@@ -279,8 +279,17 @@ export default makeScene2D(function* (view) {
   const ghostLayer = createRef<Node>();
   const lineLayer  = createRef<Node>();
   view.add(<Node ref={codeRoot} />);
-  codeRoot().add(<Node ref={ghostLayer} />);
-  codeRoot().add(<Node ref={lineLayer} />);
+  codeRoot().add(<Node ref={ghostLayer} />);   // TOKEN TAILS (the slow-shutter streak) — the main effect
+  codeRoot().add(<Node ref={lineLayer} />);    // the actual lines — sharp, shown only AT REST
+
+  // The effect is a slow-shutter TAIL: while a line moves, no sharp glyphs travel —
+  // only a long comet-tail of its token copies on this layer; the sharp line
+  // resolves on lineLayer the instant it lands. A LIGHT single-pass gaussian
+  // (~10%) just fuses the tail's discrete copies into one smooth streak — the blur
+  // is a smoother, not the mechanism. (One cache pass, not a per-line perf-killer.)
+  ghostLayer().cache(true);
+  ghostLayer().cachePadding(GHOST_BLUR * 2 + 16);
+  ghostLayer().filters([blur(GHOST_BLUR)]);
 
   interface Line { node: Node; text: string; home: string; mc: Manticore; }
   const buf: Line[] = [];
@@ -321,10 +330,14 @@ export default makeScene2D(function* (view) {
   const comb = (text: string, y: number, sx: number, ex: number, dur: number, ease: typeof easeInCubic, op0: number, trailN: number = TRAIL) => {
     const anims: ThreadGenerator[] = []; const ghosts: Txt[] = [];
     for (let k = 1; k <= trailN; k++) {
-      const op = (SHUTTER / (k * 0.9 + 0.6)) * op0;
+      // The TOKEN TAIL is the main effect: each copy is a sample of the token
+      // along its path, strong near the head and fading down a LONG streak. The
+      // wide stagger spreads the samples over most of the path so the tail is
+      // long; the light ghost-layer gaussian only fuses the seams.
+      const op = (SHUTTER / (k * 0.72 + 0.55)) * op0;
       const g = new Txt({x: sx, y, text: text || ' ', offset: [-1, 0], fontFamily: Fonts.code, fontSize: FS, fill: `rgba(242,240,235,${op})`});
       ghostLayer().add(g); ghosts.push(g);
-      anims.push(chain(waitFor(k * 0.014), all(g.position.x(ex, dur, ease), g.opacity(0, dur, linear))));
+      anims.push(chain(waitFor(k * 0.024), all(g.position.x(ex, dur, ease), g.opacity(0, dur, linear))));
     }
     return {anims, ghosts};
   };
@@ -332,14 +345,15 @@ export default makeScene2D(function* (view) {
   function* swapLine(i: number, newText: string, dur: number, dir: number, off: number = OFF, trailN: number = TRAIL, home?: string): ThreadGenerator {
     if (i < 0 || i >= buf.length) return;
     const old = buf[i]; const y = targetY(i); const op = opFor(i);
-    const next = mkLine(newText, LINE_X + dir * off, y, op, home ?? old.home);
-    next.node.opacity(op * TRAIN_INTANGIBLE);   // train materializes from a faint streak, not a solid car
+    const next = mkLine(newText, LINE_X, y, op, home ?? old.home);   // waits sharp at its slot
+    next.node.opacity(0);                                            // NO sharp glyphs travel — only the TAIL moves
     buf[i] = next;
     const gN = comb(newText, y, LINE_X + dir * off, LINE_X, dur, linear, op, trailN);
     const gO = comb(old.text, y, LINE_X, LINE_X - dir * off, dur, linear, op, trailN);
     yield* all(
-      old.node.x(LINE_X - dir * off, dur, linear), old.node.opacity(0, dur * 0.92, linear),
-      next.node.x(LINE_X, dur, linear), next.node.opacity(op, dur, linear), ...gN.anims, ...gO.anims,
+      old.node.opacity(0, dur * 0.3, linear),                        // old dissolves into its outgoing tail
+      chain(waitFor(dur * 0.72), next.node.opacity(op, dur * 0.28, linear)),  // new resolves sharp only as its tail lands
+      ...gN.anims, ...gO.anims,
     );
     old.node.remove(); [...gN.ghosts, ...gO.ghosts].forEach(g => g.remove());
   }
@@ -360,14 +374,14 @@ export default makeScene2D(function* (view) {
     const anims: ThreadGenerator[] = []; const trash: Txt[] = [];
     let om: Line | null = null, nm: Line | null = null;
     if (p.aMid.length) {
-      om = mkLine(p.aMid, slotX, y, op, p.aMid);
+      om = mkLine(p.aMid, slotX, y, op, p.aMid); om.node.opacity(0);   // old token leaves as a tail only
       const g = comb(p.aMid, y, slotX, slotX - dir * OFF_TOK, dur, linear, op); trash.push(...g.ghosts);
-      anims.push(om.node.x(slotX - dir * OFF_TOK, dur, linear), om.node.opacity(0, dur * 0.9, linear), ...g.anims);
+      anims.push(...g.anims);
     }
     if (p.bMid.length) {
-      nm = mkLine(p.bMid, slotX + dir * OFF_TOK, y, op, p.bMid);
+      nm = mkLine(p.bMid, slotX + dir * OFF_TOK, y, op, p.bMid); nm.node.opacity(0);   // new token arrives as a tail only
       const g = comb(p.bMid, y, slotX + dir * OFF_TOK, slotX, dur, linear, op); trash.push(...g.ghosts);
-      anims.push(nm.node.x(slotX, dur, linear), ...g.anims);
+      anims.push(...g.anims);
     }
     if (tail && Math.abs(newTailX - oldTailX) > 0.5) anims.push(tail.node.x(newTailX, dur, linear));
     yield* all(...anims);
@@ -376,16 +390,21 @@ export default makeScene2D(function* (view) {
   }
 
   function* insertBlock(pos: number, texts: string[], dur: number, dir: number): ThreadGenerator {
-    const objs = texts.map((t, k) => mkLine(t, LINE_X + dir * OFF, 0, opForText(pos + k, t), t));
+    const objs = texts.map((t, k) => mkLine(t, LINE_X, 0, opForText(pos + k, t), t));   // wait sharp at slot
     buf.splice(pos, 0, ...objs);
     if (pos <= anchorIdx) anchorIdx += texts.length;
     // NO vertical glide: every existing line SNAPS to its slot; only the new
-    // lines move, and only horizontally (the growth IS the time-lapse swap).
+    // lines' TAILS move in (the growth IS the time-lapse swap).
     buf.forEach((l, i) => l.node.y(targetY(i)));
+    objs.forEach(o => o.node.opacity(0));   // hidden until its tail lands
     const anims: ThreadGenerator[] = []; const trash: Txt[] = [];
     objs.forEach((o, k) => {
-      const g = comb(o.text, targetY(pos + k), LINE_X + dir * OFF, LINE_X, dur, linear, opForText(pos + k, o.text)); trash.push(...g.ghosts);
-      anims.push(chain(waitFor(k * 0.02), all(o.node.x(LINE_X, dur, linear), ...g.anims)));
+      const tOp = opForText(pos + k, o.text);
+      const g = comb(o.text, targetY(pos + k), LINE_X + dir * OFF, LINE_X, dur, linear, tOp); trash.push(...g.ghosts);
+      anims.push(chain(waitFor(k * 0.02), all(
+        ...g.anims,                                              // tail flies in
+        chain(waitFor(dur * 0.72), o.node.opacity(tOp, dur * 0.28, linear)),  // resolve sharp on landing
+      )));
     });
     yield* all(...anims); trash.forEach(g => g.remove());
   }
@@ -394,7 +413,7 @@ export default makeScene2D(function* (view) {
     const o = buf[pos]; buf.splice(pos, 1); if (pos < anchorIdx) anchorIdx--;
     const g = comb(o.text, o.node.y(), LINE_X, LINE_X + dir * OFF, dur, linear, 0.6);
     buf.forEach((l, i) => l.node.y(targetY(i)));            // snap, no glide
-    yield* all(o.node.x(LINE_X + dir * OFF, dur, linear), ...g.anims);
+    yield* all(o.node.opacity(0, dur * 0.3, linear), ...g.anims);   // dissolve into the outgoing tail
     o.node.remove(); g.ghosts.forEach(g2 => g2.remove());
   }
 
@@ -578,7 +597,6 @@ export default makeScene2D(function* (view) {
   const yudan = createRef<Node>();
   const yuTitle = createRef<Txt>();
   const yuL1 = createRef<Txt>();
-  const yuL2 = createRef<Txt>();
   codeRoot().add(
     <Node
       ref={yudan}
@@ -587,18 +605,15 @@ export default makeScene2D(function* (view) {
       scale={1 / S0}
       opacity={0}
     >
-      <Txt ref={yuTitle} y={-54} text={'YUDAN'} fontFamily={Fonts.primary} fontSize={136}
+      <Txt ref={yuTitle} offset={[-1, 0]} x={0} y={-40} text={'YUDAN'} fontFamily={Fonts.primary} fontSize={136}
            fontWeight={600} letterSpacing={2} fill={'#F4F1EB'} />
-      <Txt ref={yuL1} offset={[-1, 0]} x={0} y={56} text={'a slow-motion catastrophe of a lowered guard –'}
-           fontFamily={Fonts.primary} fontSize={29} fill={'rgba(244,241,235,0.72)'} />
-      <Txt ref={yuL2} offset={[-1, 0]} x={0} y={95} text={'each move looks safe, until the game is already lost.'}
-           fontFamily={Fonts.primary} fontSize={29} fill={'rgba(244,241,235,0.72)'} />
+      <Txt ref={yuL1} x={0} y={60} text={'letting your guard down.'}
+           fontFamily={Fonts.primary} fontSize={30} fill={'rgba(244,241,235,0.74)'} />
     </Node>,
   );
-  // Geometry: the two lines are left-aligned into a block (shared left edge at 0);
-  // YUDAN is CENTERED over that block, not stuck to its left edge.
-  const yuBlockW = Math.max(yuL1().width(), yuL2().width());
-  yuTitle().x(yuBlockW / 2);
+  // One short gloss, centered under the YUDAN wordmark. The wordmark's left edge
+  // is the block's left edge (yuScreenX), so it never drifts over the code.
+  yuL1().x(yuTitle().width() / 2);
   yield* yudan().opacity(1, 0.9, easeOutCubic);            // whole label appears as one
   yield* waitFor(2.8);
 

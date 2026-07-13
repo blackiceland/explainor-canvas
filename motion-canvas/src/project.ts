@@ -172,14 +172,14 @@ export default makeProject({
         //  paletteLabSceneRu,
 
         // ЮДАН-ТАЙМЛАПС: код-снимки register() сменяются motion-blur/ghost переходами
-          flagYudanTimelapseSceneRu,
+        // flagYudanTimelapseSceneRu,
         // //
-        // 04
-          fiveFacesShortcutSceneRuV2,
-        // 05
-          fiveFacesPoorModelSceneRuV2,
-        // КОДА: градация → схлоп в binary → легитимный boolean → takeaway
-          pureBooleanTakeawaySceneEn,
+        // // 04
+           fiveFacesShortcutSceneRuV2,
+        // // 05
+        //   fiveFacesPoorModelSceneRuV2,
+        // // КОДА: градация → схлоп в binary → легитимный boolean → takeaway
+        //   pureBooleanTakeawaySceneEn,
         // // POOR MODEL — 3 варианта виз подряд (полигон выбора)
         //  poorModelOptionsSceneRu,
         // REGISTER flag-argument — 3 варианта виз (код слева + подсветка)
