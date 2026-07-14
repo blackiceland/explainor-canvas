@@ -8,7 +8,7 @@ import {tokenizeLine} from '../core/code/model/Tokenizer';
 import {DryFiltersV3CodeTheme, getTokenColor} from '../core/code/model/SyntaxTheme';
 
 // ── Утверждённая палитра ─────────────────────────────────────────────────────
-const PASS_THROUGH_CLR = 'rgba(255, 100, 130, 0.95)';
+const PASS_THROUGH_CLR = 'rgba(255, 166, 85, 0.95)';   // акцент pass-through переменной — оранжевый (светлее на 15%)
 const METHOD_CLR    = '#9FC7E8';
 const VARIABLE_CLR  = '#E8ECF2';
 const PUNCT_CLR     = '#B7C4D4';

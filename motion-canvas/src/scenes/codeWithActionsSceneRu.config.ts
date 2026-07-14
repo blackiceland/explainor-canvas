@@ -37,7 +37,7 @@ export const SOFT_GREEN = 'rgba(168, 214, 178, 0.88)';
 export const VAR_LIGHT = 'rgba(244, 241, 235, 0.96)';
 export const TYPE_CLEAN = 'rgba(220, 215, 255, 0.80)';
 export const METHOD_COLOR = DryFiltersV3CodeTheme.method;
-export const PASS_THROUGH = 'rgba(255, 100, 130, 0.95)';
+export const PASS_THROUGH = 'rgba(255, 166, 85, 0.95)';   // акцент pass-through переменной — оранжевый (светлее на 15%)
 
 export const CODE_CARD_STYLE = {
   radius: 24, fill: 'rgba(0,0,0,0)', stroke: 'rgba(0,0,0,0)',

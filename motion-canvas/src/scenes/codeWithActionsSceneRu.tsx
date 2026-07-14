@@ -1,7 +1,7 @@
 import {Rect, makeScene2D} from '@motion-canvas/2d';
 import {all, easeInOutCubic, easeOutCubic, linear, waitFor} from '@motion-canvas/core';
-import {Manticore} from '../core/code/components/Manticore';
-import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
+import {ColorRule, Manticore} from '../core/code/components/Manticore';
+import {Canon, CanonCodeTheme, buildCanonRules} from '../core/code/model/paletteCanon';
 import {getCodePaddingY} from '../core/code/shared/TextMeasure';
 import {SafeZone} from '../core/ScreenGrid';
 import {Fonts, Screen, Timing} from '../core/theme';
@@ -11,7 +11,6 @@ import {Medusa} from '../core/code/director/Medusa';
 import {
   CODE_CARD_STYLE,
   CODE_W,
-  COLOR_RULES,
   FRAME_STROKE_DONE,
   LEFT_CENTER_X,
   MAX_LINE_CHARS,
@@ -19,6 +18,55 @@ import {
   PASS_THROUGH,
 } from './codeWithActionsSceneRu.config';
 import {createRightPanel} from './codeWithActionsSceneRu.rightPanel';
+
+// ── Канон-раскраска (как в fiveFacesShortcutSceneRuV2) ────────────────────
+// CanonCodeTheme (тема) + canon-правила. Методы делим на определение (якорь
+// #FF8CA3) и вызовы (пастель #FFAEC0), но определение детектится по Java-признаку
+// (тип перед именем), т.к. в Java нет `fun`. param-цвет не применяем — в Java нет
+// именованных аргументов, иначе покрасились бы локальные объявления `Type x =`.
+const CANON_RULES: ColorRule[] = [
+  ...buildCanonRules({
+    types: ['String', 'RuntimeException', 'IllegalStateException',
+      'IllegalArgumentException', 'Muxer', 'Container', 'byte', 'int'],
+    methods: ['exportVideo', 'validateInput', 'runEncoder', 'finalizeExport',
+      'prepareFrames', 'normalizeFrames', 'applyColorProfile', 'overlaySubtitles',
+      'encodeWithRetry', 'encode', 'isSupportedFormat', 'applyWatermark',
+      'normalizeAudio', 'mux'],
+  }),
+  {match: /^(new|this)$/, color: Canon.keyword},
+];
+
+const RET_TYPES = new Set(['byte', 'int', 'void', 'long', 'boolean', 'char', 'short', 'float', 'double']);
+const CALL_STOP = new Set(['if', 'for', 'while', 'catch', 'switch', 'synchronized']);
+const nonSpacePrev = (toks: any[], i: number): string => {
+  let p = i - 1;
+  while (p >= 0 && toks[p].text.trim() === '') p--;
+  return p >= 0 ? toks[p].text.trim() : '';
+};
+const nonSpaceNext = (toks: any[], i: number): string => {
+  let n = i + 1;
+  while (n < toks.length && toks[n].text.trim() === '') n++;
+  return n < toks.length ? toks[n].text.trim() : '';
+};
+// Java-вариант paintCanonMethodCalls: имя + `(` = метод; определение, если перед
+// именем стоит тип (`]`, `>`, примитив или Type). Иначе — вызов.
+const paintJavaMethodsLine = (line: any): void => {
+  const toks = line.tokens;
+  for (let i = 0; i < toks.length; i++) {
+    const t = toks[i].text.trim();
+    if (!/^[a-z][a-zA-Z0-9_]*$/.test(t) || CALL_STOP.has(t)) continue;
+    if (nonSpaceNext(toks, i) !== '(') continue;
+    const prev = nonSpacePrev(toks, i);
+    const isDef = prev === ']' || prev === '>' || RET_TYPES.has(prev) || /^[A-Z]/.test(prev);
+    toks[i].ref().fill(isDef ? Canon.methodDef : Canon.methodCall);
+  }
+};
+const paintJavaMethods = (mc: Manticore): void => {
+  for (let li = 0; li < mc.lineCount; li++) {
+    const line = mc.getLine(li);
+    if (line) paintJavaMethodsLine(line);
+  }
+};
 
 export default makeScene2D(function* (view) {
   applyBackground(view);
@@ -63,24 +111,26 @@ export default makeScene2D(function* (view) {
     fontSize, lineHeight,
     contentOffsetY: topInset,
     fontFamily: Fonts.code,
-    theme: DryFiltersV3CodeTheme,
+    theme: CanonCodeTheme,
     cardStyle: CODE_CARD_STYLE,
     glowAccent: false,
+    noClip: true,   // убрать нижний обрез клипа (ограничитель фрейма — артефакт Manticore)
     customTypes: ['String', 'RuntimeException', 'IllegalStateException', 'IllegalArgumentException', 'Muxer', 'Container'],
   });
   manticore.mount(view);
-  manticore.colorize(COLOR_RULES);
+  manticore.colorize(CANON_RULES);
+  paintJavaMethods(manticore);
 
   // ── Медуза ──────────────────────────────────────────────────────────────
   const dir = new Medusa(model, manticore, {
-    morphDefaults: {scrollStrategy: 'block', removeDuration: 0, moveDuration: 0.6},
+    // recolorLine repaints method calls/defs on every morph so new lines keep canon.
+    morphDefaults: {scrollStrategy: 'block', removeDuration: 0, moveDuration: 0.6, recolorLine: paintJavaMethodsLine},
     pauseAfterMorph: 0.5,
   });
 
   const FADE_IN = Timing.slow;
 
   // ── v0: появление ─────────────────────────────────────────────────────
-  yield* dividerOp(1, FADE_IN, easeInOutCubic);
   yield* dir.cb.appear(FADE_IN);
   yield* waitFor(0.5);
 
@@ -275,34 +325,49 @@ export default makeScene2D(function* (view) {
   );
 
   // stripe A — создаём до появления exportVideo
-  const STRIPE_COLOR  = 'rgba(255, 80, 120, 0.18)';
+  const STRIPE_COLOR  = 'rgba(255, 150, 55, 0.18)';
   const stripeW       = CODE_W + 40;
   const stripeH       = lineHeight * 1.15;
   const stripeX       = -Screen.width / 2 + stripeW / 2;
 
+  // Полоска приезжает СНИЗУ к целевой строке приглушённой и разгорается в
+  // момент выделения (без «появилась → затёрли → испарилась»).
+  const SLIDE  = 46;
+  const DIM_OP = 0.34;   // приглушённое состояние до выделения
+
+  const yExport = cb.getLineSceneY(exportVideoLine);
   const stripeExport = new Rect({
     width: stripeW, height: stripeH,
-    x: stripeX, y: cb.getLineSceneY(exportVideoLine),
+    x: stripeX, y: yExport + SLIDE,   // стартует ниже строки
     fill: STRIPE_COLOR, opacity: 0, radius: 4,
   });
   view.add(stripeExport);
 
-  // stripe A появляется вместе с highlight exportVideo
+  // едет снизу к строке, приглушённая — ДО выделения
   yield* all(
     cb.dimLines(0, exportVideoLine - 1, 0.25, 0.5),
     cb.dimLines(exportVideoLine + 2, cb.lineCount - 1, 0.25, 0.5),
+    stripeExport.opacity(DIM_OP, 0.45, easeOutCubic),
+    stripeExport.y(yExport, 0.55, easeOutCubic),
+  );
+  // в момент выделения — разгорается
+  yield* all(
     highlight(exportVideoLine, exportVideoLine + 1),
-    stripeExport.opacity(1, 0.5, easeInOutCubic),
+    stripeExport.opacity(1, 0.4, easeInOutCubic),
   );
   yield* waitFor(0.8);
 
   yield* highlight(exportCallLine, exportCallLine);
   yield* waitFor(1.0);
 
+  // уходим к retry: не гаснет на месте, а съезжает вниз приглушаясь
   yield* all(
-    stripeExport.opacity(0, 0.7, easeInOutCubic),
+    stripeExport.opacity(DIM_OP, 0.5, easeInOutCubic),
+    stripeExport.y(yExport + SLIDE * 1.6, 0.7, easeInOutCubic),
     cb.scrollTo(retrySignature, 1.2),
   );
+  stripeExport.remove();
+
   yield* highlight(retrySignature, retrySignature);
   yield* waitFor(0.8);
 
@@ -312,18 +377,22 @@ export default makeScene2D(function* (view) {
   yield* highlight(encodeSignature, encodeSignature);
   yield* waitFor(0.8);
 
-  // stripe Б — создаём после скролла, когда finalizeExport уже в кадре
+  // stripe Б — тот же приём: приезжает снизу приглушённой, разгорается на выделении
+  const yFinal = cb.getLineSceneY(finalizeCallIdx);
   const stripeFinal = new Rect({
     width: stripeW, height: stripeH,
-    x: stripeX, y: cb.getLineSceneY(finalizeCallIdx),
+    x: stripeX, y: yFinal + SLIDE,
     fill: STRIPE_COLOR, opacity: 0, radius: 4,
   });
   view.add(stripeFinal);
 
-  // stripe Б появляется вместе с highlight finalizeExport
+  yield* all(
+    stripeFinal.opacity(DIM_OP, 0.4, easeOutCubic),
+    stripeFinal.y(yFinal, 0.5, easeOutCubic),
+  );
   yield* all(
     highlight(finalizeCallIdx, finalizeCallIdx),
-    stripeFinal.opacity(1, 0.5, easeInOutCubic),
+    stripeFinal.opacity(1, 0.4, easeInOutCubic),
   );
   yield* waitFor(1.2);
 
@@ -335,15 +404,13 @@ export default makeScene2D(function* (view) {
   yield* cb.dimLines(retrySignature, retrySignature, 1.0, 0.18);
   yield* waitFor(0.5);
 
-  // плавный выход
-  yield* all(
-    stripeExport.opacity(0, 0.8, easeInOutCubic),
-    stripeFinal.opacity(0, 0.8, easeInOutCubic),
-  );
+  // плавный выход (stripeExport уже снят после скролла к retry)
+  yield* stripeFinal.opacity(0, 0.8, easeInOutCubic);
   yield* all(
     cb.showAllLines(0.8),
     cb.colorizeAnimated(0, cb.lineCount - 1, 0.8),
   );
+  paintJavaMethods(cb);   // restore call/def rose split (colorizeAnimated reset calls to methodDef)
   yield* waitFor(1.0);
 
   // ── v3: watermark ─────────────────────────────────────────────────────

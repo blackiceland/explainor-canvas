@@ -121,21 +121,21 @@ export default makeProject({
         //02
 
         coldOpenIntroSceneEn,
-        smallMethodsProblemsSubtitlesSceneRu,
+        // smallMethodsProblemsSubtitlesSceneRu,
         validateMonolithSceneRu,
         jackIntroSceneEn,
         codeWithActionsSceneRu,
         codeWithActionsSceneRuTilt,
-     //   exportCallTreeSceneRu,
-        triangleAmplifierSceneRu,
-        callChainExorcistIntroSceneEn,
-     //   guitarHeroPassThroughSceneRu,
-        contextObjectSceneRu,
-        contextRefactorSceneRu,
-        globalStateSingletonSceneRu,
-        correctBoundariesSceneRu,
-        notesSceneRu,
-        finalOutroSceneRu,
+     // //   exportCallTreeSceneRu,
+     //    triangleAmplifierSceneRu,
+     //    callChainExorcistIntroSceneEn,
+     // //   guitarHeroPassThroughSceneRu,
+     //    contextObjectSceneRu,
+     //    contextRefactorSceneRu,
+     //    globalStateSingletonSceneRu,
+     //    correctBoundariesSceneRu,
+     //    notesSceneRu,
+     //    finalOutroSceneRu,
 
         //03
 

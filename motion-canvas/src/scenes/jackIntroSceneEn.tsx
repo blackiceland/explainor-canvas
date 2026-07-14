@@ -23,7 +23,7 @@ export default makeScene2D(function* (view) {
         fontFamily={Fonts.primary}
         fontWeight={500}
         fontSize={CHAPTER_FONT_SIZE}
-        letterSpacing={18}
+        letterSpacing={14.4}
         fill={MUTED}
         y={-80}
         opacity={0}
@@ -34,7 +34,7 @@ export default makeScene2D(function* (view) {
         fontFamily={Fonts.primary}
         fontWeight={700}
         fontSize={TITLE_FONT_SIZE}
-        letterSpacing={16}
+        letterSpacing={12.8}
         fill={TEXT_COLOR}
         y={40}
         opacity={0}

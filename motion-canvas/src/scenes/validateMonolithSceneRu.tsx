@@ -1,10 +1,10 @@
 import {makeScene2D, Node, Txt} from '@motion-canvas/2d';
 import {all, easeInOutCubic, ThreadGenerator, waitFor} from '@motion-canvas/core';
 import {CodeBlock} from '../core/code/components/CodeBlock';
-import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
+import {Canon, CanonCodeTheme} from '../core/code/model/paletteCanon';
 import {getCodePaddingY} from '../core/code/shared/TextMeasure';
 import {SafeZone} from '../core/ScreenGrid';
-import {Fonts, Timing} from '../core/theme';
+import {Fonts, Screen, Timing} from '../core/theme';
 import {applyBackground} from '../core/utils';
 import {textWidth} from '../core/utils/textMeasure';
 
@@ -109,17 +109,21 @@ private static void validatePhoneNumber(WhatsappChannelCreateRequest request) {
 export default makeScene2D(function* (view) {
   applyBackground(view);
 
-  const fontSize = 28;
+  const fontSize = 22;
   const lineHeight = Math.round(fontSize * 1.62 * 10) / 10;
   const paddingY = getCodePaddingY(fontSize);
-  const topInset = Math.max(8, paddingY - 8);
+  const topInset = 84;   // верхний отступ кода от кромки кадра (тело уходит вниз за кадр)
 
-  const blockHeight = SafeZone.bottom - SafeZone.top - 36;
   const blockWidth = SafeZone.right - SafeZone.left;
+  // Клип-вьюпорт растянут на всю высоту кадра. Монолит validate() (39 строк) при
+  // читаемом кегле не влезает, поэтому хвост уходит за нижнюю кромку экрана —
+  // а не обрезается рамкой в ~150px от края с пустой полосой под ней.
+  // Блок центрирован (x:0, y:0), поэтому поля слева/справа симметричны.
+  const blockHeight = Screen.height + paddingY + 10;
 
   const code = CodeBlock.fromCode(VALIDATE_CODE, {
-    x: -50,
-    y: -50,
+    x: 0,
+    y: 0,
     width: blockWidth,
     height: blockHeight,
     fontSize,
@@ -127,7 +131,7 @@ export default makeScene2D(function* (view) {
     contentOffsetY: topInset,
     contentPaddingBottom: 10,
     fontFamily: Fonts.code,
-    theme: DryFiltersV3CodeTheme,
+    theme: CanonCodeTheme,
     cardStyle: CODE_CARD_STYLE,
     glowAccent: false,
     customTypes: [
@@ -141,10 +145,11 @@ export default makeScene2D(function* (view) {
 
   code.mount(view);
   const lines = VALIDATE_CODE.split('\n');
-  const SOFT_GREEN = 'rgba(168, 214, 178, 0.88)';
-  const VAR_LIGHT = 'rgba(244, 241, 235, 0.96)';
-  const KEYWORD_COLOR = DryFiltersV3CodeTheme.keyword;
-  const TYPE_CLEAN = 'rgba(220, 215, 255, 0.80)';
+  const SOFT_GREEN = Canon.string;      // строки
+  const VAR_LIGHT = Canon.ink;          // переменные / receiver / plain
+  const KEYWORD_COLOR = Canon.keyword;  // ключевые слова + числа
+  const TYPE_CLEAN = Canon.type;        // типы
+  const METHOD_DEF = Canon.methodDef;   // имя метода в определении (якорь)
   const variableTokens = [
     'request',
     'displayName',
@@ -192,16 +197,16 @@ export default makeScene2D(function* (view) {
     ];
     const methodsOnLine = methodCalls.filter(t => line.includes(t));
     if (methodsOnLine.length > 0) {
-      yield* code.recolorTokens(i, methodsOnLine, DryFiltersV3CodeTheme.method, 0);
+      yield* code.recolorTokens(i, methodsOnLine, Canon.methodCall, 0);
     }
     if (line.includes('validateDisplayName(')) {
-      yield* code.recolorTokens(i, ['validateDisplayName'], VAR_LIGHT, 0);
+      yield* code.recolorTokens(i, ['validateDisplayName'], METHOD_DEF, 0);
     } else if (line.includes('validateConnectionType(')) {
-      yield* code.recolorTokens(i, ['validateConnectionType'], VAR_LIGHT, 0);
+      yield* code.recolorTokens(i, ['validateConnectionType'], METHOD_DEF, 0);
     } else if (line.includes('validatePhoneNumber(')) {
-      yield* code.recolorTokens(i, ['validatePhoneNumber'], VAR_LIGHT, 0);
+      yield* code.recolorTokens(i, ['validatePhoneNumber'], METHOD_DEF, 0);
     } else if (line.includes('validate(')) {
-      yield* code.recolorTokens(i, ['validate'], VAR_LIGHT, 0);
+      yield* code.recolorTokens(i, ['validate'], METHOD_DEF, 0);
     }
   }
   const privateMethodStart = 39;
@@ -216,8 +221,8 @@ export default makeScene2D(function* (view) {
 
   const leftEdge = code.getContentLeftEdge();
   const callIndent = textWidth('    ', Fonts.code, fontSize);
-  const PUNCT_COLOR = 'rgba(244, 241, 235, 0.7)';
-  const METHOD_COLOR = DryFiltersV3CodeTheme.method;
+  const PUNCT_COLOR = Canon.punctuation;
+  const METHOD_COLOR = Canon.methodCall;  // вызовы validate*-методов на месте свёрнутых блоков
   const dimOpacity = 0.15;
 
   const blocks = [

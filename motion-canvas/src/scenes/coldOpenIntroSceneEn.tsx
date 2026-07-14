@@ -8,7 +8,7 @@ import {applyBackground} from '../core/utils';
 
 const SERIF = 'EB Garamond, Newsreader, serif';
 const INK = '#B7BCEA';                    // cold lavender (chosen sample #1)
-const GLOW = 'rgba(178,188,255,0.55)';    // light glow
+const GLOW = 'rgba(178,188,255,0.28)';    // light glow (halved)
 
 export default makeScene2D(function* (view) {
   applyBackground(view);

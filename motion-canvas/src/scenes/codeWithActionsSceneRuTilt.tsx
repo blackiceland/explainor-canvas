@@ -213,7 +213,7 @@ export default makeScene2D(function* (view) {
 
   yield* waitFor(0.3);
 
-  const PINK = '#FF8CA3';
+  const PINK = '#FFA655';   // акцент pass-through переменной (outputFormat) — оранжевый (светлее на 15%)
   const codeV4 = cbV4.currentCode;
   const fadeAnims: ThreadGenerator[] = [];
 

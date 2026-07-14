@@ -313,7 +313,7 @@ export default makeScene2D(function* (view) {
   yield* waitFor(1.5);
 
   // ── helpers ─────────────────────────────────────────────────────────────────
-  const WARN_GLOW  = 'rgba(255, 100, 130, 0.85)';
+  const WARN_GLOW  = 'rgba(255, 166, 85, 0.85)';
   const WARN_BLUR  = 14;
   const WARN_PATTERNS = ['watermarkMode', 'audioProfile'];
   const warnRules = [

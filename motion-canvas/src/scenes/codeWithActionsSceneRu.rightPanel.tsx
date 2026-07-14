@@ -107,15 +107,8 @@ export function createRightPanel(view: Node) {
   const blockOpacities = Array.from({length: COLS * ROWS}, () => createSignal(0));
   const blockOpacitiesV1 = Array.from({length: COLS * ROWS}, () => createSignal(0));
 
+  // Разделитель код↔анимации убран по просьбе автора (был вертикальный Line на DIVIDER_X).
   const dividerOp = createSignal(0);
-  view.add(
-    <Line
-      points={[[DIVIDER_X, -Screen.height / 2], [DIVIDER_X, Screen.height / 2]]}
-      stroke={'rgba(244,241,235,0.08)'}
-      lineWidth={1}
-      opacity={dividerOp}
-    />,
-  );
 
   view.add(<>
     <Line points={[[PANEL_X - FRAME_W * 0.55, Y_NORMALIZE], [PANEL_X + FRAME_W * 0.55, Y_NORMALIZE]]}
