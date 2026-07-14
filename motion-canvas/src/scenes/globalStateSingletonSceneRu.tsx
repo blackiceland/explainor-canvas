@@ -189,7 +189,7 @@ export default makeScene2D(function* (view) {
     y: stripeY,
     width: Screen.width,
     height: LINE_HEIGHT * 1.15,
-    fill: 'rgba(255, 150, 55, 0.18)',
+    fill: 'rgba(255, 80, 120, 0.18)',
     radius: 4,
     opacity: () => stripeOn(),
   });

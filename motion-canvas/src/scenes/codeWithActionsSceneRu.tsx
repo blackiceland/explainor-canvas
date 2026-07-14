@@ -1,5 +1,5 @@
 import {Rect, makeScene2D} from '@motion-canvas/2d';
-import {all, easeInOutCubic, easeOutCubic, linear, waitFor} from '@motion-canvas/core';
+import {all, createSignal, easeInOutCubic, easeOutCubic, linear, waitFor} from '@motion-canvas/core';
 import {ColorRule, Manticore} from '../core/code/components/Manticore';
 import {Canon, CanonCodeTheme, buildCanonRules} from '../core/code/model/paletteCanon';
 import {getCodePaddingY} from '../core/code/shared/TextMeasure';
@@ -101,7 +101,9 @@ export default makeScene2D(function* (view) {
        'byte[] encodedVideo = runEncoder(sourceFrames);',
        '',
        'return finalizeExport(encodedVideo, outputFormat);']),
-  ], MAX_LINE_CHARS);
+    // +6: чтобы 3-строчная сигнатура prepareFrames (~94 симв.) влезала в строку,
+    // а не переносила третий параметр (MAX_LINE_CHARS=93 не хватало одного символа).
+  ], MAX_LINE_CHARS + 6);
 
   // ── Manticore ───────────────────────────────────────────────────────────
   const manticore = Manticore.create(model.render(), {
@@ -202,6 +204,7 @@ export default makeScene2D(function* (view) {
     method('private', 'byte[]', 'prepareFrames',
       [param('byte[]', 'sourceFrames'), param('String', 'colorProfile')],
       ['byte[] normalizedFrames = normalizeFrames(sourceFrames);',
+       '',
        'return applyColorProfile(normalizedFrames, colorProfile);']),
     'exportVideo',
   );
@@ -324,50 +327,44 @@ export default makeScene2D(function* (view) {
     cb.colorizeAnimated(from, to, 0.4, passRule),
   );
 
-  // stripe A — создаём до появления exportVideo
-  const STRIPE_COLOR  = 'rgba(255, 150, 55, 0.18)';
-  const stripeW       = CODE_W + 40;
-  const stripeH       = lineHeight * 1.15;
-  const stripeX       = -Screen.width / 2 + stripeW / 2;
+  // ── Одна полоска: непрерывно ползёт к finalizeExport и ждёт там ПРИГЛУШЁННОЙ,
+  //    пока цепочка выделений кода не дойдёт до этой строки — тогда разгорается. ──
+  const STRIPE_COLOR = 'rgba(255, 80, 120, 0.18)';   // исходный цвет полоски (не оранжевый)
+  const stripeW = CODE_W + 40;
+  const stripeH = lineHeight * 1.15;
+  const stripeX = -Screen.width / 2 + stripeW / 2;
+  const DIM_OP  = 0.34;   // приглушённая, пока трасса не дошла
 
-  // Полоска приезжает СНИЗУ к целевой строке приглушённой и разгорается в
-  // момент выделения (без «появилась → затёрли → испарилась»).
-  const SLIDE  = 46;
-  const DIM_OP = 0.34;   // приглушённое состояние до выделения
-
-  const yExport = cb.getLineSceneY(exportVideoLine);
-  const stripeExport = new Rect({
-    width: stripeW, height: stripeH,
-    x: stripeX, y: yExport + SLIDE,   // стартует ниже строки
+  // y интерполируется от строки-входа (exportVideo) к ЖИВОЙ позиции finalizeExport
+  // (getLineSceneY реактивен по scroll) — полоска остаётся приклеенной к finalize.
+  const yEntry = cb.getLineSceneY(exportVideoLine);
+  const glide  = createSignal(0);
+  const stripe = new Rect({
+    width: stripeW, height: stripeH, x: stripeX,
+    y: () => yEntry + (cb.getLineSceneY(finalizeCallIdx) - yEntry) * glide(),
     fill: STRIPE_COLOR, opacity: 0, radius: 4,
   });
-  view.add(stripeExport);
+  view.add(stripe);
 
-  // едет снизу к строке, приглушённая — ДО выделения
+  // появляется приглушённой у входа; остальной код тускнеет, exportVideo — ярко
   yield* all(
     cb.dimLines(0, exportVideoLine - 1, 0.25, 0.5),
     cb.dimLines(exportVideoLine + 2, cb.lineCount - 1, 0.25, 0.5),
-    stripeExport.opacity(DIM_OP, 0.45, easeOutCubic),
-    stripeExport.y(yExport, 0.55, easeOutCubic),
-  );
-  // в момент выделения — разгорается
-  yield* all(
     highlight(exportVideoLine, exportVideoLine + 1),
-    stripeExport.opacity(1, 0.4, easeInOutCubic),
+    stripe.opacity(DIM_OP, 0.5, easeInOutCubic),
   );
   yield* waitFor(0.8);
 
   yield* highlight(exportCallLine, exportCallLine);
   yield* waitFor(1.0);
 
-  // уходим к retry: не гаснет на месте, а съезжает вниз приглушаясь
+  // непрерывно ползёт к finalizeExport ВМЕСТЕ со скроллом, оставаясь приглушённой
   yield* all(
-    stripeExport.opacity(DIM_OP, 0.5, easeInOutCubic),
-    stripeExport.y(yExport + SLIDE * 1.6, 0.7, easeInOutCubic),
+    glide(1, 1.2, easeInOutCubic),
     cb.scrollTo(retrySignature, 1.2),
   );
-  stripeExport.remove();
 
+  // цепочка выделений идёт вниз по цепочке; полоска ждёт у finalize приглушённой
   yield* highlight(retrySignature, retrySignature);
   yield* waitFor(0.8);
 
@@ -377,22 +374,10 @@ export default makeScene2D(function* (view) {
   yield* highlight(encodeSignature, encodeSignature);
   yield* waitFor(0.8);
 
-  // stripe Б — тот же приём: приезжает снизу приглушённой, разгорается на выделении
-  const yFinal = cb.getLineSceneY(finalizeCallIdx);
-  const stripeFinal = new Rect({
-    width: stripeW, height: stripeH,
-    x: stripeX, y: yFinal + SLIDE,
-    fill: STRIPE_COLOR, opacity: 0, radius: 4,
-  });
-  view.add(stripeFinal);
-
-  yield* all(
-    stripeFinal.opacity(DIM_OP, 0.4, easeOutCubic),
-    stripeFinal.y(yFinal, 0.5, easeOutCubic),
-  );
+  // трасса дошла до finalizeExport — полоска разгорается
   yield* all(
     highlight(finalizeCallIdx, finalizeCallIdx),
-    stripeFinal.opacity(1, 0.4, easeInOutCubic),
+    stripe.opacity(1, 0.4, easeInOutCubic),
   );
   yield* waitFor(1.2);
 
@@ -404,13 +389,14 @@ export default makeScene2D(function* (view) {
   yield* cb.dimLines(retrySignature, retrySignature, 1.0, 0.18);
   yield* waitFor(0.5);
 
-  // плавный выход (stripeExport уже снят после скролла к retry)
-  yield* stripeFinal.opacity(0, 0.8, easeInOutCubic);
+  // плавный выход
+  yield* stripe.opacity(0, 0.8, easeInOutCubic);
   yield* all(
     cb.showAllLines(0.8),
-    cb.colorizeAnimated(0, cb.lineCount - 1, 0.8),
+    // возвращаем ТОЛЬКО outputFormat (оранжевый → ink). Методы не перекрашиваем —
+    // иначе вызовы на миг уходят в methodDef (розово-красный) до пост-repaint (лаг+вспышка).
+    cb.colorizeAnimated(0, cb.lineCount - 1, 0.8, [{match: 'outputFormat', color: Canon.ink}]),
   );
-  paintJavaMethods(cb);   // restore call/def rose split (colorizeAnimated reset calls to methodDef)
   yield* waitFor(1.0);
 
   // ── v3: watermark ─────────────────────────────────────────────────────
