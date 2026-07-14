@@ -29,8 +29,23 @@ import fiveFacesFinaleSceneRuV2 from "./scenes/fiveFacesFinaleSceneRuV2?scene";
 import fiveFacesBooleanMorphSceneRu from "./scenes/fiveFacesBooleanMorphSceneRu?scene";
 import messageDeliverySelectionSceneEn from "./scenes/messageDeliverySelectionSceneEn?scene";
 import whatsappCodePairSceneEn from "./scenes/whatsappCodePairSceneEn?scene";
+import coldOpenIntroSceneEn from "./scenes/coldOpenIntroSceneEn?scene";
 import smallMethodsProblemsSubtitlesSceneRu from "./scenes/smallMethodsProblemsSubtitlesSceneRu?scene";
 import notifyPassThroughSceneRu from './scenes/notifyPassThroughSceneRu?scene';
+import validateMonolithSceneRu from "./scenes/validateMonolithSceneRu?scene";
+import jackIntroSceneEn from "./scenes/jackIntroSceneEn?scene";
+import codeWithActionsSceneRu from "./scenes/codeWithActionsSceneRu?scene";
+import codeWithActionsSceneRuTilt from "./scenes/codeWithActionsSceneRuTilt?scene";
+import exportCallTreeSceneRu from "./scenes/exportCallTreeSceneRu?scene";
+import triangleAmplifierSceneRu from "./scenes/triangleAmplifierSceneRu?scene";
+import callChainExorcistIntroSceneEn from "./scenes/callChainExorcistIntroSceneEn?scene";
+import guitarHeroPassThroughSceneRu from "./scenes/guitarHeroPassThroughSceneRu?scene";
+import contextObjectSceneRu from "./scenes/contextObjectSceneRu?scene";
+import contextRefactorSceneRu from "./scenes/contextRefactorSceneRu?scene";
+import globalStateSingletonSceneRu from "./scenes/globalStateSingletonSceneRu?scene";
+import correctBoundariesSceneRu from "./scenes/correctBoundariesSceneRu?scene";
+import notesSceneRu from "./scenes/notesSceneRu?scene";
+import finalOutroSceneRu from "./scenes/finalOutroSceneRu?scene";
 import dryFiltersScene from "./scenes/dryFiltersScene?scene";
 import fromTheStartSceneEn from "./scenes/fromTheStartSceneEn?scene";
 import foreignResponsibilityShapesSceneEn from './scenes/foreignResponsibilityShapesSceneEn?scene';
@@ -105,23 +120,22 @@ export default makeProject({
 
         //02
 
-         // smallMethodsProblemsSubtitlesSceneRu,
-         // notifyPassThroughSceneRu,
-        // validateMonolithSceneRu,
-        // starWarsCrawlSceneRu,
-        // jackIntroSceneEn,
-        // codeWithActionsSceneRu,
-        // codeWithActionsSceneRuTilt,
-        // exportCallTreeSceneRu,
-        // triangleAmplifierSceneRu,
-        // callChainExorcistIntroSceneEn,
-        // guitarHeroPassThroughSceneRu,
-        // contextObjectSceneRu,
-        // contextRefactorSceneRu,
-        // globalStateSingletonSceneRu,
-        // correctBoundariesSceneRu,
-        // notesSceneRu,
-        // finalOutroSceneRu,
+        coldOpenIntroSceneEn,
+        smallMethodsProblemsSubtitlesSceneRu,
+        validateMonolithSceneRu,
+        jackIntroSceneEn,
+        codeWithActionsSceneRu,
+        codeWithActionsSceneRuTilt,
+     //   exportCallTreeSceneRu,
+        triangleAmplifierSceneRu,
+        callChainExorcistIntroSceneEn,
+     //   guitarHeroPassThroughSceneRu,
+        contextObjectSceneRu,
+        contextRefactorSceneRu,
+        globalStateSingletonSceneRu,
+        correctBoundariesSceneRu,
+        notesSceneRu,
+        finalOutroSceneRu,
 
         //03
 
@@ -152,41 +166,40 @@ export default makeProject({
         // IV
          // стартовый текст и древо
          // chapter1YudanSceneEn,
+
          // messageDeliverySelectionSceneEn,
+
          // whatsappCodePairSceneEn,
+
          // oneMethodManyVersionsSceneEn,
 
         // fiveFacesBooleanSceneRu,
+
         // fiveFacesBooleanSceneRuV2,
 
-        // // // 01
-        //   fiveFacesPermissionSceneRuV2,
-        // //
-        // // // 02
-        //   fiveFacesModeSceneRuV2,
-        // //
-        // // 03
-        //   fiveFacesSafetySceneRuV2,
+        // 01
+        //  fiveFacesPermissionSceneRuV2,
 
-        // // ЛАБОРАТОРИЯ ПАЛИТРЫ — сравнение цветовых систем (эксперимент)
+        // 02
+        // fiveFacesModeSceneRuV2,
+
+        // 03
+        // fiveFacesSafetySceneRuV2,
+
+        // ЛАБОРАТОРИЯ ПАЛИТРЫ — сравнение цветовых систем (эксперимент)
         //  paletteLabSceneRu,
 
         // ЮДАН-ТАЙМЛАПС: код-снимки register() сменяются motion-blur/ghost переходами
         // flagYudanTimelapseSceneRu,
-        // //
-        // // 04
-           fiveFacesShortcutSceneRuV2,
-        // // 05
+
+        // 04
+        //   fiveFacesShortcutSceneRuV2,
+
+        // 05
         //   fiveFacesPoorModelSceneRuV2,
-        // // КОДА: градация → схлоп в binary → легитимный boolean → takeaway
+
+        // КОДА: градация → схлоп в binary → легитимный boolean → takeaway
         //   pureBooleanTakeawaySceneEn,
-        // // POOR MODEL — 3 варианта виз подряд (полигон выбора)
-        //  poorModelOptionsSceneRu,
-        // REGISTER flag-argument — 3 варианта виз (код слева + подсветка)
-        // registerFlagOptionsSceneRu,
-        // fiveFacesFinaleSceneRuV2,
-
-
 
     ]
 })
