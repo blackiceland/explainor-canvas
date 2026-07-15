@@ -1,8 +1,8 @@
 import {makeScene2D, Txt, Video} from '@motion-canvas/2d';
 import {all, chain, createRef, easeInQuad, easeInOutCubic, ThreadGenerator, waitFor} from '@motion-canvas/core';
 import guitarHeroVideo from './guitarHero.mp4';
-import {Manticore} from '../core/code/components/Manticore';
-import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
+import {ColorRule, Manticore} from '../core/code/components/Manticore';
+import {Canon, CanonCodeTheme, buildCanonRules} from '../core/code/model/paletteCanon';
 import {getCodePaddingY} from '../core/code/shared/TextMeasure';
 import {SafeZone} from '../core/ScreenGrid';
 import {Fonts} from '../core/theme';
@@ -11,12 +11,58 @@ import {CODE_V3f, CODE_V4} from './codeWithActionsSceneRu.states';
 import {
   CODE_CARD_STYLE,
   CODE_W,
-  COLOR_RULES,
   FRAME_STROKE_DONE,
   LEFT_CENTER_X,
   PANEL_X,
 } from './codeWithActionsSceneRu.config';
 import {createRightPanel} from './codeWithActionsSceneRu.rightPanel';
+
+// ── Канон-раскраска (как в codeWithActionsSceneRu) ────────────────────────
+// Типы/методы расширены под CODE_V4 (packageOutput/…/attachMetadata, Metadata/…).
+const CANON_RULES: ColorRule[] = [
+  ...buildCanonRules({
+    types: ['String', 'RuntimeException', 'IllegalStateException',
+      'IllegalArgumentException', 'Muxer', 'Container', 'byte', 'int',
+      'Metadata', 'MetadataWriter', 'ContentSigner', 'Instant'],
+    methods: ['exportVideo', 'validateInput', 'runEncoder', 'finalizeExport',
+      'prepareFrames', 'normalizeFrames', 'applyColorProfile', 'overlaySubtitles',
+      'encodeWithRetry', 'encode', 'isSupportedFormat', 'applyWatermark',
+      'normalizeAudio', 'mux', 'packageOutput', 'signContent', 'enforceSizeBudget',
+      'attachMetadata'],
+  }),
+  {match: /^(new|this)$/, color: Canon.keyword},
+];
+
+const RET_TYPES = new Set(['byte', 'int', 'void', 'long', 'boolean', 'char', 'short', 'float', 'double']);
+const CALL_STOP = new Set(['if', 'for', 'while', 'catch', 'switch', 'synchronized']);
+const nonSpacePrev = (toks: any[], i: number): string => {
+  let p = i - 1;
+  while (p >= 0 && toks[p].text.trim() === '') p--;
+  return p >= 0 ? toks[p].text.trim() : '';
+};
+const nonSpaceNext = (toks: any[], i: number): string => {
+  let n = i + 1;
+  while (n < toks.length && toks[n].text.trim() === '') n++;
+  return n < toks.length ? toks[n].text.trim() : '';
+};
+// Java-вариант: имя + `(` = метод; определение, если перед именем стоит тип.
+const paintJavaMethodsLine = (line: any): void => {
+  const toks = line.tokens;
+  for (let i = 0; i < toks.length; i++) {
+    const t = toks[i].text.trim();
+    if (!/^[a-z][a-zA-Z0-9_]*$/.test(t) || CALL_STOP.has(t)) continue;
+    if (nonSpaceNext(toks, i) !== '(') continue;
+    const prev = nonSpacePrev(toks, i);
+    const isDef = prev === ']' || prev === '>' || RET_TYPES.has(prev) || /^[A-Z]/.test(prev);
+    toks[i].ref().fill(isDef ? Canon.methodDef : Canon.methodCall);
+  }
+};
+const paintJavaMethods = (mc: Manticore): void => {
+  for (let li = 0; li < mc.lineCount; li++) {
+    const line = mc.getLine(li);
+    if (line) paintJavaMethodsLine(line);
+  }
+};
 
 export default makeScene2D(function* (view) {
   applyBackground(view);
@@ -113,14 +159,16 @@ export default makeScene2D(function* (view) {
     lineHeight,
     contentOffsetY: topInset,
     fontFamily: Fonts.code,
-    theme: DryFiltersV3CodeTheme,
+    theme: CanonCodeTheme,
     cardStyle: CODE_CARD_STYLE,
     glowAccent: false,
+    noClip: true,
     customTypes,
   });
 
   cb.mount(view);
-  cb.colorize(COLOR_RULES);
+  cb.colorize(CANON_RULES);
+  paintJavaMethods(cb);
   cb.node.opacity(1);
   yield* cb.scrollTo('private byte[] encode(', 0);
 
@@ -150,14 +198,16 @@ export default makeScene2D(function* (view) {
     lineHeight,
     contentOffsetY: topInset,
     fontFamily: Fonts.code,
-    theme: DryFiltersV3CodeTheme,
+    theme: CanonCodeTheme,
     cardStyle: CODE_CARD_STYLE,
     glowAccent: false,
+    noClip: true,
     customTypes,
   });
 
   cbV4.mount(view);
-  cbV4.colorize(COLOR_RULES);
+  cbV4.colorize(CANON_RULES);
+  paintJavaMethods(cbV4);
   cbV4.node.opacity(0);
   yield* cbV4.scrollTo('private byte[] encode(', 0);
 
@@ -213,7 +263,7 @@ export default makeScene2D(function* (view) {
 
   yield* waitFor(0.3);
 
-  const PINK = '#FFA655';   // акцент pass-through переменной (outputFormat) — оранжевый (светлее на 15%)
+  const PINK = '#FF8CA3';   // летящие outputFormat — прежний (былой) цвет, не оранжевый
   const codeV4 = cbV4.currentCode;
   const fadeAnims: ThreadGenerator[] = [];
 
@@ -314,5 +364,11 @@ export default makeScene2D(function* (view) {
     ),
   );
 
-  yield* waitFor(13.7);
+  yield* waitFor(12.5);
+
+  // концовка: всё затухает, кроме фона (код с летящими тайлами + видео)
+  yield* all(
+    cbV4.node.opacity(0, 1.2, easeInOutCubic),
+    videoRef().opacity(0, 1.2, easeInOutCubic),
+  );
 });

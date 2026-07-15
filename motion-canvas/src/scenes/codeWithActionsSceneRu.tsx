@@ -1,5 +1,5 @@
-import {Rect, makeScene2D} from '@motion-canvas/2d';
-import {all, createSignal, easeInOutCubic, easeOutCubic, linear, waitFor} from '@motion-canvas/core';
+import {Gradient, Node, Rect, makeScene2D} from '@motion-canvas/2d';
+import {all, createSignal, easeInOutCubic, easeOutCubic, linear, Vector2, waitFor} from '@motion-canvas/core';
 import {ColorRule, Manticore} from '../core/code/components/Manticore';
 import {Canon, CanonCodeTheme, buildCanonRules} from '../core/code/model/paletteCanon';
 import {getCodePaddingY} from '../core/code/shared/TextMeasure';
@@ -122,6 +122,29 @@ export default makeScene2D(function* (view) {
   manticore.mount(view);
   manticore.colorize(CANON_RULES);
   paintJavaMethods(manticore);
+
+  // Верхний ограничитель = маска прозрачности на КОД (не оверлей поверх фона):
+  // код тает к верхней кромке, под ним виден настоящий фон (со спотлайтом) —
+  // темнеть нечему. cache + destination-in альфа-градиент. codeMask в (0,0),
+  // поэтому cfg.y кода совпадает со scene-y (getLineSceneY остаётся верным).
+  const codeMask = new Node({cache: true});
+  view.add(codeMask);
+  codeMask.add(manticore.node);   // reparent кода в кэш-группу с маской
+  codeMask.add(new Rect({
+    width: Screen.width,
+    height: Screen.height,
+    compositeOperation: 'destination-in',
+    fill: new Gradient({
+      type: 'linear',
+      from: new Vector2(0, -Screen.height / 2),
+      to: new Vector2(0, Screen.height / 2),
+      stops: [
+        {offset: 0, color: 'rgba(255,255,255,0)'},                  // верх экрана — код убран
+        {offset: 96 / Screen.height, color: 'rgba(255,255,255,1)'}, // ниже кромки — код виден
+        {offset: 1, color: 'rgba(255,255,255,1)'},
+      ],
+    }),
+  }));
 
   // ── Медуза ──────────────────────────────────────────────────────────────
   const dir = new Medusa(model, manticore, {

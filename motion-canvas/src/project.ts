@@ -120,20 +120,20 @@ export default makeProject({
 
         //02
 
-        coldOpenIntroSceneEn,
+        // coldOpenIntroSceneEn,
         // smallMethodsProblemsSubtitlesSceneRu,
-        validateMonolithSceneRu,
-        jackIntroSceneEn,
-        codeWithActionsSceneRu,
-        codeWithActionsSceneRuTilt,
+        // validateMonolithSceneRu,
+        // jackIntroSceneEn,
+        // codeWithActionsSceneRu,
+        // codeWithActionsSceneRuTilt,
      // //   exportCallTreeSceneRu,
      //    triangleAmplifierSceneRu,
      //    callChainExorcistIntroSceneEn,
      // //   guitarHeroPassThroughSceneRu,
      //     contextObjectSceneRu,
      //     contextRefactorSceneRu,
-     //    globalStateSingletonSceneRu,
-     //    correctBoundariesSceneRu,
+        globalStateSingletonSceneRu,
+         correctBoundariesSceneRu,
      //    notesSceneRu,
      //    finalOutroSceneRu,
 
