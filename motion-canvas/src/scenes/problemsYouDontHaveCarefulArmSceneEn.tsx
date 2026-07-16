@@ -181,6 +181,12 @@ const STANDARD_DONE = `public class StandardGrab implements GrabStrategy {
     }
 }`;
 
+// ── Constructor arg line indices (0-based in the *_DONE states) ─────────
+// Arg 1 = GripConfidence, Arg 2 = MotionProfile, Arg 3 = Orientation/etc.
+const SOFT_ARGS = [9, 10, 11];
+const FIRM_ARGS = [8, 9, 10];
+const STD_ARGS  = [7, 8, 9];
+
 // ── Styling ─────────────────────────────────────────────────────────────
 // LEFT_PAD tighter than before — column reads closer to the frame edge.
 const LEFT_PAD = 40;
@@ -1125,17 +1131,61 @@ export default makeScene2D(function* (view) {
   mcStd.colorize(STRAT_COLOR_RULES);
 
   // Hold the full damage
-  yield* waitFor(3.8);
+  yield* waitFor(4.1);
 
-  // Fade out
+  // ═══════════════════════════════════════════════════════════════════════
+  // ARG SWEEP — dim everything, then walk the three GrabResult constructor
+  // args across all three strategies in sync. Orientation lands last:
+  // cube.orientation() / LOCKED / ANY — three different answers to the same
+  // contract slot. The arm leaves here; from now on it's code only.
+  // ═══════════════════════════════════════════════════════════════════════
   yield* all(
-    mcInterface.disappear(0.8),
-    mc.disappear(0.8),
-    mcRecord.disappear(0.8),
-    mcSoft.disappear(0.8),
-    mcFirm.disappear(0.8),
-    mcStd.disappear(0.8),
-    threeView.node.opacity(0, 0.8, easeInOutCubic),
+    mcInterface.node.opacity(0.12, 0.5, easeInOutCubic),
+    mc.node.opacity(0.12, 0.5, easeInOutCubic),
+    mcRecord.node.opacity(0.12, 0.5, easeInOutCubic),
+    mcSoft.dimLines(0, mcSoft.lineCount - 1, 0.12, 0.5),
+    mcFirm.dimLines(0, mcFirm.lineCount - 1, 0.12, 0.5),
+    mcStd.dimLines(0, mcStd.lineCount - 1, 0.12, 0.5),
+    threeView.node.opacity(0, 0.5, easeInOutCubic),
   );
-  yield* waitFor(0.3);
+
+  // Arg 1: GripConfidence
+  yield* all(
+    mcSoft.dimLines(SOFT_ARGS[0], SOFT_ARGS[0], 1, 0.35),
+    mcFirm.dimLines(FIRM_ARGS[0], FIRM_ARGS[0], 1, 0.35),
+    mcStd.dimLines(STD_ARGS[0], STD_ARGS[0], 1, 0.35),
+  );
+  yield* waitFor(0.8);
+
+  // Arg 2: MotionProfile (dim prev, light next)
+  yield* all(
+    mcSoft.dimLines(SOFT_ARGS[0], SOFT_ARGS[0], 0.12, 0.3),
+    mcFirm.dimLines(FIRM_ARGS[0], FIRM_ARGS[0], 0.12, 0.3),
+    mcStd.dimLines(STD_ARGS[0], STD_ARGS[0], 0.12, 0.3),
+    mcSoft.dimLines(SOFT_ARGS[1], SOFT_ARGS[1], 1, 0.35),
+    mcFirm.dimLines(FIRM_ARGS[1], FIRM_ARGS[1], 1, 0.35),
+    mcStd.dimLines(STD_ARGS[1], STD_ARGS[1], 1, 0.35),
+  );
+  yield* waitFor(0.8);
+
+  // Arg 3: Orientation / cube.orientation() (dim prev, light next)
+  yield* all(
+    mcSoft.dimLines(SOFT_ARGS[1], SOFT_ARGS[1], 0.12, 0.3),
+    mcFirm.dimLines(FIRM_ARGS[1], FIRM_ARGS[1], 0.12, 0.3),
+    mcStd.dimLines(STD_ARGS[1], STD_ARGS[1], 0.12, 0.3),
+    mcSoft.dimLines(SOFT_ARGS[2], SOFT_ARGS[2], 1, 0.35),
+    mcFirm.dimLines(FIRM_ARGS[2], FIRM_ARGS[2], 1, 0.35),
+    mcStd.dimLines(STD_ARGS[2], STD_ARGS[2], 1, 0.35),
+  );
+  yield* waitFor(1.2);
+
+  // ── Fade out ──────────────────────────────────────────────────────────
+  yield* all(
+    mcInterface.node.opacity(0, 0.6, easeInOutCubic),
+    mc.node.opacity(0, 0.6, easeInOutCubic),
+    mcRecord.node.opacity(0, 0.6, easeInOutCubic),
+    mcSoft.node.opacity(0, 0.6, easeInOutCubic),
+    mcFirm.node.opacity(0, 0.6, easeInOutCubic),
+    mcStd.node.opacity(0, 0.6, easeInOutCubic),
+  );
 });

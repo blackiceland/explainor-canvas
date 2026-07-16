@@ -1,15 +1,18 @@
 import {makeScene2D, Node, Rect, Txt, Video} from '@motion-canvas/2d';
 import {all, createRef, createSignal, easeInOutCubic, waitFor} from '@motion-canvas/core';
-import {Fonts, Screen, Timing} from '../core/theme';
+import {Colors, Fonts, Screen, Timing} from '../core/theme';
+import {applyBackground} from '../core/utils';
 
 const CLIP_URL = '/video13.mp4';
 
-// Gentle beige palette
-const BG_COLOR     = '#F0E6D6';
-const TEXT_DARK    = '#3A3028';
-const TEXT_MUTED   = '#7A6E5E';
-const VIDEO_SHADOW = 'rgba(58, 48, 40, 0.25)';
-const RULE_COLOR   = 'rgba(58, 48, 40, 0.18)';
+// Графит — как у остальных сцен (applyBackground). Палитра инвертирована:
+// текст костяной, мат под видео — поднятая графитовая плита с хайрлайном.
+const TEXT_DARK    = 'rgba(244, 241, 235, 0.96)';
+const TEXT_MUTED   = 'rgba(244, 241, 235, 0.52)';
+const CARD_FILL    = Colors.surface;
+const CARD_STROKE  = 'rgba(244, 241, 235, 0.10)';
+const VIDEO_SHADOW = 'rgba(0, 0, 0, 0.50)';
+const RULE_COLOR   = 'rgba(244, 241, 235, 0.14)';
 
 // ── Book list ───────────────────────────────────────────────────────────────
 const BOOKS = [
@@ -61,9 +64,7 @@ function bookBlockH(b: typeof BOOKS[number]): number {
 
 export default makeScene2D(function* (view) {
   // ── Background ────────────────────────────────────────────────────────────
-  view.add(
-    <Rect width={Screen.width} height={Screen.height} fill={BG_COLOR} />,
-  );
+  applyBackground(view);
 
   const textGroup = createRef<Node>();
   const videoRef  = createRef<Video>();
@@ -158,7 +159,9 @@ export default makeScene2D(function* (view) {
       width={CARD_W}
       height={CARD_H}
       radius={18}
-      fill={'#FFFFFF'}
+      fill={CARD_FILL}
+      stroke={CARD_STROKE}
+      lineWidth={1}
       shadowColor={VIDEO_SHADOW}
       shadowBlur={44}
       shadowOffset={[0, 14]}

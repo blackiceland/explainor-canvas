@@ -60,7 +60,6 @@ import predictingFutureTakeSceneEn from "./scenes/predictingFutureTakeSceneEn?sc
 import earnedAbstractionSceneEn from "./scenes/earnedAbstractionSceneEn?scene";
 import chapter2ReversibilitySceneEn from "./scenes/chapter2ReversibilitySceneEn?scene";
 import problemsYouDontHaveCarefulArmSceneEn from "./scenes/problemsYouDontHaveCarefulArmSceneEn?scene";
-import problemsYouDontHaveOrientationAnySceneEn from "./scenes/problemsYouDontHaveOrientationAnySceneEn?scene";
 import problemsYouDontHaveWrongShelfSceneEn from "./scenes/problemsYouDontHaveWrongShelfSceneEn?scene";
 import wrongCenterCollapseSceneEn from "./scenes/wrongCenterCollapseSceneEn?scene";
 import robotArmTestScene from "./scenes/robotArmTestScene?scene";
@@ -118,7 +117,7 @@ export default makeProject({
         // videoExportActionsSceneRu,
         // passThroughPianoSceneRu,
 
-        //02
+        // 02 call chain
 
         // coldOpenIntroSceneEn,
         // smallMethodsProblemsSubtitlesSceneRu,
@@ -126,29 +125,33 @@ export default makeProject({
         // jackIntroSceneEn,
         // codeWithActionsSceneRu,
         // codeWithActionsSceneRuTilt,
-     // //   exportCallTreeSceneRu,
-     //    triangleAmplifierSceneRu,
-     //    callChainExorcistIntroSceneEn,
-     // //   guitarHeroPassThroughSceneRu,
-     //     contextObjectSceneRu,
-     //     contextRefactorSceneRu,
-        globalStateSingletonSceneRu,
-         correctBoundariesSceneRu,
-     //    notesSceneRu,
-     //    finalOutroSceneRu,
+        // exportCallTreeSceneRu,
+        // triangleAmplifierSceneRu,
+        // callChainExorcistIntroSceneEn,
+        // guitarHeroPassThroughSceneRu,
+        // contextObjectSceneRu,
+        // contextRefactorSceneRu,
+        // globalStateSingletonSceneRu,
+        // correctBoundariesSceneRu,
+        // notesSceneRu,
+        // finalOutroSceneRu,
 
-        //03
+        // 03 premature
 
+        problemsYouDontHaveSubtitlesSceneEn,
+        robotArmCodeScene,
+
+        // сцена с трио
         // problemsYouDontHaveCarefulArmSceneEn,
-        // problemsYouDontHaveOrientationAnySceneEn,
-        // problemsYouDontHaveWrongShelfSceneEn,
-        // wrongCenterCollapseSceneEn,
-        // robotArmTestScene,
-        // problemsYouDontHaveSubtitlesSceneEn,
-        // robotArmCodeScene,
+
+        // chapter 1
         // problemsYouDontHaveLieIntroSceneEn,
-        // problemsYouDontHaveStrategySceneEn,
-        // pipelineGrabGrowthSceneEn,
+
+        problemsYouDontHaveStrategySceneEn,
+
+        // фонарик
+        pipelineGrabGrowthSceneEn,
+
         // grabStrategyOrbitSceneEn,
         // problemsYouDontHaveCostSceneEn,
         // fromTheStartSceneEn,
@@ -168,13 +171,9 @@ export default makeProject({
          // chapter1YudanSceneEn,
 
          // messageDeliverySelectionSceneEn,
-
          // whatsappCodePairSceneEn,
-
          // oneMethodManyVersionsSceneEn,
-
         // fiveFacesBooleanSceneRu,
-
         // fiveFacesBooleanSceneRuV2,
 
         // 01
