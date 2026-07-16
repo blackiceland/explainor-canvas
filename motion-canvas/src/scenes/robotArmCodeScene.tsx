@@ -24,16 +24,19 @@ import {Fonts, Screen} from '../core/theme';
 import {applyBackground} from '../core/utils';
 import {Manticore} from '../core/code/components/Manticore';
 import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
-import {getCodePaddingY} from '../core/code/shared/TextMeasure';
+import {getCodePaddingX, getLineHeight} from '../core/code/shared/TextMeasure';
 import {JavaClass, method, param} from '../core/code/model/JavaModel';
 import {Medusa} from '../core/code/director/Medusa';
 
 // ── Layout ────────────────────────────────────────────────────────────────
+// Унифицировано с problemsYouDontHaveStrategySceneEn: тот же 3D-вьюпорт руки
+// (аспект/разрешение/скейл) и та же позиция+кегль кода, чтобы сцены не прыгали.
 const LEFT_PAD = 80;
 const CODE_W = Screen.width / 2 - LEFT_PAD - 20;
-const CODE_CENTER_X = -Screen.width / 2 + LEFT_PAD + CODE_W / 2;
-const THREE_W = Screen.width / 2;
-const THREE_H = Screen.height;
+const ARM_SCALE = 0.85;
+const ARM_DISPLAY = 0.801;   // унифицировано со Strategy-сценой (0.7 → 0.749 → 0.801)
+const THREE_W = Math.ceil(Screen.width / ARM_SCALE);
+const THREE_H = Math.ceil(Screen.height / ARM_SCALE);
 
 // ── Robot arm constants ──────────────────────────────────────────────────
 const MODEL_URL = '/basic_robot_arm.glb';
@@ -129,7 +132,8 @@ function solveIK(
 }
 
 // ── Code config ──────────────────────────────────────────────────────────
-const CODE_FONT_SIZE = 34;
+// 30 = эффективный кегль кода в Strategy-сцене (64 * 30/64) после её MC_SCALE.
+const CODE_FONT_SIZE = 30;
 const MAX_LINE_CHARS = 80;
 
 const VAR_LIGHT = 'rgba(244, 241, 235, 0.96)';
@@ -474,15 +478,17 @@ export default makeScene2D(function* (view) {
 
   threeView.node.x(Screen.width / 4);
   threeView.node.opacity(0);
+  threeView.node.scale(ARM_DISPLAY);
   view.add(threeView.node);
 
   // ═══════════════════════════════════════════════════════════════════════
   // LEFT SIDE: Code (Manticore + Medusa)
   // ═══════════════════════════════════════════════════════════════════════
   const fontSize   = CODE_FONT_SIZE;
-  const lineHeight = Math.round(fontSize * 1.62 * 10) / 10;
-  const paddingY   = getCodePaddingY(fontSize);
-  const topInset   = Math.max(8, paddingY - 8);
+  const lineHeight = getLineHeight(fontSize);   // 1.5-ratio — как в Strategy-сцене
+  // Левый край текста на LEFT_PAD от края экрана (-880), блок центрирован по y=-69 —
+  // тот же якорь, что у финального кода в problemsYouDontHaveStrategySceneEn.
+  const codeX = -Screen.width / 2 + LEFT_PAD + CODE_W / 2 - getCodePaddingX(fontSize);
 
   const model = JavaClass.create([
     method('public', 'void', 'handleCube',
@@ -495,11 +501,9 @@ export default makeScene2D(function* (view) {
   ], MAX_LINE_CHARS);
 
   const manticore = Manticore.create(model.render(), {
-    x: CODE_CENTER_X - 20, y: 110,
+    x: codeX, y: -69,
     width: CODE_W,
-    height: Screen.height - 80,
     fontSize, lineHeight,
-    contentOffsetY: topInset,
     fontFamily: Fonts.code,
     theme: DryFiltersV3CodeTheme,
     cardStyle: CODE_CARD_STYLE,

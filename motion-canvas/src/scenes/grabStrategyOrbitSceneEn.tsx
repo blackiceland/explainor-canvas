@@ -2,14 +2,15 @@ import {makeScene2D, Node, Rect, Txt} from '@motion-canvas/2d';
 import {all, chain, createRef, easeOutCubic, waitFor} from '@motion-canvas/core';
 import {
   EdgesGeometry,
-  LineBasicMaterial,
-  LineSegments,
   Mesh,
   MeshBasicMaterial,
   PerspectiveCamera,
   Scene as ThreeScene,
   SphereGeometry,
 } from 'three';
+import {LineSegments2} from 'three/examples/jsm/lines/LineSegments2.js';
+import {LineSegmentsGeometry} from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
+import {LineMaterial} from 'three/examples/jsm/lines/LineMaterial.js';
 import {ColorRule, Manticore} from '../core/code/components/Manticore';
 import {DryFiltersV3CodeTheme} from '../core/code/model/SyntaxTheme';
 import {Fonts, Screen} from '../core/theme';
@@ -105,16 +106,35 @@ const PHASES = [
 const GLOBE_R = 200;
 const GLOBE_VP = 700;
 const GLOBE_OMEGA = 0.12;
+// Must mirror createThreeView's default `quality` (cfg.quality ?? 2): the
+// fat-line material measures `linewidth` in pixels of the render buffer,
+// which is GLOBE_VP * quality on each side.
+const GLOBE_QUALITY = 2;
+// Line thickness in render-buffer px. The buffer is scaled back down ×1/quality
+// on screen, so the on-screen width is roughly GLOBE_LINE_WIDTH / quality.
+const GLOBE_LINE_WIDTH = 4;
 
 function buildGlobe(): Mesh {
   const geom = new SphereGeometry(GLOBE_R, 24, 16);
   const mat = new MeshBasicMaterial({color: 0x000000, transparent: true, opacity: 0});
   const sphere = new Mesh(geom, mat);
-  const edges = new LineSegments(
-    new EdgesGeometry(geom, 1),
-    new LineBasicMaterial({color: 0xffffff, transparent: true, opacity: 0.45}),
-  );
-  sphere.add(edges);
+
+  // WebGL ignores LineBasicMaterial.linewidth (always draws a ~1px hairline),
+  // which at this viewport's ×0.5 downscale became a barely-visible sub-pixel
+  // line. Use the examples/jsm "fat line" pipeline for real, anti-aliased
+  // screen-space thickness. Built from the same EdgesGeometry so the wireframe
+  // topology (lat/long grid) is identical — only thicker and brighter.
+  const edges = new EdgesGeometry(geom, 1);
+  const lineGeom = new LineSegmentsGeometry().fromEdgesGeometry(edges);
+  const lineMat = new LineMaterial({
+    color: 0xffffff,
+    linewidth: GLOBE_LINE_WIDTH,
+    transparent: true,
+    opacity: 0.95,
+  });
+  lineMat.resolution.set(GLOBE_VP * GLOBE_QUALITY, GLOBE_VP * GLOBE_QUALITY);
+  const wire = new LineSegments2(lineGeom, lineMat);
+  sphere.add(wire);
   return sphere;
 }
 
@@ -155,7 +175,8 @@ export default makeScene2D(function* (view) {
       fontWeight={700}
       fontSize={72}
       letterSpacing={2}
-      fill="#FFFFFF"
+      // Warm beige of problemsYouDontHaveSubtitlesSceneEn, not pure white.
+      fill="rgba(232, 207, 174, 0.96)"
       opacity={0}
     />,
   );

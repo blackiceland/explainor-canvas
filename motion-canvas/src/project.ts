@@ -138,22 +138,22 @@ export default makeProject({
 
         // 03 premature
 
-        problemsYouDontHaveSubtitlesSceneEn,
-        robotArmCodeScene,
+        // problemsYouDontHaveSubtitlesSceneEn,
+        // robotArmCodeScene,
 
         // сцена с трио
-        // problemsYouDontHaveCarefulArmSceneEn,
+         problemsYouDontHaveCarefulArmSceneEn,
 
         // chapter 1
         // problemsYouDontHaveLieIntroSceneEn,
 
-        problemsYouDontHaveStrategySceneEn,
+        // problemsYouDontHaveStrategySceneEn,
 
         // фонарик
-        pipelineGrabGrowthSceneEn,
+        // pipelineGrabGrowthSceneEn,
 
         // grabStrategyOrbitSceneEn,
-        // problemsYouDontHaveCostSceneEn,
+         problemsYouDontHaveCostSceneEn,
         // fromTheStartSceneEn,
         // foreignResponsibilityShapesSceneEn,
         // foreignResponsibilityInvasionSceneEn,

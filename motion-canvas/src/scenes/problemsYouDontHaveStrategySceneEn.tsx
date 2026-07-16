@@ -26,7 +26,8 @@ const KW_COLOR = DryFiltersV3CodeTheme.keyword;
 // ── Layout ──────────────────────────────────────────────────────────────
 const LEFT_PAD = 80;
 const ARM_SCALE = 0.85;
-const ARM_DISPLAY = 0.7;
+// ARM_DISPLAY масштабирует весь 3D-вьюпорт (рука+конвейер). 0.7 → 0.749 (+7%) → 0.801 (ещё +7%).
+const ARM_DISPLAY = 0.801;
 const THREE_W = Math.ceil(Screen.width / ARM_SCALE);
 const THREE_H = Math.ceil(Screen.height / ARM_SCALE);
 
@@ -57,7 +58,8 @@ const INIT_LINE = 0;                                   // field declaration line
 const GRAB_LINE = 4;                                   // grabStrategy.grab(cube);
 const GRAB_LINE_Y = -(((MC_LINES - 1) / 2) * MC_LINE_H) + GRAB_LINE * MC_LINE_H;
 
-// grab(cube) centering: starts after "    grabStrategy."
+// Центруем весь вызов grab(cube) как единый блок над списком стратегий ниже —
+// он должен стоять по центру колонки StandardGrab/SoftGrab/FirmGrab.
 const PREFIX_PX = tw('    grabStrategy.');
 const GRAB_W = tw('grab(cube)');
 const GRAB_CENTER = MC_LEFT_EDGE + PREFIX_PX + GRAB_W / 2;

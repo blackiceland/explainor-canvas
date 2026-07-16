@@ -22,6 +22,15 @@ const POSITIONS: ReadonlyArray<readonly [number, number]> = [
 const FONT_SIZE = 64;
 const LETTER_SPACING = 2;
 
+// Warm beige of a fully-lit word — the chapter-title colour from
+// problemsYouDontHaveSubtitlesSceneEn (rgba(232,207,174)). Words still
+// ramp from a near-black floor (unlit) up to this beige as the
+// flashlight reaches them; only the lit target changed from pure white.
+const LIT_R = 232;
+const LIT_G = 207;
+const LIT_B = 174;
+const DARK_FLOOR = 8;
+
 // ── Light physics ─────────────────────────────────────────────────────
 // How far light "reaches" before brightness fully falls off.
 const LIGHT_REACH = 210;
@@ -132,11 +141,13 @@ export default makeScene2D(function* (view) {
         fontWeight={700}
         fontSize={FONT_SIZE}
         letterSpacing={LETTER_SPACING}
-        // Brightness ramps from "barely there" to pure white as light arrives.
+        // Brightness ramps from "barely there" to warm beige as light arrives.
         fill={() => {
           const b = brightnessFor(wx, wy);
-          const v = Math.round(8 + b * 247);
-          return `rgb(${v},${v},${v})`;
+          const cr = Math.round(DARK_FLOOR + b * (LIT_R - DARK_FLOOR));
+          const cg = Math.round(DARK_FLOOR + b * (LIT_G - DARK_FLOOR));
+          const cb = Math.round(DARK_FLOOR + b * (LIT_B - DARK_FLOOR));
+          return `rgb(${cr},${cg},${cb})`;
         }}
         // Shadow only exists where there is actual light to be blocked.
         // Fades cleanly with brightness so unlit words never "ghost" a
