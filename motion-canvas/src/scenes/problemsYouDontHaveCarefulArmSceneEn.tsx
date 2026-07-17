@@ -194,38 +194,59 @@ const CODE_FONT_SIZE = 24;
 const CODE_W = Screen.width / 2 - LEFT_PAD;
 const CODE_CENTER_X = -Screen.width / 2 + LEFT_PAD + CODE_W / 2;
 
-// ── Vertical stack in the left column ──────────────────────────────────
-// All three blocks share fontSize=24, so lineHeight=38.9. Block heights:
-//   interface (3 lines)   ≈ 117px  → half-span 58.35
-//   handleCube (12 lines) ≈ 467px  → half-span 233.4
-//   record (5 lines)      ≈ 195px  → half-span 97.25
-// Targets: ~100px breathing room from the top frame, ~30px gaps between
-// blocks, symmetric-ish ~140px bottom padding. Math, not guessing:
-//   Interface visual top  = -382 - 58  ≈ -440   (→100px from -540)
-//   Interface bottom      = -382 + 58  ≈ -324
-//   HandleCube top        = -324 + 30  = -294   → center -294 + 233 = -61
-//   HandleCube bottom     = -61  + 233 ≈  173
-//   Record top            =  173 + 30  ≈  203   → center  203 + 97  ≈  300
-//   Record bottom         =  300 + 97  ≈  397   (→143px from  540)
+// ── Left column: interface (top) + orchestrator (below). The record is NOT
+// stacked here — it appears to the RIGHT of the orchestrator (RECORD_RIGHT_X,
+// same level) once the arm blurs, then the whole top group scrolls up.
+// fontSize=24 → lineHeight=38.9. interface 3 lines (half-span 58), handleCube
+// 12 lines (half-span 233). Interface top ≈ -440 (100px from -540); handleCube
+// centered at -61 with a ~30px gap below the interface.
 const INTERFACE_Y = -382;
 const CODE_Y      = -61;
-const RECORD_Y    =  300;
 
-// Strategies appear on the right (where arm was), stacked vertically.
-// Left edge at x≈10 so they don't cross into the left code panel.
-const STRAT_FONT = 20;
-const STRAT_LINE_H = Math.round(20 * 1.62 * 10) / 10;
-const STRAT_W = Screen.width / 2 - 20;
-const STRAT_X = Screen.width / 4 + 100;
-const STRAT_Y = {soft: -330, firm: 10, standard: 330};
+// Strategies appear in a horizontal ROW at the bottom — three columns side by
+// side, no vertical stack and no scroll. ROW_W is snug (widest line + padding)
+// so text centres on each column x. Each grows DOWNWARD in place when it expands.
+const ROW_FONT = 20;
+const ROW_LINE_H = Math.round(ROW_FONT * 1.62 * 10) / 10;
+const ROW_W = 660;
+const ROW_COLS = {soft: -610, firm: 0, standard: 610};
+// Every strategy's line-0 top lands on ROW_TOP_Y so the row reads level despite
+// different init line counts (auto-centered Manticore → per-block y offset).
+const ROW_TOP_Y = 40;
+const rowY = (initCode: string) =>
+  ROW_TOP_Y + ((initCode.split('\n').length - 1) / 2) * ROW_LINE_H;
+
+// The top group (orchestrator + interface + arm) scrolls up first; the interface
+// fades out as it leaves the top. The record appears LATER (after the strategies),
+// directly at its final spot — top-aligned with the SCROLLED orchestrator's class
+// declaration, a touch to the right — so it never needs to scroll itself.
+const CODE_LINE_H = Math.round(CODE_FONT_SIZE * 1.62 * 10) / 10;
+const RECORD_RIGHT_X = 560;
+const SCROLL_UP = 200;
+const RECORD_Y = (CODE_Y - SCROLL_UP) - (
+  (ORC_CODE.split('\n').length - 1) / 2
+  - (RECORD_CODE.split('\n').length - 1) / 2
+) * CODE_LINE_H;
 
 const VAR_LIGHT = 'rgba(244, 241, 235, 0.96)';
 const TYPE_CLEAN = 'rgba(220, 215, 255, 0.80)';
 const METHOD_COLOR = DryFiltersV3CodeTheme.method;
 const KW_COLOR = DryFiltersV3CodeTheme.keyword;
-// Ephemeral "fresh reference" highlight — used while `result.xxx` tokens
+// Ephemeral "fresh reference" highlight — used while `result.` prefix tokens
 // type into method arguments during STEP 3 of the orchestrator morph.
 const CREATE_GREEN = 'rgba(150, 230, 165, 0.96)';
+// ONE accent for both halves of the same event — the bare args
+// (confidence/motionProfile/orientation) that land in confirmGrip/moveTo/release,
+// and the GrabResult type once it spreads. Same colour, same halation: two marks
+// in one vocabulary, not two vocabularies. The args hold it until `result.` feeds
+// them; the type holds it to the end of the scene.
+const ACCENT = 'rgba(255, 214, 140, 1.0)';
+// Halation — the bleed film stock gets around anything hot. The red-sensitive
+// layer scatters furthest, so the bloom sits WARMER than the token it surrounds.
+// This is emulsion, not a UI glow: it only ever rides the accent.
+const HALATION_COLOR = 'rgba(255, 104, 36, 0.8)';
+const HALATION_BLUR = 16;
+const ACCENT_ARG_NAMES = new Set(['confidence', 'motionProfile', 'orientation']);
 
 const SHARED_KW_RULES: ColorRule[] = [
   {match: /^public$/,         color: KW_COLOR},
@@ -296,14 +317,26 @@ const RECORD_COLOR_RULES: ColorRule[] = [
   {match: 'orientation',      color: VAR_LIGHT},
 ];
 
-// Orchestrator rules with `result` overridden to GREEN — used ONLY during
-// STEP 3 morph so the newly-typed `result.xxx` tokens type in green, then
-// fade back via colorizeAnimated(..., ORC_COLOR_RULES).
-// NB: Manticore applies rules in order and LAST match wins (colorizeByRule
-// calls fill(color) directly), so the override MUST come after ORC_COLOR_RULES.
-const ORC_GREEN_RULES: ColorRule[] = [
+// New-arg accent overrides — the three bare args take the accent when they type in.
+// NB: Manticore applies rules in order and LAST match wins, so overrides MUST
+// come after ORC_COLOR_RULES.
+const ACCENT_ARG_RULES: ColorRule[] = [
+  {match: /^confidence$/,    color: ACCENT},
+  {match: /^motionProfile$/, color: ACCENT},
+  {match: /^orientation$/,   color: ACCENT},
+];
+// STEP 1/2: args accented, everything else normal.
+const ORC_ACCENT_RULES: ColorRule[] = [
   ...ORC_COLOR_RULES,
-  {match: /^result$/,         color: CREATE_GREEN},
+  ...ACCENT_ARG_RULES,
+];
+// STEP 3: args STAY accented while the `result.` prefix types in GREEN. The final
+// colorizeAnimated(..., ORC_COLOR_RULES) then clears BOTH (accented args → normal,
+// green result → normal) — that's the "result. feeds the arg" moment.
+const ORC_GREEN_ACCENT_RULES: ColorRule[] = [
+  ...ORC_COLOR_RULES,
+  ...ACCENT_ARG_RULES,
+  {match: /^result$/,        color: CREATE_GREEN},
 ];
 
 // Strategies — grab is a DEFINITION, not red
@@ -343,6 +376,15 @@ const MORPH_OPTS = {
   lineDelay: 0.035,
 };
 
+// Smoother variant — for the `result` appearances (STEP 2/3): gentler glide and
+// a slower type-in so the object arrives softly.
+const SMOOTH_MORPH_OPTS = {
+  ...MORPH_OPTS,
+  moveDuration: 0.95,
+  charDelay: 0.018,
+  lineDelay: 0.05,
+};
+
 // Strategies use parallel mode to skip ensureRangeVisible (which scrolls
 // content up inside the small clip area, even with noClip: true).
 const STRAT_MORPH_OPTS = {
@@ -350,6 +392,19 @@ const STRAT_MORPH_OPTS = {
   blockOrder: 'parallel' as const,
   lineOrder: 'parallel' as const,
 };
+
+// De-emphasis is done with BLUR (rack focus), NOT opacity: target stays sharp,
+// context de-focuses. cache(true) renders the node to a texture so the blur
+// filter can apply; cachePadding keeps the blur from clipping at the bounds.
+// A node that's about to MORPH must NOT be blurred/cached (blur+morph conflict).
+const CODE_BLUR = 5;
+function attachBlur(node: Node, padding = 36) {
+  const s = createSignal(0);
+  node.cache(true);
+  node.cachePadding(padding);
+  node.filters(() => [blur(s())]);
+  return s;
+}
 
 // ── Layout ────────────────────────────────────────────────────────────────
 const THREE_W = Screen.width / 2;
@@ -860,7 +915,7 @@ export default makeScene2D(function* (view) {
   });
 
   const mcRecord = Manticore.create(RECORD_CODE, {
-    x: CODE_CENTER_X, y: RECORD_Y,
+    x: RECORD_RIGHT_X, y: RECORD_Y,   // right of orchestrator, top-aligned to its class decl
     ...codeBlockStyle,
   });
 
@@ -966,9 +1021,13 @@ export default makeScene2D(function* (view) {
   cube3d.rotation.x = 0;
   yield* gripClose(0, 0.4, easeInOutCubic);
 
-  // Beam disappears + arm returns to rest + code highlight — all together.
-  // Interface block dims along with non-highlighted orchestrator lines so the
-  // viewer's focus lands on the four lines about to morph (grab..release).
+  // Beam disappears + arm returns to rest + focus lands on the four lines about
+  // to morph (grab/confirm/moveTo/release). Focus is by BLUR, not opacity: those
+  // four stay sharp (and un-cached, so they morph cleanly); the interface block
+  // and the non-target orchestrator lines de-focus.
+  const ifBlur = attachBlur(mcInterface.node, 48);
+  const ORC_CONTEXT_LINES = [0, 2, 4, 5, 10, 11]; // all lines except grab/confirm/moveTo/release
+  const orcCtxBlur = ORC_CONTEXT_LINES.map(i => attachBlur(mc.getLine(i)!.node));
   yield* all(
     beamGlow(0, 0.6, easeInOutCubic),
     baseDelta(0, 2.0, easeInOutCubic),
@@ -976,28 +1035,42 @@ export default makeScene2D(function* (view) {
     shoulderDelta(0, 2.0, easeInOutCubic),
     elbowDelta(0, 2.0, easeInOutCubic),
     wristDelta(0, 2.0, easeInOutCubic),
-    mcInterface.node.opacity(0.18, 0.6, easeInOutCubic),
-    mc.dimLines(0, mc.lineCount - 1, 0.2, 0.6),
-    mc.dimLines(LINE_GRAB, LINE_GRAB, 1, 0.6),
-    mc.dimLines(LINE_CONFIRM, LINE_CONFIRM, 1, 0.6),
-    mc.dimLines(LINE_MOVE_TABLE, LINE_MOVE_TABLE, 1, 0.6),
-    mc.dimLines(LINE_RELEASE, LINE_RELEASE, 1, 0.6),
+    ifBlur(CODE_BLUR, 0.6, easeInOutCubic),
+    ...orcCtxBlur.map(s => s(CODE_BLUR, 0.6, easeInOutCubic)),
   );
   yield* waitFor(0.8);
+
+  // Halation on the accented args. Re-derived every time because a morph may rebuild
+  // the token nodes; re-asserting the same blur is a no-op when they survived, and
+  // blooms it back when they didn't — so it never pops across a morph seam.
+  const accentArgRefs = () => [LINE_CONFIRM, LINE_MOVE_TABLE, LINE_RELEASE]
+    .flatMap(i => mc.getLine(i)!.tokens
+      .filter(t => ACCENT_ARG_NAMES.has(t.text))
+      .map(t => t.ref()));
+  function* bloomHalation(duration: number) {
+    const refs = accentArgRefs();
+    for (const r of refs) r.shadowColor(HALATION_COLOR);
+    yield* all(...refs.map(r => r.shadowBlur(HALATION_BLUR, duration, easeInOutCubic)));
+  }
 
   // ═══════════════════════════════════════════════════════════════════════
   // MORPH STEP 1 — bare args appear in highlighted lines
   // ═══════════════════════════════════════════════════════════════════════
+  // Bare args (confidence/motionProfile/orientation) type in the ACCENT — new data
+  // the downstream steps now demand — and the halation blooms in behind them.
+  mc.colorize(ORC_ACCENT_RULES);
   yield* mc.morphTo(ORC_STEP1, MORPH_OPTS);
-  mc.colorize(ORC_COLOR_RULES);
-  yield* waitFor(0.6);
+  mc.colorize(ORC_ACCENT_RULES);
+  yield* bloomHalation(0.5);
+  yield* waitFor(0.4);
 
   // ═══════════════════════════════════════════════════════════════════════
   // MORPH STEP 2 — GrabResult result = appears before grab
   // ═══════════════════════════════════════════════════════════════════════
-  yield* mc.morphTo(ORC_STEP2, MORPH_OPTS);
-  mc.colorize(ORC_COLOR_RULES);
-  yield* waitFor(0.6);
+  yield* mc.morphTo(ORC_STEP2, SMOOTH_MORPH_OPTS);
+  mc.colorize(ORC_ACCENT_RULES);   // args stay accented; GrabResult/result normal
+  yield* bloomHalation(0.3);
+  yield* waitFor(0.5);
 
   // ═══════════════════════════════════════════════════════════════════════
   // MORPH STEP 3 — bare args become result.xxx
@@ -1008,24 +1081,35 @@ export default makeScene2D(function* (view) {
   // Set GREEN rules so applyRules() during the 'modify' morph plan paints
   // the newly-typed `result` tokens green. Then revert line 6's own `result`
   // declaration back to normal color so only the ARGUMENT references flash.
-  mc.colorize(ORC_GREEN_RULES);
+  // args stay ACCENTED while `result.` types GREEN in front of them.
+  mc.colorize(ORC_GREEN_ACCENT_RULES);
   mc.getLine(LINE_RESULT_DECLARATION)!.colorizeByRule('result', VAR_LIGHT);
 
-  yield* mc.morphTo(ORC_DONE, MORPH_OPTS);
+  yield* mc.morphTo(ORC_DONE, SMOOTH_MORPH_OPTS);
+  yield* bloomHalation(0.3);
   yield* waitFor(0.3);
 
-  // Fade the four argument lines back to their normal theme colors.
-  yield* mc.colorizeAnimated(LINE_CONFIRM, LINE_RELEASE, 0.6, ORC_COLOR_RULES);
+  // `result.` now feeds each arg → clear BOTH highlights together (accented args
+  // → normal, green result → normal) and let the halation cool with them.
+  // Slower fade for a gentler hand-off.
+  const halatedRefs = accentArgRefs();
+  yield* all(
+    mc.colorizeAnimated(LINE_CONFIRM, LINE_RELEASE, 0.9, ORC_COLOR_RULES),
+    ...halatedRefs.map(r => r.shadowBlur(0, 0.9, easeInOutCubic)),
+  );
   mc.colorize(ORC_COLOR_RULES);
   yield* waitFor(0.4);
 
   // ═══════════════════════════════════════════════════════════════════════
-  // UN-DIM — restore all lines + interface block, leave final code on screen
+  // UN-BLUR — bring the whole orchestrator + interface back into focus.
   // ═══════════════════════════════════════════════════════════════════════
   yield* all(
-    mc.showAllLines(0.4),
-    mcInterface.node.opacity(1, 0.4, easeInOutCubic),
+    ifBlur(0, 0.7, easeInOutCubic),
+    ...orcCtxBlur.map(s => s(0, 0.7, easeInOutCubic)),
   );
+  // Drop the per-line/block caches now that everything is sharp again.
+  mcInterface.node.cache(false);
+  for (const i of ORC_CONTEXT_LINES) mc.getLine(i)!.node.cache(false);
   yield* waitFor(0.5);
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -1039,63 +1123,48 @@ export default makeScene2D(function* (view) {
   yield* waitFor(0.3);
 
   // ═══════════════════════════════════════════════════════════════════════
-  // RECORD REVEAL — the data type the arm visibly demonstrates appears in
-  // the bottom slot of the left column. This happens BEFORE the strategies
-  // so viewers see "interface → orchestrator uses result.xxx → here's the
-  // result type" as one coherent contract before the morphs hit.
+  // SCROLL UP — orchestrator rises to crown the frame; the interface block fades
+  // as it leaves the top edge; the blurred arm rises. Clears the bottom for the
+  // strategies. (The record isn't here yet — it arrives after the strategies.)
   // ═══════════════════════════════════════════════════════════════════════
-  yield* mcRecord.appear(0.7);
-  yield* waitFor(0.6);
+  yield* all(
+    mcInterface.node.y(INTERFACE_Y - SCROLL_UP, 0.9, easeInOutCubic),
+    mcInterface.node.opacity(0, 0.9, easeInOutCubic),   // fade out as it leaves — no peeking brace
+    mc.node.y(CODE_Y - SCROLL_UP, 0.9, easeInOutCubic),
+    threeView.node.y(-SCROLL_UP, 0.9, easeInOutCubic),
+  );
+  yield* waitFor(0.4);
 
   // ═══════════════════════════════════════════════════════════════════════
-  // STRATEGIES — appear on the right (over blurred arm), stacked vertically
+  // STRATEGIES — three columns in a ROW along the bottom. No vertical stack and
+  // no scroll: each expands DOWNWARD in place when it grows the return block.
   // ═══════════════════════════════════════════════════════════════════════
   const stratGroup = new Node({});
   view.add(stratGroup);
 
-  const mcSoft = Manticore.create(SOFT_INIT, {
-    x: STRAT_X, y: STRAT_Y.soft,
-    width: STRAT_W,
-    fontSize: STRAT_FONT,
+  const rowStyle = {
+    width: ROW_W,
+    fontSize: ROW_FONT,
+    lineHeight: ROW_LINE_H,
     fontFamily: Fonts.code,
     theme: DryFiltersV3CodeTheme,
     cardStyle: CODE_CARD_STYLE,
     customTypes: CUSTOM_TYPES,
     glowAccent: false,
     noClip: true,
-  });
+  } as const;
+
+  const mcSoft = Manticore.create(SOFT_INIT, {x: ROW_COLS.soft, y: rowY(SOFT_INIT), ...rowStyle});
   mcSoft.mount(stratGroup);
   mcSoft.colorize(STRAT_COLOR_RULES);
 
-  const mcFirm = Manticore.create(FIRM_INIT, {
-    x: STRAT_X, y: STRAT_Y.firm,
-    width: STRAT_W,
-    fontSize: STRAT_FONT,
-    fontFamily: Fonts.code,
-    theme: DryFiltersV3CodeTheme,
-    cardStyle: CODE_CARD_STYLE,
-    customTypes: CUSTOM_TYPES,
-    glowAccent: false,
-    noClip: true,
-  });
+  const mcFirm = Manticore.create(FIRM_INIT, {x: ROW_COLS.firm, y: rowY(FIRM_INIT), ...rowStyle});
   mcFirm.mount(stratGroup);
   mcFirm.colorize(STRAT_COLOR_RULES);
 
-  const mcStd = Manticore.create(STANDARD_INIT, {
-    x: STRAT_X, y: STRAT_Y.standard,
-    width: STRAT_W,
-    fontSize: STRAT_FONT,
-    fontFamily: Fonts.code,
-    theme: DryFiltersV3CodeTheme,
-    cardStyle: CODE_CARD_STYLE,
-    customTypes: CUSTOM_TYPES,
-    glowAccent: false,
-    noClip: true,
-  });
+  const mcStd = Manticore.create(STANDARD_INIT, {x: ROW_COLS.standard, y: rowY(STANDARD_INIT), ...rowStyle});
   mcStd.mount(stratGroup);
   mcStd.colorize(STRAT_COLOR_RULES);
-
-  const SHIFT = 6 * STRAT_LINE_H;
 
   // ── Strategies cascade in ─────────────────────────────────────────────
   yield* all(
@@ -1105,33 +1174,48 @@ export default makeScene2D(function* (view) {
   );
   yield* waitFor(0.9);
 
-  // ── SoftGrab morphs — push firm and std down ──────────────────────────
-  yield* all(
-    mcSoft.morphTo(SOFT_DONE, STRAT_MORPH_OPTS),
-    mcFirm.node.y(STRAT_Y.firm + SHIFT, 0.75, easeInOutCubic),
-    mcStd.node.y(STRAT_Y.standard + SHIFT, 0.75, easeInOutCubic),
-  );
+  // ── Each expands in place, in turn — grab now returns a GrabResult ────
+  yield* mcSoft.morphTo(SOFT_DONE, STRAT_MORPH_OPTS);
   mcSoft.colorize(STRAT_COLOR_RULES);
   yield* waitFor(0.5);
 
-  // ── FirmGrab morphs — push std down ───────────────────────────────────
-  yield* all(
-    mcFirm.morphTo(FIRM_DONE, STRAT_MORPH_OPTS),
-    mcStd.node.y(STRAT_Y.standard + SHIFT * 2, 0.75, easeInOutCubic),
-  );
+  yield* mcFirm.morphTo(FIRM_DONE, STRAT_MORPH_OPTS);
   mcFirm.colorize(STRAT_COLOR_RULES);
   yield* waitFor(0.5);
 
-  // ── Scroll down to reveal StandardGrab ────────────────────────────────
-  yield* stratGroup.y(-520, 0.8, easeInOutCubic);
-  yield* waitFor(0.3);
-
-  // ── StandardGrab morphs — the punchline ───────────────────────────────
   yield* mcStd.morphTo(STANDARD_DONE, STRAT_MORPH_OPTS);
   mcStd.colorize(STRAT_COLOR_RULES);
+  yield* waitFor(0.6);
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // RECORD REVEAL — GrabResult appears at the top (aligned with the orchestrator's
+  // class declaration), then EVERY GrabResult in the frame takes the accent colour
+  // together, in one slow lift that holds: the record that declares it, handleCube
+  // that consumes it, and the three constructions the strategies now owe.
+  // Same ACCENT and same halation the args wore — one vocabulary, so the type
+  // reads as the continuation of that event, not a second kind of mark. No pulse.
+  // Token refs are targeted directly because colorizeByRuleAnimated/setTokensGlow
+  // silently no-op on these tokens.
+  // ═══════════════════════════════════════════════════════════════════════
+  yield* mcRecord.appear(0.7);
+  yield* waitFor(0.2);
+
+  const returnLine = (m: Manticore) => m.getLine(m.findLine('return new GrabResult'))!;
+  const typeRefs = [
+    mcRecord.getLine(0)!,      // public record GrabResult(
+    mc.getLine(LINE_GRAB)!,    // GrabResult result = grabStrategy.grab(cube);
+    returnLine(mcSoft),
+    returnLine(mcFirm),
+    returnLine(mcStd),
+  ].flatMap(line => line.tokens.filter(t => t.text === 'GrabResult').map(t => t.ref()));
+  for (const r of typeRefs) r.shadowColor(HALATION_COLOR);
+  yield* all(...typeRefs.flatMap(r => [
+    r.fill(ACCENT, 0.8, easeInOutCubic),
+    r.shadowBlur(HALATION_BLUR, 0.8, easeInOutCubic),
+  ]));
 
   // Hold the full damage
-  yield* waitFor(4.1);
+  yield* waitFor(2.0);
 
   // ═══════════════════════════════════════════════════════════════════════
   // ARG SWEEP — dim everything, then walk the three GrabResult constructor
@@ -1139,44 +1223,65 @@ export default makeScene2D(function* (view) {
   // cube.orientation() / LOCKED / ANY — three different answers to the same
   // contract slot. The arm leaves here; from now on it's code only.
   // ═══════════════════════════════════════════════════════════════════════
+  // De-focus everything via BLUR (not opacity): block-blur the top context
+  // (orchestrator + record), per-line blur the three strategy rows, and fade the
+  // arm out entirely (it's done its job).
+  const swpBlurOrc = attachBlur(mc.node, 60);
+  const swpBlurRec = attachBlur(mcRecord.node, 60);
+  const softBlurs = Array.from({length: mcSoft.lineCount}, (_, i) => attachBlur(mcSoft.getLine(i)!.node));
+  const firmBlurs = Array.from({length: mcFirm.lineCount}, (_, i) => attachBlur(mcFirm.getLine(i)!.node));
+  const stdBlurs  = Array.from({length: mcStd.lineCount},  (_, i) => attachBlur(mcStd.getLine(i)!.node));
+
   yield* all(
-    mcInterface.node.opacity(0.12, 0.5, easeInOutCubic),
-    mc.node.opacity(0.12, 0.5, easeInOutCubic),
-    mcRecord.node.opacity(0.12, 0.5, easeInOutCubic),
-    mcSoft.dimLines(0, mcSoft.lineCount - 1, 0.12, 0.5),
-    mcFirm.dimLines(0, mcFirm.lineCount - 1, 0.12, 0.5),
-    mcStd.dimLines(0, mcStd.lineCount - 1, 0.12, 0.5),
+    swpBlurOrc(CODE_BLUR, 0.5, easeInOutCubic),
+    swpBlurRec(CODE_BLUR, 0.5, easeInOutCubic),
+    ...softBlurs.map(s => s(CODE_BLUR, 0.5, easeInOutCubic)),
+    ...firmBlurs.map(s => s(CODE_BLUR, 0.5, easeInOutCubic)),
+    ...stdBlurs.map(s => s(CODE_BLUR, 0.5, easeInOutCubic)),
     threeView.node.opacity(0, 0.5, easeInOutCubic),
   );
 
+  // Pull ONE slot-row into focus across all three strategies; re-blur the prev.
+  const focusSlot = (slot: number, prev: number | null) => {
+    const a = [
+      softBlurs[SOFT_ARGS[slot]](0, 0.5, easeInOutCubic),
+      firmBlurs[FIRM_ARGS[slot]](0, 0.5, easeInOutCubic),
+      stdBlurs[STD_ARGS[slot]](0, 0.5, easeInOutCubic),
+    ];
+    if (prev !== null) a.push(
+      softBlurs[SOFT_ARGS[prev]](CODE_BLUR, 0.45, easeInOutCubic),
+      firmBlurs[FIRM_ARGS[prev]](CODE_BLUR, 0.45, easeInOutCubic),
+      stdBlurs[STD_ARGS[prev]](CODE_BLUR, 0.45, easeInOutCubic),
+    );
+    return a;
+  };
+
   // Arg 1: GripConfidence
-  yield* all(
-    mcSoft.dimLines(SOFT_ARGS[0], SOFT_ARGS[0], 1, 0.35),
-    mcFirm.dimLines(FIRM_ARGS[0], FIRM_ARGS[0], 1, 0.35),
-    mcStd.dimLines(STD_ARGS[0], STD_ARGS[0], 1, 0.35),
-  );
+  yield* all(...focusSlot(0, null));
   yield* waitFor(0.8);
-
-  // Arg 2: MotionProfile (dim prev, light next)
-  yield* all(
-    mcSoft.dimLines(SOFT_ARGS[0], SOFT_ARGS[0], 0.12, 0.3),
-    mcFirm.dimLines(FIRM_ARGS[0], FIRM_ARGS[0], 0.12, 0.3),
-    mcStd.dimLines(STD_ARGS[0], STD_ARGS[0], 0.12, 0.3),
-    mcSoft.dimLines(SOFT_ARGS[1], SOFT_ARGS[1], 1, 0.35),
-    mcFirm.dimLines(FIRM_ARGS[1], FIRM_ARGS[1], 1, 0.35),
-    mcStd.dimLines(STD_ARGS[1], STD_ARGS[1], 1, 0.35),
-  );
+  // Arg 2: MotionProfile
+  yield* all(...focusSlot(1, 0));
   yield* waitFor(0.8);
+  // Arg 3: Orientation — cube.orientation() / LOCKED / ANY, three answers, one slot.
+  yield* all(...focusSlot(2, 1));
+  yield* waitFor(1.2);
 
-  // Arg 3: Orientation / cube.orientation() (dim prev, light next)
+  // ── Everything back into focus ────────────────────────────────────────
+  // The sweep is over: lift every blur so the whole system reads sharp one last
+  // time — the accent still on each GrabResult — and only THEN take the lights down.
   yield* all(
-    mcSoft.dimLines(SOFT_ARGS[1], SOFT_ARGS[1], 0.12, 0.3),
-    mcFirm.dimLines(FIRM_ARGS[1], FIRM_ARGS[1], 0.12, 0.3),
-    mcStd.dimLines(STD_ARGS[1], STD_ARGS[1], 0.12, 0.3),
-    mcSoft.dimLines(SOFT_ARGS[2], SOFT_ARGS[2], 1, 0.35),
-    mcFirm.dimLines(FIRM_ARGS[2], FIRM_ARGS[2], 1, 0.35),
-    mcStd.dimLines(STD_ARGS[2], STD_ARGS[2], 1, 0.35),
+    swpBlurOrc(0, 0.8, easeInOutCubic),
+    swpBlurRec(0, 0.8, easeInOutCubic),
+    ...softBlurs.map(s => s(0, 0.8, easeInOutCubic)),
+    ...firmBlurs.map(s => s(0, 0.8, easeInOutCubic)),
+    ...stdBlurs.map(s => s(0, 0.8, easeInOutCubic)),
   );
+  // Drop the caches now that nothing is filtered — the fade composites clean.
+  mc.node.cache(false);
+  mcRecord.node.cache(false);
+  for (const m of [mcSoft, mcFirm, mcStd]) {
+    for (let i = 0; i < m.lineCount; i++) m.getLine(i)!.node.cache(false);
+  }
   yield* waitFor(1.2);
 
   // ── Fade out ──────────────────────────────────────────────────────────

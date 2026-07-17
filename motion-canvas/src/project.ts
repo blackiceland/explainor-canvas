@@ -142,29 +142,24 @@ export default makeProject({
         // robotArmCodeScene,
 
         // сцена с трио
-         problemsYouDontHaveCarefulArmSceneEn,
+        // problemsYouDontHaveCarefulArmSceneEn,
 
         // chapter 1
-        // problemsYouDontHaveLieIntroSceneEn,
+        problemsYouDontHaveLieIntroSceneEn,
 
         // problemsYouDontHaveStrategySceneEn,
 
         // фонарик
         // pipelineGrabGrowthSceneEn,
 
-        // grabStrategyOrbitSceneEn,
-         problemsYouDontHaveCostSceneEn,
+         grabStrategyOrbitSceneEn,
         // fromTheStartSceneEn,
-        // foreignResponsibilityShapesSceneEn,
-        // foreignResponsibilityInvasionSceneEn,
-        // separationOfConcernsQuoteSceneRu,
-        // whyItIsAProblemSceneEn,
-        // prematureAbstractionQuoteSceneEn,
-        // prematureAbstractionResolutionSceneEn,
-        // robotArmDarkScene,
-        // predictingFutureTakeSceneEn,
-        // earnedAbstractionSceneEn,
-        // chapter2ReversibilitySceneEn,
+
+        foreignResponsibilityShapesSceneEn,
+        whyItIsAProblemSceneEn,
+        prematureAbstractionQuoteSceneEn,
+        predictingFutureTakeSceneEn,
+        chapter2ReversibilitySceneEn,
 
         // IV
          // стартовый текст и древо

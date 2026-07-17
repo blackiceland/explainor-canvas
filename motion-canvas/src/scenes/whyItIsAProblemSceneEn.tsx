@@ -15,6 +15,8 @@ const RULES_COLOR    = '#FF4757';
 const TEXT_DIM    = 'rgba(244, 241, 235, 0.30)';
 const TEXT_NORMAL = 'rgba(244, 241, 235, 0.72)';
 const TEXT_BRIGHT = 'rgba(244, 241, 235, 0.96)';
+// Warm beige of the chapter-opening epigraph idiom (problemsYouDontHaveSubtitlesSceneEn).
+const QUOTE_BEIGE = 'rgba(232, 207, 174, 0.96)';
 
 // ── Layout ────────────────────────────────────────────────────────────────────
 const CENTER_X   = 320;
@@ -28,24 +30,25 @@ export default makeScene2D(function* (view) {
   view.add(<Node ref={root} />);
 
   // ══════════════════════════════════════════════════════════════════════════
-  // Act 0 — opening question
+  // Act 0 — opening question (epigraph idiom: Fonts.code, single warm beige,
+  // centered single beat, plain fade in / hold / fade out).
   // ══════════════════════════════════════════════════════════════════════════
   const question = createRef<Txt>();
   root().add(
     <Txt
       ref={question}
       text="But why is that a problem?"
-      fontFamily={Fonts.primary}
-      fontSize={54}
-      fontWeight={500}
-      fill={TEXT_BRIGHT}
+      fontFamily={Fonts.code}
+      fontSize={60}
+      fill={QUOTE_BEIGE}
+      textAlign="center"
       opacity={0}
     />,
   );
 
-  yield* question().opacity(1, 0.9, easeOutCubic);
-  yield* waitFor(1.4);
-  yield* question().opacity(0, 0.8, easeInOutCubic);
+  yield* question().opacity(1, 0.4, easeInOutCubic);
+  yield* waitFor(1.8);
+  yield* question().opacity(0, 0.4, easeInOutCubic);
 
   // ══════════════════════════════════════════════════════════════════════════
   // Central membrane + grab label
@@ -58,7 +61,7 @@ export default makeScene2D(function* (view) {
       width={MEMBRANE_R * 2}
       height={MEMBRANE_R * 2}
       stroke={GRAB_BORDER}
-      lineWidth={3}
+      lineWidth={4}
       fill={GRAB_FILL}
       opacity={0}
     />,
@@ -71,7 +74,7 @@ export default makeScene2D(function* (view) {
       x={CENTER_X}
       fontFamily={Fonts.primary}
       fontWeight={600}
-      fontSize={48}
+      fontSize={58}
       letterSpacing={2}
       fill={TEXT_BRIGHT}
       opacity={0}
@@ -94,7 +97,7 @@ export default makeScene2D(function* (view) {
       <Txt
         ref={n} text={num}
         x={LEFT_X} y={y}
-        fontFamily={Fonts.primary} fontSize={22} fontWeight={700}
+        fontFamily={Fonts.primary} fontSize={28} fontWeight={700}
         fill={accent} letterSpacing={3}
         textAlign="left" offset={[-1, 0]} opacity={0}
       />,
@@ -102,8 +105,8 @@ export default makeScene2D(function* (view) {
     root().add(
       <Txt
         ref={t} text={title}
-        x={LEFT_X} y={y + 44}
-        fontFamily={Fonts.primary} fontSize={40} fontWeight={500}
+        x={LEFT_X} y={y + 50}
+        fontFamily={Fonts.primary} fontSize={52} fontWeight={500}
         fill={TEXT_BRIGHT}
         textAlign="left" offset={[-1, 0]} opacity={0}
       />,
@@ -111,22 +114,22 @@ export default makeScene2D(function* (view) {
     root().add(
       <Txt
         ref={c} text={caption}
-        x={LEFT_X} y={y + 114}
-        fontFamily={Fonts.primary} fontSize={24} fontWeight={300}
-        fill={TEXT_NORMAL} lineHeight={34}
+        x={LEFT_X} y={y + 130}
+        fontFamily={Fonts.primary} fontSize={31} fontWeight={300}
+        fill={TEXT_NORMAL} lineHeight={44}
         textAlign="left" offset={[-1, 0]} opacity={0}
       />,
     );
     return {num: n, title: t, caption: c};
   };
 
-  const p1 = makePoint(-330, '01', FOREIGN_COLOR,
+  const p1 = makePoint(-350, '01', FOREIGN_COLOR,
     'Boundary leakage',
     "things that don't belong to the grip\nstart flowing into grab");
   const p2 = makePoint(-90, '02', RULES_COLOR,
     'Foreign decision logic',
-    'grab stops carrying downstream behavior —\nit starts deciding it');
-  const p3 = makePoint(150, '03', RULES_COLOR,
+    'grab stops carrying downstream behavior –\nit starts deciding it');
+  const p3 = makePoint(170, '03', RULES_COLOR,
     'Change amplification',
     'one external change ripples across\nevery grab implementation');
 
@@ -160,28 +163,28 @@ export default makeScene2D(function* (view) {
   root().add(
     <Rect ref={motion}
       x={m_start[0]} y={m_start[1]}
-      width={36} height={36} radius={4}
+      width={46} height={46} radius={5}
       fill={FOREIGN_COLOR} opacity={0}
     />,
   );
   root().add(
     <Txt ref={motionL} text="motion"
-      x={m_start[0]} y={m_start[1] + 40}
-      fontFamily={Fonts.code} fontSize={18}
+      x={m_start[0]} y={m_start[1] + 48}
+      fontFamily={Fonts.code} fontSize={24}
       fill={FOREIGN_COLOR} opacity={0}
     />,
   );
   root().add(
     <Rect ref={orient}
       x={o_start[0]} y={o_start[1]}
-      width={36} height={36} radius={4}
+      width={46} height={46} radius={5}
       fill={FOREIGN_COLOR} opacity={0}
     />,
   );
   root().add(
     <Txt ref={orientL} text="orientation"
-      x={o_start[0]} y={o_start[1] + 40}
-      fontFamily={Fonts.code} fontSize={18}
+      x={o_start[0]} y={o_start[1] + 48}
+      fontFamily={Fonts.code} fontSize={24}
       fill={FOREIGN_COLOR} opacity={0}
     />,
   );
@@ -198,22 +201,22 @@ export default makeScene2D(function* (view) {
     motion().x(m_end[0], 1.2, easeInOutCubic),
     motion().y(m_end[1], 1.2, easeInOutCubic),
     motionL().x(m_end[0], 1.2, easeInOutCubic),
-    motionL().y(m_end[1] + 40, 1.2, easeInOutCubic),
+    motionL().y(m_end[1] + 48, 1.2, easeInOutCubic),
     motionL().opacity(0, 0.6, easeInCubic),
     orient().x(o_end[0], 1.2, easeInOutCubic),
     orient().y(o_end[1], 1.2, easeInOutCubic),
     orientL().x(o_end[0], 1.2, easeInOutCubic),
-    orientL().y(o_end[1] + 40, 1.2, easeInOutCubic),
+    orientL().y(o_end[1] + 48, 1.2, easeInOutCubic),
     orientL().opacity(0, 0.6, easeInCubic),
     chain(
       waitFor(0.7),
       all(
         membrane().stroke(FOREIGN_COLOR, 0.3, easeInOutCubic),
-        membrane().lineWidth(5, 0.3, easeInOutCubic),
+        membrane().lineWidth(6, 0.3, easeInOutCubic),
       ),
       all(
         membrane().stroke(GRAB_BORDER, 0.6, easeInOutCubic),
-        membrane().lineWidth(3, 0.6, easeInOutCubic),
+        membrane().lineWidth(4, 0.6, easeInOutCubic),
       ),
     ),
   );
@@ -227,7 +230,7 @@ export default makeScene2D(function* (view) {
   yield* showPoint(p2);
 
   // grab label slides up to make room for the decision tree below it
-  yield* grabLabel().y(-50, 0.5, easeInOutCubic);
+  yield* grabLabel().y(-55, 0.5, easeInOutCubic);
 
   const diamond = createRef<Rect>();
   const branchA = createRef<Line>();
@@ -240,7 +243,7 @@ export default makeScene2D(function* (view) {
   root().add(
     <Rect ref={diamond}
       x={dx} y={dy}
-      width={44} height={44}
+      width={54} height={54}
       fill={RULES_COLOR}
       rotation={45}
       opacity={0}
@@ -248,22 +251,22 @@ export default makeScene2D(function* (view) {
   );
   root().add(
     <Line ref={branchA}
-      stroke={RULES_COLOR} lineWidth={3}
-      points={[[dx - 22, dy + 22], [dx - 80, dy + 100]]}
+      stroke={RULES_COLOR} lineWidth={4}
+      points={[[dx - 27, dy + 27], [dx - 85, dy + 105]]}
       end={0}
     />,
   );
   root().add(
     <Line ref={branchB}
-      stroke={RULES_COLOR} lineWidth={3}
-      points={[[dx + 22, dy + 22], [dx + 80, dy + 100]]}
+      stroke={RULES_COLOR} lineWidth={4}
+      points={[[dx + 27, dy + 27], [dx + 85, dy + 105]]}
       end={0}
     />,
   );
   root().add(
     <Txt ref={ifLabel} text="if ... else"
-      x={dx} y={dy - 44}
-      fontFamily={Fonts.code} fontSize={16}
+      x={dx} y={dy - 50}
+      fontFamily={Fonts.code} fontSize={22}
       fill={RULES_COLOR} opacity={0}
     />,
   );
@@ -294,9 +297,9 @@ export default makeScene2D(function* (view) {
     ifLabel().opacity(0, 0.4, easeInCubic),
   );
 
-  const MINI_R = 60;
+  const MINI_R = 72;
   const mini_y = 30;
-  const mini_x = [CENTER_X - 200, CENTER_X, CENTER_X + 200];
+  const mini_x = [CENTER_X - 220, CENTER_X, CENTER_X + 220];
 
   // Main membrane becomes the leftmost mini; grab label fades out
   yield* all(
@@ -313,7 +316,7 @@ export default makeScene2D(function* (view) {
     <Circle ref={mini2}
       x={mini_x[1]} y={mini_y}
       width={MINI_R * 2} height={MINI_R * 2}
-      stroke={GRAB_BORDER} lineWidth={3} fill={GRAB_FILL}
+      stroke={GRAB_BORDER} lineWidth={4} fill={GRAB_FILL}
       opacity={0}
     />,
   );
@@ -321,7 +324,7 @@ export default makeScene2D(function* (view) {
     <Circle ref={mini3}
       x={mini_x[2]} y={mini_y}
       width={MINI_R * 2} height={MINI_R * 2}
-      stroke={GRAB_BORDER} lineWidth={3} fill={GRAB_FILL}
+      stroke={GRAB_BORDER} lineWidth={4} fill={GRAB_FILL}
       opacity={0}
     />,
   );
@@ -331,22 +334,22 @@ export default makeScene2D(function* (view) {
   const label3 = createRef<Txt>();
   root().add(
     <Txt ref={label1} text="StandardGrab"
-      x={mini_x[0]} y={mini_y + MINI_R + 24}
-      fontFamily={Fonts.code} fontSize={18}
+      x={mini_x[0]} y={mini_y + MINI_R + 30}
+      fontFamily={Fonts.code} fontSize={24}
       fill={TEXT_NORMAL} opacity={0}
     />,
   );
   root().add(
     <Txt ref={label2} text="SoftGrab"
-      x={mini_x[1]} y={mini_y + MINI_R + 24}
-      fontFamily={Fonts.code} fontSize={18}
+      x={mini_x[1]} y={mini_y + MINI_R + 30}
+      fontFamily={Fonts.code} fontSize={24}
       fill={TEXT_NORMAL} opacity={0}
     />,
   );
   root().add(
     <Txt ref={label3} text="FirmGrab"
-      x={mini_x[2]} y={mini_y + MINI_R + 24}
-      fontFamily={Fonts.code} fontSize={18}
+      x={mini_x[2]} y={mini_y + MINI_R + 30}
+      fontFamily={Fonts.code} fontSize={24}
       fill={TEXT_NORMAL} opacity={0}
     />,
   );
@@ -376,41 +379,41 @@ export default makeScene2D(function* (view) {
   root().add(
     <Circle ref={reqSource}
       x={trunk_x} y={trunk_y0}
-      width={18} height={18}
+      width={22} height={22}
       fill={FOREIGN_COLOR} opacity={0}
     />,
   );
   root().add(
     <Txt ref={reqSourceLabel} text="new transfer requirement"
-      x={trunk_x} y={trunk_y0 - 26}
-      fontFamily={Fonts.code} fontSize={18}
+      x={trunk_x} y={trunk_y0 - 30}
+      fontFamily={Fonts.code} fontSize={24}
       fill={FOREIGN_COLOR} opacity={0}
     />,
   );
   root().add(
     <Line ref={reqTrunk}
-      stroke={FOREIGN_COLOR} lineWidth={3}
-      points={[[trunk_x, trunk_y0 + 9], [trunk_x, fork_y]]}
+      stroke={FOREIGN_COLOR} lineWidth={4}
+      points={[[trunk_x, trunk_y0 + 11], [trunk_x, fork_y]]}
       end={0}
     />,
   );
   root().add(
     <Line ref={reqForkA}
-      stroke={FOREIGN_COLOR} lineWidth={3}
+      stroke={FOREIGN_COLOR} lineWidth={4}
       points={[[trunk_x, fork_y], [mini_x[0], fork_y], [mini_x[0], targets_y]]}
       radius={12} end={0}
     />,
   );
   root().add(
     <Line ref={reqForkB}
-      stroke={FOREIGN_COLOR} lineWidth={3}
+      stroke={FOREIGN_COLOR} lineWidth={4}
       points={[[trunk_x, fork_y], [mini_x[1], targets_y]]}
       end={0}
     />,
   );
   root().add(
     <Line ref={reqForkC}
-      stroke={FOREIGN_COLOR} lineWidth={3}
+      stroke={FOREIGN_COLOR} lineWidth={4}
       points={[[trunk_x, fork_y], [mini_x[2], fork_y], [mini_x[2], targets_y]]}
       radius={12} end={0}
     />,
@@ -430,19 +433,19 @@ export default makeScene2D(function* (view) {
   // Pulse all three membranes simultaneously — the ripple
   yield* all(
     membrane().stroke(FOREIGN_COLOR, 0.2, easeInOutCubic),
-    membrane().lineWidth(5, 0.2, easeInOutCubic),
+    membrane().lineWidth(6, 0.2, easeInOutCubic),
     mini2().stroke(FOREIGN_COLOR, 0.2, easeInOutCubic),
-    mini2().lineWidth(5, 0.2, easeInOutCubic),
+    mini2().lineWidth(6, 0.2, easeInOutCubic),
     mini3().stroke(FOREIGN_COLOR, 0.2, easeInOutCubic),
-    mini3().lineWidth(5, 0.2, easeInOutCubic),
+    mini3().lineWidth(6, 0.2, easeInOutCubic),
   );
   yield* all(
     membrane().stroke(GRAB_BORDER, 0.5, easeInOutCubic),
-    membrane().lineWidth(3, 0.5, easeInOutCubic),
+    membrane().lineWidth(4, 0.5, easeInOutCubic),
     mini2().stroke(GRAB_BORDER, 0.5, easeInOutCubic),
-    mini2().lineWidth(3, 0.5, easeInOutCubic),
+    mini2().lineWidth(4, 0.5, easeInOutCubic),
     mini3().stroke(GRAB_BORDER, 0.5, easeInOutCubic),
-    mini3().lineWidth(3, 0.5, easeInOutCubic),
+    mini3().lineWidth(4, 0.5, easeInOutCubic),
   );
   yield* waitFor(1.2);
 

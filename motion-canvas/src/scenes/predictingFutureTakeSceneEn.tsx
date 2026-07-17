@@ -17,7 +17,6 @@ import {
   PerspectiveCamera,
   Scene,
   SkinnedMesh,
-  SphereGeometry,
   SpotLight,
   Vector3,
 } from 'three';
@@ -263,13 +262,12 @@ export default makeScene2D(function* (view) {
   cube3d.renderOrder = -1;
   scene3.add(cube3d);
 
-  // ── Second item — a SPHERE, not a cube.  Appears AFTER the curtsy as
-  //    a black shadow, then materialises into the same warm orange.
-  //    The sphere is the metaphor's twist: the призрак built itself
-  //    flexibility along the WRONG axis (joint angles), and the new
-  //    requirement varies along a DIFFERENT axis (object shape).  Even
-  //    if the призрак were tangible, parallel jaws couldn't grip a
-  //    sphere — the prepared abstraction is orthogonal to the real change.
+  // ── Second item — a standing CYLINDER, not a cube.  Appears AFTER the
+  //    curtsy as a black shadow, then materialises into the same warm
+  //    orange.  The cylinder is the metaphor's twist: the призрак built
+  //    itself flexibility along the WRONG axis (joint angles), and the new
+  //    requirement varies along a DIFFERENT axis (object shape).  The
+  //    prepared abstraction is orthogonal to the real change.
   const cube2Mat = cubeMat.clone();
   cube2Mat.transparent = true;
   cube2Mat.opacity = 0;
@@ -282,11 +280,12 @@ export default makeScene2D(function* (view) {
   };
   const cube2OutlineParams = (cube2Mat as any).userData.outlineParameters;
   const cube2OutlineFinalAlpha: number = (cubeMat as any).userData.outlineParameters.alpha;
-  // Sphere sits FURTHER along the belt than the original cube — that
-  // way it ends up clearly opposite of cube3d in screen-space (cube3d
-  // falls left to the floor, sphere stays right on the belt). ─────
-  const cube2_3d = blueprintLit(new SphereGeometry(cubeSize / 2, 32, 20), cube2Mat);
-  cube2_3d.position.set(cubeStopX, cubeOnBeltY, beltZ);
+  // Cylinder rests on the belt where the original cube did — cube3d
+  // falls left to the floor, the cylinder stays right on the belt. ─────
+  const cyl2Radius = 26;
+  const cyl2Height = 76;
+  const cube2_3d = blueprintLit(new CylinderGeometry(cyl2Radius, cyl2Radius, cyl2Height, 32), cube2Mat);
+  cube2_3d.position.set(cubeStopX, beltY + beltHeight / 2 + cyl2Height / 2, beltZ);
   cube2_3d.renderOrder = -1;
   scene3.add(cube2_3d);
   // Endpoint colors used by the materialise tween — cached so we don't
@@ -533,8 +532,8 @@ export default makeScene2D(function* (view) {
   const liftTarget = new Vector3(-550, 580, 340);
   const liftDeltas = solveIK(sceneRoot, bones, initRot, liftTarget);
   const placeDeltas = solveIK(sceneRoot, bones, initRot, placeTarget);
-  // Призрак-к-сфере: тот же tip target что и у куба, но с constraint —
-  // pitch-sum держим равным lift-сумме, чтобы кисть пришла к шару
+  // Призрак-к-цилиндру: тот же tip target что и у куба, но с constraint —
+  // pitch-sum держим равным lift-сумме, чтобы кисть пришла к цилиндру
   // ГОРИЗОНТАЛЬНО (jaws как при удержании куба), а не «клювом вниз». ──
   const horizontalPitchSum =
     liftDeltas.shoulder + liftDeltas.elbow + liftDeltas.wrist;
@@ -902,9 +901,9 @@ export default makeScene2D(function* (view) {
   yield* cube2Materialize(1, 0.7, easeInOutCubic);
   yield* waitFor(0.25);
 
-  // Призрак lowers the arm from the curtsy pose toward the sphere — full
+  // Призрак lowers the arm from the curtsy pose toward the cylinder — full
   // IK adapts ALL joints (turret/shoulder/elbow/wrist) so that the wrist
-  // lands AT sphere level with jaws horizontal (pitch-sum constrained to
+  // lands AT cylinder level with jaws horizontal (pitch-sum constrained to
   // the lift pose). Whole arm bends down together. ──────────────────
   yield* all(
     gTurret(sphereGhostDeltas.turret,     1.4, easeInOutCubic),
@@ -913,10 +912,10 @@ export default makeScene2D(function* (view) {
     gWristPitch(sphereGhostDeltas.wrist,  1.4, easeInOutCubic),
   );
 
-  // Gripper snaps shut horizontally on a round sphere — and STAYS shut.
-  // Two layers of failure baked in: призрак is intangible AND parallel
-  // jaws can't pinch a sphere.  Hold the closed pose; the 3D tableau is
-  // about to recede into background as the code section takes over. ───
+  // Gripper snaps shut horizontally on the cylinder — and STAYS shut.
+  // The failure baked in: призрак is intangible, and the flexibility it
+  // prepared was on the wrong axis.  Hold the closed pose; the 3D tableau
+  // is about to recede into background as the code section takes over. ───
   yield* gGripClose(0.72, 0.2, easeInOutCubic);
   yield* waitFor(0.6);
 

@@ -1,4 +1,4 @@
-import {makeScene2D, Node, Rect, Txt} from '@motion-canvas/2d';
+import {Circle, Gradient, makeScene2D, Node, Rect, Txt} from '@motion-canvas/2d';
 import {all, chain, createRef, easeOutCubic, waitFor} from '@motion-canvas/core';
 import {
   EdgesGeometry,
@@ -165,6 +165,31 @@ export default makeScene2D(function* (view) {
   globeView.node.opacity(0);
   view.add(globeView.node);
 
+  // ─── Soft scrim: sits ON the globe, UNDER "grab" ──────────────────
+  // The globe's bright white lat/long grid runs straight through the label
+  // and swallows it. A feathered pool of the background colour dims the grid
+  // locally so "grab" reads, without a hard disc edge showing on the sphere.
+  const SCRIM_R = 165;
+  const scrimRef = createRef<Circle>();
+  view.add(
+    <Circle
+      ref={scrimRef}
+      width={SCRIM_R * 2}
+      height={SCRIM_R * 2}
+      opacity={0}
+      fill={new Gradient({
+        type: 'radial',
+        fromRadius: 0,
+        toRadius: SCRIM_R,
+        stops: [
+          {offset: 0,    color: 'rgba(0, 0, 0, 0.72)'},
+          {offset: 0.55, color: 'rgba(0, 0, 0, 0.6)'},
+          {offset: 1,    color: 'rgba(0, 0, 0, 0)'},
+        ],
+      })}
+    />,
+  );
+
   // ─── Center anchor: "grab" inside the globe ───────────────────────
   const grabRef = createRef<Txt>();
   view.add(
@@ -210,6 +235,7 @@ export default makeScene2D(function* (view) {
   // ─── Fade in: globe + text, then code blocks stagger in ──────────
   yield* all(
     globeView.node.opacity(1, 0.8, easeOutCubic),
+    scrimRef().opacity(1, 0.8, easeOutCubic),
     grabRef().opacity(1, 0.8, easeOutCubic),
   );
   yield* waitFor(0.3);

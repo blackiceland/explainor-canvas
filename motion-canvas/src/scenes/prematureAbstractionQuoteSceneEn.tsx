@@ -1,92 +1,84 @@
 import {makeScene2D, Txt} from '@motion-canvas/2d';
-import {all, createRef, createSignal, easeInOutCubic, waitFor} from '@motion-canvas/core';
-import {Colors, Fonts, Timing} from '../core/theme';
+import {all, createRef, easeInCubic, easeInOutCubic, easeOutCubic, waitFor} from '@motion-canvas/core';
+import {Fonts} from '../core/theme';
 import {applyBackground} from '../core/utils';
 
-const QUOTE = `“The wrong abstraction is far more costly\nthan no abstraction at all.”`;
+// Current-design attributed-quote idiom (matches the tracer-bullet quote in
+// chapter2ReversibilitySceneEn): one warm cream for the whole block, quote set
+// in Space Grotesk italic, attribution roman in the SAME cream — no accent
+// color — and plain opacity fades instead of the old typewriter reveal.
+const CREAM = 'rgba(244, 230, 200, 0.96)';
+const TITLE_CREAM = 'rgba(244, 241, 235, 0.95)';
+
+const QUOTE = '“The wrong abstraction is far more costly\nthan no abstraction at all.”';
 
 export default makeScene2D(function* (view) {
   applyBackground(view);
 
-  const hero = createRef<Txt>();
+  const title = createRef<Txt>();
   const quote = createRef<Txt>();
   const attribution = createRef<Txt>();
-  const typed = createSignal('');
 
   view.add(
     <Txt
-      ref={hero}
+      ref={title}
+      text="Premature abstraction."
       fontFamily={Fonts.primary}
-      fontSize={140}
+      fontSize={128}
       fontWeight={500}
-      fill={Colors.text.primary}
       letterSpacing={-3}
+      fill={TITLE_CREAM}
       textAlign="center"
-      y={-200}
+      y={-250}
       opacity={0}
-    >
-      Premature abstraction.
-    </Txt>,
+    />,
   );
 
   view.add(
     <Txt
       ref={quote}
-      text={typed}
-      fontFamily={Fonts.code}
-      fontSize={44}
+      text={QUOTE}
+      fontFamily={Fonts.primary}
+      fontStyle="italic"
+      fontSize={50}
       fontWeight={400}
-      fill={Colors.text.primary}
+      letterSpacing={0.6}
+      fill={CREAM}
       textAlign="center"
       width={1500}
-      lineHeight={60}
-      y={-20}
-      offset={[0, -1]}
-      opacity={1}
+      lineHeight={72}
+      y={35}
+      opacity={0}
     />,
   );
 
   view.add(
     <Txt
       ref={attribution}
+      text="– Sandi Metz"
       fontFamily={Fonts.primary}
-      fontSize={42}
-      fontWeight={500}
-      fill={Colors.accent}
+      fontSize={34}
+      fontWeight={400}
+      letterSpacing={0.5}
+      fill={CREAM}
       textAlign="center"
-      y={195}
+      y={225}
       opacity={0}
-    >
-      – Sandi Metz
-    </Txt>,
+    />,
   );
 
-  // Hero first
-  yield* hero().opacity(1, 1.3, easeInOutCubic);
-  yield* waitFor(0.8);
-
-  // Typewriter reveal
-  for (let i = 0; i <= QUOTE.length; i++) {
-    typed(QUOTE.slice(0, i));
-    const ch = QUOTE[i] ?? '';
-    const dt =
-      ch === '\n' ? 0.22 :
-      ch === ' ' ? 0.035 :
-      /[“”".,:;!?—–]/.test(ch) ? 0.09 :
-      0.032;
-    yield* waitFor(dt);
-  }
-
+  // Title lands first, then the quote and attribution arrive as clean fades.
+  yield* title().opacity(1, 1.1, easeOutCubic);
   yield* waitFor(0.5);
-
-  // Attribution after the quote is done
-  yield* attribution().opacity(1, 0.9, easeInOutCubic);
-  yield* waitFor(3.2);
+  yield* quote().opacity(1, 1.0, easeInOutCubic);
+  yield* waitFor(0.5);
+  yield* attribution().opacity(1, 0.8, easeInOutCubic);
+  yield* waitFor(3.4);
 
   yield* all(
-    hero().opacity(0, Timing.slow, easeInOutCubic),
-    quote().opacity(0, Timing.slow, easeInOutCubic),
-    attribution().opacity(0, Timing.slow, easeInOutCubic),
+    title().opacity(0, 0.9, easeInCubic),
+    quote().opacity(0, 0.9, easeInCubic),
+    attribution().opacity(0, 0.9, easeInCubic),
   );
   yield* waitFor(0.3);
 });

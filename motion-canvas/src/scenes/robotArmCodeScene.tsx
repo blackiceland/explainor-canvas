@@ -1,5 +1,5 @@
-import {makeScene2D} from '@motion-canvas/2d';
-import {all, createSignal, easeInOutCubic, waitFor} from '@motion-canvas/core';
+import {blur, brightness, makeScene2D, Node, saturate, sepia} from '@motion-canvas/2d';
+import {all, createSignal, easeInOutCubic, ThreadGenerator, waitFor} from '@motion-canvas/core';
 import {
   Bone,
   BoxGeometry,
@@ -169,6 +169,27 @@ const COLOR_RULES = [
   {match: 'release',        color: METHOD_COLOR, onlyTypes: ['method']},
   {match: /^"[^"]*"$/,      color: SOFT_GREEN},
 ];
+
+// ── Halation ─────────────────────────────────────────────────────────────
+// Гало, которое плёнка даёт вокруг яркого света: он пробивает эмульсию,
+// отражается от подложки и засвечивает зёрна вокруг — тёплый ореол растёт из
+// самой формы. Собран так же, как ореол луча радара в oneMethodManyVersionsSceneEn:
+// дубль элемента, блюр, кладём ПОД резкий оригинал и складываем светом. Ореол
+// тогда несёт очертания букв, а не обводит строку рамкой.
+// Блюр быстро разбавляет тонкие штрихи глифов, поэтому широкому слою нужны и
+// высокая непрозрачность, и подъём brightness — иначе света на экране не будет.
+const HAL_BLOOM_BLUR    = 6;    // тугой — растекаются собственные цвета строки
+const HAL_BLOOM_OPACITY = 0.7;
+const HAL_WARM_BLUR     = 18;   // широкий — собственно тёплая halation
+const HAL_WARM_OPACITY  = 0.9;
+const HAL_CROSSFADE     = 0.35;
+
+// Индексы отрендеренных строк `handleCube` — по одной на движение руки.
+const LINE_REACH   = 1;  // arm.moveTo(cube.position);
+const LINE_GRAB    = 2;  // arm.grab(cube);
+const LINE_LIFT    = 3;  // arm.lift();
+const LINE_PLACE   = 4;  // arm.moveTo(table.position);
+const LINE_RELEASE = 5;  // arm.release();
 
 export default makeScene2D(function* (view) {
   applyBackground(view);
@@ -519,6 +540,49 @@ export default makeScene2D(function* (view) {
     pauseAfterMorph: 0.5,
   });
 
+  // Оба слоя — snapshot-клоны самой строки, поэтому ореол всегда несёт то, что
+  // в строке написано, и в тех цветах, в каких она покрашена; резкий оригинал
+  // продолжает рисоваться поверх нетронутым.
+  const attachHalation = (line: Node) => {
+    const amount = createSignal(0);
+    const content = line.parent()!;
+
+    const warm = line.snapshotClone();
+    warm.filters([blur(HAL_WARM_BLUR), sepia(1), saturate(3.2), brightness(1.6)]);
+    warm.cachePadding(HAL_WARM_BLUR * 4);
+    warm.compositeOperation('lighter');
+    warm.zIndex(-2);
+    warm.opacity(() => amount() * HAL_WARM_OPACITY);
+
+    const bloom = line.snapshotClone();
+    bloom.filters([blur(HAL_BLOOM_BLUR)]);
+    bloom.cachePadding(HAL_BLOOM_BLUR * 4);
+    bloom.compositeOperation('lighter');
+    bloom.zIndex(-1);
+    bloom.opacity(() => amount() * HAL_BLOOM_OPACITY);
+
+    content.add(warm);
+    content.add(bloom);
+    return amount;
+  };
+
+  const halation = new Map<number, ReturnType<typeof attachHalation>>();
+  for (const i of [LINE_REACH, LINE_GRAB, LINE_LIFT, LINE_PLACE, LINE_RELEASE]) {
+    halation.set(i, attachHalation(manticore.getLine(i)!.node));
+  }
+
+  // Свет передаётся от строки к строке, а не мигает — код читается как головка,
+  // едущая по нему, пока рука исполняет. Возвращаем твины, чтобы вложить их в
+  // тот же all(), что и движение: так свет и рука идут по одним часам.
+  let halLit: number | null = null;
+  const halateTo = (line: number | null, duration = HAL_CROSSFADE): ThreadGenerator[] => {
+    const tweens: ThreadGenerator[] = [];
+    if (halLit !== null) tweens.push(halation.get(halLit)!(0, duration, easeInOutCubic));
+    if (line !== null) tweens.push(halation.get(line)!(1, duration, easeInOutCubic));
+    halLit = line;
+    return tweens;
+  };
+
   // ═══════════════════════════════════════════════════════════════════════
   // ANIMATION
   // ═══════════════════════════════════════════════════════════════════════
@@ -536,6 +600,7 @@ export default makeScene2D(function* (view) {
 
   // ── Reach ─────────────────────────────────────────────────────────────
   yield* all(
+    ...halateTo(LINE_REACH),
     baseDelta(reachDeltas.base, 1.5, easeInOutCubic),
     turretDelta(reachDeltas.turret, 1.5, easeInOutCubic),
     shoulderDelta(reachDeltas.shoulder, 1.5, easeInOutCubic),
@@ -545,7 +610,10 @@ export default makeScene2D(function* (view) {
   yield* waitFor(0.2);
 
   // ── Grip ──────────────────────────────────────────────────────────────
-  yield* gripClose(0.7, 0.3, easeInOutCubic);
+  yield* all(
+    ...halateTo(LINE_GRAB, 0.3),
+    gripClose(0.7, 0.3, easeInOutCubic),
+  );
   grabOrigin.copy(cube3d.position);
   grabBaseY = baseDelta() + turretDelta();
   grabTiltReady = false;
@@ -554,6 +622,7 @@ export default makeScene2D(function* (view) {
 
   // ── Lift ──────────────────────────────────────────────────────────────
   yield* all(
+    ...halateTo(LINE_LIFT),
     baseDelta(liftDeltas.base, 2.0, easeInOutCubic),
     turretDelta(liftDeltas.turret, 2.0, easeInOutCubic),
     shoulderDelta(liftDeltas.shoulder, 2.0, easeInOutCubic),
@@ -564,6 +633,7 @@ export default makeScene2D(function* (view) {
 
   // ── Place ─────────────────────────────────────────────────────────────
   yield* all(
+    ...halateTo(LINE_PLACE),
     baseDelta(placeDeltas.base, 2.0, easeInOutCubic),
     turretDelta(placeDeltas.turret, 2.0, easeInOutCubic),
     shoulderDelta(placeDeltas.shoulder, 2.0, easeInOutCubic),
@@ -577,11 +647,15 @@ export default makeScene2D(function* (view) {
   cubePlaced = true;
   cube3d.position.copy(placeTarget);
   cube3d.rotation.x = 0;
-  yield* gripClose(0, 0.3, easeInOutCubic);
+  yield* all(
+    ...halateTo(LINE_RELEASE, 0.3),
+    gripClose(0, 0.3, easeInOutCubic),
+  );
   yield* waitFor(0.3);
 
   // ── Return to rest ────────────────────────────────────────────────────
   yield* all(
+    ...halateTo(null, 0.6),
     baseDelta(0, 1.5, easeInOutCubic),
     turretDelta(0, 1.5, easeInOutCubic),
     shoulderDelta(0, 1.5, easeInOutCubic),

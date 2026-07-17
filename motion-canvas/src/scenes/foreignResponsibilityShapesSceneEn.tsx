@@ -61,10 +61,13 @@ const FOREIGN_OPS = [
   {label: 'Orientation',   x:  120, y: 30,  startX:  580, startY:  -96},
 ];
 
+// Future concerns the boundary attracts — "whether the next concern is
+// fragility, vibration limits, temperature sensitivity, or something else,
+// this is where it will probably land."
 const RULES_OPS = [
-  {label: 'isDelicate()',    x: -180, y: -115, startX: -740, startY: -320},
-  {label: 'hasLooseParts()', x:   30, y:  180, startX:  650, startY:  320},
-  {label: 'requiresFixed()', x:  180, y: -115, startX:  740, startY: -260},
+  {label: 'fragility',              x: -180, y: -115, startX: -740, startY: -320},
+  {label: 'vibration limits',       x:   30, y:  180, startX:  650, startY:  320},
+  {label: 'temperature sensitivity', x:  180, y: -115, startX:  740, startY: -260},
 ];
 
 function buildGlobe() {
@@ -313,7 +316,7 @@ export default makeScene2D(function* (view) {
   yield* waitFor(1.1);
 
   // ═══════════════════════════════════════════════════════════════
-  // Act 3 — foreign rules appear and invade (non-overlapping targets)
+  // Act 3 — future concerns are attracted in (non-overlapping targets)
   // ═══════════════════════════════════════════════════════════════
   yield* all(
     ...rulesRefs.map((r, i) => chain(
