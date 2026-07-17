@@ -576,11 +576,6 @@ export default makeScene2D(function* (view) {
   const cubeZ = createSignal(beltZ);
   const grabBlend = createSignal(0);
   const grabOrigin = new Vector3();
-  // Wrist-yaw / wrist-pitch reference captured at the moment of grab so
-  // the cube rotates WITH the gripper instead of staying world-aligned.
-  let grabBaseY = 0;
-  let grabTilt = 0;
-  let grabTiltReady = false;
 
   let outline: OutlineEffect | null = null;
 
@@ -665,24 +660,19 @@ export default makeScene2D(function* (view) {
       }
 
       if (cubeAttached) {
-        // Cube follows the gripper: tip-position interpolated, plus YAW
-        // tracking the arm's base+turret rotation. Yaw axis is world-Y
-        // regardless of arm pose, so this stays correct under any motion.
-        // Pitch is intentionally not applied — the arm's wrist pitch is
-        // around the joint's LOCAL X, which only maps to world X at zero
-        // turret; once turret rotates, applying rotation.x to the cube
-        // produces a wrong-axis tilt. ────────────────────────────────
+        // Cube rides with the gripper: position follows the tip; orientation
+        // faces the ARM's horizontal heading (the wrist→hand direction) so the
+        // cube points the way the arm points. Yaw only (about world-Y) — no
+        // pitch/roll, so it never tumbles and drops flat, landing aligned with
+        // the arm instead of spun to a stray angle.
         const wp = new Vector3(), hp = new Vector3();
         bones.wrist!.getWorldPosition(wp);
         bones.hand!.getWorldPosition(hp);
-        const tip = hp.clone().add(hp.clone().sub(wp));
+        const dir = hp.clone().sub(wp);
+        const tip = hp.clone().add(dir);
         const b = grabBlend();
         cube3d.position.lerpVectors(grabOrigin, tip, b);
-        if (!grabTiltReady) {
-          grabBaseY = baseDelta() + turretDelta();
-          grabTiltReady = true;
-        }
-        cube3d.rotation.y = (baseDelta() + turretDelta()) - grabBaseY;
+        cube3d.rotation.y = Math.atan2(dir.x, dir.z);
       } else if (!cubePlaced) {
         cube3d.position.x = cubeX();
         cube3d.position.y = cubeY();
@@ -723,13 +713,13 @@ export default makeScene2D(function* (view) {
   //    for code in later chapter-2 scenes).  Arm works on the right.
   //    Break at the natural caesura: one setup line, one landing line. ─
   const subtitle = new Txt({
-    text: "We're worse at predicting the future\nthan we think.",
+    text: "We're worse at predicting the future than we think.",
     fontFamily: Fonts.primary,
-    fontSize: 46,
+    fontSize: 34,
     fontWeight: 500,
     fill: 'rgba(232, 207, 174, 0.96)',
     textAlign: 'center',
-    lineHeight: 62,
+    lineHeight: 46,
     x: -Screen.width / 4,
     y: 0,
     opacity: 0,
@@ -833,7 +823,6 @@ export default makeScene2D(function* (view) {
   // ── Grip closes around cube ──────────────────────────────────────────
   yield* gripClose(0.72, 0.4, easeInOutCubic);
   grabOrigin.copy(cube3d.position);
-  grabTiltReady = false;
   cubeAttached = true;
   yield* grabBlend(1, 0.18, easeInOutCubic);
 
@@ -847,9 +836,9 @@ export default makeScene2D(function* (view) {
   );
   yield* waitFor(0.4);
 
-  // ── Release mid-air: grip opens, cube drops STRAIGHT DOWN with X/Z
-  //    frozen at release.  Orientation stays at identity throughout, so
-  //    it lands flat — no rotation animation needed. ──────────────────
+  // ── Release mid-air: grip opens, cube drops STRAIGHT DOWN with X/Z frozen
+  //    at release.  It was carried upright (yaw-only), so it simply falls
+  //    flat onto a face — no landing rotation needed. ──────────────────
   const releaseX = cube3d.position.x;
   const releaseY = cube3d.position.y;
   const releaseZ = cube3d.position.z;
@@ -857,9 +846,6 @@ export default makeScene2D(function* (view) {
   cubeY(releaseY);
   cubeZ(releaseZ);
   cubeAttached = false;
-  // Cube keeps the orientation the gripper handed it — no pre-drop snap.
-  // It falls in-place, frozen at the lift-pose rotation; reads as honest
-  // physics instead of a teleported reset.
   yield* gripClose(0, 0.28, easeInOutCubic);
   yield* cubeY(-20, 0.7, easeInCubic);
   cubePlaced = true;

@@ -57,6 +57,7 @@ import prematureAbstractionQuoteSceneEn from "./scenes/prematureAbstractionQuote
 import prematureAbstractionResolutionSceneEn from "./scenes/prematureAbstractionResolutionSceneEn?scene";
 import robotArmDarkScene from "./scenes/robotArmDarkScene?scene";
 import predictingFutureTakeSceneEn from "./scenes/predictingFutureTakeSceneEn?scene";
+import chapter2EarnAbstractionSceneEn from "./scenes/chapter2EarnAbstractionSceneEn?scene";
 import earnedAbstractionSceneEn from "./scenes/earnedAbstractionSceneEn?scene";
 import chapter2ReversibilitySceneEn from "./scenes/chapter2ReversibilitySceneEn?scene";
 import problemsYouDontHaveCarefulArmSceneEn from "./scenes/problemsYouDontHaveCarefulArmSceneEn?scene";
@@ -145,21 +146,21 @@ export default makeProject({
         // problemsYouDontHaveCarefulArmSceneEn,
 
         // chapter 1
-        problemsYouDontHaveLieIntroSceneEn,
+        // problemsYouDontHaveLieIntroSceneEn,
 
         // problemsYouDontHaveStrategySceneEn,
 
         // фонарик
         // pipelineGrabGrowthSceneEn,
 
-         grabStrategyOrbitSceneEn,
+        // grabStrategyOrbitSceneEn,
         // fromTheStartSceneEn,
-
-        foreignResponsibilityShapesSceneEn,
-        whyItIsAProblemSceneEn,
-        prematureAbstractionQuoteSceneEn,
+        //
+        // foreignResponsibilityShapesSceneEn,
+        // whyItIsAProblemSceneEn,
+        // prematureAbstractionQuoteSceneEn,
         predictingFutureTakeSceneEn,
-        chapter2ReversibilitySceneEn,
+        // chapter2EarnAbstractionSceneEn,
 
         // IV
          // стартовый текст и древо

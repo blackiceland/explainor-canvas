@@ -1,4 +1,4 @@
-import {Circle, makeScene2D, Node, Rect, Txt} from '@motion-canvas/2d';
+import {Circle, Line, makeScene2D, Node, Rect, Txt} from '@motion-canvas/2d';
 import {
   all,
   chain,
@@ -69,6 +69,12 @@ const RULES_OPS = [
   {label: 'vibration limits',       x:   30, y:  180, startX:  650, startY:  320},
   {label: 'temperature sensitivity', x:  180, y: -115, startX:  740, startY: -260},
 ];
+
+// "…or something else." One more concern arrives — an unknown, centered at the
+// top with a "?" beneath it. New form (triangle), new colour. It slides in as a
+// block from the north-east (upper right).
+const NEXT_COLOR = '#B388FF';
+const NEXT_OP = {x: 0, y: -158, startX: 780, startY: -440};
 
 function buildGlobe() {
   const geom = new SphereGeometry(GLOBE_R, 32, 20);
@@ -236,6 +242,34 @@ export default makeScene2D(function* (view) {
     );
   }
 
+  // ── "…or something else": one next-wave concern — a triangle in a new
+  //    colour, centered, with a "?" beneath it. Same drift-in behaviour. ──
+  const nextTriangle = createRef<Line>();
+  const nextMark = createRef<Txt>();
+  root().add(
+    <Line
+      ref={nextTriangle}
+      points={[[0, -24], [21, 15], [-21, 15]]}
+      closed
+      lineWidth={0}
+      fill={NEXT_COLOR}
+      x={NEXT_OP.startX} y={NEXT_OP.startY}
+      opacity={0}
+    />,
+  );
+  root().add(
+    <Txt
+      ref={nextMark}
+      text="?"
+      x={NEXT_OP.startX} y={NEXT_OP.startY + 42}
+      fontFamily={Fonts.primary}
+      fontWeight={700}
+      fontSize={26}
+      fill={NEXT_COLOR}
+      opacity={0}
+    />,
+  );
+
   // ═══════════════════════════════════════════════════════════════
   // Act 0 — sphere prelude: rotating globe with "grab" center
   // ═══════════════════════════════════════════════════════════════
@@ -347,6 +381,23 @@ export default makeScene2D(function* (view) {
   yield* membrane().lineWidth(4, 0.2, easeOutCubic);
 
   yield* waitFor(1.3);
+
+  // ═══════════════════════════════════════════════════════════════
+  // Act 3b — "…or something else": a couple more concerns arrive in new
+  //          colors and drift in too — whatever comes next lands here.
+  // ═══════════════════════════════════════════════════════════════
+  yield* all(
+    nextTriangle().opacity(1, 0.4, easeOutCubic),
+    nextMark().opacity(1, 0.4, easeOutCubic),
+  );
+  yield* waitFor(0.5);
+  yield* all(
+    nextTriangle().x(NEXT_OP.x, 1.0, easeInOutCubic),
+    nextTriangle().y(NEXT_OP.y, 1.0, easeInOutCubic),
+    nextMark().x(NEXT_OP.x, 1.0, easeInOutCubic),
+    nextMark().y(NEXT_OP.y + 42, 1.0, easeInOutCubic),
+  );
+  yield* waitFor(0.8);
 
   // ═══════════════════════════════════════════════════════════════
   // Act 4 — settle: membrane stays deformed, fill tints red

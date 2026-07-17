@@ -3,6 +3,9 @@ import {createRef, easeInOutCubic, waitFor} from '@motion-canvas/core';
 import {applyBackground} from '../core/utils';
 import {Fonts} from '../core/theme';
 
+// Chapter-2 title card — same idiom as problemsYouDontHaveLieIntroSceneEn:
+// muted "CHAPTER 2" eyebrow above, bold letter-spaced title below, staggered
+// fade-in then fade-out as one block.
 const CHAPTER_FONT_SIZE = 40;
 const TITLE_FONT_SIZE = 72;
 const TEXT_COLOR = 'rgba(244, 241, 235, 0.95)';
@@ -19,7 +22,7 @@ export default makeScene2D(function* (view) {
     <Node ref={container} opacity={0}>
       <Txt
         ref={chapterRef}
-        text={'CHAPTER 1'}
+        text={'CHAPTER 2'}
         fontFamily={Fonts.primary}
         fontWeight={500}
         fontSize={CHAPTER_FONT_SIZE}
@@ -30,7 +33,7 @@ export default makeScene2D(function* (view) {
       />
       <Txt
         ref={titleRef}
-        text={'THE BET'}
+        text={'EARN THE ABSTRACTION'}
         fontFamily={Fonts.primary}
         fontWeight={700}
         fontSize={TITLE_FONT_SIZE}

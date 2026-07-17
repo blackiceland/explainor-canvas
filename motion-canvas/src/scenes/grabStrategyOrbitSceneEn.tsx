@@ -168,23 +168,27 @@ export default makeScene2D(function* (view) {
   // ─── Soft scrim: sits ON the globe, UNDER "grab" ──────────────────
   // The globe's bright white lat/long grid runs straight through the label
   // and swallows it. A feathered pool of the background colour dims the grid
-  // locally so "grab" reads, without a hard disc edge showing on the sphere.
-  const SCRIM_R = 165;
+  // just under the word. "grab" is wide-and-short, so the pool is an ELLIPSE
+  // (a symmetric disc would spill far above/below the text) — a circular
+  // radial gradient stretched on X so it hugs the word, not the whole area.
+  const SCRIM_RX = 155;   // horizontal reach — a touch past "grab"
+  const SCRIM_RY = 62;    // vertical reach — just past the cap height
   const scrimRef = createRef<Circle>();
   view.add(
     <Circle
       ref={scrimRef}
-      width={SCRIM_R * 2}
-      height={SCRIM_R * 2}
+      width={SCRIM_RY * 2}
+      height={SCRIM_RY * 2}
+      scale={[SCRIM_RX / SCRIM_RY, 1]}
       opacity={0}
       fill={new Gradient({
         type: 'radial',
         fromRadius: 0,
-        toRadius: SCRIM_R,
+        toRadius: SCRIM_RY,
         stops: [
-          {offset: 0,    color: 'rgba(0, 0, 0, 0.72)'},
-          {offset: 0.55, color: 'rgba(0, 0, 0, 0.6)'},
-          {offset: 1,    color: 'rgba(0, 0, 0, 0)'},
+          {offset: 0,   color: 'rgba(0, 0, 0, 0.72)'},
+          {offset: 0.5, color: 'rgba(0, 0, 0, 0.55)'},
+          {offset: 1,   color: 'rgba(0, 0, 0, 0)'},
         ],
       })}
     />,
