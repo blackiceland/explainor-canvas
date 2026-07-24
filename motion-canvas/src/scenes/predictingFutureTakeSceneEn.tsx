@@ -570,7 +570,6 @@ export default makeScene2D(function* (view) {
   const worldOpacity     = createSignal(1);
 
   let cubeAttached = false;
-  let cubePlaced = false;
   const cubeX = createSignal(cubeStopX);
   const cubeY = createSignal(cubeOnBeltY);
   const cubeZ = createSignal(beltZ);
@@ -660,20 +659,21 @@ export default makeScene2D(function* (view) {
       }
 
       if (cubeAttached) {
-        // Cube rides with the gripper: position follows the tip; orientation
-        // faces the ARM's horizontal heading (the wrist→hand direction) so the
-        // cube points the way the arm points. Yaw only (about world-Y) — no
-        // pitch/roll, so it never tumbles and drops flat, landing aligned with
-        // the arm instead of spun to a stray angle.
+        // Cube rides with the gripper by POSITION only — its orientation is
+        // left at the world-aligned pose it had on the belt (never rotated),
+        // so it is carried and dropped square, landing exactly as it started
+        // instead of spun to some inherited angle.
         const wp = new Vector3(), hp = new Vector3();
         bones.wrist!.getWorldPosition(wp);
         bones.hand!.getWorldPosition(hp);
-        const dir = hp.clone().sub(wp);
-        const tip = hp.clone().add(dir);
+        const tip = hp.clone().add(hp.clone().sub(wp));
         const b = grabBlend();
         cube3d.position.lerpVectors(grabOrigin, tip, b);
-        cube3d.rotation.y = Math.atan2(dir.x, dir.z);
-      } else if (!cubePlaced) {
+      } else {
+        // Always driven from the signals when not attached — after landing
+        // they simply hold the final floor position.  Keeping this branch
+        // unconditional means a single out-of-sequence render (still
+        // harness) still places the cube correctly.
         cube3d.position.x = cubeX();
         cube3d.position.y = cubeY();
         cube3d.position.z = cubeZ();
@@ -839,16 +839,16 @@ export default makeScene2D(function* (view) {
   // ── Release mid-air: grip opens, cube drops STRAIGHT DOWN with X/Z frozen
   //    at release.  It was carried upright (yaw-only), so it simply falls
   //    flat onto a face — no landing rotation needed. ──────────────────
-  const releaseX = cube3d.position.x;
-  const releaseY = cube3d.position.y;
-  const releaseZ = cube3d.position.z;
-  cubeX(releaseX);
-  cubeY(releaseY);
-  cubeZ(releaseZ);
+  // Release point taken from the IK TARGET, not the live three-object —
+  // the solver parks the tip within ~3 units of liftTarget (cube is 60),
+  // so video is unchanged, while out-of-sequence renders (still harness,
+  // where onRender never ran before this line) stay truthful too.
+  cubeX(liftTarget.x);
+  cubeY(liftTarget.y);
+  cubeZ(liftTarget.z);
   cubeAttached = false;
   yield* gripClose(0, 0.28, easeInOutCubic);
   yield* cubeY(-20, 0.7, easeInCubic);
-  cubePlaced = true;
   yield* waitFor(0.5);
 
   // ─── Ghost emerges OVERLAID on the frozen real arm.  Bake the lift
@@ -916,8 +916,9 @@ export default makeScene2D(function* (view) {
   //    3. Manticore appears on the LEFT half with V0 — naïve direct calls.
   //    4. Four Medusa morphs add infrastructure beat-by-beat.  Viewer
   //       SEES abstraction metastasize, not arrive pre-grown.
-  //    5. Final beat: body collapses to one line.  Dim everything except
-  //       that one line, recolor it red — the punchline.
+  //    5. Final beat: the whole frame goes dark — code, arm, ghost, belt,
+  //       cylinder — and the failed cube on the floor is the only thing
+  //       left lit.  The punchline is the object, not a line of code.
   // ═══════════════════════════════════════════════════════════════════════
 
   const LEFT_PAD       = 80;
@@ -932,7 +933,6 @@ export default makeScene2D(function* (view) {
   const VAR_LIGHT    = 'rgba(244, 241, 235, 0.96)';
   const TYPE_CLEAN   = 'rgba(220, 215, 255, 0.80)';
   const METHOD_COLOR = DryFiltersV3CodeTheme.method;
-  const FINAL_RED    = 'rgba(255, 90, 80, 1.0)';
 
   const CUSTOM_TYPES = [
     'CubeHandler', 'HandlingConfig', 'HandlingPipeline', 'HandlingHooks',
@@ -1091,19 +1091,29 @@ export default makeScene2D(function* (view) {
   });
   yield* waitFor(3.5);
 
-  // ── Closing punch — dim everything, light the one-liner red ──≈5.7s
+  // ── Closing punch — the lights die on everything at once ──≈5.7s
   //   VO: "we call it foresight... but most of the time, it's just
-  //   complexity trying to look responsible." ─────────────────────────
-  const finalIdx = code.findLine('pipeline.run(new HandlingContext');
-  if (finalIdx >= 0) {
-    const finalLine = code.getLine(finalIdx);
-    if (finalLine) {
-      yield* all(
-        code.dimLines(0, finalIdx - 1, 0.28, 0.7),
-        code.dimLines(finalIdx + 1, code.lineCount - 1, 0.28, 0.7),
-        finalLine.recolorAll(FINAL_RED, 0.7),
-      );
-    }
-  }
-  yield* waitFor(5.0);
+  //   complexity trying to look responsible."
+  //   Code, arm, ghost, belt and cylinder go all the way to zero — the
+  //   failed cube on the floor (its material untouched by any of these
+  //   dims) is left alone in the frame.  The 3D view rises back to full
+  //   opacity so the cube brightens 0.30 → 1.0 while everything around
+  //   it dies.
+  //   Two durations on purpose: the world's apparent brightness is its
+  //   material alpha TIMES the node opacity, so fading both over the same
+  //   span would make the belt/arm bulge brighter than they started around
+  //   the midpoint (0.5 × 0.65 > 0.30) before dying.  Letting the world go
+  //   out over the shorter span keeps that product falling from the first
+  //   frame, and the cube keeps coming up after the world is already gone.
+  const FADE = 1.9;   // everything that dies — one shared span and curve
+  const RISE = 2.6;   // the cube surfacing out of the dark
+  yield* all(
+    code.dimLines(0, code.lineCount - 1, 0, FADE),
+    realArmOpacity(0, FADE, easeInOutCubic),
+    ghostOpacity(0, FADE, easeInOutCubic),
+    worldOpacity(0, FADE, easeInOutCubic),
+    cube2Shadow(0, FADE, easeInOutCubic),
+    threeView.node.opacity(1, RISE, easeInOutCubic),
+  );
+  yield* waitFor(4.5);
 });
