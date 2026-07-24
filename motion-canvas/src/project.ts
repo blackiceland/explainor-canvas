@@ -66,6 +66,7 @@ import chapter2FinalRunSceneEn from "./scenes/chapter2FinalRunSceneEn?scene";
 import chapter2FullSubsSceneEn from "./scenes/chapter2FullSubsSceneEn?scene";
 import chapter2FullSceneEn from "./scenes/chapter2FullSceneEn?scene";
 import chapter2ClosingQuoteSceneEn from "./scenes/chapter2ClosingQuoteSceneEn?scene";
+import chapter2TakeawaysSceneEn from "./scenes/chapter2TakeawaysSceneEn?scene";
 import earnedAbstractionSceneEn from "./scenes/earnedAbstractionSceneEn?scene";
 import chapter2ReversibilitySceneEn from "./scenes/chapter2ReversibilitySceneEn?scene";
 import problemsYouDontHaveCarefulArmSceneEn from "./scenes/problemsYouDontHaveCarefulArmSceneEn?scene";
@@ -168,7 +169,7 @@ export default makeProject({
         // whyItIsAProblemSceneEn,
         // prematureAbstractionQuoteSceneEn,
         // predictingFutureTakeSceneEn,
-        preparingForChangeQuestionSceneEn,
+        // preparingForChangeQuestionSceneEn,
         // chapter2EarnAbstractionSceneEn,
         // chapter2ReplaySceneEn,
         // chapter2LivingPathSceneEn,
@@ -176,7 +177,9 @@ export default makeProject({
         // chapter2BoundaryTakeSceneEn,
         // chapter2FinalRunSceneEn,
         // закрывающая кода главы 2: две фразы по очереди, канон эпиграфа
-        chapter2ClosingQuoteSceneEn,
+        // chapter2ClosingQuoteSceneEn,
+        // takeaways + further reading, две колонки на общей сетке
+        chapter2TakeawaysSceneEn,
 
         // IV
          // стартовый текст и древо

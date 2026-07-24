@@ -7,10 +7,11 @@ import chapter2FullSubsSceneEn from './scenes/chapter2FullSubsSceneEn?scene';
 import chapter2FullSceneEn from './scenes/chapter2FullSceneEn?scene';
 import preparingForChangeQuestionSceneEn from './scenes/preparingForChangeQuestionSceneEn?scene';
 import chapter2ClosingQuoteSceneEn from './scenes/chapter2ClosingQuoteSceneEn?scene';
+import chapter2TakeawaysSceneEn from './scenes/chapter2TakeawaysSceneEn?scene';
 
 // Throwaway render harness project for chapter-2 scenes.
 // NOT part of the video pipeline — exists so the still exporter can render
 // the scenes without touching the author's project.ts.
 export default makeProject({
-  scenes: [chapter2ReplaySceneEn, chapter2LivingPathSceneEn, chapter2BoundaryTakeSceneEn, chapter2FinalRunSceneEn, chapter2FullSubsSceneEn, chapter2FullSceneEn, preparingForChangeQuestionSceneEn, chapter2ClosingQuoteSceneEn],
+  scenes: [chapter2ReplaySceneEn, chapter2LivingPathSceneEn, chapter2BoundaryTakeSceneEn, chapter2FinalRunSceneEn, chapter2FullSubsSceneEn, chapter2FullSceneEn, preparingForChangeQuestionSceneEn, chapter2ClosingQuoteSceneEn, chapter2TakeawaysSceneEn],
 });
