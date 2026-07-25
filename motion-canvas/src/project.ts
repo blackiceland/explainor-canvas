@@ -67,6 +67,8 @@ import chapter2FullSubsSceneEn from "./scenes/chapter2FullSubsSceneEn?scene";
 import chapter2FullSceneEn from "./scenes/chapter2FullSceneEn?scene";
 import chapter2ClosingQuoteSceneEn from "./scenes/chapter2ClosingQuoteSceneEn?scene";
 import chapter2TakeawaysSceneEn from "./scenes/chapter2TakeawaysSceneEn?scene";
+import nullMeansIntroSceneEn from "./scenes/nullMeansIntroSceneEn?scene";
+import nullMeansTitleSceneEn from "./scenes/nullMeansTitleSceneEn?scene";
 import earnedAbstractionSceneEn from "./scenes/earnedAbstractionSceneEn?scene";
 import chapter2ReversibilitySceneEn from "./scenes/chapter2ReversibilitySceneEn?scene";
 import problemsYouDontHaveCarefulArmSceneEn from "./scenes/problemsYouDontHaveCarefulArmSceneEn?scene";
@@ -80,13 +82,17 @@ import problemsYouDontHaveStrategySceneEn from "./scenes/problemsYouDontHaveStra
 import pipelineGrabGrowthSceneEn from "./scenes/pipelineGrabGrowthSceneEn?scene";
 import grabStrategyOrbitSceneEn from "./scenes/grabStrategyOrbitSceneEn?scene";
 import problemsYouDontHaveCostSceneEn from "./scenes/problemsYouDontHaveCostSceneEn?scene";
+import duplicationHateIntroScene from "./scenes/duplicationHateIntroScene?scene";
+import introMergeScene from "./scenes/introMergeScene?scene";
+import duplicationBestChoiceTitleSceneEn from "./scenes/duplicationBestChoiceTitleSceneEn?scene";
 
 export default makeProject({
     experimentalFeatures: true,
     scenes: [
+
+        // I — YOUR NULL MEANS TOO MUCH
         // duplicationHateIntroScene,
         // introMergeScene,
-        // duplicationBestChoiceTitleSceneEn,
         // doItAllComponentTitleSceneEn,
         // chapter1IntroScene,
         // dryFiltersScene,
@@ -179,7 +185,13 @@ export default makeProject({
         // закрывающая кода главы 2: две фразы по очереди, канон эпиграфа
         // chapter2ClosingQuoteSceneEn,
         // takeaways + further reading, две колонки на общей сетке
-        chapter2TakeawaysSceneEn,
+        // chapter2TakeawaysSceneEn,
+
+        // V — YOUR NULL MEANS TOO MUCH
+        // эпиграф → наезд на Null → 10с код-таймлапса вокруг still point
+        nullMeansIntroSceneEn,
+        // титул видео, две строки крупно
+        nullMeansTitleSceneEn,
 
         // IV
          // стартовый текст и древо
