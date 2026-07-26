@@ -1,39 +1,31 @@
-import {makeScene2D, Node, Path, Rect, blur} from '@motion-canvas/2d';
+import {makeScene2D, Node, Path} from '@motion-canvas/2d';
 import {createRef, easeInOutCubic, linear, waitFor} from '@motion-canvas/core';
 import {applyBackground} from '../core/utils';
 import {TITLE_LINES} from './nullTitleGlyphs';
 
-// Титул «Your null / means too much» — РИСУЕТСЯ КАК РУКОЙ (запрос автора: рисовка
-// рукой, НЕ тайпинг). Связный каллиграфический курсив (PinyonScript, запечён в
-// контуры) проявляется чернильным пером слева направо: на СВЯЗНОМ письме это
-// читается как ведущая строку рука, а не typewriter.
+// Титул «Your null / means too much» — НАСТОЯЩАЯ РИСОВКА ПЕРОМ (Playfair Display
+// Italic). Перо ведёт растущую обводку ПО ОСЕВОЙ линии буквы (скелет глифа,
+// end:0→1), а красивая залитая буква проявляется ВСЛЕД за пером. Это рисование,
+// а не открывашка залитого глифа слева-направо.
 //
-// ⚠️ «Перо, а не вайп»: фронт проявления РАЗМЫТ (blur на маске) → чернила
-// натекают из-под пера мягкой кромкой, а не рубленым вертикальным столбцом
-// (именно рубленый край и делал эффект «печатанием»). Скорость ровная — рука
-// ведёт линию с одинаковым нажимом.
+// Механика: на строку — залитый Path (line.d, красивая буква) + Path-скелет
+// (line.pen, осевая в порядке письма) толстой круглой обводкой как маска
+// compositeOperation:'destination-in', end 0→1. Перо шириной NIB покрывает
+// толстые штрихи Playfair; заливка режется к тому, что перо уже прошло.
 //
-// Механика: СТРОКА = ОДИН залитый Path (fill CREAM, БЕЗ обводки — обводка
-// контурного шрифта рисует ПЕРИМЕТР буквы = точки/пустые контуры), в кэш-ячейке
-// (Node cache) + один маск-Rect compositeOperation:'destination-in', растущий по
-// ширине. destination-in режет строку к дорисованному; blur даёт мягкий фронт.
-//
-// ⚠️⚠️ Path НЕ авто-центрируется В ОТРИСОВКЕ (Curve.offsetComputedLayout влияет
-// лишь на layout-режим, Shape.drawShape рисует с ОРИГИНОМ БЕЙКА в позиции узла)
-// → строку центрируем САМИ: ячейка x=-inkCx. Интерлиньяж и центровку выводим ИЗ
-// запечённых ink-метрик (baseline y=0 у всех строк) → база ПРЯМАЯ и не зависит
-// от кегля/шрифта. (Жёстко зашитые PITCH/TITLE_Y под другой кегль как раз и
-// клали буквы «немного криво» — здесь их нет.) Сменил шрифт = только перепёк.
+// ⚠️ Скелет печётся в scratchpad/otbake/skelbake.mjs (растр→Zhang-Suen→трассировка).
+// ⚠️ Path рисует baked-координаты с оригином в позиции узла (авто-центрирования в
+// отрисовке нет) → строку центрируем сами (ячейка x=-inkCx). Метрики из ink.
+
+const DEBUG = false;                   // true → показать осевую (скелет) поверх бледной заливки
 
 const CREAM = 'rgba(244, 241, 235, 0.96)';
-const LINE_SPACE = 16;                 // воздух между строками поверх высоты ink
-const PEN_SPEED = 700;                 // px/сек — ровная скорость руки
-const LINE_GAP = 0.2;                  // перо переходит на новую строку
+const LINE_SPACE = 20;
+const PEN_SPEED = 540;                 // px/сек по видимой ширине строки (пейсинг)
+const LINE_GAP = 0.22;
 const HOLD = 2.6;
-const MASK_PAD = 48;                   // запас фронта под курсивные свесы
-const BLUR_FRONT = 15;                 // мягкая чернильная кромка пера (не рубленый край)
+const NIB = 46;                        // ширина пера-маски (покрыть толстые штрихи)
 
-// Метрики из ink запечённых строк (baseline y=0 у всех) → центрируем блок сами.
 const N = TITLE_LINES.length;
 const LINE_H = Math.max(...TITLE_LINES.map(l => l.inkY2 - l.inkY1));
 const PITCH = LINE_H + LINE_SPACE;
@@ -48,40 +40,33 @@ export default makeScene2D(function* (view) {
   const titleNode = createRef<Node>();
   view.add(<Node ref={titleNode} y={TITLE_Y} />);
 
-  // Одна кэш-ячейка на строку: строка-контур + мягкий чернильный маск-фронт.
-  const lineMasks: {mask: Rect; w: number}[] = [];
+  const pens: {pen: Path; dur: number}[] = [];
   TITLE_LINES.forEach((line, li) => {
-    const inkCx = (line.inkX1 + line.inkX2) / 2;      // центр ink в baked-координатах
+    const inkCx = (line.inkX1 + line.inkX2) / 2;
     const inkW = line.inkX2 - line.inkX1;
-    const inkMidY = (line.inkY1 + line.inkY2) / 2;
-    // Центрируем строку целиком (сдвиг ячейки на -inkCx). Path рисует baked-
-    // координаты с оригином в позиции узла — авто-центрирования в отрисовке нет.
-    const lineCell = new Node({x: -inkCx, y: baseY(li), cache: true});
-    lineCell.add(new Path({data: line.d, x: 0, y: 0, fill: CREAM}));
-    const mask = new Rect({
-      offsetX: -1,                       // якорь = левый край ink строки (baked)
-      x: line.inkX1 - MASK_PAD,
-      y: inkMidY,
-      width: 0,
-      height: (line.inkY2 - line.inkY1) + MASK_PAD * 4, // с запасом: blur не заденет верх/низ ink
-      fill: '#fff',
-      filters: [blur(BLUR_FRONT)],       // ⚠️ мягкая кромка → чернила натекают, не рубят
-      compositeOperation: 'destination-in',
+    const cell = new Node({x: -inkCx, y: baseY(li), cache: !DEBUG});
+    const fill = new Path({data: line.d, x: 0, y: 0, fill: CREAM, opacity: DEBUG ? 0.22 : 1});
+    cell.add(fill);
+    const pen = new Path({
+      data: line.pen, x: 0, y: 0,
+      stroke: DEBUG ? '#ff4d4d' : '#fff',
+      lineWidth: DEBUG ? 3 : NIB,
+      lineCap: 'round', lineJoin: 'round',
+      end: DEBUG ? 1 : 0,
+      compositeOperation: DEBUG ? 'source-over' : 'destination-in',
     });
-    lineCell.add(mask);
-    titleNode().add(lineCell);
-    // Перелёт на BLUR_FRONT*2, чтобы последняя буква добралась до полной непрозрачности.
-    lineMasks.push({mask, w: inkW + MASK_PAD * 2 + BLUR_FRONT * 2});
+    cell.add(pen);
+    titleNode().add(cell);
+    pens.push({pen, dur: (inkW + NIB) / PEN_SPEED});
   });
 
-  yield* waitFor(0.8);
+  if (DEBUG) { yield* waitFor(0.2); return; }
 
-  // Перо ведёт строки по очереди ровным нажимом.
-  for (const {mask, w} of lineMasks) {
-    yield* mask.width(w, w / PEN_SPEED, linear);
+  yield* waitFor(0.8);
+  for (const {pen, dur} of pens) {
+    yield* pen.end(1, dur, linear);
     yield* waitFor(LINE_GAP);
   }
-
   yield* waitFor(HOLD);
   yield* titleNode().opacity(0, 0.8, easeInOutCubic);
   yield* waitFor(0.4);

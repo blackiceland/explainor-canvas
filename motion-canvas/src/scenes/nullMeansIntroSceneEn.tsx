@@ -90,6 +90,9 @@ const GHOST_BLUR = 2;
 const THROW = 340;                   // короче прежнего — мягче, менее «свишит»
 const N_OP = 0.18;                   // яркость соседей системы (тусклый фон)
 const PIVOT_OP = 0.6;                // код пивот-строки вокруг null (тусклее null → null самый яркий)
+const GLOW_WARM = 'rgba(255, 228, 190, 1)'; // тёплый свет халации под null
+const GLOW_BLUR = 16;                // мягкость свечения
+const GLOW_OP = 0.22;                // ЛЕГЧАЙШИЙ глоу — null чуть сильнее выделяется
 
 // Зум: непрерывный наезд, пивот (центр null) прибит к экран-центру
 // (pos = −pivot·scale, одинаковые dur/easing на scale и pos → точный пиннинг).
@@ -139,8 +142,13 @@ export default makeScene2D(function* (view) {
   // ── Эпиграф: одна центрованная строка, разрезанная на пивот и остаток ──
   const nullCap = new Txt({text: 'Null', x: PIVOT_LEFT, y: 0, offset: [-1, 0], fontFamily: Fonts.code, fontSize: FS, fill: BEIGE, opacity: 0});
   const nullLow = new Txt({text: 'null', x: PIVOT_LEFT, y: 0, offset: [-1, 0], fontFamily: Fonts.code, fontSize: FS, fill: BEIGE, opacity: 0});
+  // ⚠️ Легчайшая ХАЛАЦИЯ под null: тёплый размытый дубль, additive (lighter) —
+  // мягкий свет ВОКРУГ null, не дешёвый неон-shadow. В textLayer → растёт с
+  // наездом вместе с null. Проявляется на still-point (с nullLow), держится.
+  const nullGlow = new Txt({text: 'null', x: PIVOT_LEFT, y: 0, offset: [-1, 0], fontFamily: Fonts.code, fontSize: FS, fill: GLOW_WARM, opacity: 0, filters: [blur(GLOW_BLUR)], compositeOperation: 'lighter'});
   const rest = new Txt({text: REST, x: TAIL_X, y: 0, offset: [-1, 0], fontFamily: Fonts.code, fontSize: FS, fill: BEIGE, opacity: 0});
   textLayer().add(rest);
+  textLayer().add(nullGlow);       // за глифами null
   textLayer().add(nullCap);
   textLayer().add(nullLow);
 
@@ -296,6 +304,7 @@ export default makeScene2D(function* (view) {
       all(
         nullCap.opacity(0, 0.35, linear),
         nullLow.opacity(1, 0.35, linear),
+        nullGlow.opacity(GLOW_OP, 0.35, linear),   // легчайшая халация зажигается со still-point null
         setContext(0, 0.8),
       ),
       // ровный поток контекстов, короткие холды — таймлапс течёт, не дёргается
