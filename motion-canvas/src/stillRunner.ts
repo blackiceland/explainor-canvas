@@ -1,5 +1,22 @@
+import './global.css';
 import project from './project?project';
 import {Renderer, Vector2} from '@motion-canvas/core';
+
+// Канвас-рендер не триггерит догрузку вебшрифтов сам (сцена рисуется ОДИН раз,
+// свопа после загрузки не будет, кадр замерзает на системном фолбэке — Times
+// вместо серифов, Consolas вместо JetBrains Mono). Поэтому до рендера ждём
+// регистрацию @font-face из global.css (гугловский @import приезжает асинхронно)
+// и явно грузим все начертания.
+async function ensureFontsLoaded(timeoutMs = 10_000): Promise<void> {
+  const t0 = Date.now();
+  while (Date.now() - t0 < timeoutMs) {
+    const families = new Set([...document.fonts].map(f => f.family.replace(/["']/g, '')));
+    if (families.has('Newsreader') && families.has('JetBrains Mono')) break;
+    await new Promise(r => setTimeout(r, 100));
+  }
+  await Promise.all([...document.fonts].map(f => f.load().catch(() => null)));
+  await document.fonts.ready;
+}
 
 type ExportAck = {frame: number};
 
@@ -255,6 +272,8 @@ async function main() {
   const sceneName = params.get('scene') ?? '';
   const timeoutMs = parseNumber(params.get('timeoutMs')) ?? 60_000;
   const showGrid = params.get('grid') !== 'off';
+
+  await ensureFontsLoaded();
 
   const renderer = new Renderer(project);
   const playback = (renderer as any).playback;

@@ -69,6 +69,12 @@ import chapter2ClosingQuoteSceneEn from "./scenes/chapter2ClosingQuoteSceneEn?sc
 import chapter2TakeawaysSceneEn from "./scenes/chapter2TakeawaysSceneEn?scene";
 import nullMeansIntroSceneEn from "./scenes/nullMeansIntroSceneEn?scene";
 import nullMeansTitleSceneEn from "./scenes/nullMeansTitleSceneEn?scene";
+import nullMeansTitleMixedSceneEn from "./scenes/nullMeansTitleMixedSceneEn?scene";
+import nullMeansTitleHeroSceneEn from "./scenes/nullMeansTitleHeroSceneEn?scene";
+import nullMeansTitleCanonSceneEn from "./scenes/nullMeansTitleCanonSceneEn?scene";
+import nullTitleLabSceneEn from "./scenes/nullTitleLabSceneEn?scene";
+import nullMeansTitleSerifSceneEn from "./scenes/nullMeansTitleSerifSceneEn?scene";
+import nullMeansPrologueSceneEn from "./scenes/nullMeansPrologueSceneEn?scene";
 import earnedAbstractionSceneEn from "./scenes/earnedAbstractionSceneEn?scene";
 import chapter2ReversibilitySceneEn from "./scenes/chapter2ReversibilitySceneEn?scene";
 import problemsYouDontHaveCarefulArmSceneEn from "./scenes/problemsYouDontHaveCarefulArmSceneEn?scene";
@@ -190,8 +196,10 @@ export default makeProject({
         // V — YOUR NULL MEANS TOO MUCH
         // эпиграф → наезд на Null → 10с код-таймлапса вокруг still point
         nullMeansIntroSceneEn,
-        // титул видео, две строки крупно
-        nullMeansTitleSceneEn,
+        // титул: эссе-заголовок, строгий сериф (№3 из лабы, Newsreader/Source Serif 4)
+        nullMeansTitleSerifSceneEn,
+        // ПРОЛОГ: титул → 1965 → архивный Хоар (параллакс) → цитата → полоса → лента языков → доска
+        nullMeansPrologueSceneEn,
 
         // IV
          // стартовый текст и древо
