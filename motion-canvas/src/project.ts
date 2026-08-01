@@ -76,6 +76,7 @@ import nullTitleLabSceneEn from "./scenes/nullTitleLabSceneEn?scene";
 import nullMeansTitleSerifSceneEn from "./scenes/nullMeansTitleSerifSceneEn?scene";
 import nullMeansPrologueSceneEn from "./scenes/nullMeansPrologueSceneEn?scene";
 import nullMeansRecordHandlingSceneEn from "./scenes/nullMeansRecordHandlingSceneEn?scene";
+import nullMeansActOneSceneEn from "./scenes/nullMeansActOneSceneEn?scene";
 import earnedAbstractionSceneEn from "./scenes/earnedAbstractionSceneEn?scene";
 import chapter2ReversibilitySceneEn from "./scenes/chapter2ReversibilitySceneEn?scene";
 import problemsYouDontHaveCarefulArmSceneEn from "./scenes/problemsYouDontHaveCarefulArmSceneEn?scene";
@@ -199,10 +200,13 @@ export default makeProject({
         // nullMeansIntroSceneEn,
         // титул: эссе-заголовок, строгий сериф (№3 из лабы, Newsreader/Source Serif 4)
         // nullMeansTitleSerifSceneEn,
-        // ПРОЛОГ: титул → 1965 → архивный Хоар (параллакс) → цитата → полоса → лента языков → доска
-        nullMeansPrologueSceneEn,
-        // ВТОРОЙ ДОКУМЕНТ (улика): Record Handling, 1966 — задача, ответ, три null
-        nullMeansRecordHandlingSceneEn,
+        // АКТ 1 ОДНОЙ СЦЕНОЙ: 1965 → Хоар → цитата+подпись → вопрос на стене →
+        // страница ALGOL на стене (свет на шапке) → лист откладывают →
+        // Record Handling (маркер, три null) → цена решения → лента → вопрос
+        nullMeansActOneSceneEn,
+        // разобраны на акт выше, оставлены на случай отката:
+        // nullMeansPrologueSceneEn,
+        // nullMeansRecordHandlingSceneEn,
 
         // IV
          // стартовый текст и древо
