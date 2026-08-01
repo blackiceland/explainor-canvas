@@ -198,7 +198,7 @@ export default makeProject({
         // эпиграф → наезд на Null → 10с код-таймлапса вокруг still point
         // nullMeansIntroSceneEn,
         // титул: эссе-заголовок, строгий сериф (№3 из лабы, Newsreader/Source Serif 4)
-        nullMeansTitleSerifSceneEn,
+        // nullMeansTitleSerifSceneEn,
         // ПРОЛОГ: титул → 1965 → архивный Хоар (параллакс) → цитата → полоса → лента языков → доска
         nullMeansPrologueSceneEn,
         // ВТОРОЙ ДОКУМЕНТ (улика): Record Handling, 1966 — задача, ответ, три null

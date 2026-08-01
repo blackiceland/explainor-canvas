@@ -199,38 +199,40 @@ export default makeScene2D(function* (view) {
   });
   yearNode().add(yearTxt);
   yearNode().add(cursor);
-  // ghost-хвосты для улёта влево: длинный смаз позади движения.
-  // ⚠️ Две ловушки, обе уже наступлены: копий должно быть много (двух хватало
-  // ровно на «одна строка отстала»), и блюр обязан ПЕРЕКРЫВАТЬ шаг копий —
-  // иначе смещения, кратные моно-advance (YEAR_ADV), выстраивают цифры в
-  // читаемый ряд «5 5 5 5» вместо смаза. Поэтому шаг растёт нелинейно и не
-  // кратен advance, а блюр догоняет расстояние.
-  const YEAR_TAIL = [
-    {dx: 19, op: 0.30, bl: 4},
-    {dx: 47, op: 0.25, bl: 7},
-    {dx: 87, op: 0.20, bl: 11},
-    {dx: 141, op: 0.16, bl: 15},
-    {dx: 211, op: 0.12, bl: 20},
-    {dx: 299, op: 0.08, bl: 26},
-    {dx: 407, op: 0.05, bl: 32},
-    {dx: 537, op: 0.03, bl: 38},
-  ];
+  // ghost-хвост для улёта влево: смаз позади движения.
+  // ⚠️⚠️ Три раза наступлено, поэтому подробно. (1) Двух копий мало — читается
+  // как «одна строка отстала». (2) Шаг копий не должен быть кратен моно-advance
+  // (YEAR_ADV), иначе цифры выстраиваются в читаемый ряд «5 5 5 5». (3) Большой
+  // блюр на дальних копиях НЕЛЬЗЯ: он изотропен и раздувает хвост по вертикали —
+  // получается конус, а не смаз. Настоящий motion blur направленный, поэтому
+  // делаем ПЛОТНОСТЬЮ: много копий с мелким шагом и один общий маленький блюр
+  // на слое (канон ghost-слоя из flagYudanTimelapseSceneRu) — вертикально хвост
+  // растёт ровно на этот блюр, то есть не растёт.
+  // шаг обязан быть мельче общего блюра, иначе в полосе видна периодичность копий
+  const YEAR_TAIL_N = 34;
+  const YEAR_TAIL_SPAN = 430;
+  const YEAR_TAIL_BLUR = 7;
   const yearTailOp = createSignal(0);
-  YEAR_TAIL.forEach(g => {
-    const node = new Txt({
-      text: YEAR,
-      x: yearLeft + g.dx,
-      offset: [-1, 0],
-      fontFamily: MONO,
-      fontSize: YEAR_FS,
-      fontWeight: 500,
-      fill: YEAR_BEIGE,
-      opacity: () => g.op * yearTailOp(),
-      filters: [blur(g.bl)],
-      cachePadding: g.bl * 2 + 12,   // без запаса кэша блюр срезает по краю ноды
-    });
-    yearNode().add(node);
-  });
+  const yearTail = new Node({opacity: () => yearTailOp()});
+  for (let i = 0; i < YEAR_TAIL_N; i++) {
+    const t = i / (YEAR_TAIL_N - 1);
+    yearTail.add(
+      new Txt({
+        text: YEAR,
+        x: yearLeft + 14 + t * YEAR_TAIL_SPAN,
+        offset: [-1, 0],
+        fontFamily: MONO,
+        fontSize: YEAR_FS,
+        fontWeight: 500,
+        fill: YEAR_BEIGE,
+        opacity: 0.115 * Math.pow(1 - t, 1.4),
+      }),
+    );
+  }
+  yearTail.cache(true);
+  yearTail.cachePadding(YEAR_TAIL_BLUR * 2 + 16);
+  yearTail.filters([blur(YEAR_TAIL_BLUR)]);
+  yearNode().add(yearTail);
 
   // ═══ 2-5. Фото-фрейм ══════════════════════════════════════════════════
   const frameH = createSignal(Screen.height);

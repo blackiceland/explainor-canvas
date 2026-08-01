@@ -45,9 +45,11 @@ const PAPER_CX = RH_W / 2;
 const PAPER_CY = RH_H / 2;
 const TILT = -0.45;                  // градусы, наклон листа на поверхности
 
-// зум: текстовая колонка (paper x 120…1500) должна занять ширину кадра —
-// иначе строчный кегль уходит в нечитаемое на телефоне
-const ZOOM_S = 3.4;                  // s = RH_S*ZOOM_S = 1.36
+// зум: текстовая колонка (paper x 120…1500) занимает ширину кадра с полями.
+// ⚠️ Кегль нашего набора ВЫВЕДЕН отсюда — он подогнан под экранный размер строки
+// на листе, иначе строка не переживёт растворение. Поэтому «код слишком крупный»
+// чинится этим числом, а не кеглем: 1.36 давало 41пт и поля по 22px.
+const ZOOM_S = 3.0;                  // s = RH_S*ZOOM_S = 1.2
 const S_ZOOM = RH_S * ZOOM_S;
 const COL_CX = 810;                  // центр текстовой колонки в координатах листа
 
@@ -58,9 +60,12 @@ const HL_PARTIAL = {x0: 120, x1: 849, cy: 1851, h: 46};   // there may be an x f
 const HL_NULL_A = {x0: 1040, x1: 1428, cy: 2011, h: 45};  // a special null value is
 const HL_NULL_B = {x0: 120, x1: 266, cy: 2051, h: 43};    // provided
 
-const AT_DECL = {x: COL_CX, y: 1071};
+// ⚠️ Прицел по объявлению взят НИЖЕ самого блока: блок встаёт в верхнюю треть,
+// и место под строку создания записи есть сразу. Раньше блок центрировался, а
+// потом его приходилось поднимать — коррекция задним числом читалась как рывок.
+const AT_DECL = {x: COL_CX, y: 1158};
 const AT_PARTIAL = {x: COL_CX, y: 1851};
-const AT_NULL = {x: COL_CX, y: 2010};
+const AT_NULL = {x: COL_CX, y: 1975};   // ниже нельзя: кадр выйдет за нижний край листа
 
 // ── тайминги ────────────────────────────────────────────────────────────
 const PAGE_IN = 1.1;
@@ -74,12 +79,9 @@ const MOVE_SHORT = 0.6;
 const HL_WRAP = 0.28;                // хвост маркера на следующей строке
 const READ_NULL = 1.4;               // ⚠️ VO
 const BACK_DUR = 0.9;
-const DISSOLVE = 1.0;
-const CODE_HOLD = 0.9;
-const LIFT_DUR = 0.8;                // блок поднимается, освобождая строку под T:=
-const LIFT_Y = -96;
-const LIFT_X = 62;                   // и отходит от левого края: позицию строки он
-                                     // держал только ради непрерывности растворения
+const DISSOLVE = 1.15;               // «строка пережила» читается ЗДЕСЬ, а не в паузе
+const CODE_HOLD = 0.45;              // длинная пауза показывала пустой низ кадра под
+                                     // ещё не приехавшую строку — этого делать нельзя
 const CHAR = 0.028;                  // печать
 const NULL_BEAT = 0.34;              // пауза перед каждым null
 const TAIL_HOLD = 1.2;
@@ -88,7 +90,7 @@ const OUT_DUR = 0.7;
 
 // ── набор на графите: подобран так, что строка ПЕРЕЖИВАЕТ растворение —
 // те же экранные позиции, что у строк на листе при S_ZOOM ────────────────
-const CODE_FS = 41;
+const CODE_FS = 36;
 const CODE_ADV = CODE_FS * 0.6;
 // иерархия только цветом: объявление — контекст, null — предмет. Разница
 // 0.92/0.98 не читалась вовсе, три null тонули в собственной строке.
@@ -170,27 +172,43 @@ export default makeScene2D(function* (view) {
   view.add(<Node ref={code} opacity={0} />);
 
   const dimOthers = createSignal(1);
-  const makeLine = (paperX: number, paperY: number, text: string) => {
+  // Три ссылочных ПОЛЯ держим кремовым — тем же, каким придут три null.
+  // Это и есть мост к пониманию: строка создания записи позиционная, без имён
+  // аргументов, и с холода никто не помнит порядок полей. Три кремовых имени
+  // сверху и три кремовых null снизу связываются глазом сами — без подписей,
+  // стрелок и без нашей перерисованной схемы.
+  const makeLine = (paperX: number, paperY: number, toks: {text: string; field?: boolean}[]) => {
     const [sx, sy] = screenOf(paperX, paperY, AT_DECL, S_ZOOM);
-    const t = new Txt({
-      text,
-      x: sx,
-      y: sy,
-      offset: [-1, 0],
-      fontFamily: MONO,
-      fontSize: CODE_FS,
-      fontWeight: 500,
-      fill: INK,
-      opacity: () => dimOthers(),
-    });
-    code().add(t);
-    return t;
+    let n = 0;
+    for (const tok of toks) {
+      code().add(
+        new Txt({
+          text: tok.text,
+          x: sx + n * CODE_ADV,
+          y: sy,
+          offset: [-1, 0],
+          fontFamily: MONO,
+          fontSize: CODE_FS,
+          fontWeight: 500,
+          fill: tok.field ? NULL_C : INK,
+          opacity: () => dimOthers(),
+        }),
+      );
+      n += tok.text.length;
+    }
   };
   // строки 19, 21, 22, 23 страницы — его собственная разбивка
-  makeLine(120, 1010, 'record class person (integer date of birth; Boolean male;');
-  makeLine(500, 1050, 'reference (person) father, elder sibling, youngest');
-  makeLine(1245, 1089, 'offspring);');
-  makeLine(120, 1132, 'reference (person) T, J, K;');
+  makeLine(120, 1010, [{text: 'record class person (integer date of birth; Boolean male;'}]);
+  makeLine(500, 1050, [
+    {text: 'reference (person) '},
+    {text: 'father,', field: true},
+    {text: ' '},
+    {text: 'elder sibling,', field: true},
+    {text: ' '},
+    {text: 'youngest', field: true},
+  ]);
+  makeLine(1245, 1089, [{text: 'offspring', field: true}, {text: ');'}]);
+  makeLine(120, 1132, [{text: 'reference (person) T, J, K;'}]);
 
   // ── строка создания записи: печатается, три null подряд ───────────────
   const [declX, declY] = screenOf(120, 1132, AT_DECL, S_ZOOM);
@@ -263,9 +281,6 @@ export default makeScene2D(function* (view) {
   );
   pageRig().remove();
   yield* waitFor(CODE_HOLD);
-
-  // блок поднимается ровно настолько, чтобы принять строку создания записи
-  yield* code().position([LIFT_X, LIFT_Y], LIFT_DUR, easeInOutCubic);
 
   // печать: перед каждым null — короткая пауза, три подряд и есть кадр
   for (let i = 0; i < TOKENS.length; i++) {
