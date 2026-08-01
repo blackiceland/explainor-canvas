@@ -49,3 +49,6 @@ out/
 .claude/
 dist/
 debug-screenshots/
+
+# puppeteer profile for the still/shot harness (font+asset HTTP cache)
+motion-canvas/.shot-profile/

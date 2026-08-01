@@ -11,7 +11,8 @@ const FONT = 'Newsreader, serif';   // утверждён автором («шр
 
 const WARM_CREAM = 'rgba(244, 230, 200, 0.96)';
 const FS = 148;
-const PITCH = 150;                  // −12% по правке автора: строки ближе, читаются одним блоком
+const PITCH = 140;                  // ещё −10px: ни в одной строке нет выносных вниз,
+                                    // при 0.95 кегля строки запираются в один блок
 const BLOCK_Y = -24;                // оптический центр: блок чуть выше геометрического
 
 export default makeScene2D(function* (view) {

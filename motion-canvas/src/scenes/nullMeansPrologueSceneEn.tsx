@@ -16,15 +16,18 @@ import {
 import {applyBackground} from '../core/utils';
 import {Colors, Screen} from '../core/theme';
 
-// ПРОЛОГ «Your null means too much»: титул-эссе → 1965 (консольная печать,
-// моно + мигающая каретка) → ЕДИНОЕ движение камеры: 1965 улетает влево со
-// смазом, фон светлеет и оказывается ДВИЖУЩИМСЯ фото (панорама Хоара, 2 слоя:
-// фон-с-тенью + вырезка; параллакс: дрейф камеры, Хоар едет и растёт
-// относительно собственной тени на стене) → настенная цитата “MY BILLION-DOLLAR
-// MISTAKE.” (референс 35a13f9c: тёмная краска, caps, тень вправо-вниз) →
-// пан вправо + сужение кадра в тонкую фото-полосу → лента языков со слот-
-// защёлкиванием null-конструкций (равные зазоры, тёплые цвета) → полоса
-// темнеет в графит и СМЫКАЕТСЯ сверху/снизу — остаётся графитовый канвас.
+// ПРОЛОГ «Your null means too much»: 1965 (консольная печать, моно + мигающая
+// каретка; титул живёт ОТДЕЛЬНОЙ сценой nullMeansTitleSerifSceneEn и здесь его
+// нет) → ЕДИНОЕ движение камеры: 1965 улетает влево со смазом, фон светлеет и
+// оказывается ДВИЖУЩИМСЯ фото (панорама Хоара, 2 слоя: фон-с-тенью + вырезка;
+// параллакс сдержанный: дрейф камеры, Хоар едва расходится с собственной тенью)
+// → настенная цитата “MY BILLION-DOLLAR MISTAKE.” (референс 35a13f9c: тёмная
+// краска, caps, тень вправо-вниз) → КРОСС-ФЕЙД в страницу CACM → зум в шапку →
+// хайлайтер бледно-розовым красит строки (имя → заголовок → June, 1966) →
+// расфокус + `reference T + null` ОДНОЙ строкой → камера едет вправо →
+// сужение кадра в тонкую фото-полосу → лента языков со слот-защёлкиванием
+// null-конструкций (равные зазоры, тёплые цвета) → полоса СМЫКАЕТСЯ блоками
+// сверху/снизу — остаётся графитовый канвас.
 //
 // ⚠️ Ассеты: public/hoare/*-3200x1350.* — ОБА слоя абсолютно в одних координатах
 // и масштабе (вырезка выровнена по полному кадру солвером в _hoare_prep.mjs,
@@ -40,28 +43,16 @@ import {Colors, Screen} from '../core/theme';
 const IMG_W = 3200;
 const IMG_H = 1350;
 const FIG_CX = 1593;                 // центр фигуры в пикселях ассета
-const FIG_RIGHT = 1851;
 const PHOTO_S = 0.88;                // базовый масштаб панорамы (высота 1188 ≥ 1080)
 const toLayer = (imgX: number) => imgX - IMG_W / 2;   // img-пиксели → координаты слоя
 
 // Хоар на ~32% ширины экрана после влёта:
 const FIG_SCREEN_X = 0.32 * Screen.width - Screen.width / 2;           // −345.6
 const PAN_X0 = Math.round(FIG_SCREEN_X - toLayer(FIG_CX) * PHOTO_S);   // −340
-// финальный пан: правый край фигуры полностью за левой границей (+30px запаса)
-const PAN_X_END = Math.round(-Screen.width / 2 - 30 - toLayer(FIG_RIGHT) * PHOTO_S); // −1211
-const PAN_Y_END = 216;               // вертикальный дрейф: полоса приходит на чистую стену
 
-// ── титул (утверждённый эссе-заголовок) ─────────────────────────────────
 const SERIF = 'Newsreader, serif';
-const WARM_CREAM = 'rgba(244, 230, 200, 0.96)';
-const TITLE_FS = 148;
-const TITLE_PITCH = 150;
-const TITLE_Y = -24;
 
 // ── тайминги (все ключевые — константами) ───────────────────────────────
-const TITLE_IN = 0.85;
-const TITLE_HOLD = 2.6;
-const TITLE_OUT = 0.8;
 const YEAR_KEY = 0.13;               // интервал печати цифр (консоль)
 const YEAR_HOLD = 1.15;              // курсор мигает
 const YEAR_FLY = 0.5;                // 1965 улетает влево ПОЛНОСТЬЮ (блокирующе)
@@ -69,21 +60,69 @@ const SHUTTER_DUR = 1.0;             // затем МЯГКОЕ проявлен
 const SHUTTER_TRAVEL = 300;
 const SETTLE = 0.85;
 const QUOTE_IN = 0.8;
-const QUOTE_HOLD = 12.0;             // ⚠️ ДЛИНА ВВОДНОЙ ОЗВУЧКИ — сюда встанет VO
-const QUOTE_OUT = 0.55;              // гаснет УЖЕ В ДВИЖЕНИИ пана
-const PAN_LEAD = 0.15;               // пан стартует чуть раньше сужения
-const PAN_DUR = 1.65;
+const HOARE_BLOCK = 8.0;             // ⚠️ VO: от полного появления Хоара до срыва в страницу
+const QUOTE_HOLD = HOARE_BLOCK - SETTLE - QUOTE_IN;
+const QUOTE_OUT = 0.5;               // гаснет УЖЕ В ДВИЖЕНИИ срыва
+
+// ── страница ALGOL: КРОСС-ФЕЙД из фото (толчок вправо читался дёшево);
+// единственная функция — доказать связь Хоар ↔ 1965 ↔ ALGOL W ───────────
+const PAGE_SRC = '/hoare/algol-paper-horizontal-3200x1800.jpg';
+const PAGE_W = 3200;
+const PAGE_H = 1800;
+const PAGE_S = 0.6;                  // 3200×1800 → ровно 1920×1080
+const XFADE = 1.15;                  // кросс-фейд фото → страница
+const PAGE_XF_S = 1.055;             // страница приходит чуть крупнее и оседает
+const PHOTO_XF_S = 1.05;             // фото на выходе продолжает еле заметный пуш
+const PAGE_HOLD_0 = 0.55;            // страница целиком, в полном контрасте
+// ⚠️ Эта страница — АЛИБИ: она доказывает только связку Хоар↔Wirth↔1966 и
+// проходит БЫСТРО. Разбор по строкам ведёт второй документ (Record Handling,
+// nullMeansRecordHandlingSceneEn) — два подробных зума в бумагу подряд читались
+// бы как приём, а не как расследование. Поэтому здесь: имя + заголовок и всё,
+// без спуска к колонтитулу.
+// зум в шапку: имя, заголовок и аффилиации становятся читаемыми (мобилка).
+// ⚠️ кадр обязан оставаться ВНУТРИ ассета: при масштабе s точка p может уехать
+// в центр только если p.y*s ≥ 540 сверху и (1800−p.y)*s ≥ 540 снизу — иначе за
+// краем jpg открывается пустота. При s = PAGE_S*ZOOM_S = 1.5 шапка проходит,
+// колонтитул (y≈1642) — нет, поэтому он ставится в нижнюю треть кадра.
+const ZOOM_DUR = 1.0;
+const ZOOM_S = 2.5;
+const ZOOM_AT = {x: 1585, y: 400};   // точка страницы, которая уезжает в центр
+const HL_DUR = 0.45;                 // хайлайтер проводит по строке
+const HL_GAP = 0.22;
+const PAGE_HOLD_1 = 0.5;
+const DEFOCUS = 0.7;                 // страница уходит в расфокус
+const PAGE_SCRIM = 0.8;              // белая страница под скримом всё равно светлая:
+                                     // 0.72 давало серый фон под кремовым текстом
+const SCHEME_IN = 0.6;
+const SCHEME_HOLD = 2.4;             // ⚠️ VO: «...and implemented as ALGOL W»
+const SCHEME_OUT = 0.4;
+const CAM_RIGHT = 560;               // камера едет вправо ПЕРЕД сужением кадра
+const CAM_RIGHT_DUR = 1.15;
+
+// ── хайлайтер: бледно-розовый маркер поверх набора (multiply — как краска
+// по бумаге, а не плашка). Координаты — замеренные экстенты краски на ассете
+// (_measure_page.mjs), не на глаз: маркер шире строки читается как плашка ───
+const HL_FILL = 'rgb(247, 179, 196)';
+const PAGE_MARGIN = 'rgb(209, 209, 210)';   // тон поля вокруг листа на ассете
+const HL_LINES = [
+  {x0: 1743, x1: 1908, cy: 417, h: 44},   // C. A. R. Hoare
+  {x0: 1204, x1: 1968, cy: 362, h: 52},   // A Contribution to the Development of ALGOL
+];
+// «June, 1966» в колонтитуле (x0 1224, x1 1316, cy 1642) НЕ выделяем: спуск к
+// низу листа стоил ~2с и делал алиби подробным. Дату несёт озвучка.
+
 const SQUEEZE_DUR = 1.4;
 const BAND_H = 164;                  // финальная фото-полоса
 const BELT_STEP_DUR = 0.85;          // на один язык
 const SHUT_H = 700;                  // высота блоков-шторок финала
 const SHUT_DUR = 0.6;                // блоки смыкаются сверху и снизу
 
-// параллакс: заметный дрейф камеры + Хоар едет и растёт относительно фона
-// (фигура расходится с СОБСТВЕННОЙ тенью на стене — главный сигнал глубины)
-const CAMERA_DRIFT = -110;           // стена+цитата (камера медленно едет вправо)
-const HOARE_DRIFT = -55;             // Хоар дополнительно к стене
-const HOARE_SCALE = 1.045;           // Хоар ближе к камере — растёт быстрее фона
+// параллакс: дрейф камеры остаётся, расхождение Хоара со стеной приглушено
+// (на полном ходу фигура заметно отрывалась от собственной тени — читалось
+// как вырезка, а не как глубина)
+const CAMERA_DRIFT = -96;            // стена+цитата (камера медленно едет вправо)
+const HOARE_DRIFT = -20;             // Хоар дополнительно к стене
+const HOARE_SCALE = 1.016;           // Хоар ближе к камере — растёт чуть быстрее фона
 const DRIFT_DUR = SHUTTER_DUR + SETTLE + QUOTE_IN + QUOTE_HOLD;
 
 // ── цитата на стене (по референсу 35a13f9c: CAPS с кавычками, ТЁМНАЯ
@@ -122,7 +161,7 @@ export default makeScene2D(function* (view) {
 
   // изображения должны быть готовы до первого кадра со стиллом
   yield Promise.all(
-    [BG_SRC, CUT_SRC].map(
+    [BG_SRC, CUT_SRC, PAGE_SRC].map(
       src =>
         new Promise<void>(resolve => {
           const el = document.createElement('img');
@@ -133,17 +172,7 @@ export default makeScene2D(function* (view) {
     ),
   );
 
-  // ═══ 1. Титул ═════════════════════════════════════════════════════════
-  const title = createRef<Node>();
-  view.add(<Node ref={title} y={TITLE_Y} opacity={0} />);
-  title().add(
-    <Txt text={'Your null'} y={-TITLE_PITCH / 2} fontFamily={SERIF} fontSize={TITLE_FS} fontWeight={500} fill={WARM_CREAM} />,
-  );
-  title().add(
-    <Txt text={'means too much'} y={TITLE_PITCH / 2} fontFamily={SERIF} fontSize={TITLE_FS} fontWeight={500} fill={WARM_CREAM} />,
-  );
-
-  // ═══ 1b. 1965 — консольная печать (моно + блочная каретка) ════════════
+  // ═══ 1. 1965 — консольная печать (моно + блочная каретка) ═════════════
   const yearNode = createRef<Node>();
   view.add(<Node ref={yearNode} />);
   const YEAR = '1965';
@@ -170,20 +199,37 @@ export default makeScene2D(function* (view) {
   });
   yearNode().add(yearTxt);
   yearNode().add(cursor);
-  // ghost-хвосты для улёта влево (смаз позади движения)
-  const yearGhosts = [34, 76].map((dx, i) => {
-    const g = new Txt({
+  // ghost-хвосты для улёта влево: длинный смаз позади движения.
+  // ⚠️ Две ловушки, обе уже наступлены: копий должно быть много (двух хватало
+  // ровно на «одна строка отстала»), и блюр обязан ПЕРЕКРЫВАТЬ шаг копий —
+  // иначе смещения, кратные моно-advance (YEAR_ADV), выстраивают цифры в
+  // читаемый ряд «5 5 5 5» вместо смаза. Поэтому шаг растёт нелинейно и не
+  // кратен advance, а блюр догоняет расстояние.
+  const YEAR_TAIL = [
+    {dx: 19, op: 0.30, bl: 4},
+    {dx: 47, op: 0.25, bl: 7},
+    {dx: 87, op: 0.20, bl: 11},
+    {dx: 141, op: 0.16, bl: 15},
+    {dx: 211, op: 0.12, bl: 20},
+    {dx: 299, op: 0.08, bl: 26},
+    {dx: 407, op: 0.05, bl: 32},
+    {dx: 537, op: 0.03, bl: 38},
+  ];
+  const yearTailOp = createSignal(0);
+  YEAR_TAIL.forEach(g => {
+    const node = new Txt({
       text: YEAR,
-      x: yearLeft + dx,
+      x: yearLeft + g.dx,
       offset: [-1, 0],
       fontFamily: MONO,
       fontSize: YEAR_FS,
       fontWeight: 500,
       fill: YEAR_BEIGE,
-      opacity: 0,
+      opacity: () => g.op * yearTailOp(),
+      filters: [blur(g.bl)],
+      cachePadding: g.bl * 2 + 12,   // без запаса кэша блюр срезает по краю ноды
     });
-    yearNode().add(g);
-    return {node: g, op: i === 0 ? 0.3 : 0.14};
+    yearNode().add(node);
   });
 
   // ═══ 2-5. Фото-фрейм ══════════════════════════════════════════════════
@@ -290,9 +336,76 @@ export default makeScene2D(function* (view) {
     );
     return n;
   };
-  const tint = createRef<Node>();
-  photoFrame().add(<Node ref={tint} opacity={0} />);
-  tint().add(makeBackdrop());
+  // ═══ Страница ALGOL (внутри фото-фрейма: наследует сужение в полосу) ═══
+  // Акцент — не окна света в затемнении, а ЗУМ в шапку и хайлайтер: розовая
+  // краска ложится по строке (multiply — бумага просвечивает сквозь маркер).
+  const toPage = (px: number, py: number) => [px - PAGE_W / 2, py - PAGE_H / 2] as const;
+  // положение рига, при котором точка страницы p оказывается в центре кадра
+  const pageAt = (p: {x: number; y: number}, s: number) => {
+    const [lx, ly] = toPage(p.x, p.y);
+    return new Vector2(-lx * s, -ly * s);
+  };
+  const pageBlur = createSignal(0);
+  const pageRig = createRef<Node>();
+  photoFrame().add(
+    <Node ref={pageRig} scale={PAGE_S * PAGE_XF_S} opacity={0} filters={[blur(() => pageBlur())]} />,
+  );
+  // подложка в тон поля: страховка от пустоты за краем ассета на любом
+  // промежуточном кадре зума/спуска (сам jpg кадр перекрывает, см. ZOOM_S)
+  pageRig().add(new Rect({width: PAGE_W * 3, height: PAGE_H * 3, fill: PAGE_MARGIN}));
+  pageRig().add(new Img({src: PAGE_SRC, width: PAGE_W, height: PAGE_H}));
+
+  // хайлайтер: ширина растёт слева направо, как ведут маркером
+  const makeHighlight = (hl: {x0: number; x1: number; cy: number; h: number}) => {
+    const [lx, ly] = toPage(hl.x0, hl.cy);
+    const pad = hl.h * 0.22;
+    const r = new Rect({
+      x: lx - pad,
+      y: ly,
+      offset: [-1, 0],
+      width: 0,
+      height: hl.h,
+      fill: HL_FILL,
+      compositeOperation: 'multiply',
+      opacity: 0.82,
+    });
+    pageRig().add(r);
+    return {rect: r, w: hl.x1 - hl.x0 + pad * 2};
+  };
+  const highlights = HL_LINES.map(makeHighlight);
+
+  const pageScrim = new Rect({width: PAGE_W * 3, height: PAGE_H * 3, fill: 'rgb(8, 9, 12)', opacity: 0});
+  pageRig().add(pageScrim);
+
+  // современная схема поверх расфокусной страницы: первое появление слова null.
+  // ОДНОЙ строкой — раскладка по моно-advance, чтобы null стоял на своём месте.
+  const scheme = createRef<Node>();
+  photoFrame().add(<Node ref={scheme} opacity={0} />);
+  const SCHEME_FS = 74;
+  const SCHEME_ADV = SCHEME_FS * 0.6;
+  const SCHEME_PARTS = [
+    {text: 'reference T', fill: 'rgba(232, 207, 174, 0.96)'},
+    {text: '+', fill: 'rgba(232, 207, 174, 0.55)'},
+    {text: 'null', fill: 'rgba(244, 230, 200, 0.96)'},
+  ];
+  const SCHEME_SEP = SCHEME_ADV * 1.6;   // воздух вокруг «+»
+  const schemeW =
+    SCHEME_PARTS.reduce((sum, p) => sum + p.text.length * SCHEME_ADV, 0) + SCHEME_SEP * 2;
+  let schemeX = -schemeW / 2;
+  for (const part of SCHEME_PARTS) {
+    scheme().add(
+      <Txt
+        text={part.text}
+        x={schemeX}
+        offset={[-1, 0]}
+        fontFamily={MONO}
+        fontSize={SCHEME_FS}
+        fontWeight={500}
+        fill={part.fill}
+      />,
+    );
+    schemeX += part.text.length * SCHEME_ADV + SCHEME_SEP;
+  }
 
   // блоки-шторки финала: графитовые массы сверху и снизу СМЫКАЮТСЯ, закрывая
   // фото-полосу. Заливка = копия фона, компенсированная к экранным координатам
@@ -385,12 +498,8 @@ export default makeScene2D(function* (view) {
   });
 
   // ═══ ТАЙМЛАЙН ═════════════════════════════════════════════════════════
-  // t≈0.4 титул | 5.0 год | 6.7 влёт | 8.9 цитата | 21.5 пан | 23.8 лента | 30.1 доска
-  yield* waitFor(0.4);
-  yield* title().opacity(1, TITLE_IN, easeOutCubic);
-  yield* waitFor(TITLE_HOLD);
-  yield* title().opacity(0, TITLE_OUT, easeInOutCubic);
-  yield* waitFor(0.35);
+  // t≈0.5 год | 2.2 влёт | 4.4 цитата | 12.4 кросс-фейд | 14.4 зум | 21 схема | 25 полоса
+  yield* waitFor(0.5);
 
   // 1965 — консольная печать: посимвольно, каретка ведёт и мигает
   cursor.opacity(1);
@@ -415,12 +524,15 @@ export default makeScene2D(function* (view) {
     hoareLayer().x(CAMERA_DRIFT + HOARE_DRIFT, DRIFT_DUR + SHUTTER_DUR, easeInOutSine),
     hoareLayer().scale(HOARE_SCALE, DRIFT_DUR + SHUTTER_DUR, easeInOutSine),
   );
-  yield* all(
+  // год срывается влево; фото начинает светлеть на 60% его пути — без паузы-дыры,
+  // но и без наложения на стоящие цифры
+  cursor.opacity(0);                 // каретка не улетает вместе со строкой
+  yield all(
     yearNode().x(-1560, YEAR_FLY, easeInCubic),
-    ...yearGhosts.map(g =>
-      chain(g.node.opacity(g.op, YEAR_FLY * 0.3, linear), g.node.opacity(0, YEAR_FLY * 0.7, easeOutCubic)),
-    ),
+    // хвост набирает силу вместе с разгоном и гаснет к концу пролёта
+    chain(yearTailOp(1, YEAR_FLY * 0.35, easeOutCubic), yearTailOp(0, YEAR_FLY * 0.65, easeInCubic)),
   );
+  yield* waitFor(YEAR_FLY * 0.6);
   yield* all(
     photoFrame().opacity(1, SHUTTER_DUR * 0.85, easeInOutCubic),
     panorama().x(PAN_X0, SHUTTER_DUR, easeOutCubic),
@@ -434,21 +546,49 @@ export default makeScene2D(function* (view) {
   yield* all(quote().opacity(1, QUOTE_IN, easeOutCubic), quote().scale(1, QUOTE_IN, easeOutCubic));
   yield* waitFor(QUOTE_HOLD);
 
-  // ═══ 5. Пан вправо + сужение в полосу (цитата гаснет УЖЕ В ДВИЖЕНИИ) ══
-  yield all(
-    panorama().x(PAN_X_END, PAN_DUR, easeInOutCubic),
-    panorama().y(PAN_Y_END, PAN_DUR, easeInOutCubic),
+  // ═══ 5. Кросс-фейд фото → страница ALGOL ═════════════════════════════
+  // толчок вправо на этом стыке читался дёшево: два разных мира не должны
+  // толкать друг друга, они должны смениться. Фото досматривает свой пуш и
+  // растворяется, страница проступает чуть крупнее и оседает в кадр.
+  yield* all(
+    quote().opacity(0, QUOTE_OUT, easeInCubic),
+    panorama().scale(PHOTO_S * PHOTO_XF_S, XFADE, easeInOutSine),
+    panorama().opacity(0, XFADE * 0.85, easeInOutCubic),
+    pageRig().opacity(1, XFADE * 0.85, easeInOutCubic),
+    pageRig().scale(PAGE_S, XFADE, easeOutCubic),
   );
-  yield quote().opacity(0, QUOTE_OUT, easeInCubic);
-  yield* waitFor(PAN_LEAD);
-  yield* frameH(BAND_H, SQUEEZE_DUR, easeInOutCubic);
-  yield* waitFor(PAN_DUR - SQUEEZE_DUR - PAN_LEAD + 0.25);
+  yield* waitFor(PAGE_HOLD_0);
 
-  // ═══ 6. Лента языков ══════════════════════════════════════════════════
-  // полоса уходит в полутень (светлые тексты ленты иначе тонут на светлой стене);
-  // фаза 7 просто ДОВОДИТ это затемнение до полного графита
+  // зум в шапку: имя, заголовок и аффилиации становятся читаемыми
+  yield* all(
+    pageRig().scale(PAGE_S * ZOOM_S, ZOOM_DUR, easeInOutCubic),
+    pageRig().position(pageAt(ZOOM_AT, PAGE_S * ZOOM_S), ZOOM_DUR, easeInOutCubic),
+  );
+
+  // хайлайтер ведёт по строкам: сначала имя, затем заголовок — и дальше сразу
+  for (const hl of highlights) {
+    yield* hl.rect.size.x(hl.w, HL_DUR, easeInOutSine);
+    yield* waitFor(HL_GAP);
+  }
+  yield* waitFor(PAGE_HOLD_1);
+
+  // страница уходит в расфокус, поверх — современная схема (reference T + null)
+  yield* all(
+    pageBlur(9, DEFOCUS, easeInOutCubic),
+    pageScrim.opacity(PAGE_SCRIM, DEFOCUS, easeInOutCubic),
+    scheme().opacity(1, SCHEME_IN + 0.2, easeOutCubic),
+  );
+  yield* waitFor(SCHEME_HOLD);
+  yield* scheme().opacity(0, SCHEME_OUT, easeInOutCubic);
+
+  // ═══ 5b. Камера едет вправо и ЛИШЬ ЗАТЕМ кадр сужается в полосу ══════
+  yield* pageRig().position.x(pageRig().position.x() - CAM_RIGHT, CAM_RIGHT_DUR, easeInOutCubic);
+  yield* frameH(BAND_H, SQUEEZE_DUR, easeInOutCubic);
+  yield* waitFor(0.25);
+
+  // ═══ 6. Лента языков (в полосе — расфокусная страница под скримом) ════
   belt().x(-pairCenters[0] + 420);
-  yield tint().opacity(0.55, 0.55, easeInOutCubic);
+  yield pageScrim.opacity(0.87, 0.55, easeInOutCubic);
   yield belt().opacity(1, 0.35, easeOutCubic);
   for (let i = 0; i < LANGS.length; i++) {
     const col = slotCols[i];

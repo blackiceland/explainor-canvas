@@ -75,6 +75,7 @@ import nullMeansTitleCanonSceneEn from "./scenes/nullMeansTitleCanonSceneEn?scen
 import nullTitleLabSceneEn from "./scenes/nullTitleLabSceneEn?scene";
 import nullMeansTitleSerifSceneEn from "./scenes/nullMeansTitleSerifSceneEn?scene";
 import nullMeansPrologueSceneEn from "./scenes/nullMeansPrologueSceneEn?scene";
+import nullMeansRecordHandlingSceneEn from "./scenes/nullMeansRecordHandlingSceneEn?scene";
 import earnedAbstractionSceneEn from "./scenes/earnedAbstractionSceneEn?scene";
 import chapter2ReversibilitySceneEn from "./scenes/chapter2ReversibilitySceneEn?scene";
 import problemsYouDontHaveCarefulArmSceneEn from "./scenes/problemsYouDontHaveCarefulArmSceneEn?scene";
@@ -195,11 +196,13 @@ export default makeProject({
 
         // V — YOUR NULL MEANS TOO MUCH
         // эпиграф → наезд на Null → 10с код-таймлапса вокруг still point
-        nullMeansIntroSceneEn,
+        // nullMeansIntroSceneEn,
         // титул: эссе-заголовок, строгий сериф (№3 из лабы, Newsreader/Source Serif 4)
         nullMeansTitleSerifSceneEn,
         // ПРОЛОГ: титул → 1965 → архивный Хоар (параллакс) → цитата → полоса → лента языков → доска
         nullMeansPrologueSceneEn,
+        // ВТОРОЙ ДОКУМЕНТ (улика): Record Handling, 1966 — задача, ответ, три null
+        nullMeansRecordHandlingSceneEn,
 
         // IV
          // стартовый текст и древо
