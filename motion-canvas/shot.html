@@ -4,6 +4,27 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Motion Canvas Shot Sweep</title>
+    <script>
+      // ⚠️ ХАРНЕСС НЕ ДОЛЖЕН ПИСАТЬ .meta.
+      // MetaFile.saveData шлёт `motion-canvas:meta` по HMR-каналу на каждое
+      // изменение метаполя, а renderer.stage.configure() меняет range — значит
+      // каждый прогон переписывал project.meta и .meta сцены. Каждая такая
+      // запись прилетает в ОТКРЫТУЮ вкладку редактора автора как hmr update и
+      // заставляет её бросить текущую работу (а при занятом главном потоке ещё
+      // и выдать «Connection timeout when updating metadata» — там ровно 1 с).
+      // Сам MetaFile до нас недоступен (bootstrap держит его у себя), поэтому
+      // глушим на транспорте: инлайн-скрипт выполняется РАНЬШЕ @vite/client,
+      // так что подмена ловит его сокет. Гасим только это сообщение — остальной
+      // HMR харнессу нужен. Промис записи отклонится по своему таймауту, это
+      // безвредно: handleChanged его ловит и только логирует.
+      (function () {
+        const send = WebSocket.prototype.send;
+        WebSocket.prototype.send = function (data) {
+          if (typeof data === 'string' && data.indexOf('motion-canvas:meta') !== -1) return;
+          return send.apply(this, arguments);
+        };
+      })();
+    </script>
     <style>
       html, body { margin: 0; padding: 0; background: #0B0C10; color: #F4F1EB; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
       .wrap { padding: 16px; opacity: 0.85; }

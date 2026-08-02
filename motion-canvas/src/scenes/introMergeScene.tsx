@@ -10,34 +10,142 @@ type MergePair = {
   right: string;
 };
 
-function fitFontSize(
-  text: string,
-  maxWidthPx: number,
-  fontFamily: string,
-  maxFontSize: number,
-  minFontSize: number,
-  fontWeight: number = 600,
-): number {
-  const lines = text.split('\n');
-  const maxW = Math.max(1, maxWidthPx);
-  let lo = Math.max(1, Math.floor(minFontSize));
-  let hi = Math.max(lo, Math.floor(maxFontSize));
+// ---------------------------------------------------------------------------
+// Geometry / type
+//
+// One fixed size for the whole scene — the same 60 as duplicationHateIntroScene,
+// on the same centre line (y = 0), so the confession and the timelapse read as
+// one continuous thought. Per-pair fitting is gone: it made the type jump
+// 44 → 101 from pair to pair, which reads as jitter, not rhythm.
+//
+// Authoring budget at FS 60 in a half-column: 19 characters per line.
+// (sideMaxWidth 728px / (0.6em * 60) ≈ 20, minus headroom for font fallback.)
+// ---------------------------------------------------------------------------
 
-  while (lo < hi) {
-    const mid = Math.ceil((lo + hi) / 2);
-    // Check if ALL lines fit with this font size
-    const allFit = lines.every(
-      line => textWidth(line, fontFamily, mid, fontWeight) <= maxW,
-    );
-    if (allFit) {
-      lo = mid;
-    } else {
-      hi = mid - 1;
-    }
-  }
+const FS = 60;
+const WEIGHT = 650;
+const BLOCK_Y = 0;
+const SIDE_MARGIN = 56;
+const HALF_WIDTH = (SafeZone.right - SafeZone.left) / 2;
+const SIDE_MAX_WIDTH = HALF_WIDTH - SIDE_MARGIN * 2;
 
-  return lo;
-}
+// ---------------------------------------------------------------------------
+// Content rule: every pair must be a block you can NAME.
+//
+// If you cannot say which method gets extracted, nothing is being merged —
+// two identical strings sliding over each other is a graphic effect, not a
+// refactor. So: no bare statements (`return value;`, `sum = a + b;`,
+// `tx.rollback();`), only 2–6 line blocks with an obvious extraction.
+//
+// Warmup 1–5: strictly identical left/right.
+// Warmup 6–10: exactly ONE differing token, same character count on both sides
+//              so only that token smears on overlap and the rest stays crisp.
+// ---------------------------------------------------------------------------
+
+const WARMUP_PAIRS: MergePair[] = [
+  // 1) retryIfTemporary()
+  {
+    left: 'if (temporary) {\n  retry();\n}',
+    right: 'if (temporary) {\n  retry();\n}',
+  },
+  // 2) normalize(s) — no braces, breaks up the rhythm
+  {
+    left: 's = trim(s);\ns = lower(s);',
+    right: 's = trim(s);\ns = lower(s);',
+  },
+  // 3) orDefault(v)
+  {
+    left: 'if (v == null) {\n  v = DEFAULT;\n}',
+    right: 'if (v == null) {\n  v = DEFAULT;\n}',
+  },
+  // 4) runOrFail()
+  {
+    left: 'try {\n  charge();\n} catch (e) {\n  fail();\n}',
+    right: 'try {\n  charge();\n} catch (e) {\n  fail();\n}',
+  },
+  // 5) computeIfAbsent(k)
+  {
+    left: 't = tags.get(k);\nif (t == null) {\n  t = new Tag(k);\n  tags.put(k, t);\n}',
+    right: 't = tags.get(k);\nif (t == null) {\n  t = new Tag(k);\n  tags.put(k, t);\n}',
+  },
+  // 6) noneIfEmpty(x) — rows / cols
+  {
+    left: 'if (empty(rows)) {\n  return NONE;\n}',
+    right: 'if (empty(cols)) {\n  return NONE;\n}',
+  },
+  // 7) track(op, id) — save / send
+  {
+    left: 'audit("save", id);\nmetrics.inc(op);',
+    right: 'audit("send", id);\nmetrics.inc(op);',
+  },
+  // 8) verify(body, sig) — sha / md5
+  {
+    left: 'h = sha(body);\nif (h != sig) {\n  return FORGED;\n}',
+    right: 'h = md5(body);\nif (h != sig) {\n  return FORGED;\n}',
+  },
+  // 9) withStream(path) — src / dst
+  {
+    left: 's = open(src);\ncopy(s);\ns.close();',
+    right: 's = open(dst);\ncopy(s);\ns.close();',
+  },
+  // 10) guarded(...) — commit / revert
+  {
+    left: 'lock.lock();\ntry {\n  commit();\n} finally {\n  lock.unlock();\n}',
+    right: 'lock.lock();\ntry {\n  revert();\n} finally {\n  lock.unlock();\n}',
+  },
+];
+
+// Timelapse: identical left/right (at strobe speed a drift is invisible, and
+// identical keeps the overlap perfectly crisp). Every block unique, every block
+// nameable, 3–5 lines so the silhouette stays legible at 0.04s.
+const TIMELAPSE_PAIRS: MergePair[] = [
+  // clamp(n)
+  {left: 'if (n > MAX) {\n  n = MAX;\n}', right: 'if (n > MAX) {\n  n = MAX;\n}'},
+  // visitAll(items)
+  {left: 'for (T x : items) {\n  visit(x);\n}', right: 'for (T x : items) {\n  visit(x);\n}'},
+  // assemble(head)
+  {left: 'b = new Buf();\nb.add(head);\nreturn b.done();', right: 'b = new Buf();\nb.add(head);\nreturn b.done();'},
+  // inScope(scope, body)
+  {left: 'ctx.push(scope);\nbody.run();\nctx.pop();', right: 'ctx.push(scope);\nbody.run();\nctx.pop();'},
+  // validate(req)
+  {left: 'if (!ok(req)) {\n  return BAD;\n}', right: 'if (!ok(req)) {\n  return BAD;\n}'},
+  // count(it)
+  {left: 'n = 0;\nwhile (has(it)) {\n  n++;\n  next(it);\n}', right: 'n = 0;\nwhile (has(it)) {\n  n++;\n  next(it);\n}'},
+  // swap(a, b)
+  {left: 'tmp = a;\na = b;\nb = tmp;', right: 'tmp = a;\na = b;\nb = tmp;'},
+  // requirePositive(v)
+  {left: 'if (v < 0) {\n  throw new Bad(v);\n}', right: 'if (v < 0) {\n  throw new Bad(v);\n}'},
+  // withConn(...)
+  {left: 'c = conn.get();\nrun(c);\nc.close();', right: 'c = conn.get();\nrun(c);\nc.close();'},
+  // skipIfSeen(id)
+  {left: 'if (seen.has(id)) {\n  return;\n}', right: 'if (seen.has(id)) {\n  return;\n}'},
+  // nowIfAbsent(t)
+  {left: 'if (t == null) {\n  t = clock();\n}', right: 'if (t == null) {\n  t = clock();\n}'},
+  // emit(head, body)
+  {left: 'out.write(head);\nout.write(body);\nout.flush();', right: 'out.write(head);\nout.write(body);\nout.flush();'},
+  // tryParse(s)
+  {left: 'try {\n  parse(s);\n} catch (e) {\n  return null;\n}', right: 'try {\n  parse(s);\n} catch (e) {\n  return null;\n}'},
+  // total(v)
+  {left: 'sum = 0;\nfor (int x : v) {\n  sum += x;\n}', right: 'sum = 0;\nfor (int x : v) {\n  sum += x;\n}'},
+  // submit(job)
+  {left: 'q.add(job);\nif (!busy) {\n  drain(q);\n}', right: 'q.add(job);\nif (!busy) {\n  drain(q);\n}'},
+  // skipIfOff()
+  {left: 'if (mode == OFF) {\n  return SKIP;\n}', right: 'if (mode == OFF) {\n  return SKIP;\n}'},
+  // getOrFallback(k)
+  {left: 'x = raw.get(k);\nif (x == null) {\n  x = FALLBACK;\n}', right: 'x = raw.get(k);\nif (x == null) {\n  x = FALLBACK;\n}'},
+  // guardDepth()
+  {left: 'if (depth++ > 8) {\n  throw new Loop();\n}', right: 'if (depth++ > 8) {\n  throw new Loop();\n}'},
+  // readInto(src)
+  {left: 'buf.clear();\nfill(buf, src);\nreturn buf.get();', right: 'buf.clear();\nfill(buf, src);\nreturn buf.get();'},
+  // flushIfDirty()
+  {left: 'if (dirty) {\n  save(doc);\n  dirty = false;\n}', right: 'if (dirty) {\n  save(doc);\n  dirty = false;\n}'},
+  // touchIfPresent(k)
+  {left: 'e = map.get(k);\nif (e != null) {\n  e.touch();\n}', right: 'e = map.get(k);\nif (e != null) {\n  e.touch();\n}'},
+  // draw(node)
+  {left: 'w.begin();\nrender(node);\nw.end();', right: 'w.begin();\nrender(node);\nw.end();'},
+  // timed(task)
+  {left: 't0 = clock();\nrun(task);\ntook(t0);', right: 't0 = clock();\nrun(task);\ntook(t0);'},
+];
 
 function maxLineWidth(
   text: string,
@@ -53,6 +161,30 @@ function maxLineWidth(
   return max;
 }
 
+function fitFontSize(
+  text: string,
+  maxWidthPx: number,
+  fontFamily: string,
+  maxFontSize: number,
+  minFontSize: number,
+  fontWeight: number = 600,
+): number {
+  const maxW = Math.max(1, maxWidthPx);
+  let lo = Math.max(1, Math.floor(minFontSize));
+  let hi = Math.max(lo, Math.floor(maxFontSize));
+
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (maxLineWidth(text, fontFamily, mid, fontWeight) <= maxW) {
+      lo = mid;
+    } else {
+      hi = mid - 1;
+    }
+  }
+
+  return lo;
+}
+
 export default makeScene2D(function* (view) {
   applyBackground(view);
 
@@ -63,20 +195,28 @@ export default makeScene2D(function* (view) {
   const leftText = createSignal('');
   const rightText = createSignal('');
 
-  const leftSize = createSignal(96);
-  const rightSize = createSignal(96);
-
   const leftX = createSignal(0);
   const rightX = createSignal(0);
 
   const leftOn = createSignal(0);
   const rightOn = createSignal(0);
 
-  const y = -40;
-  const sideMargin = 56;
   const baseInk = '#F6E7D4'; // match chapter1IntroScene title color
   const bracketBlue = '#BFEAFF';
   const keywordPink = Colors.accent;
+
+  // Resolve ONE size for the whole scene. Everything above is authored to fit
+  // at FS, so this is 60. If a snippet ever outgrows the column the entire
+  // scene shrinks together — uniform, never per-pair jitter.
+  const allPairs = [...WARMUP_PAIRS, ...TIMELAPSE_PAIRS];
+  const fontSize = Math.min(
+    FS,
+    ...allPairs.flatMap(p => [
+      fitFontSize(p.left, SIDE_MAX_WIDTH, Fonts.code, FS, 12, WEIGHT),
+      fitFontSize(p.right, SIDE_MAX_WIDTH, Fonts.code, FS, 12, WEIGHT),
+    ]),
+  );
+  const lineHeight = fontSize * 1.35;
 
   const KEYWORDS = new Set([
     'if',
@@ -172,84 +312,25 @@ export default makeScene2D(function* (view) {
       <Code
         code={() => leftText()}
         fontFamily={Fonts.code}
-        fontSize={() => leftSize()}
-        lineHeight={() => leftSize() * 1.35}
+        fontSize={fontSize}
+        lineHeight={lineHeight}
         opacity={() => leftOn()}
         x={() => leftX()}
-        y={y}
+        y={BLOCK_Y}
         drawHooks={drawHooks}
       />
       <Code
         code={() => rightText()}
         fontFamily={Fonts.code}
-        fontSize={() => rightSize()}
-        lineHeight={() => rightSize() * 1.35}
+        fontSize={fontSize}
+        lineHeight={lineHeight}
         opacity={() => rightOn()}
         x={() => rightX()}
-        y={y}
+        y={BLOCK_Y}
         drawHooks={drawHooks}
       />
     </>,
   );
-
-  const halfWidth = (SafeZone.right - SafeZone.left) / 2;
-  const sideMaxWidth = halfWidth - sideMargin * 2;
-
-  const pairs: MergePair[] = [
-    // First five iterations: strictly identical left/right.
-    // (Different situations across iterations are fine; within one iteration it must be a clear duplicate.)
-    // 1) Short (avoid any risk of cropping)
-    {
-      left: 'return round(total);',
-      right: 'return round(total);',
-    },
-    // 2) Still short, different context
-    {
-      left: 'headers.set("X-Auth", token);',
-      right: 'headers.set("X-Auth", token);',
-    },
-    // 3) Idempotency key (still short)
-    {
-      left: 'return key(id, n);',
-      right: 'return key(id, n);',
-    },
-    // 4) Switch mapping (unique, not reused later)
-    {
-      left: 'case INVALID_CVV -> DECLINED;',
-      right: 'case INVALID_CVV -> DECLINED;',
-    },
-    // 5) Multi-line duplicate
-    {
-      left: 'if (temporary) {\n  retry();\n}',
-      right: 'if (temporary) {\n  retry();\n}',
-    },
-    // After the first five, we can show \"almost identical\" (max one meaningful difference).
-    // 6) One-token difference (new snippet, not used above)
-    {
-      left: 'return round(fee);',
-      right: 'return round(net);',
-    },
-    // 7) One-token drift (classic)
-    {
-      left: 'case INSUFFICIENT_FUNDS -> DECLINED;',
-      right: 'case INSUFFICIENT_FUNDS -> DECLINED;',
-    },
-    // 8) Multi-line, one-token difference (unique; wasn't used in first five)
-    {
-      left: 'log.info("Charge {}", id);\nmetrics.inc("charge");',
-      right: 'log.info("Refund {}", id);\nmetrics.inc("refund");',
-    },
-    // 9) Identical (unique)
-    {
-      left: 'tx.rollback();',
-      right: 'tx.rollback();',
-    },
-    // 10) Multi-line duplicate (unique)
-    {
-      left: 'try {\n  charge();\n} catch (e) {\n  fail();\n}',
-      right: 'try {\n  charge();\n} catch (e) {\n  fail();\n}',
-    },
-  ];
 
   function* playMerge(
     pair: MergePair,
@@ -265,20 +346,11 @@ export default makeScene2D(function* (view) {
     leftText(pair.left);
     rightText(pair.right);
 
-    // Fit both sides (handling newlines). Use the smaller size so they match visually.
-    const fontFamily = Fonts.code;
-    const fontWeight = 650;
-    const leftFit = fitFontSize(pair.left, sideMaxWidth, fontFamily, 112, 44, fontWeight);
-    const rightFit = fitFontSize(pair.right, sideMaxWidth, fontFamily, 112, 44, fontWeight);
-    const fontSize = Math.min(leftFit, rightFit);
-    leftSize(fontSize);
-    rightSize(fontSize);
-
     // Start fully inside safe-zone, accounting for measured text width.
-    const leftW = maxLineWidth(pair.left, fontFamily, fontSize, fontWeight);
-    const rightW = maxLineWidth(pair.right, fontFamily, fontSize, fontWeight);
-    leftX(SafeZone.left + sideMargin + leftW / 2);
-    rightX(SafeZone.right - sideMargin - rightW / 2);
+    const leftW = maxLineWidth(pair.left, Fonts.code, fontSize, WEIGHT);
+    const rightW = maxLineWidth(pair.right, Fonts.code, fontSize, WEIGHT);
+    leftX(SafeZone.left + SIDE_MARGIN + leftW / 2);
+    rightX(SafeZone.right - SIDE_MARGIN - rightW / 2);
     leftOn(0);
     rightOn(0);
 
@@ -294,7 +366,7 @@ export default makeScene2D(function* (view) {
       yield* waitFor(opts.preMergeHold);
     }
 
-    // Move to center and fully overlap (becomes one line visually).
+    // Move to center and fully overlap (becomes one block visually).
     yield* all(leftX(0, travel, easeInOutCubic), rightX(0, travel, easeInOutCubic));
 
     yield* waitFor(hold);
@@ -304,51 +376,21 @@ export default makeScene2D(function* (view) {
 
   // Warmup: readable merges.
   let dur = 0.9;
-  for (let i = 0; i < pairs.length; i++) {
+  for (let i = 0; i < WARMUP_PAIRS.length; i++) {
     const hold = i < 3 ? 0.25 : 0.18;
     if (i === 0) {
-      // First line: smoother reveal + a couple seconds before the first merge starts.
-      yield* playMerge(pairs[i], dur, hold, {fadeIn: 0.9, preMergeHold: 2.0});
+      // First block: smoother reveal + a couple seconds before the first merge starts.
+      yield* playMerge(WARMUP_PAIRS[i], dur, hold, {fadeIn: 0.9, preMergeHold: 2.0});
     } else {
-      yield* playMerge(pairs[i], dur, hold);
+      yield* playMerge(WARMUP_PAIRS[i], dur, hold);
     }
     dur *= 0.82;
     yield* waitFor(0.06);
   }
 
-  // Time‑lapse: extremely fast, almost strobing merges.
-  const timeLapsePairs: MergePair[] = [
-    // Timelapse: every example must be unique (and not used in warmup).
-    {left: 'if (dryRun) return;', right: 'if (dryRun) return;'},
-    {left: 'throw new Error("denied");', right: 'throw new Error("denied");'},
-    {left: 'result = map.get(id);', right: 'result = map.get(id);'},
-    {left: 'count += items.length;', right: 'count += items.length;'},
-    {left: 'tags.add("new");', right: 'tags.add("new");'},
-    {left: 'id = nextId();', right: 'id = nextId();'},
-    {left: 'now = Date.now();', right: 'now = Date.now();'},
-    {left: 'ok = isValid(x);', right: 'ok = isValid(x);'},
-    {left: 'n = Math.max(a, b);', right: 'n = Math.max(a, b);'},
-    {left: 'return value;', right: 'return value;'},
-    {left: 'sum = a + b;', right: 'sum = a + b;'},
-    {left: 'seen.add(id);', right: 'seen.add(id);'},
-    {left: 'limit = Math.min(x, y);', right: 'limit = Math.min(x, y);'},
-    {left: 'cfg.set("on", true);', right: 'cfg.set("on", true);'},
-    {left: 'return ok;', right: 'return ok;'},
-    // Multi-line flashes (short, 2–4 lines)
-    {left: 'if (flag) {\n  enable();\n}', right: 'if (flag) {\n  enable();\n}'},
-    {left: 'try {\n  save();\n} finally {\n  flush();\n}', right: 'try {\n  save();\n} finally {\n  flush();\n}'},
-    {left: 'switch (mode) {\n  default -> off();\n}', right: 'switch (mode) {\n  default -> off();\n}'},
-    {left: 'if (empty) {\n  return;\n}', right: 'if (empty) {\n  return;\n}'},
-    {left: 'try {\n  open();\n} finally {\n  close();\n}', right: 'try {\n  open();\n} finally {\n  close();\n}'},
-    {left: 'switch (x) {\n  case 0 -> a();\n}', right: 'switch (x) {\n  case 0 -> a();\n}'},
-    {left: 'if (ok) {\n  commit();\n}', right: 'if (ok) {\n  commit();\n}'},
-    {left: 'try {\n  send();\n} catch (e) {\n  fail();\n}', right: 'try {\n  send();\n} catch (e) {\n  fail();\n}'},
-  ];
-
-  // Make it feel like a cinematic timelapse (very short holds, aggressive acceleration).
-  // Slightly longer (a couple of seconds), still reads as timelapse.
+  // Time-lapse: extremely fast, almost strobing merges.
   let fast = 0.14;
-  for (const t of timeLapsePairs) {
+  for (const t of TIMELAPSE_PAIRS) {
     yield* playMerge(t, fast, 0.02);
     fast = Math.max(0.04, fast * 0.86);
   }

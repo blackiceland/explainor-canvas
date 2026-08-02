@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Scene Player</title>
+    <script>
+      // ⚠️ Плеер НЕ должен писать .meta (как и shot.html): stage.configure()
+      // меняет метаполя, MetaFile шлёт их на диск по HMR-каналу, и каждая
+      // запись дёргает открытую вкладку редактора автора. Глушим на
+      // транспорте до загрузки @vite/client; остальной HMR живёт (правка
+      // сцены перезагружает плеер — это удобно).
+      (function () {
+        const send = WebSocket.prototype.send;
+        WebSocket.prototype.send = function (data) {
+          if (typeof data === 'string' && data.indexOf('motion-canvas:meta') !== -1) return;
+          return send.apply(this, arguments);
+        };
+      })();
+    </script>
+    <style>
+      html, body { margin: 0; padding: 0; background: #0B0C10; color: #F4F1EB; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+      #stage { display: flex; align-items: center; justify-content: center; height: calc(100vh - 92px); }
+      #stage canvas { max-width: 100%; max-height: 100%; background: #0B0C10; }
+      #bar { height: 92px; box-sizing: border-box; padding: 10px 16px 12px; display: flex; flex-direction: column; gap: 8px; }
+      #progress { height: 14px; background: #1C1E24; border-radius: 7px; cursor: pointer; position: relative; overflow: hidden; }
+      #fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: #5B667A; border-radius: 7px; }
+      #row { display: flex; justify-content: space-between; font-size: 13px; opacity: 0.85; }
+      #hint { opacity: 0.5; }
+      .err { color: #FF8CA3; white-space: pre-wrap; padding: 16px; }
+      #index { padding: 24px 32px; line-height: 1.9; }
+      #index a { color: #A3CDFF; text-decoration: none; display: block; font-size: 15px; }
+      #index a:hover { text-decoration: underline; }
+    </style>
+  </head>
+  <body>
+    <div id="stage"></div>
+    <div id="bar">
+      <div id="progress"><div id="fill"></div></div>
+      <div id="row">
+        <span id="status">Loading…</span>
+        <span id="hint">Space пауза · ←/→ кадр · Shift+←/→ 1с · Home в начало · L луп · 1/2/3 скорость 0.5/1/2</span>
+      </div>
+    </div>
+    <script type="module" src="/src/playRunner.ts"></script>
+  </body>
+</html>

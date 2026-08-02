@@ -52,3 +52,4 @@ debug-screenshots/
 
 # puppeteer profile for the still/shot harness (font+asset HTTP cache)
 motion-canvas/.shot-profile/
+motion-canvas/.probe-editor-profile/

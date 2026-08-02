@@ -101,7 +101,7 @@ export default makeProject({
 
         // I — YOUR NULL MEANS TOO MUCH
         // duplicationHateIntroScene,
-        // introMergeScene,
+         introMergeScene,
         // chapter1IntroScene,
 
         // dryFiltersScene,
@@ -204,7 +204,7 @@ export default makeProject({
         // АКТ 1 ОДНОЙ СЦЕНОЙ: 1965 → Хоар → цитата+подпись → вопрос на стене →
         // страница ALGOL на стене (свет на шапке) → лист откладывают →
         // Record Handling (маркер, три null) → цена решения → лента → вопрос
-        nullMeansActOneSceneEn,
+         nullMeansActOneSceneEn,
         // разобраны на акт выше, оставлены на случай отката:
         // nullMeansPrologueSceneEn,
         // nullMeansRecordHandlingSceneEn,

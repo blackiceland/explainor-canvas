@@ -135,6 +135,9 @@ async function main() {
   await ensureFontsLoaded();
   const fontsMs = Date.now() - tFonts;
 
+  // ⚠️ Запись .meta глушится в shot.html на уровне вебсокета — сам MetaFile
+  // сюда не дотянуть, bootstrap() держит его у себя. Без этого каждый прогон
+  // харнесса переписывал project.meta и дёргал открытый редактор автора.
   const descriptions = project.scenes as any[];
   const description = descriptions.find(s => s?.name === sceneName);
   if (!description) {
