@@ -1,4 +1,4 @@
-import {blur, Gradient, Img, Line, makeScene2D, Node, Rect, Txt} from '@motion-canvas/2d';
+import {blur, brightness, contrast, Gradient, Img, Line, makeScene2D, Node, Rect, Txt} from '@motion-canvas/2d';
 import {
   all,
   chain,
@@ -21,24 +21,19 @@ import {Canon} from '../core/code/model/paletteCanon';
 // ═══════════════════════════════════════════════════════════════════════
 // АКТ 1 «YOUR NULL MEANS TOO MUCH» — ОДНОЙ СЦЕНОЙ.
 //
-// Драматургия: приговор → вопрос → язык, который он строил → УЛИКА, и в ней
-// три перехода «бумага ↔ графит», каждый несёт текст, а не камера:
+// Драматургия: 1965 → ПРОЯВКА фото → приговор → вопрос (смаз-эстафета) →
+// лист ALGOL → стр. 9, маркер по объявлению → печатная строка становится
+// нашим кодом НА ТОМ ЖЕ МЕСТЕ (шаг литеры 18.05 × RH_READ_S = CODE_ADV,
+// замер _rh9_rows.mjs) → столбец + карточка (строка N ↔ клетка N по высоте)
+// → печать создания с ОБРЫВАМИ: father-обрыв → null, sibling-обрыв → null,
+// K → горизонтальная стрелка в видимую вторую карточку → МОРФ: карточка
+// становится его записью 1908 на стр. 11 (клетки тянутся на его ящик,
+// краска темнеет до чернил, значения передают себя рукописи) → её null'ы →
+// отъезд: вся семья его рукой → стр. 9, две цитаты-печати → признание
+// «so easy to implement» → полоса → шторки.
 //
-//   1) печатная строка объявления  → наш код НА ТОМ ЖЕ МЕСТЕ И ТОГО ЖЕ
-//      РАЗМЕРА (шаг литеры машинописи 18.05 pt листа × RH_READ_S = наш
-//      CODE_ADV, замер _rh9_rows.mjs). Связь держит НЕПОДВИЖНОСТЬ;
-//   2) наша фраза своими словами → его печатная строка (обратный ход);
-//   3) слово null снимается с его страницы и дописывает нашу строку.
-//
-// Между ними — графит: код слева, карточка справа, строка N и клетка N на
-// ОДНОЙ высоте. Карточка растёт ИЗ кода по одному полю и существует ради
-// единственной вещи, которой в тексте нет: стрелки наружу. На `father`
-// стрелка уходит за кадр — камера отъезжает и находит вторую карточку.
-// На `elder sibling` указывать не на кого: клетка остаётся ПУСТОЙ, строка
-// создания встаёт на третьем аргументе. Ответ приходит не от нас, а с его
-// страницы.
-//
-// ⚠️ Порядок «карточка учит → страница подтверждает → чертёж опознаётся».
+// ⚠️ Порядок «карточка учит → чертёж опознаётся (морфом) → страница
+//    подтверждает». Возврат на бумагу ОДИН, после конца графита.
 //    Ничего не вводить дважды в разном виде; термин после вещи, не до.
 // ⚠️ Текстовых тезисов в акте нет: их произносит озвучка.
 // ⚠️ Даты: ALGOL — июнь 1966, Record Handling — сентябрь 1966. 1965 — год
@@ -68,13 +63,17 @@ const YEAR_BEIGE = 'rgba(232, 207, 174, 0.96)';
 const YEAR_KEY = 0.13;
 const YEAR_HOLD = 1.15;
 
-// ⚠️ Стык 1965→фото БЕЗ мёртвого кадра: фото уже едет и проявляется, ПОКА год
-// ещё на экране, год растворяется в первой трети хода. Ghost-дубли убраны —
-// дешевили. Короткий ход + easeOutQuint = резкий вход с мягким осаждением.
-const PHOTO_TRAVEL = 300;
-const PHOTO_IN = 0.7;
-const PHOTO_FADE = 0.28;
-const YEAR_OUT = 0.3;
+// ⚠️ Стык 1965→фото = ПРОЯВКА ОТПЕЧАТКА В ДВЕ СТАДИИ, как в кювете:
+// сначала мутный малоконтрастный образ медленно всплывает из темноты
+// (яркость растёт при задавленном контрасте), потом контраст «схватывается»
+// и чернота садится. Год живёт ПОВЕРХ мутной стадии — как надпись при
+// красном свете — и растворяется, когда контраст приходит. Никакого
+// движения кадра: свет вместо движения.
+const DEV_A = 1.15;
+const DEV_B = 0.85;
+const DEV_MURK = 0.5;                // контраст мутной стадии
+const DEVELOP_SETTLE = 1.025;
+const YEAR_OUT = 0.45;
 const SETTLE = 0.7;
 
 // ── краска на стене ─────────────────────────────────────────────────────
@@ -168,14 +167,22 @@ const NULLS_REST = [
   {x0: 732, x1: 806, cy: 1710, h: 46},     // 1964 · elder sibling
   {x0: 732, x1: 806, cy: 1762, h: 46},     // 1964 · youngest offspring
 ];
-const DIAG_IN = 1.1;
 const DIAG_AT_WIDE = {x: 915, y: 1115};
 const DIAG_S_WIDE = 0.71;
+// ⚠️ DIAG_AT_BOX = ЦЕНТР записи 1908 — при пуш-кадровке она встаёт ровно в
+// (0,0) экрана, и туда же морфится наша карточка.
 const DIAG_AT_BOX = {x: 1083, y: 604};
 const DIAG_S_BOX = 2.0;
-const DIAG_PUSH = 1.2;
-const CONTOUR_IN = 0.6;
-const CONTOUR_HOLD = 0.8;            // ⚠️ VO
+// ⚠️ МОРФ «карточка → его запись» В ДВЕ ФАЗЫ (правка автора): (A) карточка
+// СНАЧАЛА центрируется и растягивается на место ящика 1908 — страница ещё
+// не видна, семья и код гаснут; (B) КРОССФЕЙД: страница проявляется, наша
+// краска темнеет до чернил и уступает рукописи. Никакого морфа глифов.
+const MORPH_A = 1.0;
+const MORPH_B = 0.95;
+const MORPH_INK = 'rgba(52, 47, 40, 0.85)';
+// p11 откладывают тем же жестом, что лист ALGOL: уезжает влево-вниз с
+// поворотом, под ним уже лежит стр. 9
+const P11_ASIDE = 1.0;
 const BOX_HL_HOLD = 1.6;             // ⚠️ VO
 const DIAG_BACK = 1.3;
 const REST_STEP = 0.22;
@@ -214,6 +221,18 @@ const CARD_VAL_FS = 34;
 const OTHER_X = 780;
 const OTHER_Y = cellY(4) - ROW_H / 2 + CARD_H / 2;
 
+// ⚠️ Третья запись (1964, младший потомок K) — та же рифма: её первая клетка
+// на высоте ПЯТОЙ клетки K, стрелка снова чистая горизонталь (K смотрит
+// влево-вниз). Чтобы семья поместилась, кадр честно отъезжает: graph
+// масштабируется ЦЕЛИКОМ, ничего не гасится и не обрезается.
+const K_CELL5_Y = OTHER_Y - CARD_H / 2 + ROW_H * 4.5;
+const C3_X = 400;
+const C3_Y = K_CELL5_Y - ROW_H / 2 + CARD_H / 2;
+const FAM_S = 0.8;
+const FAM_POS = [-40, -210] as const;
+const FAM_D = 1.0;
+const FAM_HOLD = 1.6;                // ⚠️ VO — семья: два человека по ссылкам
+
 const REFLOW = 1.1;
 const CARD_IN = 0.7;
 const FIELD_STEP = 0.75;             // ⚠️ VO — по одному полю
@@ -226,12 +245,32 @@ const MAKE_CHAR = 0.03;
 const FATHER_STALL = 1.7;            // ⚠️ VO
 const SIB_STALL = 0.9;               // ⚠️ VO
 const K_HOLD = 1.2;                  // ⚠️ VO — единственная настоящая ссылка
-const WORK_OUT = 0.75;
-const HARDEN = 1.0;
 const PAYOFF_HOLD = 2.0;             // ⚠️ VO — запись: две дырки, одна стрелка
 
 const EASY_IN = 0.8;
 const EASY_HOLD = 2.8;               // ⚠️ VO
+
+// ── лента языков в финальной полосе (возврат по просьбе автора) ─────────
+// ⚠️ БЕЗ барабанов (отвергнуты отдельно): пары «язык — конструкция»,
+// фокус шагает по ленте, соседи приглушены.
+const LANGS: {name: string; form: string}[] = [
+  {name: 'Kotlin', form: 'T?'},
+  {name: 'Swift', form: 'Optional<T>'},
+  {name: 'TypeScript', form: 'T | null'},
+  {name: 'C#', form: 'T?'},
+  {name: 'Rust', form: 'Option<T>'},
+  {name: 'Java', form: 'Optional<T>'},
+];
+const BELT_FS = 44;
+const BELT_CHAR = BELT_FS * 0.6;
+const BELT_INNER = 52;
+const BELT_GAP = 200;
+const BELT_NAME = 'rgba(232, 207, 174, 0.78)';
+const BELT_FORM = 'rgba(244, 230, 200, 0.96)';
+const BELT_DIM = 0.28;
+const BELT_IN = 0.6;
+const BELT_STEP = 0.5;
+const BELT_READ = 0.6;               // ⚠️ VO — на каждый язык
 
 const SQUEEZE_DUR = 1.4;
 const BAND_H = 164;
@@ -286,7 +325,17 @@ export default makeScene2D(function* (view) {
   const photo = createRef<Node>();
   const bgLayer = createRef<Node>();
   const hoareLayer = createRef<Node>();
-  stage().add(<Node ref={photo} x={PAN_X0 + PHOTO_TRAVEL} scale={PHOTO_S} opacity={0} />);
+  const developB = createSignal(0);
+  const developC = createSignal(DEV_MURK);
+  stage().add(
+    <Node
+      ref={photo}
+      x={PAN_X0}
+      scale={PHOTO_S * DEVELOP_SETTLE}
+      opacity={0}
+      filters={[brightness(() => developB()), contrast(() => developC())]}
+    />,
+  );
   photo().add(<Node ref={bgLayer} />);
   bgLayer().add(<Img src={BG_SRC} width={IMG_W} height={IMG_H} />);
   const seamU = MIRROR_SEAM - IMG_W / 2;
@@ -443,39 +492,27 @@ export default makeScene2D(function* (view) {
   const hlPartial = makeHighlight(rh9Hl, HL_PARTIAL);
   const hlNullA = makeHighlight(rh9Hl, HL_NULL_A);
   const hlNullB = makeHighlight(rh9Hl, HL_NULL_B);
+  // финал живёт на стр. 9: признание читается поверх её приглушённого скана
+  const rh9Scrim = new Rect({width: RH_W, height: RH_H, fill: 'rgb(8, 9, 12)', opacity: 0});
+  rh9().add(rh9Scrim);
 
   const rh11Blur = createSignal(0);
   const rh11 = createRef<Node>();
+  // ⚠️ Чертёж рождается сразу на ПУШ-кадровке: запись 1908 в центре экрана,
+  // прямо под финальное положение морфящейся карточки.
   stage().add(
     <Node
       ref={rh11}
-      scale={DIAG_S_WIDE}
-      position={rigAt(DIAG_AT_WIDE, DIAG_S_WIDE)}
+      scale={DIAG_S_BOX}
+      position={rigAt(DIAG_AT_BOX, DIAG_S_BOX)}
       opacity={0}
       filters={[blur(() => rh11Blur())]}
     />,
   );
   rh11().add(new Img({src: RH11_SRC, width: RH_W, height: RH_H}));
-  const [bx, by] = paperToAsset((BOX_1908.x0 + BOX_1908.x1) / 2, (BOX_1908.y0 + BOX_1908.y1) / 2);
-  const [blx, bly] = toRig(bx, by);
-  const contour = new Rect({
-    x: blx,
-    y: bly,
-    width: BOX_1908.x1 - BOX_1908.x0 + 26,
-    height: BOX_1908.y1 - BOX_1908.y0 + 26,
-    rotation: TILT,
-    stroke: 'rgb(226, 104, 134)',
-    lineWidth: 4,
-    radius: 6,
-    opacity: 0,
-    scale: 1.05,
-  });
-  rh11().add(contour);
   const rh11Hl = makeHlLayer(rh11());
   const boxNulls = NULLS_1908.map(n => makeHighlight(rh11Hl, n));
   const restNulls = NULLS_REST.map(n => makeHighlight(rh11Hl, n));
-  const rh11Scrim = new Rect({width: RH_W, height: RH_H, fill: 'rgb(8, 9, 12)', opacity: 0});
-  rh11().add(rh11Scrim);
 
   // ═══ Лист ALGOL, взятый камерой ══════════════════════════════════════
   const soloSheet = new Node({scale: WALL_SCALE * PHOTO_S, opacity: 0});
@@ -722,6 +759,67 @@ export default makeScene2D(function* (view) {
     end: 0,
   });
   work().add(arrow);
+
+  // ── третья запись: 1964, младший потомок K ───────────────────────────
+  const card3 = createRef<Node>();
+  work().add(<Node ref={card3} opacity={0} />);
+  card3().add(
+    new Rect({
+      x: C3_X,
+      y: C3_Y,
+      width: CARD_W,
+      height: CARD_H,
+      stroke: CARD_STROKE,
+      lineWidth: 2,
+      radius: 4,
+    }),
+  );
+  for (let i = 1; i < 5; i++) {
+    card3().add(
+      new Line({
+        points: [
+          [C3_X - CARD_W / 2, C3_Y - CARD_H / 2 + ROW_H * i],
+          [C3_X + CARD_W / 2, C3_Y - CARD_H / 2 + ROW_H * i],
+        ],
+        stroke: CARD_STROKE,
+        lineWidth: 2,
+      }),
+    );
+  }
+  card3().add(
+    new Txt({
+      text: '1964',
+      x: C3_X,
+      y: C3_Y - CARD_H / 2 + ROW_H * 0.5,
+      fontFamily: MONO,
+      fontSize: CARD_VAL_FS,
+      fontWeight: 500,
+      fill: KW,
+    }),
+  );
+  // стрелка K → 1964: из пятой клетки K влево, в первую клетку 1964
+  const arrow3 = new Line({
+    points: [
+      [OTHER_X - CARD_W / 2, K_CELL5_Y],
+      [C3_X + CARD_W / 2, K_CELL5_Y],
+    ],
+    stroke: 'rgba(244, 241, 235, 0.55)',
+    lineWidth: 3,
+    endArrow: true,
+    arrowSize: 12,
+    end: 0,
+  });
+  work().add(arrow3);
+  const dot3 = new Rect({
+    x: OTHER_X,
+    y: K_CELL5_Y,
+    width: 12,
+    height: 12,
+    radius: 6,
+    fill: 'rgba(244, 241, 235, 0.8)',
+    opacity: 0,
+  });
+  work().add(dot3);
   const arrowDot = new Rect({
     x: CARD_X,
     y: cellY(4),
@@ -785,6 +883,51 @@ export default makeScene2D(function* (view) {
       fill={ROSE}
     />,
   );
+
+  // ═══ Лента языков (живёт внутри финальной полосы) ════════════════════
+  const belt = createRef<Node>();
+  stage().add(<Node ref={belt} opacity={0} />);
+  const pairOps: SimpleSignal<number>[] = [];
+  const pairCenters: number[] = [];
+  {
+    // кумулятивная раскладка: ширина пары = имя + зазор + конструкция,
+    // между парами равный зазор
+    let cursorX = 0;
+    LANGS.forEach((lang, i) => {
+      const nameW = lang.name.length * BELT_CHAR;
+      const formW = lang.form.length * BELT_CHAR;
+      const pairW = nameW + BELT_INNER + formW;
+      const pairX = cursorX;
+      cursorX += pairW + BELT_GAP;
+      pairCenters.push(pairX + pairW / 2);
+
+      const op = createSignal(i === 0 ? 1 : BELT_DIM);
+      pairOps.push(op);
+      const pair = new Node({x: pairX, opacity: () => op()});
+      pair.add(
+        new Txt({
+          text: lang.name,
+          offset: [-1, 0],
+          fontFamily: MONO,
+          fontSize: BELT_FS,
+          fontWeight: 500,
+          fill: BELT_NAME,
+        }),
+      );
+      pair.add(
+        new Txt({
+          text: lang.form,
+          x: nameW + BELT_INNER,
+          offset: [-1, 0],
+          fontFamily: MONO,
+          fontSize: BELT_FS,
+          fontWeight: 500,
+          fill: BELT_FORM,
+        }),
+      );
+      belt().add(pair);
+    });
+  }
 
   // ═══ Шторки финала ═══════════════════════════════════════════════════
   const makeBackdrop = () => {
@@ -850,21 +993,29 @@ export default makeScene2D(function* (view) {
     cursor.opacity(1);
   }
 
-  const driftDur = PHOTO_IN + SETTLE + QUOTE_IN + QUOTE_HOLD;
+  const driftDur = DEV_A + DEV_B + SETTLE + QUOTE_IN + QUOTE_HOLD;
   yield all(
     bgLayer().x(CAMERA_DRIFT, driftDur, easeInOutSine),
     hoareLayer().x(CAMERA_DRIFT + HOARE_DRIFT, driftDur, easeInOutSine),
     hoareLayer().scale(HOARE_SCALE, driftDur, easeInOutSine),
   );
 
-  // ⚠️ Стык на движении: фото уже едет и проявляется, год растворяется
-  // ПОВЕРХ него в первой трети хода — ни одного мёртвого кадра между ними.
+  // ⚠️ Проявка в две стадии: (A) мутный малоконтрастный образ всплывает,
+  // год живёт поверх него; (B) контраст схватывается, чернота садится,
+  // год растворяется. Кадр неподвижен.
   cursor.opacity(0);
+  photo().opacity(1);
   yield* all(
-    photo().opacity(1, PHOTO_FADE, easeOutCubic),
-    photo().x(PAN_X0, PHOTO_IN, easeOutQuint),
-    chain(waitFor(0.06), yearNode().opacity(0, YEAR_OUT, easeInCubic)),
+    developB(0.86, DEV_A, easeInOutSine),
+    photo().scale(PHOTO_S * 1.008, DEV_A, easeOutCubic),
   );
+  yield* all(
+    developB(1, DEV_B, easeInOutSine),
+    developC(1, DEV_B, easeInOutSine),
+    photo().scale(PHOTO_S, DEV_B * 1.4, easeOutQuint),
+    yearNode().opacity(0, YEAR_OUT, easeInCubic),
+  );
+  photo().filters([]);
   yearNode().remove();
   yield* waitFor(SETTLE);
 
@@ -873,23 +1024,28 @@ export default makeScene2D(function* (view) {
   yield* waitFor(QUOTE_HOLD);
 
   // ═══ 3. Приговор смазывается влево, вопрос собирается ════════════════
-  // ⚠️ Эстафета ПОЛОСАМИ: буквы приговора полностью гаснут к 0.4, буквы
-  // вопроса начинают проявляться только с 0.42 — тексты не сосуществуют
-  // ни в одном кадре, непрерывность несёт сам смаз.
+  // ⚠️ Эстафета ПОЛОСАМИ, полоса НЕПРЕРЫВНА: смаз приговора держится до
+  // середины, смаз вопроса поднимается ещё ПОД ним — в середине хода обе
+  // полосы горят одновременно и передают краску из рук в руки. Буквы двух
+  // фраз по-прежнему не сосуществуют ни в одном кадре.
   yield* all(
     quoteSpread(SMEAR_SPREAD, ASK_SWAP * 0.55, easeOutCubic),
-    quote().opacity(0, ASK_SWAP * 0.4, easeInCubic),
+    quote().opacity(0, ASK_SWAP * 0.38, easeInCubic),
     chain(
-      quoteSmearOp(1, ASK_SWAP * 0.18, easeOutCubic),
-      waitFor(ASK_SWAP * 0.2),
-      quoteSmearOp(0, ASK_SWAP * 0.35, easeInCubic),
+      quoteSmearOp(1, ASK_SWAP * 0.12, easeOutCubic),
+      waitFor(ASK_SWAP * 0.38),
+      quoteSmearOp(0, ASK_SWAP * 0.3, easeInCubic),
     ),
     chain(
-      waitFor(ASK_SWAP * 0.42),
+      waitFor(ASK_SWAP * 0.3),
       all(
-        chain(askSmearOp(1, ASK_SWAP * 0.15, easeOutCubic), askSmearOp(0, ASK_SWAP * 0.35, easeInCubic)),
-        ask().opacity(1, ASK_SWAP * 0.4, easeOutCubic),
-        askSpread(0, ASK_SWAP * 0.5, easeInOutCubic),
+        chain(
+          askSmearOp(1, ASK_SWAP * 0.15, easeOutCubic),
+          waitFor(ASK_SWAP * 0.25),
+          askSmearOp(0, ASK_SWAP * 0.3, easeInCubic),
+        ),
+        askSpread(0, ASK_SWAP * 0.6, easeInOutCubic),
+        chain(waitFor(ASK_SWAP * 0.2), ask().opacity(1, ASK_SWAP * 0.42, easeOutCubic)),
       ),
     ),
   );
@@ -1025,46 +1181,91 @@ export default makeScene2D(function* (view) {
       yield* waitFor(K_HOLD);
     }
   }
+
+  // ═══ 10b. Семья растёт: у K свой младший потомок ════════════════════
+  // Честный отъезд: graph масштабируется целиком, и в освободившееся место
+  // приходит третья запись — 1964. Та же рифма: точка в пятой клетке K,
+  // горизонтальная стрелка в первую клетку соседа.
+  yield* all(
+    graph().scale(FAM_S, FAM_D, easeInOutCubic),
+    graph().position(new Vector2(FAM_POS[0], FAM_POS[1]), FAM_D, easeInOutCubic),
+    chain(
+      waitFor(FAM_D * 0.4),
+      all(
+        dot3.opacity(1, 0.3, easeOutCubic),
+        arrow3.end(1, ARROW_DRAW, easeInOutCubic),
+        chain(waitFor(0.15), card3().opacity(1, 0.5, easeOutCubic)),
+      ),
+    ),
+  );
+  yield* waitFor(FAM_HOLD);
   yield* waitFor(PAYOFF_HOLD);
 
-  // ═══ 11. Графит сказал всё — теперь страница ПОДТВЕРЖДАЕТ ═══════════
-  // ⚠️ Возврат на бумагу один и только после конца графита. Никаких
-  // обратных морфов: графит пустеет целиком, бумага проявляется в пустоту.
-  yield* work().opacity(0, WORK_OUT, easeInOutCubic);
-  graph().remove();
+  // ═══ 11. МОРФ в две фазы: центрирование → кроссфейд ═════════════════
+  // (A) Окружение гаснет, а карточка СНАЧАЛА встаёт на место ящика 1908:
+  // клетки едут и растягиваются, кадр возвращается из семейного отъезда.
+  // Страницы ещё нет — на графите остаётся одна карточка в центре.
+  const recW = (BOX_1908.x1 - BOX_1908.x0) * DIAG_S_BOX;
+  const recH = (BOX_1908.y1 - BOX_1908.y0) * DIAG_S_BOX;
+  const recCellH = recH / 5;
+  const recCellCY = (i: number) => -recH / 2 + recCellH * (i + 0.5);
+  yield* all(
+    graph().scale(1, MORPH_A, easeInOutCubic),
+    graph().position(new Vector2(0, 0), MORPH_A, easeInOutCubic),
+    ...declNodes.map(n => n.opacity(0, MORPH_A * 0.5, easeInCubic)),
+    ...dupNodes.map(d => d.node.opacity(0, MORPH_A * 0.5, easeInCubic)),
+    other().opacity(0, MORPH_A * 0.5, easeInCubic),
+    card3().opacity(0, MORPH_A * 0.5, easeInCubic),
+    arrow.opacity(0, MORPH_A * 0.5, easeInCubic),
+    arrow3.opacity(0, MORPH_A * 0.5, easeInCubic),
+    dot3.opacity(0, MORPH_A * 0.5, easeInCubic),
+    makeRow().opacity(0, MORPH_A * 0.5, easeInCubic),
+    cardLabel.opacity(0, MORPH_A * 0.5, easeInCubic),
+    ...cells.map((c, i) =>
+      all(
+        c.position(new Vector2(0, recCellCY(i)), MORPH_A, easeInOutCubic),
+        c.size([recW, recCellH], MORPH_A, easeInOutCubic),
+      ),
+    ),
+    ...[val1908, valTrue, cellNulls[0], cellNulls[1]].map((v, i) =>
+      v.position(new Vector2(0, recCellCY(i)), MORPH_A, easeInOutCubic),
+    ),
+    arrowDot.position(new Vector2(0, recCellCY(4)), MORPH_A, easeInOutCubic),
+  );
   yield* waitFor(0.25);
-  yield* rh9().opacity(1, HARDEN, easeOutCubic);
 
-  // ═══ 12. Спуск по листу: проблема, потом его слово ══════════════════
-  yield* hlPartial.rect.size.x(hlPartial.w, HL_DUR, easeInOutSine);
-  yield* waitFor(READ_PARTIAL);
-  yield* rh9().position(rigAt(AT_NULL, RH_READ_S), 0.85, easeInOutCubic);
-  yield* hlNullA.rect.size.x(hlNullA.w, HL_DUR, easeInOutSine);
-  yield* hlNullB.rect.size.x(hlNullB.w, HL_WRAP, easeInOutSine);
-  yield* waitFor(READ_NULL);
-
-  // ═══ 13. Его собственный чертёж — узнавание ════════════════════════
+  // (B) КРОССФЕЙД: страница проявляется, наша краска темнеет до чернил и
+  // уступает рукописи — значения растворяются в его почерке.
   yield* all(
-    rh9().opacity(0, DIAG_IN * 0.6, easeInCubic),
-    rh9Blur(6, DIAG_IN * 0.6, easeInOutCubic),
-    rh11().opacity(1, DIAG_IN, easeOutCubic),
+    rh11().opacity(1, MORPH_B, easeInOutCubic),
+    ...cells.map(c =>
+      all(
+        c.stroke(MORPH_INK, MORPH_B * 0.5, easeInOutCubic),
+        chain(waitFor(MORPH_B * 0.3), c.opacity(0, MORPH_B * 0.55, easeInCubic)),
+      ),
+    ),
+    ...[val1908, valTrue, cellNulls[0], cellNulls[1]].map(v =>
+      all(
+        v.fill(MORPH_INK, MORPH_B * 0.5, easeInOutCubic),
+        chain(waitFor(MORPH_B * 0.35), v.opacity(0, MORPH_B * 0.55, easeInCubic)),
+      ),
+    ),
+    all(
+      arrowDot.fill(MORPH_INK, MORPH_B * 0.5, easeInOutCubic),
+      chain(waitFor(MORPH_B * 0.35), arrowDot.opacity(0, MORPH_B * 0.55, easeInCubic)),
+    ),
   );
-  rh9().remove();
-  yield* waitFor(0.5);
+  graph().remove();
+  yield* waitFor(0.4);
 
-  yield* all(
-    rh11().scale(DIAG_S_BOX, DIAG_PUSH, easeInOutCubic),
-    rh11().position(rigAt(DIAG_AT_BOX, DIAG_S_BOX), DIAG_PUSH, easeInOutCubic),
-  );
-  yield* all(contour.opacity(1, CONTOUR_IN, easeOutCubic), contour.scale(1, CONTOUR_IN, easeOutCubic));
-  yield* waitFor(CONTOUR_HOLD);
+  // ═══ 12. Его null'ы в записи 1908 ═══════════════════════════════════
   for (const n of boxNulls) {
     yield* n.rect.size.x(n.w, HL_DUR * 0.7, easeInOutSine);
   }
   yield* waitFor(BOX_HL_HOLD);
 
+  // ═══ 13. Отъезд: вся семья его рукой — вот и остальные person ═══════
   yield* all(
-    contour.opacity(0, DIAG_BACK * 0.4, easeInOutCubic),
     rh11().scale(DIAG_S_WIDE, DIAG_BACK, easeInOutCubic),
     rh11().position(rigAt(DIAG_AT_WIDE, DIAG_S_WIDE), DIAG_BACK, easeInOutCubic),
   );
@@ -1074,18 +1275,50 @@ export default makeScene2D(function* (view) {
   }
   yield* waitFor(DIAG_HOLD);
 
-  // ═══ 17. Его признание — и кадр закрывается на нём ══════════════════
+  // ═══ 14. Чертёж ОТКЛАДЫВАЮТ — под ним стр. 9 ═══════════════════════
+  // Тот же жест, что с листом ALGOL: страница уезжает влево-вниз с
+  // поворотом, под ней уже лежит текст. Физическая склейка, не растворение.
+  rh9().opacity(1);
   yield* all(
-    rh11Blur(7, EASY_IN, easeInOutCubic),
-    rh11Scrim.opacity(0.62, EASY_IN, easeInOutCubic),
+    rh11().position.x(rh11().position.x() - 3300, P11_ASIDE, easeInCubic),
+    rh11().position.y(rh11().position.y() + 320, P11_ASIDE, easeInCubic),
+    rh11().rotation(-9, P11_ASIDE, easeInCubic),
+  );
+  rh11().opacity(0);
+  rh11().remove();
+  yield* waitFor(0.35);
+  yield* hlPartial.rect.size.x(hlPartial.w, HL_DUR, easeInOutSine);
+  yield* waitFor(READ_PARTIAL);
+  yield* rh9().position(rigAt(AT_NULL, RH_READ_S), 0.85, easeInOutCubic);
+  yield* hlNullA.rect.size.x(hlNullA.w, HL_DUR, easeInOutSine);
+  yield* hlNullB.rect.size.x(hlNullB.w, HL_WRAP, easeInOutSine);
+  yield* waitFor(READ_NULL);
+
+  // ═══ 15. Его признание — встык с его печатным решением ══════════════
+  yield* all(
+    rh9Blur(7, EASY_IN, easeInOutCubic),
+    rh9Scrim.opacity(0.62, EASY_IN, easeInOutCubic),
     easy().opacity(1, EASY_IN, easeOutCubic),
     easyBlur(0, EASY_IN, easeOutCubic),
   );
   yield* waitFor(EASY_HOLD);
 
-  yield rh11Blur(10, SQUEEZE_DUR, easeInOutCubic);
+  yield rh9Blur(10, SQUEEZE_DUR, easeInOutCubic);
   yield* frameH(BAND_H, SQUEEZE_DUR, easeInOutCubic);
   yield* waitFor(BAND_HOLD);
+
+  // ═══ 16. Лента языков в полосе: чем это лечили ══════════════════════
+  belt().position.x(-pairCenters[0]);
+  yield* all(easy().opacity(0, BELT_IN, easeInCubic), belt().opacity(1, BELT_IN, easeOutCubic));
+  yield* waitFor(BELT_READ);
+  for (let i = 1; i < LANGS.length; i++) {
+    yield* all(
+      belt().position.x(-pairCenters[i], BELT_STEP, easeInOutCubic),
+      ...pairOps.map((op, j) => op(j === i ? 1 : BELT_DIM, BELT_STEP, easeInOutCubic)),
+    );
+    yield* waitFor(BELT_READ);
+  }
+  yield* waitFor(0.4);
 
   shutterTop.position.y(-(BAND_H / 2 + SHUT_H / 2));
   shutterBot.position.y(BAND_H / 2 + SHUT_H / 2);
