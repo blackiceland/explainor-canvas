@@ -15,7 +15,7 @@ import {readFileSync, writeFileSync, mkdirSync} from 'node:fs';
 
 const PDF = 'C:/Users/black/AppData/Local/Temp/claude/C--Users-black-IdeaProjects-explainor-canvas/10025f88-07bd-46e3-8a70-a87e46f4daa2/scratchpad/record-handling.pdf';
 const OUT_DIR = 'C:/Users/black/IdeaProjects/explainor-canvas/motion-canvas/public/hoare';
-const PDF_PAGE = 10;          // pdf page 10 = document page 9
+const PDF_PAGE = Number(process.argv[2] ?? 10);   // pdf 10 = док. стр. 9, pdf 12 = стр. 11
 const W = 4800, H = 2700;
 const PAPER_H = 2440;         // sheet height inside the frame
 const TILT = -0.45;           // degrees
@@ -59,7 +59,7 @@ const out = await page.evaluate(async (b64, pdfPage, W, H, PAPER_H, TILT) => {
 
   const img = pctx.getImageData(0, 0, paperW, PAPER_H);
   const d = img.data;
-  const PAPER = [243, 238, 227];
+  const PAPER = [234, 226, 209];
   const INK = [38, 36, 33];
   let seed = 20240912;
   const rnd = () => {
@@ -73,12 +73,12 @@ const out = await page.evaluate(async (b64, pdfPage, W, H, PAPER_H, TILT) => {
       const i = (y * paperW + x) * 4;
       const t = d[i] / 255;                      // 1 = paper, 0 = ink
       const lx = x / paperW;
-      const lift = 1 - 0.035 * (lx * 0.6 + ly * 0.4);   // slight fall-off to bottom-right
+      const lift = 1 - 0.085 * (lx * 0.55 + ly * 0.45);   // slight fall-off to bottom-right
       // vignette on the sheet edges
-      const ex = Math.min(lx, 1 - lx) / 0.09;
-      const ey = Math.min(ly, 1 - ly) / 0.07;
-      const edge = 1 - 0.07 * (1 - Math.min(1, Math.min(ex, ey)));
-      const n = (rnd() - 0.5) * 13;              // grain
+      const ex = Math.min(lx, 1 - lx) / 0.16;
+      const ey = Math.min(ly, 1 - ly) / 0.13;
+      const edge = 1 - 0.17 * (1 - Math.min(1, Math.min(ex, ey)));
+      const n = (rnd() - 0.5) * 17;              // grain
       for (let c = 0; c < 3; c++) {
         const v = INK[c] + (PAPER[c] - INK[c]) * t;
         d[i + c] = Math.max(0, Math.min(255, v * lift * edge + n * (0.35 + 0.65 * t)));
@@ -130,7 +130,7 @@ const out = await page.evaluate(async (b64, pdfPage, W, H, PAPER_H, TILT) => {
   return {b64: b, paperW, paperH: PAPER_H, cx: W / 2, cy: H / 2, tilt: TILT};
 }, b64, PDF_PAGE, W, H, PAPER_H, TILT);
 
-writeFileSync(`${OUT_DIR}/record-handling-p9-${W}x${H}.jpg`, Buffer.from(out.b64, 'base64'));
+writeFileSync(`${OUT_DIR}/${process.argv[3] ?? "record-handling-p9"}-${W}x${H}.jpg`, Buffer.from(out.b64, 'base64'));
 console.log(`sheet ${out.paperW}x${out.paperH} centred at ${out.cx},${out.cy}, tilt ${out.tilt}deg`);
-console.log(`wrote ${OUT_DIR}/record-handling-p9-${W}x${H}.jpg`);
+console.log(`wrote ${OUT_DIR}/${process.argv[3] ?? "record-handling-p9"}-${W}x${H}.jpg`);
 await browser.close();

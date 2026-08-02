@@ -92,6 +92,7 @@ import grabStrategyOrbitSceneEn from "./scenes/grabStrategyOrbitSceneEn?scene";
 import problemsYouDontHaveCostSceneEn from "./scenes/problemsYouDontHaveCostSceneEn?scene";
 import duplicationHateIntroScene from "./scenes/duplicationHateIntroScene?scene";
 import introMergeScene from "./scenes/introMergeScene?scene";
+import chapter1IntroScene from "./scenes/chapter1IntroScene?scene";
 import duplicationBestChoiceTitleSceneEn from "./scenes/duplicationBestChoiceTitleSceneEn?scene";
 
 export default makeProject({
@@ -101,8 +102,8 @@ export default makeProject({
         // I — YOUR NULL MEANS TOO MUCH
         // duplicationHateIntroScene,
         // introMergeScene,
-        // doItAllComponentTitleSceneEn,
         // chapter1IntroScene,
+
         // dryFiltersScene,
         // dryConditionsScene,
         // chapter2IntroScene,
