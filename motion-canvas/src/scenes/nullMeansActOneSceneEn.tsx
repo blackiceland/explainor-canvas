@@ -1,4 +1,17 @@
-import {blur, brightness, contrast, Gradient, Img, Line, makeScene2D, Node, Rect, Txt} from '@motion-canvas/2d';
+import {
+  blur,
+  brightness,
+  contrast,
+  Gradient,
+  Img,
+  Line,
+  makeScene2D,
+  Node,
+  Rect,
+  saturate,
+  sepia,
+  Txt,
+} from '@motion-canvas/2d';
 import {
   all,
   chain,
@@ -8,7 +21,6 @@ import {
   easeInOutCubic,
   easeInOutSine,
   easeOutCubic,
-  easeOutQuint,
   easeOutSine,
   SimpleSignal,
   Vector2,
@@ -21,8 +33,12 @@ import {Canon} from '../core/code/model/paletteCanon';
 // ═══════════════════════════════════════════════════════════════════════
 // АКТ 1 «YOUR NULL MEANS TOO MUCH» — ОДНОЙ СЦЕНОЙ.
 //
-// Драматургия: 1965 → ПРОЯВКА фото → приговор → вопрос (смаз-эстафета) →
-// лист ALGOL → стр. 9, маркер по объявлению → печатная строка становится
+// Драматургия: 1965 → ПРОЯВКА (свет приходит в кадр, год выгорает, из тепла
+// набирает плотность снимок) → Хоар + страница ALGOL экспонатом → приговор
+// поверх стены,
+// страница в тени → цитата стирается смазом, страница в свет, Хоар в тень →
+// зум в улику (она всё время была в кадре) → это верх стопки →
+// лист в сторону → стр. 9, маркер по объявлению → печатная строка становится
 // нашим кодом НА ТОМ ЖЕ МЕСТЕ (шаг литеры 18.05 × RH_READ_S = CODE_ADV,
 // замер _rh9_rows.mjs) → столбец + карточка (строка N ↔ клетка N по высоте)
 // → печать создания с ОБРЫВАМИ: father-обрыв → null, sibling-обрыв → null,
@@ -49,74 +65,133 @@ const PHOTO_S = 0.88;
 const toLayer = (imgX: number) => imgX - IMG_W / 2;
 const FIG_SCREEN_X = 0.32 * Screen.width - Screen.width / 2;
 const PAN_X0 = Math.round(FIG_SCREEN_X - toLayer(FIG_CX) * PHOTO_S);
-const MIRROR_SEAM = 3120;
 
 const SERIF = 'Newsreader, serif';
 const MONO = Fonts.code;
 
 // ── 1965 ────────────────────────────────────────────────────────────────
-// ⚠️ Год НЕ улетает: печатается, мигает курсором и просто гаснет.
+// ⚠️ Год НЕ улетает и НЕ гаснет отдельно: его стирает раскрывающееся фото.
 const YEAR = '1965';
 const YEAR_FS = 110;
 const YEAR_ADV = YEAR_FS * 0.6;
 const YEAR_BEIGE = 'rgba(232, 207, 174, 0.96)';
 const YEAR_KEY = 0.13;
-const YEAR_HOLD = 1.15;
 
-// ⚠️ Стык 1965→фото = ПРОЯВКА ОТПЕЧАТКА В ДВЕ СТАДИИ, как в кювете:
-// сначала мутный малоконтрастный образ медленно всплывает из темноты
-// (яркость растёт при задавленном контрасте), потом контраст «схватывается»
-// и чернота садится. Год живёт ПОВЕРХ мутной стадии — как надпись при
-// красном свете — и растворяется, когда контраст приходит. Никакого
-// движения кадра: свет вместо движения.
-const DEV_A = 1.15;
-const DEV_B = 0.85;
-const DEV_MURK = 0.5;                // контраст мутной стадии
-const DEVELOP_SETTLE = 1.025;
-const YEAR_OUT = 0.45;
+// ⚠️ Стык 1965→фото = ПРОЯВКА (щель-затвор отменена автором). В кадр
+// приходит свет: год выгорает в нём, а из света набирает плотность снимок —
+// сначала тёплое латентное пятно (сепия = ровно тот тёплый тон, которым
+// набран сам год), потом тепло уходит и остаётся серебро. Цвет идёт
+// НЕПРЕРЫВНО: беж → сепия → ч/б, резкого стыка нет нигде.
+// ⚠️ Никакого окна-раскрытия и его «передержки»: именно этот прямоугольник
+// висел серой полосой за курсором всё время печати.
+const BLINK_LIT = 0.32;
+const BLINK_OFF = 0.25;
+const PRE_DEV = 0.3;                 // пауза перед приходом света
+const YEAR_BURN = 'rgba(255, 249, 238, 1)';
+const DEV_LIGHT = 0.7;               // свет приходит, год выгорает
+const DEV_SHARP = 1.25;              // плотность и резкость отпечатка
+const DEV_GRADE = 2.1;               // уход тепла: сепия → серебро
+const DEV_BLUR = 13;
+// ⚠️ Наезд идёт ЧЕРЕЗ ВЕСЬ настенный блок (PUSH_D считается из его частей):
+// раньше он кончался за 5с и дальше кадр стоял мёртво.
+const PUSH_K = 1.085;
+const PUSH_AT_Y = -140;              // точка наезда: лицо чуть выше центра
+// ⚠️ Камера не только наезжает, но и ИДЁТ СПРАВА НАЛЕВО (правка автора):
+// одной разницы масштабов для параллакса мало, его выдаёт боковой ход.
+// Запас справа на конце ~90px — дальше кромка снимка войдёт в кадр.
+const PAN_DX = 140;
+const PUSH_X1 = FIG_SCREEN_X + (PAN_X0 - FIG_SCREEN_X) * PUSH_K - PAN_DX;
+const PUSH_Y1 = PUSH_AT_Y * (1 - PUSH_K);
+// ⚠️ ПАРАЛЛАКС: вырезка Хоара получает СВОЙ ход — уезжает влево заметно
+// быстрее стены и растёт быстрее неё. Масштабируется от линии стола (низ
+// выреза), иначе срез фигуры выползет на столешницу. Снос ограничен −52:
+// дальше из-за его плеча вылезет собственная тень, оставшаяся на стене.
+const HOARE_K = 1.06;
+const HOARE_BASE_Y = 381;
+const HOARE_DX = -52;
 const SETTLE = 0.7;
 
 // ── краска на стене ─────────────────────────────────────────────────────
-const QUOTE_X = 2465;
-const QUOTE_Y = 430;
-const QUOTE_FS = 100;
-const QUOTE_PITCH = 128;
+// ⚠️ Цитата и страница — ОДНА колонка на свободной стене (ось 2440, между
+// шкафом и правым краем). Кегль снижен с 82: при 82 текст был вчетверо
+// «тяжелее» листа и композиция ломалась. Цитата поднята под шов стены,
+// подпись прижата к ней — весь остаток высоты отдан листу.
+const QUOTE_X = 2440;
+// ⚠️ Верх первой строки цитаты стоит на уровне ВЕРХА ВОЛОС Хоара (правка
+// автора). Обе величины едут — он поднимается наездом быстрее цитаты, —
+// поэтому равнение взято по середине жизни цитаты (замер: расхождение
+// 55px в начале, 67 в середине, 77 в конце; поднято на 67 экранных).
+const QUOTE_Y = 279;
+const QUOTE_FS = 62;
+const QUOTE_PITCH = 84;
 const QUOTE_FILL = 'rgba(44, 44, 48, 0.85)';
 const QUOTE_SHADOW = 'rgba(0, 0, 0, 0.5)';
-const ATTRIB_FS = 34;
+const ATTRIB_FS = 26;
+const ATTRIB_DY = 74;
 const ATTRIB_FILL = 'rgba(44, 44, 48, 0.58)';
 const QUOTE_IN = 0.8;
-const ATTRIB_IN = 0.5;
-const QUOTE_HOLD = 5.0;              // ⚠️ VO
-// смена приговора на вопрос — ГОРИЗОНТАЛЬНЫЙ СМАЗ. Правило эстафеты: БУКВЫ
-// двух фраз не сосуществуют ни в одном кадре (иначе двойная экспозиция),
-// непрерывность несут только ПОЛОСЫ смаза — приговор гаснет в полосу, полоса
-// живёт долю секунды одна, из неё собирается вопрос.
-const SMEAR_N = 26;
-const SMEAR_SPREAD = 340;
-const SMEAR_OP = 0.15;
-const SMEAR_BLUR = 4;
-const ASK_SWAP = 1.05;
-const ASK_HOLD = 2.6;                // ⚠️ VO
+const QUOTE_HOLD = 5.0;              // ⚠️ VO — “Forty-four years…” + “The phrase became famous”
+// ⚠️ Вопрос на стене убран: «The mistake itself — far less so» несёт голос.
+// ⚠️ Затемнение = РАДИАЛЬНЫЙ multiply с центром НА СТРАНИЦЕ: у света есть
+// направление — вокруг листа тусклая лужа, дальше настоящая тьма (стена
+// ~×0.27 у листа, ~×0.1 по краям). Плоская альфа-вуаль давала серую кашу;
+// плоский multiply — тень без источника. Смаз-уход цитаты удалён: он не
+// читался (обычный фейд + тень-призрак) — цитату ГАСИТ сама тьма.
+// Порядок перекладки: цитата гаснет ПЕРВОЙ → тьма набирает → страница
+// вспыхивает ПОСЛЕДНЕЙ (одна движущаяся величина света).
+const VEIL_NEAR = 'rgb(70, 72, 82)';
+const VEIL_FAR = 'rgb(26, 28, 34)';
+const VEIL_R0 = 380;                 // лужа света обязана вмещать лист целиком
+const VEIL_R1 = 2000;
+const LIGHT_SHIFT = 1.0;             // перекладка света: цитата → страница
+const FOCUS_HOLD = 1.2;              // ⚠️ VO — “far less so”, страница в свету
 
-const CAMERA_DRIFT = -96;
-const HOARE_DRIFT = -20;
-const HOARE_SCALE = 1.016;
-
-// ── страница ALGOL (алиби) ──────────────────────────────────────────────
+// ── страница ALGOL: сквозная улика ──────────────────────────────────────
+// ⚠️ Появляется рядом с Хоаром на словах “designing a new language”, живёт в
+// тени под цитатой, выходит в свет на “far less so” — и только после этого
+// камера зумит в неё. Никакой панорамы: расследуем объект, который всё время
+// был в кадре.
 const ALGOL_SRC = '/hoare/algol-sheet-1181x1594.jpg';
 const SH_W = 1181;
 const SH_H = 1594;
 const toSheet = (x: number, y: number) => [x - SH_W / 2, y - SH_H / 2] as const;
-const WALL_X = 1900;
-const WALL_Y = -10;
-const WALL_SCALE = 0.46;
-const PAN_DUR = 1.7;
-const APPROACH = 1.8;
-const SH_READ = 1.72;
-const SH_HEAD = {x: 594, y: 330};
+// Лист забирает ВСЮ стену под подписью, до линии стола: 0.25 и 0.37 автор
+// оба назвал мелкими рядом с текстом. Сейчас он тяжелее цитаты по площади.
+const SHEET_H_FRAC = 0.417;
+const SHEET_SCALE = (Screen.height * SHEET_H_FRAC) / SH_H / PHOTO_S;
+// ⚠️ Лист обязан ЦЕЛИКОМ висеть на стене: низ выше столешницы (~+315).
+// LX = ось цитаты: колонка справа — ОДНА ось.
+const SHEET_LX = 840;
+const SHEET_LY = 26;                 // колонка поднята вместе с цитатой
+// ⚠️ Лист БЕЛЫЙ С САМОГО НАЧАЛА (правка автора). Ни тонировки, ни тени, ни
+// приглушённой прозрачности на стене — любое гашение читается как «опустил
+// opacity». Замер: бумага и так 255/255/255, ярче в кадре нет ничего.
+// ⚠️ Поэтому «выделить на зуме» НЕЛЬЗЯ прибавкой яркости (её некуда давать —
+// поднимется только серый текст и поплывёт типографика). Выделение делают
+// лампа (lightNode ложится на шапку) и уход всего остального в темноту.
+const SHEET_TILT = -0.7;             // лёгкий наклон в тон шву стены — не стикер
+// ⚠️ Плоской тени на странице БОЛЬШЕ НЕТ (правка автора «серый оверлей
+// выглядит плохо, потом резко белеет»): под цитатой лист просто живёт в
+// своей тонировке, а БЕЛЕЕТ он на зуме — тонировка снимается за наезд.
+const PAGE_CUE = 1.4;                // ⚠️ VO — “designing a new language”
+const PAGE_IN = 0.9;
+const PAGE_HOLD = 1.6;               // ⚠️ VO
+// ⚠️ Расследование = ОДИН ход камеры: solo подхватывает лист прямо в
+// экспонатной кадровке и ЕДИНЫМ твином приходит в чтение шапки; фон
+// уезжает в укрупнение и гаснет в первой трети. Два склеенных твина
+// (зум→стоп→наезд) читались как glide→заминка→катапульта.
+const INVEST_D = 2.2;                // 3.5 тянулся: лист теперь и стартует крупнее
+const BG_ZOOM_K = 1.7;               // фон догоняет и гаснет до каши апскейла
+const SH_READ = 1.66;                // 1.72 резал «D. E. KNUTH, Editor» краем
+const SH_HEAD = {x: 602, y: 330};
 const LIGHT_HOLD = 2.0;              // ⚠️ VO
 const SET_ASIDE = 1.0;
+
+// Наезд на Хоара живёт ровно столько, сколько длится весь настенный блок —
+// от прихода света до ухода в лист. Сумма считается здесь, чтобы правка
+// любого холда не оставляла камеру стоять или, наоборот, не рвала её.
+const PUSH_D =
+  DEV_GRADE + SETTLE + PAGE_CUE + PAGE_IN + PAGE_HOLD + QUOTE_IN + QUOTE_HOLD + LIGHT_SHIFT + FOCUS_HOLD;
 
 // ── страницы Record Handling ────────────────────────────────────────────
 const RH9_SRC = '/hoare/record-handling-p9-4800x2700.jpg';
@@ -178,7 +253,7 @@ const DIAG_S_BOX = 2.0;
 // не видна, семья и код гаснут; (B) КРОССФЕЙД: страница проявляется, наша
 // краска темнеет до чернил и уступает рукописи. Никакого морфа глифов.
 const MORPH_A = 1.0;
-const MORPH_B = 0.95;
+const MORPH_B = 0.8;
 const MORPH_INK = 'rgba(52, 47, 40, 0.85)';
 // p11 откладывают тем же жестом, что лист ALGOL: уезжает влево-вниз с
 // поворотом, под ним уже лежит стр. 9
@@ -204,7 +279,9 @@ const ROSE = Canon.methodCall;
 // перестроении в столбец шапка объявления по горизонтали НЕ едет.
 const COL_X = -829;
 const COL_Y0 = -228;
-const ROW_H = 76;
+// ⚠️ 68, не 76: при 76 запись K и третья строка кода упирались в низ кадра
+// (правка автора «уменьшить отступы между строк в record»)
+const ROW_H = 68;
 const colAt = (row: number, col: number) => [COL_X + col * CODE_ADV, COL_Y0 + row * ROW_H] as const;
 
 const CARD_X = 330;
@@ -229,7 +306,7 @@ const K_CELL5_Y = OTHER_Y - CARD_H / 2 + ROW_H * 4.5;
 const C3_X = 400;
 const C3_Y = K_CELL5_Y - ROW_H / 2 + CARD_H / 2;
 const FAM_S = 0.8;
-const FAM_POS = [-40, -210] as const;
+const FAM_POS = [-40, -174] as const;
 const FAM_D = 1.0;
 const FAM_HOLD = 1.6;                // ⚠️ VO — семья: два человека по ссылкам
 
@@ -238,13 +315,18 @@ const CARD_IN = 0.7;
 const FIELD_STEP = 0.75;             // ⚠️ VO — по одному полю
 const ARROW_DRAW = 0.55;
 
-const MAKE_Y = 300;
-const MAKE_CHAR = 0.03;
+// ⚠️ ТРИ строки создания каскадом: каждая ссылка тянет следующую строку —
+// «чтобы записать одного человека, пришлось создать троих», и дыр всё
+// больше (последняя строка кончается тремя null). Карточка появляется
+// ПОСЛЕ закрытия своей скобки и заполняется СВОЕЙ строкой.
+const MAKE_Y = 330;
+const MAKE_PITCH = 52;
+const MAKE_CHAR = 0.026;
 // ⚠️ Обрывы печати: на father долгий (здесь сидел Хоар — писать нечего),
 // на elder sibling короткий (та же беда, уже понятная), перед K — никакого.
 const FATHER_STALL = 1.7;            // ⚠️ VO
 const SIB_STALL = 0.9;               // ⚠️ VO
-const K_HOLD = 1.2;                  // ⚠️ VO — единственная настоящая ссылка
+const K_HOLD = 0.9;                  // ⚠️ VO — единственная настоящая ссылка
 const PAYOFF_HOLD = 2.0;             // ⚠️ VO — запись: две дырки, одна стрелка
 
 const EASY_IN = 0.8;
@@ -280,6 +362,10 @@ const SHUT_DUR = 0.6;
 
 export default makeScene2D(function* (view) {
   applyBackground(view);
+  // ⚠️ Кэш узла режется рамкой вьюпорта (Node.worldSpaceCacheBBox), поэтому
+  // блюр проявки размывался в прозрачность прямо по краю кадра и давал
+  // тёмный кант. Запас отодвигает границу кэша за экран.
+  view.cachePadding(90);
 
   yield Promise.all(
     [BG_SRC, CUT_SRC, ALGOL_SRC, RH9_SRC, RH11_SRC].map(
@@ -298,8 +384,9 @@ export default makeScene2D(function* (view) {
   view.add(<Rect ref={stage} width={Screen.width} height={() => frameH()} clip />);
 
   // ═══ 1. «1965» консолью ══════════════════════════════════════════════
-  const yearNode = createRef<Node>();
-  view.add(<Node ref={yearNode} />);
+  // ⚠️ Год и курсор — ОДИН узел, и он ляжет ПОВЕРХ проявляющегося снимка:
+  // цифры гасит пришедший свет. За курсором не тянется ничего.
+  const yearWrap = new Node({});
   const yearLeft = -(YEAR.length * YEAR_ADV) / 2;
   const yearTxt = new Txt({
     text: '',
@@ -318,33 +405,39 @@ export default makeScene2D(function* (view) {
     fill: YEAR_BEIGE,
     opacity: 0,
   });
-  yearNode().add(yearTxt);
-  yearNode().add(cursor);
+  yearWrap.add(yearTxt);
+  yearWrap.add(cursor);
 
-  // ═══ 2. Панорама Хоара ═══════════════════════════════════════════════
+  // ═══ 2. Снимок: проявка и наезд ══════════════════════════════════════
   const photo = createRef<Node>();
   const bgLayer = createRef<Node>();
   const hoareLayer = createRef<Node>();
-  const developB = createSignal(0);
-  const developC = createSignal(DEV_MURK);
+  // грейд проявки: 1 = тёплое латентное пятно, 0 = готовый отпечаток.
+  // sepia на серебряном снимке даёт ровно тот беж, которым набран год, —
+  // поэтому цвет перетекает, а не переключается.
+  const devSoft = createSignal(1);
+  const devWarm = createSignal(1);
   stage().add(
     <Node
       ref={photo}
       x={PAN_X0}
-      scale={PHOTO_S * DEVELOP_SETTLE}
+      scale={PHOTO_S}
       opacity={0}
-      filters={[brightness(() => developB()), contrast(() => developC())]}
+      filters={[
+        // ⚠️ sepia поднимает КРАСНЫЙ в 1.35 раза: при brightness > 1 он
+        // упирался в 255 первым, и светлая стена уезжала в зелень. Пока
+        // тепло на кадре, экспозиция чуть придержана — клиппинга нет.
+        blur(() => DEV_BLUR * devSoft()),
+        brightness(() => 1 - 0.1 * devWarm()),
+        contrast(() => 1 - 0.36 * devSoft()),
+        sepia(() => devWarm()),
+        saturate(() => 1 + 0.35 * devWarm()),
+      ]}
     />,
   );
+  stage().add(yearWrap);
   photo().add(<Node ref={bgLayer} />);
   bgLayer().add(<Img src={BG_SRC} width={IMG_W} height={IMG_H} />);
-  const seamU = MIRROR_SEAM - IMG_W / 2;
-  const mirrorW = 3120;
-  const mirrorCx = seamU + mirrorW / 2;
-  const mirrorImgCx = seamU + (MIRROR_SEAM - IMG_W / 2);
-  const mirrorClip = new Rect({x: mirrorCx, width: mirrorW, height: IMG_H, clip: true});
-  mirrorClip.add(new Img({src: BG_SRC, width: IMG_W, height: IMG_H, scale: [-1, 1], x: mirrorImgCx - mirrorCx}));
-  bgLayer().add(mirrorClip);
   photo().add(<Node ref={hoareLayer} />);
   hoareLayer().add(<Img src={CUT_SRC} width={IMG_W} height={IMG_H} />);
 
@@ -363,56 +456,22 @@ export default makeScene2D(function* (view) {
       shadowOffset={shadow ? new Vector2(18, 13) : new Vector2(0, 0)}
     />
   );
-  const makeSmear = (lines: string[], spread: SimpleSignal<number>) => {
-    const layer = new Node({});
-    for (let i = 0; i < SMEAR_N; i++) {
-      const t = i / (SMEAR_N - 1);
-      const cell = new Node({
-        x: () => -t * spread(),
-        opacity: SMEAR_OP * Math.pow(1 - t, 1.5),
-      });
-      lines.forEach((ln, k) =>
-        cell.add(wallLine(ln, (k - (lines.length - 1) / 2) * QUOTE_PITCH, QUOTE_FS, QUOTE_FILL, false)),
-      );
-      layer.add(cell);
-    }
-    layer.cache(true);
-    layer.cachePadding(SMEAR_BLUR * 2 + 20);
-    layer.filters([blur(SMEAR_BLUR)]);
-    return layer;
-  };
-
-  // ⚠️ Слой смаза — СИБЛИНГ, а не ребёнок краски: внутри гаснущей ноды он не
-  // может быть заметнее её самой, и переход снова читается фейдом.
-  const quoteSpread = createSignal(0);
-  const askSpread = createSignal(SMEAR_SPREAD);
-  const quoteSmearOp = createSignal(0);
-  const askSmearOp = createSignal(0);
   const quote = createRef<Node>();
   const attrib = createRef<Node>();
-  const ask = createRef<Node>();
-  const wallAt = (op: () => number) =>
-    new Node({x: toLayer(QUOTE_X), y: QUOTE_Y - IMG_H / 2, opacity: op});
-
-  const quoteSmearWrap = wallAt(() => quoteSmearOp());
-  quoteSmearWrap.add(makeSmear(['“MY BILLION-DOLLAR', 'MISTAKE.”'], quoteSpread));
-  bgLayer().add(quoteSmearWrap);
   bgLayer().add(<Node ref={quote} x={toLayer(QUOTE_X)} y={QUOTE_Y - IMG_H / 2} opacity={0} scale={1.03} />);
   quote().add(wallLine('“MY BILLION-DOLLAR', -QUOTE_PITCH / 2, QUOTE_FS, QUOTE_FILL, true));
   quote().add(wallLine('MISTAKE.”', QUOTE_PITCH / 2, QUOTE_FS, QUOTE_FILL, true));
   quote().add(<Node ref={attrib} opacity={0} />);
-  attrib().add(wallLine('TONY HOARE · 2009', QUOTE_PITCH / 2 + 112, ATTRIB_FS, ATTRIB_FILL, false));
+  attrib().add(wallLine('TONY HOARE · 2009', QUOTE_PITCH / 2 + ATTRIB_DY, ATTRIB_FS, ATTRIB_FILL, false));
 
-  const askSmearWrap = wallAt(() => askSmearOp());
-  askSmearWrap.add(makeSmear(['WHAT EXACTLY', 'WAS THE MISTAKE?'], askSpread));
-  bgLayer().add(askSmearWrap);
-  bgLayer().add(<Node ref={ask} x={toLayer(QUOTE_X)} y={QUOTE_Y - IMG_H / 2} opacity={0} />);
-  ask().add(wallLine('WHAT EXACTLY', -QUOTE_PITCH / 2, QUOTE_FS, QUOTE_FILL, true));
-  ask().add(wallLine('WAS THE MISTAKE?', QUOTE_PITCH / 2, QUOTE_FS, QUOTE_FILL, true));
-
-  // ── лист ALGOL на стене ──────────────────────────────────────────────
+  // ── лист ALGOL ───────────────────────────────────────────────────────
+  // ⚠️ Стопка есть у ОБОИХ листов и приходит ВМЕСТЕ со страницей (правка
+  // автора): когда подлисты возникали только на зуме, это читалось как
+  // «из-под страницы вдруг вылезла вторая».
   const makeAlgolSheet = () => {
     const n = new Node({});
+    n.add(new Rect({width: SH_W, height: SH_H, x: 10, y: 12, rotation: 0.9, fill: 'rgb(196, 192, 182)'}));
+    n.add(new Rect({width: SH_W, height: SH_H, x: 5, y: 6, rotation: -0.45, fill: 'rgb(212, 208, 198)'}));
     n.add(
       new Rect({
         width: SH_W,
@@ -426,9 +485,29 @@ export default makeScene2D(function* (view) {
     n.add(new Img({src: ALGOL_SRC, width: SH_W, height: SH_H}));
     return n;
   };
-  const wallSheet = new Node({x: WALL_X, y: WALL_Y, scale: WALL_SCALE, opacity: 0});
+  // Хоар уходит в затемнение, когда страница выходит в свет: вуаль лежит
+  // НАД фото и цитатой, но ПОД страницей. Центр света — на листе.
+  const darkVeil = new Rect({
+    width: IMG_W * 1.2,
+    height: IMG_H * 1.2,
+    fill: new Gradient({
+      type: 'radial',
+      from: new Vector2(SHEET_LX, SHEET_LY),
+      to: new Vector2(SHEET_LX, SHEET_LY),
+      fromRadius: VEIL_R0,
+      toRadius: VEIL_R1,
+      stops: [
+        {offset: 0, color: VEIL_NEAR},
+        {offset: 1, color: VEIL_FAR},
+      ],
+    }),
+    compositeOperation: 'multiply',
+    opacity: 0,
+  });
+  photo().add(darkVeil);
+  const wallSheet = new Node({x: SHEET_LX, y: SHEET_LY, scale: SHEET_SCALE, rotation: SHEET_TILT, opacity: 0});
   wallSheet.add(makeAlgolSheet());
-  bgLayer().add(wallSheet);
+  photo().add(wallSheet);
 
   // ═══ Страницы Record Handling ════════════════════════════════════════
   const T = (TILT * Math.PI) / 180;
@@ -515,10 +594,12 @@ export default makeScene2D(function* (view) {
   const restNulls = NULLS_REST.map(n => makeHighlight(rh11Hl, n));
 
   // ═══ Лист ALGOL, взятый камерой ══════════════════════════════════════
-  const soloSheet = new Node({scale: WALL_SCALE * PHOTO_S, opacity: 0});
+  const soloSheet = new Node({opacity: 0});
   soloSheet.add(makeAlgolSheet());
+  // ⚠️ центр лужи света чуть ВЫШЕ точки прицела (на строке заголовка, не на
+  // аннотации), внешний стоп мягче — углы держат фактуру бумаги, не муть.
   const [lx0, ly0] = toSheet(SH_HEAD.x, SH_HEAD.y);
-  const lightNode = new Node({x: lx0, y: ly0, scale: [1, 0.4], opacity: 0});
+  const lightNode = new Node({x: lx0, y: ly0 - 40, scale: [1, 0.4], opacity: 0});
   lightNode.add(
     new Rect({
       width: 7200,
@@ -528,11 +609,11 @@ export default makeScene2D(function* (view) {
         from: new Vector2(0, 0),
         to: new Vector2(0, 0),
         fromRadius: 430,
-        toRadius: 980,
+        toRadius: 1150,
         stops: [
           {offset: 0, color: 'rgba(8,9,12,0)'},
-          {offset: 0.42, color: 'rgba(8,9,12,0.34)'},
-          {offset: 1, color: 'rgba(8,9,12,0.88)'},
+          {offset: 0.42, color: 'rgba(8,9,12,0.26)'},
+          {offset: 1, color: 'rgba(8,9,12,0.72)'},
         ],
       }),
     }),
@@ -586,6 +667,7 @@ export default makeScene2D(function* (view) {
   const L1 = (n: number) => pageAt(120, 1010, n);
   const L2 = (n: number) => pageAt(500, 1050, n);
   const L3 = (n: number) => pageAt(1245, 1089, n);
+  const L4 = (n: number) => pageAt(120, 1132, n);
 
   const DECL: Tok[] = [
     {t: 'record class ', c: KW, pl: L1(0), cl: colAt(0, 0)},
@@ -608,6 +690,17 @@ export default makeScene2D(function* (view) {
     {t: 'youngest', c: IDENT, pl: L2(42), cl: colAt(5, 21)},
     {t: 'offspring', c: IDENT, pl: L3(0), cl: colAt(5, 30)},
     {t: ');', c: PUN, pl: L3(9), cl: colAt(6, 0)},
+    // строка переменных с его же страницы — даёт имена T, J, K строкам создания
+    {t: 'reference ', c: TY, pl: L4(0), cl: colAt(7, 0)},
+    {t: '(', c: PUN, pl: L4(10), cl: colAt(7, 10)},
+    {t: 'person', c: TY, pl: L4(11), cl: colAt(7, 11)},
+    {t: ') ', c: PUN, pl: L4(17), cl: colAt(7, 17)},
+    {t: 'T', c: IDENT, pl: L4(19), cl: colAt(7, 19)},
+    {t: ', ', c: PUN, pl: L4(20), cl: colAt(7, 20)},
+    {t: 'J', c: IDENT, pl: L4(22), cl: colAt(7, 22)},
+    {t: ', ', c: PUN, pl: L4(23), cl: colAt(7, 23)},
+    {t: 'K', c: IDENT, pl: L4(25), cl: colAt(7, 25)},
+    {t: ';', c: PUN, pl: L4(26), cl: colAt(7, 26)},
   ];
   const mkTok = (t: string, c: string, p: readonly [number, number], op = 1) =>
     new Txt({
@@ -643,7 +736,7 @@ export default makeScene2D(function* (view) {
     }
   }
   // строки столбца — чтобы гасить всё, кроме читаемого поля
-  const rowNodes: Txt[][] = [[], [], [], [], [], [], []];
+  const rowNodes: Txt[][] = [[], [], [], [], [], [], [], []];
   declNodes.forEach((n, i) => rowNodes[Math.round((DECL[i].cl[1] - COL_Y0) / ROW_H)].push(n));
   dupNodes.forEach(d => rowNodes[Math.round((d.to[1] - COL_Y0) / ROW_H)].push(d.node));
 
@@ -733,17 +826,23 @@ export default makeScene2D(function* (view) {
       fill: IDENT,
     }),
   );
-  other().add(
-    new Txt({
-      text: '1935',
-      x: OTHER_X,
-      y: OTHER_Y - CARD_H / 2 + ROW_H * 0.5,
+  // значения K заполняет ЕГО СОБСТВЕННАЯ строка создания (вторая)
+  const mkCardVal = (parent: Node, cx: number, topY: number, i: number, text: string) => {
+    const n = new Txt({
+      text,
+      x: cx,
+      y: topY + ROW_H * (i + 0.5),
       fontFamily: MONO,
       fontSize: CARD_VAL_FS,
       fontWeight: 500,
       fill: KW,
-    }),
-  );
+      opacity: 0,
+    });
+    parent.add(n);
+    return n;
+  };
+  const kTop = OTHER_Y - CARD_H / 2;
+  const kVals = ['1935', 'true', 'null', 'null'].map((t, i) => mkCardVal(other(), OTHER_X, kTop, i, t));
 
   // ⚠️ Стрелка — ЧИСТАЯ ГОРИЗОНТАЛЬ из пятой клетки в первую клетку K
   // (высоты совпадают по построению OTHER_Y). Цель видна в кадре ЦЕЛИКОМ.
@@ -788,15 +887,18 @@ export default makeScene2D(function* (view) {
   }
   card3().add(
     new Txt({
-      text: '1964',
+      text: 'J',
       x: C3_X,
-      y: C3_Y - CARD_H / 2 + ROW_H * 0.5,
+      y: C3_Y - CARD_H / 2 - 44,
       fontFamily: MONO,
-      fontSize: CARD_VAL_FS,
+      fontSize: CARD_LABEL_FS,
       fontWeight: 500,
-      fill: KW,
+      fill: IDENT,
     }),
   );
+  // значения J заполняет ТРЕТЬЯ строка — и кончается тремя null подряд
+  const jTop = C3_Y - CARD_H / 2;
+  const jVals = ['1964', 'true', 'null', 'null', 'null'].map((t, i) => mkCardVal(card3(), C3_X, jTop, i, t));
   // стрелка K → 1964: из пятой клетки K влево, в первую клетку 1964
   const arrow3 = new Line({
     points: [
@@ -831,33 +933,71 @@ export default makeScene2D(function* (view) {
   });
   work().add(arrowDot);
 
-  // ── строка создания ─────────────────────────────────────────────────
-  // ⚠️ Печать с ОБРЫВАМИ, вся драма на графите: `person(1908, true, ` идёт
-  // легко → на father писать нечего, курсор мигает (здесь сидел Хоар) →
-  // `null` → на elder sibling обрыв короче → `null` → K пишется сразу, и
-  // пятая клетка получает точку со стрелкой в видимую запись K. Итог на
-  // одной карточке: две дырки и одна стрелка — его запись 1908 буквально.
-  type MTok = {t: string; c: string; cell?: number; stall?: number};
+  // ── ТРИ строки создания ─────────────────────────────────────────────
+  // ⚠️ Печать с ОБРЫВАМИ в первой строке (father — долгий, здесь сидел
+  // Хоар; sibling — короткий) и КАСКАДОМ дальше: аргумент K закрывает
+  // строку → появляется запись K → её заполняет ВТОРАЯ строка; аргумент J
+  // закрывает вторую → семья отъезжает, появляется J → ТРЕТЬЯ строка
+  // кончается тремя null подряд. Дыр всё больше.
+  type MTok = {
+    t: string;
+    c: string;
+    line: number;
+    cell?: Txt;
+    dot?: Rect;
+    act?: 'cardK' | 'cardJ';
+    stall?: number;
+  };
   const MAKE: MTok[] = [
-    {t: 'person', c: TY},
-    {t: '(', c: PUN},
-    {t: '1908', c: KW, cell: 0},
-    {t: ', ', c: PUN},
-    {t: 'true', c: KW, cell: 1},
-    {t: ', ', c: PUN},
-    {t: 'null', c: KW, cell: 2, stall: FATHER_STALL},
-    {t: ', ', c: PUN},
-    {t: 'null', c: KW, cell: 3, stall: SIB_STALL},
-    {t: ', ', c: PUN},
-    {t: 'K', c: IDENT, cell: 4},
-    {t: ');', c: PUN},
+    {t: 'T ', c: IDENT, line: 0},
+    {t: ':= ', c: PUN, line: 0},
+    {t: 'person', c: TY, line: 0},
+    {t: '(', c: PUN, line: 0},
+    {t: '1908', c: KW, line: 0, cell: val1908},
+    {t: ', ', c: PUN, line: 0},
+    {t: 'true', c: KW, line: 0, cell: valTrue},
+    {t: ', ', c: PUN, line: 0},
+    {t: 'null', c: KW, line: 0, cell: cellNulls[0], stall: FATHER_STALL},
+    {t: ', ', c: PUN, line: 0},
+    {t: 'null', c: KW, line: 0, cell: cellNulls[1], stall: SIB_STALL},
+    {t: ', ', c: PUN, line: 0},
+    {t: 'K', c: IDENT, line: 0, dot: arrowDot},
+    {t: ');', c: PUN, line: 0, act: 'cardK'},
+    {t: 'K ', c: IDENT, line: 1},
+    {t: ':= ', c: PUN, line: 1},
+    {t: 'person', c: TY, line: 1},
+    {t: '(', c: PUN, line: 1},
+    {t: '1935', c: KW, line: 1, cell: kVals[0]},
+    {t: ', ', c: PUN, line: 1},
+    {t: 'true', c: KW, line: 1, cell: kVals[1]},
+    {t: ', ', c: PUN, line: 1},
+    {t: 'null', c: KW, line: 1, cell: kVals[2]},
+    {t: ', ', c: PUN, line: 1},
+    {t: 'null', c: KW, line: 1, cell: kVals[3]},
+    {t: ', ', c: PUN, line: 1},
+    {t: 'J', c: IDENT, line: 1, dot: dot3},
+    {t: ');', c: PUN, line: 1, act: 'cardJ'},
+    {t: 'J ', c: IDENT, line: 2},
+    {t: ':= ', c: PUN, line: 2},
+    {t: 'person', c: TY, line: 2},
+    {t: '(', c: PUN, line: 2},
+    {t: '1964', c: KW, line: 2, cell: jVals[0]},
+    {t: ', ', c: PUN, line: 2},
+    {t: 'true', c: KW, line: 2, cell: jVals[1]},
+    {t: ', ', c: PUN, line: 2},
+    {t: 'null', c: KW, line: 2, cell: jVals[2]},
+    {t: ', ', c: PUN, line: 2},
+    {t: 'null', c: KW, line: 2, cell: jVals[3]},
+    {t: ', ', c: PUN, line: 2},
+    {t: 'null', c: KW, line: 2, cell: jVals[4]},
+    {t: ');', c: PUN, line: 2},
   ];
   const makeRow = createRef<Node>();
   work().add(<Node ref={makeRow} x={COL_X} y={MAKE_Y} opacity={0} />);
-  let mc = 0;
+  const lineChars = [0, 0, 0];
   const makeNodes = MAKE.map(t => {
-    const n = mkTok('', t.c, [mc * CODE_ADV, 0]);
-    mc += t.t.length;
+    const n = mkTok('', t.c, [lineChars[t.line] * CODE_ADV, t.line * MAKE_PITCH]);
+    lineChars[t.line] += t.t.length;
     makeRow().add(n);
     return n;
   });
@@ -986,93 +1126,99 @@ export default makeScene2D(function* (view) {
     yearTxt.text(YEAR.slice(0, i));
     cursor.position.x(yearLeft + YEAR_ADV * i + YEAR_ADV * 0.18);
   }
-  for (let b = 0; b < 2; b++) {
-    yield* waitFor(YEAR_HOLD * 0.28);
-    cursor.opacity(0);
-    yield* waitFor(YEAR_HOLD * 0.22);
-    cursor.opacity(1);
-  }
-
-  const driftDur = DEV_A + DEV_B + SETTLE + QUOTE_IN + QUOTE_HOLD;
-  yield all(
-    bgLayer().x(CAMERA_DRIFT, driftDur, easeInOutSine),
-    hoareLayer().x(CAMERA_DRIFT + HOARE_DRIFT, driftDur, easeInOutSine),
-    hoareLayer().scale(HOARE_SCALE, driftDur, easeInOutSine),
-  );
-
-  // ⚠️ Проявка в две стадии: (A) мутный малоконтрастный образ всплывает,
-  // год живёт поверх него; (B) контраст схватывается, чернота садится,
-  // год растворяется. Кадр неподвижен.
+  yield* waitFor(BLINK_LIT);
   cursor.opacity(0);
-  photo().opacity(1);
-  yield* all(
-    developB(0.86, DEV_A, easeInOutSine),
-    photo().scale(PHOTO_S * 1.008, DEV_A, easeOutCubic),
-  );
-  yield* all(
-    developB(1, DEV_B, easeInOutSine),
-    developC(1, DEV_B, easeInOutSine),
-    photo().scale(PHOTO_S, DEV_B * 1.4, easeOutQuint),
-    yearNode().opacity(0, YEAR_OUT, easeInCubic),
-  );
-  photo().filters([]);
-  yearNode().remove();
-  yield* waitFor(SETTLE);
+  yield* waitFor(BLINK_OFF);
+  cursor.opacity(1);
+  yield* waitFor(PRE_DEV);
 
-  yield* all(quote().opacity(1, QUOTE_IN, easeOutCubic), quote().scale(1, QUOTE_IN, easeOutCubic));
-  yield* attrib().opacity(1, ATTRIB_IN, easeOutCubic);
-  yield* waitFor(QUOTE_HOLD);
-
-  // ═══ 3. Приговор смазывается влево, вопрос собирается ════════════════
-  // ⚠️ Эстафета ПОЛОСАМИ, полоса НЕПРЕРЫВНА: смаз приговора держится до
-  // середины, смаз вопроса поднимается ещё ПОД ним — в середине хода обе
-  // полосы горят одновременно и передают краску из рук в руки. Буквы двух
-  // фраз по-прежнему не сосуществуют ни в одном кадре.
-  yield* all(
-    quoteSpread(SMEAR_SPREAD, ASK_SWAP * 0.55, easeOutCubic),
-    quote().opacity(0, ASK_SWAP * 0.38, easeInCubic),
-    chain(
-      quoteSmearOp(1, ASK_SWAP * 0.12, easeOutCubic),
-      waitFor(ASK_SWAP * 0.38),
-      quoteSmearOp(0, ASK_SWAP * 0.3, easeInCubic),
+  // ⚠️ ПРОЯВКА. Наезд стартует ВМЕСТЕ со светом и держится весь настенный
+  // блок — снимок рождается уже в движении и не замирает. Вырезка Хоара
+  // едет своим, большим наездом: он выходит из стены, а не растёт с ней.
+  yield all(
+    photo().scale(PHOTO_S * PUSH_K, PUSH_D, easeInOutSine),
+    photo().position(new Vector2(PUSH_X1, PUSH_Y1), PUSH_D, easeInOutSine),
+    hoareLayer().scale(HOARE_K, PUSH_D, easeInOutSine),
+    hoareLayer().position(
+      new Vector2(toLayer(FIG_CX) * (1 - HOARE_K) + HOARE_DX, HOARE_BASE_Y * (1 - HOARE_K)),
+      PUSH_D,
+      easeInOutSine,
     ),
+  );
+  // свет приходит → год белеет и выгорает в нём → отпечаток набирает
+  // плотность → и только потом из него медленно уходит тепло
+  yield* all(
+    photo().opacity(1, DEV_LIGHT, easeOutSine),
+    yearTxt.fill(YEAR_BURN, DEV_LIGHT * 0.5, easeOutSine),
+    cursor.fill(YEAR_BURN, DEV_LIGHT * 0.5, easeOutSine),
     chain(
-      waitFor(ASK_SWAP * 0.3),
+      waitFor(DEV_LIGHT * 0.34),
       all(
-        chain(
-          askSmearOp(1, ASK_SWAP * 0.15, easeOutCubic),
-          waitFor(ASK_SWAP * 0.25),
-          askSmearOp(0, ASK_SWAP * 0.3, easeInCubic),
-        ),
-        askSpread(0, ASK_SWAP * 0.6, easeInOutCubic),
-        chain(waitFor(ASK_SWAP * 0.2), ask().opacity(1, ASK_SWAP * 0.42, easeOutCubic)),
+        yearTxt.opacity(0, DEV_LIGHT * 0.66, easeInCubic),
+        cursor.opacity(0, DEV_LIGHT * 0.5, easeInCubic),
       ),
     ),
+    devSoft(0, DEV_SHARP, easeOutCubic),
+    devWarm(0, DEV_GRADE, easeInOutSine),
+  );
+  yearWrap.remove();
+  photo().filters([]);
+  yield* waitFor(SETTLE);
+
+  // ═══ 2а. Страница ALGOL проявляется рядом — архивный экспонат ════════
+  yield* waitFor(PAGE_CUE);
+  yield* wallSheet.opacity(1, PAGE_IN, easeOutCubic);
+  yield* waitFor(PAGE_HOLD);
+
+  // ═══ 2б. Приговор поверх стены; страница просто ОСТАЁТСЯ рядом.
+  // Подпись — внутри ТОГО ЖЕ жеста (блок появляется как одно).
+  yield* all(
+    quote().opacity(1, QUOTE_IN, easeOutCubic),
+    quote().scale(1, QUOTE_IN, easeOutCubic),
+    chain(waitFor(QUOTE_IN * 0.45), attrib().opacity(1, QUOTE_IN * 0.55, easeOutCubic)),
+  );
+  yield* waitFor(QUOTE_HOLD);
+
+  // ═══ 3. Перекладка света: цитату гасит сама тьма. На самой странице в
+  // этот момент НИЧЕГО не переключается — она просто остаётся освещённой,
+  // пока вокруг темнеет. Вопрос на стене не пишется — его несёт голос.
+  yield* all(
+    quote().opacity(0, LIGHT_SHIFT * 0.55, easeInCubic),
+    darkVeil.opacity(1, LIGHT_SHIFT, easeInOutCubic),
   );
   quote().remove();
-  quoteSmearWrap.remove();
-  askSmearWrap.remove();
-  yield* waitFor(ASK_HOLD);
+  yield* waitFor(FOCUS_HOLD);
 
-  // ═══ 4. Камера едет вправо — на стене висит страница ═════════════════
-  const panTarget = -(CAMERA_DRIFT + WALL_X) * PHOTO_S;
-  yield* all(
-    ask().opacity(0, PAN_DUR * 0.35, easeInCubic),
-    wallSheet.opacity(1, PAN_DUR * 0.4, easeOutCubic),
-    photo().x(panTarget, PAN_DUR, easeInOutCubic),
-  );
-
-  soloSheet.position([0, WALL_Y * PHOTO_S]);
-  soloSheet.scale(WALL_SCALE * PHOTO_S);
+  // ═══ 4. Расследование ОДНИМ ходом камеры: solo подхватывает лист в
+  // экспонатной кадровке (позиция/масштаб/наклон совпадают пиксель в
+  // пиксель) и единым твином приходит в чтение шапки; фон укрупняется
+  // следом и гаснет в первой трети — каша апскейла не успевает показаться.
+  const invScale = PHOTO_S * PUSH_K;
+  const pageStart = new Vector2(PUSH_X1 + invScale * SHEET_LX, PUSH_Y1 + invScale * SHEET_LY);
+  soloSheet.position(pageStart);
+  soloSheet.scale(invScale * SHEET_SCALE);
+  soloSheet.rotation(SHEET_TILT);
   soloSheet.opacity(1);
   wallSheet.opacity(0);
   const [hx, hy] = toSheet(SH_HEAD.x, SH_HEAD.y);
   // ⚠️ свет приходит ВМЕСТЕ с наездом, а не после него
   yield* all(
-    soloSheet.scale(SH_READ, APPROACH, easeInOutCubic),
-    soloSheet.position([-hx * SH_READ, -hy * SH_READ], APPROACH, easeInOutCubic),
-    photo().opacity(0, APPROACH * 0.62, easeInOutCubic),
-    chain(waitFor(APPROACH * 0.25), lightNode.opacity(1, APPROACH * 0.7, easeInOutCubic)),
+    soloSheet.scale(SH_READ, INVEST_D, easeInOutCubic),
+    soloSheet.position([-hx * SH_READ, -hy * SH_READ], INVEST_D, easeInOutCubic),
+    soloSheet.rotation(0, INVEST_D * 0.5, easeInOutCubic),
+    photo().scale(invScale * BG_ZOOM_K, INVEST_D * 0.32, easeInCubic),
+    photo().position(
+      new Vector2(
+        pageStart.x + (PUSH_X1 - pageStart.x) * BG_ZOOM_K,
+        pageStart.y + (PUSH_Y1 - pageStart.y) * BG_ZOOM_K,
+      ),
+      INVEST_D * 0.32,
+      easeInCubic,
+    ),
+    photo().opacity(0, INVEST_D * 0.32, easeInCubic),
+    // ⚠️ ВЫДЕЛЕНИЕ идёт весь наезд: лампа ложится на шапку с первой трети
+    // (было с 0.55 — приходила уже под конец и читалась отдельным событием)
+    chain(waitFor(INVEST_D * 0.3), lightNode.opacity(1, INVEST_D * 0.62, easeInOutCubic)),
   );
   photo().remove();
   yield* waitFor(LIGHT_HOLD);
@@ -1141,8 +1287,7 @@ export default makeScene2D(function* (view) {
   }
   yield* focusRow(-1, 0.5);
 
-  // ═══ 10. Строка создания: обрывы на дырках, стрелка на K ════════════
-  const cellVals = [val1908, valTrue, cellNulls[0], cellNulls[1]];
+  // ═══ 10. Каскад строк создания ══════════════════════════════════════
   const caretBlink = function* (total: number) {
     makeCaret.opacity(1);
     let t = 0;
@@ -1157,48 +1302,46 @@ export default makeScene2D(function* (view) {
     makeCaret.opacity(0);
   };
   makeRow().opacity(1);
-  let typed = 0;
+  const typedIn = [0, 0, 0];
   for (let i = 0; i < MAKE.length; i++) {
     const tok = MAKE[i];
     if (tok.stall) {
-      makeCaret.position.x(typed * CODE_ADV);
+      makeCaret.position.x(typedIn[tok.line] * CODE_ADV);
+      makeCaret.position.y(tok.line * MAKE_PITCH);
       yield* caretBlink(tok.stall);
     }
     for (let c = 1; c <= tok.t.length; c++) {
       makeNodes[i].text(tok.t.slice(0, c));
-      typed++;
+      typedIn[tok.line]++;
       yield* waitFor(MAKE_CHAR);
     }
-    if (tok.cell != null && tok.cell < 4) yield* cellVals[tok.cell].opacity(1, 0.3, easeOutCubic);
-    if (tok.cell === 4) {
-      // единственная НАСТОЯЩАЯ ссылка: точка в клетке, горизонтальная
-      // стрелка, и запись K проявляется, пока стрелка к ней идёт
+    if (tok.cell) yield* tok.cell.opacity(1, 0.28, easeOutCubic);
+    // точка-ссылка в пятой клетке — в момент печати аргумента
+    if (tok.dot) yield* tok.dot.opacity(1, 0.3, easeOutCubic);
+    if (tok.act === 'cardK') {
+      // скобка закрыта — и только теперь стрелка ведёт к новой записи
       yield* all(
-        arrowDot.opacity(1, 0.3, easeOutCubic),
         arrow.end(1, ARROW_DRAW, easeInOutCubic),
         chain(waitFor(0.15), other().opacity(1, 0.5, easeOutCubic)),
       );
       yield* waitFor(K_HOLD);
     }
+    if (tok.act === 'cardJ') {
+      // вторая скобка закрыта — семья отъезжает, и приходит третья запись
+      yield* all(
+        graph().scale(FAM_S, FAM_D, easeInOutCubic),
+        graph().position(new Vector2(FAM_POS[0], FAM_POS[1]), FAM_D, easeInOutCubic),
+        chain(
+          waitFor(FAM_D * 0.35),
+          all(
+            arrow3.end(1, ARROW_DRAW, easeInOutCubic),
+            chain(waitFor(0.15), card3().opacity(1, 0.5, easeOutCubic)),
+          ),
+        ),
+      );
+      yield* waitFor(FAM_HOLD * 0.5);
+    }
   }
-
-  // ═══ 10b. Семья растёт: у K свой младший потомок ════════════════════
-  // Честный отъезд: graph масштабируется целиком, и в освободившееся место
-  // приходит третья запись — 1964. Та же рифма: точка в пятой клетке K,
-  // горизонтальная стрелка в первую клетку соседа.
-  yield* all(
-    graph().scale(FAM_S, FAM_D, easeInOutCubic),
-    graph().position(new Vector2(FAM_POS[0], FAM_POS[1]), FAM_D, easeInOutCubic),
-    chain(
-      waitFor(FAM_D * 0.4),
-      all(
-        dot3.opacity(1, 0.3, easeOutCubic),
-        arrow3.end(1, ARROW_DRAW, easeInOutCubic),
-        chain(waitFor(0.15), card3().opacity(1, 0.5, easeOutCubic)),
-      ),
-    ),
-  );
-  yield* waitFor(FAM_HOLD);
   yield* waitFor(PAYOFF_HOLD);
 
   // ═══ 11. МОРФ в две фазы: центрирование → кроссфейд ═════════════════
@@ -1234,25 +1377,22 @@ export default makeScene2D(function* (view) {
   );
   yield* waitFor(0.25);
 
-  // (B) КРОССФЕЙД: страница проявляется, наша краска темнеет до чернил и
-  // уступает рукописи — значения растворяются в его почерке.
+  // (B) КРОССФЕЙД: страница проявляется. ⚠️ КОНТУР ГАСНЕТ ПЕРВЫМ И СРАЗУ
+  // (за 35% фазы, без чернильного перекраса — он и был «задержавшейся
+  // рамкой», дважды правка автора); значения темнеют до чернил и передают
+  // себя рукописи чуть дольше — они и есть эстафета.
   yield* all(
     rh11().opacity(1, MORPH_B, easeInOutCubic),
-    ...cells.map(c =>
-      all(
-        c.stroke(MORPH_INK, MORPH_B * 0.5, easeInOutCubic),
-        chain(waitFor(MORPH_B * 0.3), c.opacity(0, MORPH_B * 0.55, easeInCubic)),
-      ),
-    ),
+    ...cells.map(c => c.opacity(0, MORPH_B * 0.35, easeInCubic)),
     ...[val1908, valTrue, cellNulls[0], cellNulls[1]].map(v =>
       all(
-        v.fill(MORPH_INK, MORPH_B * 0.5, easeInOutCubic),
-        chain(waitFor(MORPH_B * 0.35), v.opacity(0, MORPH_B * 0.55, easeInCubic)),
+        v.fill(MORPH_INK, MORPH_B * 0.3, easeInOutCubic),
+        chain(waitFor(MORPH_B * 0.15), v.opacity(0, MORPH_B * 0.4, easeInCubic)),
       ),
     ),
     all(
-      arrowDot.fill(MORPH_INK, MORPH_B * 0.5, easeInOutCubic),
-      chain(waitFor(MORPH_B * 0.35), arrowDot.opacity(0, MORPH_B * 0.55, easeInCubic)),
+      arrowDot.fill(MORPH_INK, MORPH_B * 0.3, easeInOutCubic),
+      chain(waitFor(MORPH_B * 0.15), arrowDot.opacity(0, MORPH_B * 0.4, easeInCubic)),
     ),
   );
   graph().remove();
@@ -1308,8 +1448,13 @@ export default makeScene2D(function* (view) {
   yield* waitFor(BAND_HOLD);
 
   // ═══ 16. Лента языков в полосе: чем это лечили ══════════════════════
+  // ⚠️ СТРОГО ПОСЛЕ цитаты: роза гаснет ПОЛНОСТЬЮ, пауза, и только потом
+  // лента — одновременный вход накладывал Kotlin на цитату.
+  yield* easy().opacity(0, 0.45, easeInCubic);
+  easy().remove();
+  yield* waitFor(0.2);
   belt().position.x(-pairCenters[0]);
-  yield* all(easy().opacity(0, BELT_IN, easeInCubic), belt().opacity(1, BELT_IN, easeOutCubic));
+  yield* belt().opacity(1, BELT_IN, easeOutCubic);
   yield* waitFor(BELT_READ);
   for (let i = 1; i < LANGS.length; i++) {
     yield* all(
