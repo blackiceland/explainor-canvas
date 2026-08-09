@@ -77,6 +77,7 @@ import nullMeansTitleSerifSceneEn from "./scenes/nullMeansTitleSerifSceneEn?scen
 import nullMeansPrologueSceneEn from "./scenes/nullMeansPrologueSceneEn?scene";
 import nullMeansRecordHandlingSceneEn from "./scenes/nullMeansRecordHandlingSceneEn?scene";
 import nullMeansActOneSceneEn from "./scenes/nullMeansActOneSceneEn?scene";
+import rd4585SceneRu from "./scenes/rd4585SceneRu?scene";
 import earnedAbstractionSceneEn from "./scenes/earnedAbstractionSceneEn?scene";
 import chapter2ReversibilitySceneEn from "./scenes/chapter2ReversibilitySceneEn?scene";
 import problemsYouDontHaveCarefulArmSceneEn from "./scenes/problemsYouDontHaveCarefulArmSceneEn?scene";
@@ -101,7 +102,7 @@ export default makeProject({
 
         // I — YOUR NULL MEANS TOO MUCH
         // duplicationHateIntroScene,
-         introMergeScene,
+        // introMergeScene,
         // chapter1IntroScene,
 
         // dryFiltersScene,
@@ -243,5 +244,8 @@ export default makeProject({
         // КОДА: градация → схлоп в binary → легитимный boolean → takeaway
         //   pureBooleanTakeawaySceneEn,
 
+
+        // RD-4585 — разбор рабочей задачи: WhatsApp-каналы → источники в amoCRM
+        // rd4585SceneRu,
     ]
 })
