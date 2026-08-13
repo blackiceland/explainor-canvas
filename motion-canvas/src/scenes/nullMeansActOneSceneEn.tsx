@@ -234,9 +234,12 @@ const BAND_FEATHER = 160;            // растушёвка 160 лок. = 111px
 const BAND_DARK = 0.38;
 const BAND_EDGE = 0.18;              // спад к левой и правой кромке листа
 const BAND_EDGE_X = 330;             // до этой полуширины луч ровный
-const SPOT_IN = 0.6;                 // ⚠️ VO — “designing a new language”
-const SPOT_HOLD = 2.6;               // ⚠️ VO — держит и байлайн «C. A. R. Hoare»
-const SPOT_OUT = 0.7;                // снимается до “Forty-four years later…”
+// ⚠️ Приход и уход света удлинены вдвое (правка автора «сделай анимацию
+// плавнее») и переведены на easeInOutSine — у неё мягче и старт, и финиш, чем
+// у cubic. Сумма трёх фаз прежняя 3.9с, поэтому PAGE_HOLD не тронут.
+const SPOT_IN = 1.2;                 // ⚠️ VO — “designing a new language”
+const SPOT_HOLD = 1.5;               // ⚠️ VO — держит и байлайн «C. A. R. Hoare»
+const SPOT_OUT = 1.2;                // снимается до “Forty-four years later…”
 // ⚠️ Лист БЕЛЫЙ С САМОГО НАЧАЛА (правка автора). Ни тонировки, ни тени, ни
 // приглушённой прозрачности — любое гашение читается как «опустил opacity».
 // ⚠️ Въезд 0.7с, спокойный ease-out, без пружины и перелёта через точку:
@@ -683,12 +686,42 @@ export default makeScene2D(function* (view) {
     return {rect: r, w: hl.x1 - hl.x0 + pad * 2};
   };
 
+  // ⚠️ ЛИСТ, ОБРЕЗАННЫЙ ПО КРОМКЕ БУМАГИ. Ассеты Record Handling — это кадры
+  // «страница на сером столе», и стол в них запечён. Показывать его нельзя:
+  // за титулом стоит комната, и если у стр. 9 вокруг вдруг окажется бежевое
+  // поле, две соседние страницы ОДНОГО документа окажутся в разных мирах
+  // (правка автора «фон на жёлтом тайтле фото, а потом просто бежевый»).
+  // Поэтому у обеих страниц берётся только бумага, а окружение остаётся
+  // общим — фотография, пока сама бумага не заполнит кадр на наезде.
+  // Механика: окно PAPER_W×PAPER_H, повёрнутое на TILT, содержимое
+  // контр-повёрнуто; своя тень вместо срезанной запечённой.
+  const rhSheet = (src: string) => {
+    const n = new Node({});
+    n.add(
+      new Rect({
+        width: PAPER_W,
+        height: PAPER_H,
+        rotation: TILT,
+        fill: 'rgb(234, 226, 209)',
+        shadowColor: 'rgba(0,0,0,0.42)',
+        shadowBlur: 64,
+        shadowOffset: new Vector2(10, 18),
+      }),
+    );
+    const win = new Rect({width: PAPER_W, height: PAPER_H, rotation: TILT, clip: true});
+    const inner = new Node({rotation: -TILT});
+    inner.add(new Img({src, width: RH_W, height: RH_H}));
+    win.add(inner);
+    n.add(win);
+    return n;
+  };
+
   const rh9Blur = createSignal(0);
   const rh9 = createRef<Node>();
   stage().add(
     <Node ref={rh9} scale={RH_REVEAL_S} position={rigAt(RH_AT_REVEAL, RH_REVEAL_S)} opacity={0} filters={[blur(() => rh9Blur())]} />,
   );
-  rh9().add(new Img({src: RH9_SRC, width: RH_W, height: RH_H}));
+  rh9().add(rhSheet(RH9_SRC));
   const rh9Hl = makeHlLayer(rh9());
   const hlDecl = [HL_DECL_1, HL_DECL_2, HL_DECL_3].map(h => makeHighlight(rh9Hl, h));
   const hlPartial = makeHighlight(rh9Hl, HL_PARTIAL);
@@ -796,37 +829,7 @@ export default makeScene2D(function* (view) {
   stage().add(algolPage);
 
   // ═══ Титул Record Handling: третий житель того же слота ══════════════
-  // ⚠️ ДВА узла одного и того же ассета, снятые в одной посадке:
-  //   rhTitle    — лист, ОБРЕЗАННЫЙ по кромке бумаги: предмет, который можно
-  //                привезти в комнату и потом снять со стопки;
-  //   rhTitleBed — тот же кадр ЦЕЛИКОМ, вместе со столом: он проступает на
-  //                подходе, и вокруг листа появляется его собственный стол.
-  // Оба идут одним масштабом и позицией, поэтому бумага совпадает пиксель в
-  // пиксель, и переход виден только по краям — как приход контекста.
   const titleScale = TITLE_W / PAPER_W;
-  const rhSheet = (src: string) => {
-    const n = new Node({});
-    n.add(
-      new Rect({
-        width: PAPER_W,
-        height: PAPER_H,
-        rotation: TILT,
-        fill: 'rgb(234, 226, 209)',
-        shadowColor: 'rgba(0,0,0,0.42)',
-        shadowBlur: 64,
-        shadowOffset: new Vector2(10, 18),
-      }),
-    );
-    const win = new Rect({width: PAPER_W, height: PAPER_H, rotation: TILT, clip: true});
-    const inner = new Node({rotation: -TILT});
-    inner.add(new Img({src, width: RH_W, height: RH_H}));
-    win.add(inner);
-    n.add(win);
-    return n;
-  };
-  const rhTitleBed = createRef<Node>();
-  stage().add(<Node ref={rhTitleBed} scale={titleScale} x={PAGE_X} opacity={0} rotation={TITLE_TILT} />);
-  rhTitleBed().add(new Img({src: RH1_SRC, width: RH_W, height: RH_H}));
 
   const rhTitle = createRef<Node>();
   stage().add(
@@ -850,19 +853,17 @@ export default makeScene2D(function* (view) {
   });
   stage().add(grain);
 
-  // 0 пока бумага — предмет в комнате, 1 когда вокруг неё уже её стол
-  const bigPage = createSignal(0);
 
   // ⚠️ Виньетка нужна бумаге НА ТЁМНОМ ФОНЕ: без неё скан читается плоским
   // белым прямоугольником. На тёмных кадрах (1965, графит) её центр —
   // прозрачный круг посреди затемнённых краёв, и это видно как светлый диск,
   // который разваливает кадр. Поэтому прозрачность привязана к бумаге.
-  // ⚠️ Лист ALGOL входит сюда ЧЕРЕЗ СИГНАЛ, а не через свою прозрачность: пока
-  // он висит поверх снимка, виньетка приглушила бы углы самой фотографии; она
-  // нужна ему только когда он сам стал кадром (см. bigPage в GROW).
+  // ⚠️ Ни лист ALGOL, ни титул сюда НЕ входят: пока они лежат поверх снимка,
+  // виньетка приглушила бы углы самой фотографии. Она включается только со
+  // сканами Record Handling, то есть когда бумага и есть кадр.
   stage().add(
     new Rect({
-      opacity: () => Math.max(rh9().opacity(), rh11().opacity(), bigPage()),
+      opacity: () => Math.max(rh9().opacity(), rh11().opacity()),
       width: Screen.width * 1.2,
       height: Screen.height * 1.2,
       fill: new Gradient({
@@ -1414,9 +1415,9 @@ export default makeScene2D(function* (view) {
   );
   // ⚠️ Свет ложится на заголовок статьи и снимается до «Forty-four years
   // later»: к приговору бумага снова ровная. Сумма фаз = PAGE_HOLD.
-  yield* spotWin.opacity(1, SPOT_IN, easeInOutCubic);
+  yield* spotWin.opacity(1, SPOT_IN, easeInOutSine);
   yield* waitFor(SPOT_HOLD);
-  yield* spotWin.opacity(0, SPOT_OUT, easeInOutCubic);
+  yield* spotWin.opacity(0, SPOT_OUT, easeInOutSine);
   yield* waitFor(PAGE_HOLD - SPOT_IN - SPOT_HOLD - SPOT_OUT);
 
   // ═══ 2б. «…his billion-dollar mistake» — лист уезжает за кадр и ЛЕВОЙ
@@ -1436,56 +1437,58 @@ export default makeScene2D(function* (view) {
 
   // ═══ 3. «The mistake itself — far less so» — ОДИН ХОД: жёлтый титул входит
   // справа, накрывает собой приговор (улика встаёт на место фразы) и не
-  // останавливается — идёт к нам до читаемой крупности. Комната уступает под
-  // ним, вокруг листа проступает его собственный стол (rhTitleBed — тот же
-  // кадр целиком). Контекст приходит вместе с документом, а не отдельно.
-  // ⚠️ Порядок внутри хода: сначала бумага (0…25%) — иначе цитата мигнёт
-  // из-под неё; потом, с 45%, стол; комната гаснет с 50%, когда лист уже
-  // накрывает надпись целиком (замер: на половине хода лист −52…972 против
-  // цитаты 314…886).
+  // останавливается — идёт к нам до читаемой крупности.
+  // ⚠️ КОМНАТА ОСТАЁТСЯ (правка автора «зачем менять фон на жёлтых страницах»).
+  // Прежде я гасил снимок и проявлял второй узел того же ассета вместе с его
+  // серым столом — за акт получалось ТРИ разных фона: фотография → серое поле
+  // → тёмный фон графита. Теперь два: жёлтый титул живёт в той же комнате
+  // обрезанным листом, ровно как белый до него, а стол приходит один раз —
+  // вместе со стр. 9, когда мы и правда оказываемся внутри документа.
   const titleAt = rigAt(RH_AT_REVEAL, RH_REVEAL_S);
-  rhTitleBed().position(rhTitle().position());
-  rhTitleBed().rotation(TITLE_TILT_IN);
+  // ⚠️ Цитата снимается ПОД листом, в окне, когда он накрывает её целиком.
+  // Замер: лист накрывает надпись (314…886) только при eased-прогрессе
+  // 0.143…0.636 — в начале хода торчит её левый край, в конце правый, потому
+  // что в покое лист занимает ±652, а надпись 572 шириной не помещается сразу
+  // и под лист в комнате (155…975), и под него же в читаемой кадрировке.
+  // Гашение идёт с 18% до 25% хода: обе точки внутри окна, и его не видно.
   yield* all(
     rhTitle().opacity(1, TITLE_COME * 0.18, easeOutSine),
     rhTitle().position(titleAt, TITLE_COME, easeOutCubic),
     rhTitle().scale(RH_REVEAL_S, TITLE_COME, easeOutCubic),
     rhTitle().rotation(0, TITLE_COME, easeOutCubic),
-    rhTitleBed().position(titleAt, TITLE_COME, easeOutCubic),
-    rhTitleBed().scale(RH_REVEAL_S, TITLE_COME, easeOutCubic),
-    rhTitleBed().rotation(0, TITLE_COME, easeOutCubic),
-    // ⚠️ easeOutCubic съедает 72% пути за первые 35% времени, поэтому стол и
-    // уход комнаты можно ставить раньше: на 0.35 лист уже −343…829 и цитату
-    // (194…766) накрывает целиком. Слайд доигрывается уже над столом.
-    chain(waitFor(TITLE_COME * 0.3), rhTitleBed().opacity(1, TITLE_COME * 0.45, easeInOutCubic)),
-    chain(waitFor(TITLE_COME * 0.35), room().opacity(0, TITLE_COME * 0.45, easeInOutCubic)),
-    chain(waitFor(TITLE_COME * 0.3), bigPage(1, TITLE_COME * 0.45, easeInOutCubic)),
-    chain(waitFor(TITLE_COME * 0.3), grain.opacity(0, TITLE_COME * 0.45, easeInOutCubic)),
+    chain(waitFor(TITLE_COME * 0.18), quote().opacity(0, TITLE_COME * 0.07, easeInOutSine)),
   );
-  room().remove();
-  grain.remove();
   yield* waitFor(TITLE_READ);
 
-  // ═══ 5. Титул СНИМАЮТ — под ним страница 9. Обрезанный по кромке лист
-  // уходит вверх-влево за кадр, а стол под ним уже принадлежит стр. 9:
-  // rhTitleBed уступает ей место коротким кроссфейдом под движущимся листом,
-  // поэтому зерно столешницы не ловится глазом.
-  rh9().opacity(0);
+  // ═══ 5. Титул СНИМАЮТ — под ним страница 9.
+  // ⚠️ БЕЗ КРОССФЕЙДА ДВУХ ПОЛНОЭКРАННЫХ СЛОЁВ: раньше здесь мигало
+  // затемнение, и причина арифметическая — два слоя по 50% дают в композите
+  // 1−(1−0.5)² = 0.75, то есть в середине перехода на четверть просвечивал
+  // тёмный фон сцены. Теперь под титулом лежит НЕПРОЗРАЧНАЯ комната, стр. 9
+  // проявляется поверх неё за 0.25с (боковые поля меняются с обоев на стол
+  // под уже едущим листом), и только потом снимок снимается — он к этому
+  // моменту полностью перекрыт, так что убрать его можно мгновенно.
   yield* all(
     rhTitle().position(titleAt.add(new Vector2(-LIFT_OUT, -520)), LIFT, easeInCubic),
     rhTitle().rotation(-5.5, LIFT, easeInCubic),
-    rh9().opacity(1, LIFT * 0.3, easeInOutSine),
-    rhTitleBed().opacity(0, LIFT * 0.3, easeInOutSine),
+    rh9().opacity(1, LIFT * 0.23, easeInOutSine),
   );
   rhTitle().remove();
-  rhTitleBed().remove();
   yield* waitFor(LIFT_SETTLE);
 
   // ═══ 6. Улика: маркер по ВСЕМ ТРЁМ строкам объявления ═══════════════
+  // ⚠️ Комната стоит за бумагой ВЕСЬ наезд и снимается только здесь, в конце:
+  // к этому моменту лист 2006px шириной против кадра 1920 и перекрывает его
+  // целиком, поэтому убрать снимок можно мгновенно и невидимо. Так за акт не
+  // остаётся ни одной подмены фона — фотография держится до самого конца, а
+  // потом её просто заслоняет бумага.
   yield* all(
     rh9().scale(RH_READ_S, RH_PUSH, easeInOutCubic),
     rh9().position(rigAt(AT_DECL, RH_READ_S), RH_PUSH, easeInOutCubic),
+    chain(waitFor(RH_PUSH * 0.6), grain.opacity(0, RH_PUSH * 0.4, easeInOutSine)),
   );
+  room().remove();
+  grain.remove();
   for (const h of hlDecl) {
     yield h.rect.size.x(h.w, HL_DUR, easeInOutSine);
     yield* waitFor(HL_STEP);
@@ -1694,29 +1697,16 @@ export default makeScene2D(function* (view) {
   yield* frameH(BAND_H, SQUEEZE_DUR, easeInOutCubic);
   yield* waitFor(BAND_HOLD);
 
-  // ═══ 16. Лента языков в полосе: чем это лечили ══════════════════════
-  // ⚠️ СТРОГО ПОСЛЕ цитаты: роза гаснет ПОЛНОСТЬЮ, пауза, и только потом
-  // лента — одновременный вход накладывал Kotlin на цитату.
+  // ═══ 16. Конец акта: полоса пустеет ═════════════════════════════════
+  // ⚠️ Лента языков, розовый вопрос и карточка главы ВЫНЕСЕНЫ в отдельную
+  // сцену nullMeansActOneCodaEn (правка автора). Причина не косметическая:
+  // акт смонтирован под озвучку кадр в кадр, а её хвост дорос примерно на
+  // одиннадцать секунд сверх него — отдельная сцена ничем не связана и может
+  // быть ровно такой длины, какой её сделает голос.
+  // ⚠️ СТЫК: акт кончается ровно тем кадром, каким кончался раньше — полоса
+  // НА ЗАБЛЮРЕННОЙ СТРАНИЦЕ (правка автора). Страницу гасить нельзя: кода
+  // начинается с этого же кадра и воспроизводит его один в один.
   yield* easy().opacity(0, 0.45, easeInCubic);
   easy().remove();
-  yield* waitFor(0.2);
-  belt().position.x(-pairCenters[0]);
-  yield* belt().opacity(1, BELT_IN, easeOutCubic);
-  yield* waitFor(BELT_READ);
-  for (let i = 1; i < LANGS.length; i++) {
-    yield* all(
-      belt().position.x(-pairCenters[i], BELT_STEP, easeInOutCubic),
-      ...pairOps.map((op, j) => op(j === i ? 1 : BELT_DIM, BELT_STEP, easeInOutCubic)),
-    );
-    yield* waitFor(BELT_READ);
-  }
-  yield* waitFor(0.4);
-
-  shutterTop.position.y(-(BAND_H / 2 + SHUT_H / 2));
-  shutterBot.position.y(BAND_H / 2 + SHUT_H / 2);
-  yield* all(
-    shutterTop.position.y(-SHUT_H / 2, SHUT_DUR, easeInOutCubic),
-    shutterBot.position.y(SHUT_H / 2, SHUT_DUR, easeInOutCubic),
-  );
-  yield* waitFor(0.5);
+  yield* waitFor(0.35);
 });

@@ -77,6 +77,8 @@ import nullMeansTitleSerifSceneEn from "./scenes/nullMeansTitleSerifSceneEn?scen
 import nullMeansPrologueSceneEn from "./scenes/nullMeansPrologueSceneEn?scene";
 import nullMeansRecordHandlingSceneEn from "./scenes/nullMeansRecordHandlingSceneEn?scene";
 import nullMeansActOneSceneEn from "./scenes/nullMeansActOneSceneEn?scene";
+import nullMeansActOneCodaEn from "./scenes/nullMeansActOneCodaEn?scene";
+import nullMeansChapterOneStandEn from "./scenes/nullMeansChapterOneStandEn?scene";
 import rd4585SceneRu from "./scenes/rd4585SceneRu?scene";
 import earnedAbstractionSceneEn from "./scenes/earnedAbstractionSceneEn?scene";
 import chapter2ReversibilitySceneEn from "./scenes/chapter2ReversibilitySceneEn?scene";
@@ -205,7 +207,14 @@ export default makeProject({
         // АКТ 1 ОДНОЙ СЦЕНОЙ: 1965 → Хоар → цитата+подпись → вопрос на стене →
         // страница ALGOL на стене (свет на шапке) → лист откладывают →
         // Record Handling (маркер, три null) → цена решения → лента → вопрос
-         nullMeansActOneSceneEn,
+        // nullMeansActOneSceneEn,
+        // кода акта: лента языков в полосе → розовым can it be missing? →
+        // CHAPTER ONE / NO SIGNAL. Вынесена, чтобы её длину задавала озвучка
+        nullMeansActOneCodaEn,
+        // ГЛАВА 1 «NO SIGNAL», стенд №1: вопрос → карта трекера рейсов →
+        // контракт currentPosition(): Coordinates? → дрейф 2023→2025,
+        // сигнатура не меняется ни на символ
+        nullMeansChapterOneStandEn,
         // разобраны на акт выше, оставлены на случай отката:
         // nullMeansPrologueSceneEn,
         // nullMeansRecordHandlingSceneEn,

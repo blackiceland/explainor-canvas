@@ -1,0 +1,185 @@
+// Геометрия карты Северной Атлантики для главы 1 «NO SIGNAL».
+//
+// Считаем ОФЛАЙН и печатаем готовые SVG-пути: сцена не должна заниматься
+// картографией в рантайме, а числа обязаны быть воспроизводимыми.
+//
+//   node _atlantic_geo.mjs > src/scenes/atlanticGeo.ts
+//
+// Проекция — Меркатор (та же, что в настоящих трекерах: маршрут-дуга на ней
+// выгибается к северу, и это узнаваемо). Кадрируем по окну MAP_W×MAP_H так,
+// чтобы центр окна пришёлся на середину трассы JFK→LHR.
+
+const D = Math.PI / 180;
+
+// ── окно карты (внутренние размеры карт-зоны панели) ────────────────────
+// ⚠️ Соотношение сторон окна = соотношению охвата в Меркаторе, иначе внутри
+// панели остаются пустые поля и карта «висит островом». Считается так:
+//   (LON1−LON0)·π/180  ÷  (merc(LAT1)−merc(LAT0))  = 2.39 при охвате ниже.
+const MAP_W = 1625;
+const MAP_H = 680;
+
+// ── охват: восточное побережье США … Скандинавия ────────────────────────
+// ⚠️ Охват = трансатлантический коридор, а не «весь океан»: широкая полоса
+// от Нью-Йорка до Лондона. Берега сознательно уходят за кромки окна — так
+// карта читается фрагментом большой карты, а не островом в пустоте. Исландия
+// (63–66°N) в коридор не попадает и из набора исключена: рисовать её половину
+// хуже, чем не рисовать вовсе.
+const LON0 = -80, LON1 = 12;
+const LAT0 = 33, LAT1 = 59;
+
+const merc = lat => Math.log(Math.tan(Math.PI / 4 + (lat * D) / 2));
+
+const SX = MAP_W / ((LON1 - LON0) * D);
+const SY = MAP_H / (merc(LAT1) - merc(LAT0));
+// один масштаб на обе оси — иначе Меркатор врёт и материки «плющит»
+const S = Math.min(SX, SY);
+
+const CX = ((LON0 + LON1) / 2) * D;
+const CY = (merc(LAT0) + merc(LAT1)) / 2;
+
+const px = lon => (lon * D - CX) * S;
+const py = lat => -(merc(lat) - CY) * S;
+
+const fmt = n => (Math.round(n * 10) / 10).toString();
+const toPath = (pts, close) =>
+  pts.map(([lo, la], i) => `${i ? 'L' : 'M'} ${fmt(px(lo))} ${fmt(py(la))}`).join(' ') +
+  (close ? ' Z' : '');
+
+// ── контуры берегов (упрощённые, но узнаваемые) ─────────────────────────
+const US = [
+  [-80.1, 25.8], [-80.6, 28.4], [-81.4, 30.7], [-80.9, 32.1], [-79.9, 32.8],
+  [-78.9, 33.9], [-77.9, 34.2], [-75.5, 35.2], [-75.9, 36.9], [-75.1, 38.4],
+  [-74.9, 38.9], [-74.0, 40.6], [-72.1, 41.1], [-71.1, 41.4], [-70.0, 41.7],
+  [-70.1, 42.1], [-70.8, 42.6], [-70.7, 43.1], [-69.0, 44.0], [-67.1, 44.9],
+  [-66.0, 45.1], [-64.9, 44.5], [-63.6, 44.6], [-61.5, 45.4], [-59.9, 45.6],
+  [-60.0, 46.5], [-59.3, 47.0], [-58.5, 47.6], [-56.0, 46.9], [-55.0, 46.9],
+  [-53.6, 46.7], [-52.7, 47.6], [-52.9, 48.6], [-53.6, 49.3], [-55.7, 49.9],
+  [-56.9, 51.4], [-57.1, 51.5],
+];
+const IBERIA_SCANDI = [
+  [-9.0, 37.0], [-8.8, 38.7], [-9.5, 38.7], [-9.0, 41.0], [-8.9, 41.9],
+  [-8.7, 43.4], [-6.0, 43.6], [-3.8, 43.5], [-1.8, 43.4], [-1.4, 44.7],
+  [-1.2, 45.7], [-1.0, 46.3], [-1.8, 46.6], [-2.2, 47.3], [-4.3, 47.8],
+  [-4.8, 48.4], [-2.5, 48.6], [-1.5, 49.7], [0.2, 49.7], [1.6, 50.9],
+  [2.6, 51.1], [3.5, 51.6], [4.1, 52.0], [4.6, 52.9], [5.6, 53.4],
+  [7.0, 53.5], [8.1, 53.6], [8.6, 54.4], [8.5, 55.0], [8.1, 56.6],
+  [8.6, 57.1], [10.6, 57.7], [10.5, 58.5], [11.1, 58.9], [10.0, 59.0],
+  [8.0, 58.1], [6.6, 58.1], [5.7, 58.9], [5.4, 59.8], [5.3, 60.4],
+  [5.0, 61.5],
+];
+const BRITAIN = [
+  [-5.2, 50.1], [-3.5, 50.6], [-3.0, 51.0], [-4.2, 51.2], [-5.1, 51.7],
+  [-4.1, 52.9], [-4.7, 53.3], [-3.1, 53.4], [-3.1, 54.1], [-3.6, 54.5],
+  [-4.8, 54.7], [-4.4, 55.0], [-5.0, 55.9], [-5.6, 56.5], [-5.1, 57.6],
+  [-5.7, 58.5], [-3.0, 58.6], [-2.0, 57.7], [-2.5, 56.5], [-1.8, 55.0],
+  [-1.3, 54.7], [-0.1, 54.1], [0.0, 53.6], [0.3, 53.0], [1.7, 52.5],
+  [1.6, 51.9], [1.4, 51.4], [0.0, 50.8], [-1.9, 50.7], [-3.5, 50.6],
+  [-5.2, 50.1],
+];
+const IRELAND = [
+  [-6.2, 52.2], [-7.6, 51.9], [-9.0, 51.5], [-10.4, 51.9], [-9.9, 52.8],
+  [-9.5, 53.4], [-10.1, 54.1], [-8.5, 54.5], [-7.4, 55.2], [-5.9, 55.0],
+  [-6.0, 54.1], [-6.2, 53.4], [-6.2, 52.2],
+];
+// ── трасса: JFK → LHR по дуге большого круга ────────────────────────────
+const JFK = [-73.78, 40.64];
+const LHR = [-0.46, 51.47];
+
+const gc = (a, b, n) => {
+  const [lo1, la1] = [a[0] * D, a[1] * D];
+  const [lo2, la2] = [b[0] * D, b[1] * D];
+  const d = 2 * Math.asin(Math.sqrt(
+    Math.sin((la2 - la1) / 2) ** 2 +
+    Math.cos(la1) * Math.cos(la2) * Math.sin((lo2 - lo1) / 2) ** 2));
+  const out = [];
+  for (let i = 0; i <= n; i++) {
+    const f = i / n;
+    const A = Math.sin((1 - f) * d) / Math.sin(d);
+    const B = Math.sin(f * d) / Math.sin(d);
+    const x = A * Math.cos(la1) * Math.cos(lo1) + B * Math.cos(la2) * Math.cos(lo2);
+    const y = A * Math.cos(la1) * Math.sin(lo1) + B * Math.cos(la2) * Math.sin(lo2);
+    const z = A * Math.sin(la1) + B * Math.sin(la2);
+    out.push([Math.atan2(y, x) / D, Math.atan2(z, Math.hypot(x, y)) / D]);
+  }
+  return out;
+};
+
+const ROUTE_N = 64;
+const route = gc(JFK, LHR, ROUTE_N);
+const routeXY = route.map(([lo, la]) => [px(lo), py(la)]);
+
+// сетка: меридианы и параллели строго по окну
+const MERIDIANS = [-75, -60, -45, -30, -15, 0, 15];
+const PARALLELS = [30, 40, 50, 60];
+const half = [MAP_W / 2, MAP_H / 2];
+
+const out = [];
+out.push(`// ⚠️ АВТОГЕН — не править руками: \`node _atlantic_geo.mjs > src/scenes/atlanticGeo.ts\``);
+out.push(`// Меркатор, окно ${MAP_W}×${MAP_H}, охват lon[${LON0},${LON1}] lat[${LAT0},${LAT1}].`);
+out.push(`// Трасса — дуга большого круга JFK→LHR (${ROUTE_N} сегментов), реальный рейс BA 117.`);
+out.push('');
+out.push(`export const MAP_W = ${MAP_W};`);
+out.push(`export const MAP_H = ${MAP_H};`);
+out.push('');
+out.push(`export const COAST_US = '${toPath(US, false)}';`);
+out.push(`export const COAST_EU = '${toPath(IBERIA_SCANDI, false)}';`);
+out.push(`export const COAST_GB = '${toPath(BRITAIN, true)}';`);
+out.push(`export const COAST_IE = '${toPath(IRELAND, true)}';`);
+out.push('');
+out.push(`// ⚠️ Те же берега, ЗАМКНУТЫЕ за кромками окна — чтобы залить сушу.`);
+out.push(`// Без заливки береговая линия в узком кадре читается случайной`);
+out.push(`// загогулиной: глазу нужно различить, где земля, а где вода.`);
+out.push(`// Замыкающие точки вынесены на 6° за охват, поэтому шов заливки`);
+out.push(`// физически не может попасть в кадр.`);
+// ⚠️ Обход обязан ВЫЙТИ ЗА ВЕРХНЮЮ кромку прежде, чем идти вбок: оба берега
+// заданы с юга на север, и замыкание сразу вбок клало горизонтальный шов на
+// широте последней точки — то есть внутрь кадра, и заливка обрывалась
+// прямоугольником. Правильный обход: вверх за край → вбок за край → вниз за
+// край → назад к первой точке.
+const PAD = 6;
+const upLeft = [LON0 - PAD, LAT1 + PAD];
+const upRight = [LON1 + PAD, LAT1 + PAD];
+const closeUS = [
+  ...US,
+  [US[US.length - 1][0], LAT1 + PAD],
+  upLeft,
+  [LON0 - PAD, LAT0 - PAD],
+  [US[0][0], LAT0 - PAD],
+];
+const closeEU = [
+  ...IBERIA_SCANDI,
+  [IBERIA_SCANDI[IBERIA_SCANDI.length - 1][0], LAT1 + PAD],
+  upRight,
+  [LON1 + PAD, LAT0 - PAD],
+  [IBERIA_SCANDI[0][0], LAT0 - PAD],
+];
+out.push(`export const LAND_US = '${toPath(closeUS, true)}';`);
+out.push(`export const LAND_EU = '${toPath(closeEU, true)}';`);
+out.push('');
+out.push(`// точки трассы в координатах карты — сцена ставит по ним борт и рисует след`);
+out.push(`export const ROUTE: [number, number][] = [`);
+for (let i = 0; i < routeXY.length; i += 4) {
+  out.push('  ' + routeXY.slice(i, i + 4).map(([x, y]) => `[${fmt(x)}, ${fmt(y)}]`).join(', ') + ',');
+}
+out.push(`];`);
+out.push('');
+out.push(`// те же точки в градусах — панель показывает НАСТОЯЩИЕ координаты борта`);
+out.push(`export const ROUTE_LL: [number, number][] = [`);
+for (let i = 0; i < route.length; i += 4) {
+  out.push('  ' + route.slice(i, i + 4)
+    .map(([lo, la]) => `[${fmt(lo)}, ${fmt(la)}]`).join(', ') + ',');
+}
+out.push(`];`);
+out.push('');
+out.push(`export const GRID_X = [${MERIDIANS.map(m => fmt(px(m))).join(', ')}];`);
+out.push(`export const GRID_Y = [${PARALLELS.map(p => fmt(py(p))).join(', ')}];`);
+out.push('');
+out.push(`// аэропорты (для меток концов трассы)`);
+out.push(`export const P_JFK: [number, number] = [${fmt(px(JFK[0]))}, ${fmt(py(JFK[1]))}];`);
+out.push(`export const P_LHR: [number, number] = [${fmt(px(LHR[0]))}, ${fmt(py(LHR[1]))}];`);
+
+console.log(out.join('\n'));
+console.error(`[geo] scale=${fmt(S)} halfW=${half[0]} halfH=${half[1]}`);
+console.error(`[geo] JFK=(${fmt(px(JFK[0]))},${fmt(py(JFK[1]))}) LHR=(${fmt(px(LHR[0]))},${fmt(py(LHR[1]))})`);
+const ys = routeXY.map(p => p[1]);
+console.error(`[geo] route y: ${fmt(Math.min(...ys))} … ${fmt(Math.max(...ys))}`);
