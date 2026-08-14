@@ -64,6 +64,32 @@ export interface MorphOptions {
      */
     pairBySimilarity?: boolean;
     /**
+     * When true, surviving lines finish settling into their new positions
+     * BEFORE any added line starts typing, and added lines then type one by
+     * one honouring lineOrder/lineDelay even in an add-only plan.
+     *
+     * Default false preserves the original behaviour, where the settle runs
+     * concurrently with typing and an add-only plan types every new line at
+     * once (lineOrder/lineDelay are ignored). That default is fine when lines
+     * are appended below everything else (nothing has to move out of the way),
+     * but reads broken for an insertion INTO the middle of a block: the new
+     * text types on top of lines that are still sliding away, and short lines
+     * finish long before the long line above them, so the innermost statement
+     * appears first and the code assembles around it.
+     */
+    settleBeforeType?: boolean;
+    /**
+     * When true, the line diff is walked from the start instead of the end, so
+     * among equally optimal alignments the EARLIEST match wins.
+     *
+     * Turn it on whenever the two code states share repeated lines (`return
+     * null`, a bare `}`, blank separators). With the default backward walk the
+     * diff pairs the last occurrences, so inserting a second guard below an
+     * existing one makes the existing guard's lines slide down and re-type in
+     * place. Default false preserves the original behaviour.
+     */
+    diffPreferEarlyMatches?: boolean;
+    /**
      * Optional per-line hook run immediately after the built-in colour rules
      * are applied to an added/modified line during the morph. Use it for
      * context-sensitive colouring that plain ColorRules can't express (e.g.
@@ -102,6 +128,8 @@ interface MorphResolvedOptions {
     blockOrder: 'sequential' | 'parallel';
     tokenSlideDuration: number;
     pairBySimilarity: boolean;
+    settleBeforeType: boolean;
+    diffPreferEarlyMatches: boolean;
     recolorLine?: (line: CodeLine) => void;
 }
 
@@ -477,7 +505,7 @@ export class Manticore {
     }
 
     private buildPlan(newLines: string[], o: MorphResolvedOptions): LinePlan[] {
-        const diff = diffLines(this.code, newLines);
+        const diff = diffLines(this.code, newLines, o.diffPreferEarlyMatches);
         const plan: LinePlan[] = [];
         let di = 0;
 
@@ -659,6 +687,8 @@ export class Manticore {
             blockOrder: opts.blockOrder ?? 'sequential',
             tokenSlideDuration: opts.tokenSlideDuration ?? 0,
             pairBySimilarity: opts.pairBySimilarity ?? false,
+            settleBeforeType: opts.settleBeforeType ?? false,
+            diffPreferEarlyMatches: opts.diffPreferEarlyMatches ?? false,
             recolorLine: opts.recolorLine,
         };
     }
@@ -740,8 +770,28 @@ export class Manticore {
             return;
         }
 
+        // Make room first: surviving lines finish sliding before anything types
+        // into the gap they opened. Opt-in — see MorphOptions.settleBeforeType.
+        if (opts.settleBeforeType && state.settleAnims.length > 0) {
+            yield* all(...state.settleAnims.splice(0));
+        }
+
         const isAddOnly = state.activePlan.every(p => p.kind === 'add');
         if (isAddOnly) {
+            if (opts.settleBeforeType && opts.lineOrder === 'sequential') {
+                const ordered = [...state.activePlan].sort((a, b) => a.newIndex - b.newIndex);
+                for (const p of ordered) {
+                    const cl = state.result[p.newIndex]!;
+                    yield* all(
+                        cl.node.opacity(1, opts.moveDuration * 0.5, easeInOutCubic),
+                        opts.addStyle === 'typewriter'
+                            ? cl.typewriter(opts.charDelay)
+                            : cl.setAllTokensOpacity(1, opts.moveDuration),
+                    );
+                    if (opts.lineDelay > 0) yield* waitFor(opts.lineDelay);
+                }
+                return;
+            }
             for (const p of state.activePlan) {
                 const cl = state.result[p.newIndex]!;
                 state.settleAnims.push(cl.node.opacity(1, opts.moveDuration, easeInOutCubic));

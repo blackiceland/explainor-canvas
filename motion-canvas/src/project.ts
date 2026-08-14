@@ -210,7 +210,7 @@ export default makeProject({
         // nullMeansActOneSceneEn,
         // кода акта: лента языков в полосе → розовым can it be missing? →
         // CHAPTER ONE / NO SIGNAL. Вынесена, чтобы её длину задавала озвучка
-        nullMeansActOneCodaEn,
+        // nullMeansActOneCodaEn,
         // ГЛАВА 1 «NO SIGNAL», стенд №1: вопрос → карта трекера рейсов →
         // контракт currentPosition(): Coordinates? → дрейф 2023→2025,
         // сигнатура не меняется ни на символ
