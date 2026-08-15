@@ -10,6 +10,7 @@ import {
   easeOutCubic,
   linear,
   waitFor,
+  ThreadGenerator,
   Vector2,
 } from '@motion-canvas/core';
 import {applyBackground} from '../core/utils';
@@ -20,6 +21,7 @@ import {
   CanonCodeTheme,
   buildCanonRules,
   paintCanonMethodCalls,
+  paintCanonMethodCallsLine,
 } from '../core/code/model/paletteCanon';
 import {
   COAST_EU,
@@ -138,6 +140,13 @@ const MAP_READ = 3.4;                // ⚠️ VO — знакомство с п
 // кадр сам говорит «летит туда», и для этого ничего не надо подписывать.
 const WIN_C = 860;
 const MAP_X_C = 482;
+// ⚠️ ОКНО КАДРИРУЕТСЯ И ПО ВЫСОТЕ. Пока оно оставалось 680, панель справа была
+// выше кода слева и начиналась на 84px раньше — два блока разной высоты, стоящие
+// на разных уровнях, и композиция разъезжалась. Теперь окно ровно по оптической
+// высоте финального кода: 15 строк × LH = 600, первая строка на YEAR_ANCHOR,
+// значит блок занимает −210…+390, центр 90. Панель встаёт в те же границы.
+const WIN_H_C = 600;
+const WIN_Y_C = 90;
 const CONTENT_DX_C = -200;
 // ⚠️ И вниз тоже: в узком окне борт с дугой уходили в верхнюю треть, а под
 // ними оставалось поле пустой воды. Трасса на этом участке идёт по y≈−100,
@@ -345,23 +354,30 @@ const fmtLL = (p: number): string => {
 // Атлантикой, значит «не вылетел» и «уже сел» для него физически невозможны.
 // Поэтому причины разнесены по РАЗНЫМ рейсам — иначе кадр врёт.
 //
-// ⚠️ Правда живёт СНАРУЖИ панели, на голом фоне: внутри карточки — то, что
-// показывает система, снаружи — то, что произошло на самом деле. Из-за этого
-// колонку причин не надо никак подписывать, и порядок чтения слева направо
-// сам says: факт → null → экран. Ни одной стрелки.
+// ⚠️⚠️ ВСЯ ДРАМА В ОДНОЙ КОЛОНКЕ — требование когнитивной простоты (автор:
+// «дальше хаос какой-то»). Была версия с колонкой правды СНАРУЖИ панели: идея
+// «внутри продукта / снаружи продукта» честная, но на экране никакого
+// «снаружи» не читается — читаются два текстовых массива, конкурирующих за
+// внимание, плюс события происходили одновременно в пяти местах, и следить
+// было не за чем. Теперь третья колонка проходит три состояния на месте:
+//     причина → null → NO SIGNAL
+// одно место в кадре, три такта, один и тот же приём смены (расфокус), так что
+// после первой смены зритель уже знает язык и вторую читает мгновенно.
+// ⚠️ Цвет во всех трёх состояниях ОДИН: меняется ровно одна переменная —
+// слово. Любая доп. краска здесь добавляет то, за чем ещё надо следить.
 const TABLE_W = 1000;
 const TABLE_H = 500;
-const TABLE_X = 330;
+// ⚠️ Панель встаёт в ЦЕНТР кадра: в кадре больше нет ничего другого, и смещать
+// её вправо было бы наследством от версии с колонкой правды слева.
+const TABLE_X = 0;
 const ROW_H = 76;
 const ROW_FS = 30;
 const HEAD_FS = 15;
 const COL_FLIGHT = -400;
 const COL_ROUTE = -130;
-const COL_STATUS = 190;
-// ⚠️ Колонка правды выровнена по ПРАВОМУ краю, к панели: строки упираются в
-// свой экран, и когда пять разных фактов схлопываются в пять `null`, текст не
-// повисает в пустоте, а поджимается к той самой строке, которую объясняет.
-const REASON_X = -250;
+// ⚠️ Самая длинная причина (`owner-restricted`) должна укладываться ВНУТРИ
+// волосяной линии строки, иначе текст торчит за таблицу.
+const COL_STATUS = 145;
 const HEAD_Y = -196;
 const ROW_DY = 22;                   // контент таблицы к оптическому центру
 
@@ -372,16 +388,40 @@ const FLIGHTS: [string, string, string][] = [
   ['N884JC', 'TEB → VNY', 'owner-restricted'],
   ['IB 6585', 'MAD → BOG', 'feed timeout'],
 ];
-const REASON_C = 'rgba(244,241,235,0.90)';
-const STATUS_C = 'rgba(244,241,235,0.58)';
+const CELL_C = 'rgba(244,241,235,0.90)';
 
-const TRANS = 1.4;
-const ROWS_IN = 1.1;
-const ROWS_HOLD = 2.8;               // ⚠️ VO — у всех одинаково
-const REASONS_IN = 1.2;
-const REASONS_HOLD = 3.2;            // ⚠️ VO — а случилось разное
-const COLLAPSE = 0.9;
-const COLLAPSE_HOLD = 3.2;           // ⚠️ VO — тип свёл их в одно
+// ⚠️⚠️ ХОРЕОГРАФИЯ ФИНАЛА САМА ДОКАЗЫВАЕТ ТЕЗИС (третья переделка; автор:
+// «не нравится всё ещё»). Прошлая версия читалась слайдами: три текстовых
+// состояния сменяли друг друга расфокусом, то есть в кадре никто ничего не
+// ДЕЛАЛ, а мы просто читали подписи. Теперь такты отличаются не содержимым,
+// а движением:
+//   • пока значения РАЗНЫЕ — они и приходят вразнобой, по одному;
+//   • обнуление идёт ВОЛНОЙ сверху вниз, обратной печатью — тем же жестом,
+//     каким в этой же сцене переписывал себя код (видно не «поменялось», а
+//     как это распространяется);
+//   • став неразличимыми, ячейки двигаются СТРОЕМ: последний флип в NO SIGNAL
+//     синхронный. Единственное синхронное движение сцены законно ровно с той
+//     секунды, когда данные стали одинаковыми.
+const RETYPE_CD = 0.02;              // скорость обратной печати
+const WAVE_STEP = 0.28;              // задержка волны между строками
+const ICON_X = -462;                 // силуэт борта как иконка строки
+const ICON_S = 0.85;
+const DISSOLVE = 1.5;
+const ALONE = 1.6;                   // ⚠️ VO — один над океаном
+// Позиции одинокого такта подобраны так, чтобы ПАРА была центрирована в кадре
+// (борт + статус кеглем 34 с разрядкой 7 = 240px), иначе двое читаются двумя
+// разбросанными объектами, а не одним оставшимся.
+const ALONE_PLANE_X = -154;
+const ALONE_NS_X = -74;
+// ⚠️ Пуш-ин почти незаметный — он не «эффект», а то, что сшивает три такта в
+// один непрерывный кадр вместо трёх слайдов.
+const PUSH_IN = 1.045;
+
+const ROWS_IN = 1.2;
+const ROWS_HOLD = 2.6;               // ⚠️ VO — он не один
+const NULL_HOLD = 2.4;               // ⚠️ VO — под словом одно и то же
+const FACTS_HOLD = 3.4;              // ⚠️ VO — а под ним пять разных правд
+const PUSH_DUR = 7.5;                // = 0.26 (флип) + NULL_HOLD + 1.44 (волна) + FACTS_HOLD
 
 // силуэт борта (вид сверху, нос в −y): фюзеляж, стреловидное крыло, стабилизатор
 const PLANE = [
@@ -532,24 +572,28 @@ export default makeScene2D(function* (view) {
   // ⚠️ Хедер и футер лежат на СВОИХ полосах: без них строка данных наезжала
   // на береговую линию и переставала читаться. Это часть продуктового UI,
   // а не декоративная плашка под текстом.
+  // ⚠️ И к ВЕРХНЕЙ/НИЖНЕЙ кромке тоже — окно кадрируется по обеим осям, а хром
+  // обязан ехать вместе с ней, иначе хедер уезжает под клип.
   const left = () => -winW() / 2 + 38;
-  const bar = (y: number, h: number) =>
+  const top = () => -winH() / 2;
+  const bot = () => winH() / 2;
+  const bar = (y: () => number, h: number) =>
     overlay().add(
       <Rect width={() => winW()} height={h} y={y} fill="rgba(9,10,13,0.72)" />,
     );
-  const rule = (y: number) =>
+  const rule = (y: () => number) =>
     overlay().add(
       <Rect width={() => winW()} height={1} y={y} fill={MAP_HAIR} />,
     );
-  bar(-MAP_H / 2 + 50, 100);
-  bar(MAP_H / 2 - 38, 76);
-  rule(-MAP_H / 2 + 100);
-  rule(MAP_H / 2 - 76);
+  bar(() => top() + 50, 100);
+  bar(() => bot() - 38, 76);
+  rule(() => top() + 100);
+  rule(() => bot() - 76);
   overlay().add(
     <Txt
       text="BA 117"
       x={left}
-      y={-MAP_H / 2 + 44}
+      y={() => top() + 44}
       offset={[-1, 0]}
       fontFamily={MONO}
       fontSize={34}
@@ -561,7 +605,7 @@ export default makeScene2D(function* (view) {
     <Txt
       text="JFK → LHR"
       x={left}
-      y={-MAP_H / 2 + 80}
+      y={() => top() + 80}
       offset={[-1, 0]}
       fontFamily={MONO}
       fontSize={18}
@@ -571,14 +615,14 @@ export default makeScene2D(function* (view) {
   );
 
   // строка данных: настоящий ledger, tabular figures, никаких плашек
-  const dataY = MAP_H / 2 - 44;
+  const dataY = () => bot() - 44;
   const cell = (i: number, label: string, value: () => string) => {
     const x = () => left() + i * 250;
     overlay().add(
       <Txt
         text={label}
         x={x}
-        y={dataY - 17}
+        y={() => dataY() - 17}
         offset={[-1, 0]}
         fontFamily={MONO}
         fontSize={15}
@@ -592,7 +636,7 @@ export default makeScene2D(function* (view) {
         ref={v}
         text={value}
         x={x}
-        y={dataY + 12}
+        y={() => dataY() + 12}
         offset={[-1, 0]}
         fontFamily={MONO}
         fontSize={23}
@@ -615,25 +659,49 @@ export default makeScene2D(function* (view) {
   // ⚠️ Статус потери — часть панели, а не титр поверх кадра: он живёт внутри
   // окна карты, в пустой воде под трассой, и приходит focus-pull'ом, как всё
   // остальное в этой сцене. Имя главы впервые появляется на экране здесь.
-  const noSignal = createRef<Node>();
+  // ⚠️ Выключка ЛЕВАЯ (offset −1) со сдвигом на половину ширины: на карте он
+  // выглядит центрированным, но потом переезжает в ячейку таблицы, а там
+  // колонка левовыключная — так объект переживает переезд без смены выключки.
+  const noSignal = createRef<Txt>();
   overlay().add(
-    <Node ref={noSignal} y={NS_Y} opacity={0} cache cachePadding={70}>
-      <Txt
-        text="NO SIGNAL"
-        fontFamily={MONO}
-        fontSize={NS_FS}
-        fontWeight={500}
-        letterSpacing={7}
-        fill="rgba(244,241,235,0.60)"
-      />
-    </Node>,
+    <Txt
+      ref={noSignal}
+      text="NO SIGNAL"
+      x={-120}
+      y={NS_Y}
+      offset={[-1, 0]}
+      opacity={0}
+      cache
+      cachePadding={70}
+      fontFamily={MONO}
+      fontSize={NS_FS}
+      fontWeight={500}
+      letterSpacing={7}
+      fill="rgba(244,241,235,0.60)"
+    />,
   );
 
-  // ── список рейсов (живёт в том же окне, что и карта) ─────────────────
+  // ── список рейсов: собирается ВОКРУГ переживших ──────────────────────
+  // ⚠️ Отдельная карточка, а не то же окно: окно карты растворяется целиком,
+  // и список рождается вокруг борта со статусом. Живёт в `mapNode` рядом с
+  // окном, поэтому общий пуш-ин двигает всё вместе.
   const rowY = (i: number) => (i - (FLIGHTS.length - 1) / 2) * ROW_H + ROW_DY;
   const RULE_W = TABLE_W - 120;
   const table = createRef<Node>();
-  win().add(<Node ref={table} opacity={0} cache cachePadding={60} />);
+  mapNode().add(<Node ref={table} opacity={0} cache cachePadding={70} />);
+  table().add(
+    <Rect
+      width={TABLE_W}
+      height={TABLE_H}
+      radius={MAP_RADIUS}
+      fill={MAP_FILL}
+      stroke={MAP_EDGE}
+      lineWidth={1}
+      shadowColor="rgba(0,0,0,0.45)"
+      shadowBlur={30}
+      shadowOffset={[0, 12]}
+    />,
+  );
 
   const head = (x: number, t: string) =>
     table().add(
@@ -648,12 +716,18 @@ export default makeScene2D(function* (view) {
         fill={DIM}
       />,
     );
+  // ⚠️ У третьей колонки заголовка НЕТ намеренно: она меняет смысл трижды
+  // (что случилось → что вернул код → что видит человек), и любое одно имя
+  // для неё было бы враньём.
   head(COL_FLIGHT, 'FLIGHT');
   head(COL_ROUTE, 'ROUTE');
-  head(COL_STATUS, 'STATUS');
   table().add(
     <Rect width={RULE_W} height={1} y={HEAD_Y + 36} fill="rgba(244,241,235,0.11)" />,
   );
+
+  // ⚠️ Ячейка первой строки НЕ создаётся: ею станет `NO SIGNAL`, переживший
+  // растворение карты. Остальные четыре приходят уже с тем же словом.
+  const cellTxt: Txt[] = [];
 
   FLIGHTS.forEach(([code_, route], i) => {
     if (i > 0) {
@@ -676,47 +750,41 @@ export default makeScene2D(function* (view) {
       );
     put(COL_FLIGHT, code_, ROW_FS, INK, 500);
     put(COL_ROUTE, route, ROW_FS - 4, DIM);
-    // ⚠️ Одинаковый статус у всех пяти — рифма с картой, где он только что
-    // проступил. Именно эта одинаковость и есть предмет сцены.
-    put(COL_STATUS, 'NO SIGNAL', ROW_FS - 2, STATUS_C);
+
+    if (i > 0) {
+      const c = new Txt({
+        text: 'NO SIGNAL',
+        x: COL_STATUS,
+        y: rowY(i),
+        offset: [-1, 0],
+        fontFamily: MONO,
+        fontSize: ROW_FS - 2,
+        fill: CELL_C,
+      });
+      table().add(c);
+      cellTxt.push(c);
+    }
   });
 
-  // ── правда: СНАРУЖИ панели, на голом фоне ────────────────────────────
-  // Каждая причина и её `null` живут в одной кэш-ячейке, чтобы схлопнуться
-  // одним движением через расфокус — тем же приёмом, каким в начале сцены
-  // менялся вопрос. Цвет НЕ меняется: видно только то, что пять разных слов
-  // стали одним словом.
-  const reasons = createRef<Node>();
-  view.add(<Node ref={reasons} opacity={0} />);
-  const factTxt: Txt[] = [];
-  const nullTxt: Txt[] = [];
-  const reasonCell: Node[] = [];
-  FLIGHTS.forEach(([, , reason], i) => {
-    const cell = new Node({y: rowY(i), cache: true, cachePadding: 60});
-    const fact = new Txt({
-      text: reason,
-      x: REASON_X,
-      offset: [1, 0],
-      fontFamily: MONO,
-      fontSize: ROW_FS - 2,
-      fill: REASON_C,
-    });
-    const nul = new Txt({
-      text: 'null',
-      x: REASON_X,
-      offset: [1, 0],
-      fontFamily: MONO,
-      fontSize: ROW_FS - 2,
-      fill: REASON_C,
-      opacity: 0,
-    });
-    cell.add(fact);
-    cell.add(nul);
-    reasons().add(cell);
-    factTxt.push(fact);
-    nullTxt.push(nul);
-    reasonCell.push(cell);
-  });
+  // ⚠️ Борт и статус переезжают сюда перед растворением окна — иначе они
+  // погасли бы вместе с ним. Узел добавлен ПОСЛЕ таблицы, поэтому пережившие
+  // остаются поверх собирающегося вокруг них списка.
+  const keep = createRef<Node>();
+  mapNode().add(<Node ref={keep} />);
+
+  // Обратная печать: старое стирается с конца, новое допечатывается на его
+  // месте. Тот же жест, которым в этой сцене переписывала себя строка кода.
+  const retype = function* (t: Txt, next: string): ThreadGenerator {
+    const cur = t.text();
+    for (let i = cur.length - 1; i >= 0; i--) {
+      t.text(cur.slice(0, i));
+      yield* waitFor(RETYPE_CD);
+    }
+    for (let i = 1; i <= next.length; i++) {
+      t.text(next.slice(0, i));
+      yield* waitFor(RETYPE_CD);
+    }
+  };
 
   // ── код ───────────────────────────────────────────────────────────────
   const code = Manticore.create(CODE_2023, {
@@ -737,6 +805,45 @@ export default makeScene2D(function* (view) {
   code.colorize(CODE_RULES);
   paintCanonMethodCalls(code);
   code.node.opacity(0);
+
+  // ⚠️ Rack-focus гасит код ПОТОКЕННО, а не построчно, и оставляет гореть не
+  // только сигнатуру, но и КАЖДЫЙ `return null`. Смысл такта от этого меняется:
+  // видно не «сигнатура не изменилась», а «сигнатура не изменилась, ЗАТО под ней
+  // теперь три разных повода вернуть одно и то же слово» — то есть ровно тезис
+  // главы, доказанный самим кодом. Построчно это не сделать: второй `return null`
+  // живёт внутри рабочей строки `val fix = … ?: return null`, и её нельзя ни
+  // погасить целиком, ни целиком оставить.
+  // ⚠️ Совпадение ищем по СОБРАННОМУ тексту строки, а не по одному токену:
+  // после typewriter-морфа токен может быть разложен на отдельные символы.
+  const RACK_DIM = 0.16;
+  const rackFocus = function* (dur: number): ThreadGenerator {
+    const anims: ThreadGenerator[] = [];
+    for (let li = 1; li < code.lineCount; li++) {
+      const line = code.getLine(li);
+      if (!line) continue;
+      const toks = line.tokens;
+      let text = '';
+      const span: [number, number][] = [];
+      for (const t of toks) {
+        const from = text.length;
+        text += t.text;
+        span.push([from, text.length]);
+      }
+      const lit = new Set<number>();
+      const re = /return\s+null/g;
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(text)) !== null) {
+        const [a, b] = [m.index, m.index + m[0].length];
+        span.forEach(([from, to], i) => {
+          if (from < b && to > a) lit.add(i);
+        });
+      }
+      toks.forEach((t, i) =>
+        anims.push(t.ref().opacity(lit.has(i) ? 1 : RACK_DIM, dur, easeInOutSine)),
+      );
+    }
+    yield* all(...anims);
+  };
 
   const year = createRef<Txt>();
   view.add(
@@ -797,7 +904,9 @@ export default makeScene2D(function* (view) {
   // ═══ C. Рядом с продуктом встаёт механизм ═══════════════════════════
   yield* all(
     winW(WIN_C, FRAME_MOVE, easeInOutCubic),
+    winH(WIN_H_C, FRAME_MOVE, easeInOutCubic),
     mapNode().x(MAP_X_C, FRAME_MOVE, easeInOutCubic),
+    mapNode().y(WIN_Y_C, FRAME_MOVE, easeInOutCubic),
     contentDX(CONTENT_DX_C, FRAME_MOVE, easeInOutCubic),
     contentDY(CONTENT_DY_C, FRAME_MOVE, easeInOutCubic),
     flying(FRAME_MOVE),
@@ -836,7 +945,14 @@ export default makeScene2D(function* (view) {
       // Так `return tracking.latestFix(flight)?.coordinates` на глазах
       // становится `val fix = tracking.latestFix(flight) ?: return null` —
       // видно, что это та же строка, которую переписали, а не другая.
+      // ⚠️ БЕЗ recolorLine ВЫЗОВЫ ВСПЫХИВАЮТ. Морф прогоняет каждую тронутую
+      // строку через applyRules, а по теме `method` красится в methodDef
+      // (#FF8CA3, яркий якорь определения) — и вызовы, которым по канону
+      // положена бледная роуз #FFAEC0, после первой же правки становились
+      // ярче определения. `paintCanonMethodCalls` при создании их красит один
+      // раз, повторно никто не звал. Хук чинит и сам морф, и то, что после.
       code.morphTo(next, {
+        recolorLine: paintCanonMethodCallsLine,
         addStyle: 'typewriter',
         lineOrder: 'sequential',
         settleBeforeType: true,
@@ -863,7 +979,7 @@ export default makeScene2D(function* (view) {
   // ⚠️ Тезис доказывается ТИШИНОЙ вокруг сигнатуры: тело уходит, первая
   // строка остаётся — она одна и та же во всех трёх состояниях.
   yield* all(
-    code.dimLines(1, code.lineCount - 1, 0.16, RACK),
+    rackFocus(RACK),
     flying(RACK),
   );
   yield* flying(RACK_HOLD);
@@ -890,60 +1006,88 @@ export default makeScene2D(function* (view) {
   noSignal().filters([]);
   yield* waitFor(NS_HOLD);
 
-  // ═══ G. И не он один ════════════════════════════════════════════════
-  // ⚠️ Окно карты САМО становится панелью списка — тот же продукт, на уровень
-  // выше. Код уходит вместе с картой: его работа сделана, дальше говорит UI.
-  // ⚠️ Строки проступают ПОКА окно ещё едет: если ждать конца перехода, между
-  // погасшей картой и списком висит секунда пустой панели — «зарезервированная
-  // пустота», которую автор читает как брак.
+  // ═══ G. Всё растворяется, кроме борта и его статуса ═════════════════
+  // ⚠️ Пережить переход должен ПЕРСОНАЖ, а не его подпись: сорок секунд
+  // смотрели на силуэт, а не на текст «BA 117». И пустота вокруг — это и есть
+  // эмоция момента: один серый борт над океаном и единственные слова, которые
+  // у системы про него есть. Рифма со still point из интро.
+  // ⚠️ Сначала ВЫНИМАЕМ их из окна (иначе погаснут вместе с ним), сохранив
+  // экранные позиции: борт стоит в `content` со своими сдвигами, статус — в
+  // `overlay` по центру окна.
+  const [bx, by] = routeXY(shown());
+  plane().remove();
+  plane().position([CONTENT_DX_C + bx, CONTENT_DY_C + by]);
+  plane().rotation(routeDeg(shown()));
+  keep().add(plane());
+
+  noSignal().remove();
+  noSignal().position([-120, NS_Y]);
+  keep().add(noSignal());
+
+  // ⚠️ Пара сходится к центру кадра ЗАОДНО с растворением: отдельным
+  // движением после него это читалось бы как переезд мебели, а так — как
+  // оседание того, что осталось. Борт пока сохраняет свой размер — он ещё
+  // самолёт, а не строка списка.
+  yield* all(
+    code.node.opacity(0, DISSOLVE * 0.7, easeInCubic),
+    year().opacity(0, DISSOLVE * 0.7, easeInCubic),
+    win().opacity(0, DISSOLVE * 0.75, easeInCubic),
+    mapNode().x(TABLE_X, DISSOLVE, easeInOutCubic),
+    mapNode().y(0, DISSOLVE, easeInOutCubic),
+    plane().position([ALONE_PLANE_X, 0], DISSOLVE, easeInOutCubic),
+    plane().rotation(90, DISSOLVE, easeInOutCubic),
+    noSignal().position([ALONE_NS_X, 0], DISSOLVE, easeInOutCubic),
+  );
+  win().remove();
+
+  // ═══ H. Одни ════════════════════════════════════════════════════════
+  yield* waitFor(ALONE);
+
+  // ═══ I. И вокруг них собирается список ══════════════════════════════
+  // ⚠️ Список не просто появляется — он РАСТАСКИВАЕТ пару по колонкам: борт
+  // доседает до иконки строки, статус — до кегля ячейки. Четыре соседа
+  // приходят СТРОЕМ и с тем же самым словом: одинаковое читается одним
+  // блоком, и это ровно смысл — «он не один».
   table().filters([blur(9)]);
   yield* all(
-    code.node.opacity(0, TRANS * 0.7, easeInCubic),
-    year().opacity(0, TRANS * 0.7, easeInCubic),
-    content().opacity(0, TRANS * 0.55, easeInCubic),
-    overlay().opacity(0, TRANS * 0.55, easeInCubic),
-    winW(TABLE_W, TRANS, easeInOutCubic),
-    winH(TABLE_H, TRANS, easeInOutCubic),
-    mapNode().x(TABLE_X, TRANS, easeInOutCubic),
-    mapNode().y(0, TRANS, easeInOutCubic),
-    chain(
-      waitFor(TRANS * 0.5),
-      all(
-        table().opacity(1, ROWS_IN, easeOutCubic),
-        table().filters.blur(0, ROWS_IN, easeInOutSine),
-      ),
-    ),
+    table().opacity(1, ROWS_IN, easeOutCubic),
+    table().filters.blur(0, ROWS_IN, easeInOutSine),
+    plane().position([ICON_X, rowY(0)], ROWS_IN, easeInOutCubic),
+    plane().scale(ICON_S, ROWS_IN, easeInOutCubic),
+    noSignal().position([COL_STATUS, rowY(0)], ROWS_IN, easeInOutCubic),
+    noSignal().fontSize(ROW_FS - 2, ROWS_IN, easeInOutCubic),
+    noSignal().letterSpacing(0, ROWS_IN, easeInOutCubic),
+    noSignal().fill(CELL_C, ROWS_IN, easeInOutCubic),
   );
   table().filters([]);
   yield* waitFor(ROWS_HOLD);
 
-  // ═══ H. А случилось с ними разное ═══════════════════════════════════
-  reasons().filters([blur(10)]);
+  // ═══ J. Снимаем слои: экран → тип → правда ══════════════════════════
+  // ⚠️ Направление обратное карте: там пять причин сходились в одно, здесь мы
+  // ВСКРЫВАЕМ. Пока значения одинаковые — они и меняются строем; как только
+  // под ними обнаруживается разное, оно приходит вразнобой, волной. Кадр
+  // кончается на различии, и это тезис ролика: слово одно, значений слишком
+  // много. ⚠️ Пуш-ин сшивает такты в один кадр вместо трёх слайдов.
+  const survivors = [noSignal(), ...cellTxt];
   yield* all(
-    reasons().opacity(1, REASONS_IN, easeOutCubic),
-    reasons().filters.blur(0, REASONS_IN, easeInOutSine),
-  );
-  reasons().filters([]);
-  yield* waitFor(REASONS_HOLD);
-
-  // ═══ I. Пять фактов становятся одним словом ═════════════════════════
-  yield* all(
-    ...reasonCell.map(c =>
-      chain(
-        c.filters.blur(11, COLLAPSE / 2, easeInCubic),
-        c.filters.blur(0, COLLAPSE / 2, easeOutCubic),
-      ),
-    ),
+    // ⚠️ Длительность пуш-ина = фактической длине такта, иначе `all` ждёт его
+    // одного и в хвосте повисает мёртвая пауза (насчитал 4 лишние секунды).
+    mapNode().scale(PUSH_IN, PUSH_DUR, linear),
     chain(
-      all(...factTxt.map(t => t.opacity(0, COLLAPSE * 0.42, easeInCubic))),
-      all(...nullTxt.map(t => t.opacity(1, COLLAPSE * 0.5, easeOutCubic))),
+      all(...survivors.map(t => retype(t, 'null'))),
+      waitFor(NULL_HOLD),
+      all(
+        ...survivors.map((t, i) =>
+          chain(waitFor(i * WAVE_STEP), retype(t, FLIGHTS[i][2])),
+        ),
+      ),
+      waitFor(FACTS_HOLD),
     ),
   );
-  yield* waitFor(COLLAPSE_HOLD);
 
   yield* all(
-    mapNode().opacity(0.001, TAIL, easeInCubic),
-    reasons().opacity(0, TAIL, easeInCubic),
+    table().opacity(0, TAIL, easeInCubic),
+    keep().opacity(0, TAIL, easeInCubic),
   );
   yield* waitFor(0.3);
 });
