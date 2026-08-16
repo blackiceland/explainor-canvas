@@ -80,6 +80,7 @@ import nullMeansActOneSceneEn from "./scenes/nullMeansActOneSceneEn?scene";
 import nullMeansActOneCodaEn from "./scenes/nullMeansActOneCodaEn?scene";
 import nullMeansChapterOneStandEn from "./scenes/nullMeansChapterOneStandEn?scene";
 import nullMeansKindsOfNothingEn from "./scenes/nullMeansKindsOfNothingEn?scene";
+import nullMeansCoddLedgerEn from "./scenes/nullMeansCoddLedgerEn?scene";
 import rd4585SceneRu from "./scenes/rd4585SceneRu?scene";
 import earnedAbstractionSceneEn from "./scenes/earnedAbstractionSceneEn?scene";
 import chapter2ReversibilitySceneEn from "./scenes/chapter2ReversibilitySceneEn?scene";
@@ -216,6 +217,10 @@ export default makeProject({
         // контракт currentPosition(): Coordinates? → дрейф 2023→2025,
         // сигнатура не меняется ни на символ
         nullMeansChapterOneStandEn,
+        // КОДД 1986: леджер → две пустые клетки одной записи раскрываются
+        // по-разному (размытое значение против пустоты) → поверх обоих снова
+        // `null` → «а почему две» — камера едет вдоль разросшейся схемы
+        nullMeansCoddLedgerEn,
         // ДВА СОРТА НИЧЕГО: вопрос → борт летит сквозь дыру покрытия (значение
         // есть, но неизвестно) против отменённого рейса (значения не существует)
         // разобраны на акт выше, оставлены на случай отката:
