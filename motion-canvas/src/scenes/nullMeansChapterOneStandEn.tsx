@@ -9,6 +9,7 @@ import {
   easeInOutSine,
   easeOutCubic,
   linear,
+  usePlayback,
   waitFor,
   ThreadGenerator,
   Vector2,
@@ -381,18 +382,23 @@ const fmtLL = (p: number): string => {
 // «с красным дрожанием»): это цвет МОМЕНТА СБОЯ — секунды, когда живые статусы
 // гибнут. Он приходит с дрожью и уходит следом; ни null, ни NO SIGNAL красным
 // не живут — значение само по себе не ошибка, ошибка была событием.
-const TABLE_W = 1000;
-const TABLE_H = 500;
-const ROW_H = 76;
-const ROW_FS = 30;
-const HEAD_FS = 15;
-const COL_FLIGHT = -400;
-const COL_ROUTE = -130;
+// ⚠️ ВСЯ ГЕОМЕТРИЯ ТАБЛО ПОДНЯТА НА 20% (автор: «справа от null его состояния
+// вместе с итоговой таблицей слишком мелкие»). Считано пропорционально, чтобы
+// не поехали отношения: кегли, шаг строк, колонки, поля карточки и волосяные
+// линии — всё умножено на 1.2 от прежних чисел.
+const TABLE_W = 1200;
+const TABLE_H = 600;
+const ROW_H = 91;
+const ROW_FS = 36;
+const HEAD_FS = 18;
+const COL_FLIGHT = -480;
+const COL_ROUTE = -156;
 // ⚠️ Самая длинная причина (`owner-restricted`) должна укладываться ВНУТРИ
-// волосяной линии строки, иначе текст торчит за таблицу.
-const COL_STATUS = 145;
-const HEAD_Y = -196;
-const ROW_DY = 22;                   // контент таблицы к оптическому центру
+// волосяной линии строки, иначе текст торчит за таблицу. При кегле 34 это
+// 326px от COL_STATUS, то есть правый край 500 при половине линии 528.
+const COL_STATUS = 174;
+const HEAD_Y = -235;
+const ROW_DY = 26;                   // контент таблицы к оптическому центру
 
 const FLIGHTS: [string, string, string][] = [
   ['BA 117', 'JFK → LHR', 'out of coverage'],
@@ -439,15 +445,17 @@ const CELL_C = 'rgba(244,241,235,0.90)';
 //      реальными рейсами: возможность стала фактом. `null` в этот момент
 //      уходит — его работа объяснена, дальше кадр принадлежит продукту.
 const RETYPE_CD = 0.02;              // скорость обратной печати
-const ICON_X = -462;                 // силуэт борта как иконка строки
-const ICON_S = 0.85;
+const ICON_X = -554;                 // силуэт борта как иконка строки
+const ICON_S = 1.02;
 
 // наезд: масштаб подобран так, чтобы `null` (кегль 25 в коде) стал героем кадра
 // и при этом оставил колонке причин её половину.
 const ZOOM = 2.2;
 const ZOOM_S = 2.8;
 const ZOOM_HOLD = 1.1;               // ⚠️ VO — одно слово на весь экран
-const NULL_X = -190;                 // куда наезд ставит центр слова
+// ⚠️ Сдвинуто влево вслед за подросшей колонкой: её зрительный центр уехал
+// вправо на те же 20%, и без поправки пара «слово + список» съезжала из кадра.
+const NULL_X = -240;                 // куда наезд ставит центр слова
 // ⚠️ Слово стоит на ОПТИЧЕСКОМ ЦЕНТРЕ КАДРА (автор: «null после зума оказался
 // ниже центра»). Раньше оно равнялось по центру будущей колонки, а тот сдвинут
 // на ROW_DY вниз ради шапки таблицы — на пустом экране эти 22px видно сразу.
@@ -461,8 +469,8 @@ const CAUSES_HOLD = 2.2;             // ⚠️ VO — пять разных пр
 // ⚠️ ВЕРТИКАЛЬНЫЙ МОРФ «СЛОТ-МАШИНА» (постановка автора). Ячейка — окошко с
 // клипом; правда уезжает вверх за его край, надпись приходит снизу, в середине
 // видно обе. Барабаны останавливаются один за другим, не строем.
-const SLOT_W = 360;                  // окошко шире самой длинной причины
-const SLOT_H = 54;                   // и высота хода барабана
+const SLOT_W = 432;                  // окошко шире самой длинной причины
+const SLOT_H = 65;                   // и высота хода барабана
 const ROLL = 0.42;
 const ROLL_STEP = 0.45;
 const NS_PINK = SOFT_PINK;           // экранная надпись — краска вопроса главы
@@ -470,6 +478,22 @@ const WALL_HOLD = 2.2;               // ⚠️ VO — пять разных, н�
 
 const TABLE_IN = 1.3;                // таблица собирается вокруг статусов
 const TABLE_HOLD = 3.2;              // ⚠️ VO — и это пять разных рейсов
+
+// ── кода главы: два имени ───────────────────────────────────────────────
+// ⚠️ ТОЛЬКО ДВА ИМЕНИ, без иллюстраций (решение автора после долгого круга).
+// Испробованы и сняты: целый борт рядом со словом («вот же он — что тут
+// неизвестного»), облако точек, два круга с бортом и белым шумом (пара
+// показывала «существует/не существует», а не «неизвестно/неприменимо»; шум на
+// языке экранов = «нет сигнала» и тянул к Unknown), треугольник Бермуд —
+// одобрен как идея, но снят вместе со всей иллюстративной частью. Слова несут
+// мысль сами; показ был в сцене выше, и он уже сделал свою работу.
+const NM_FS = 150;                   // огромные, не капсом
+const NM_UP_C = SIGNAL;
+const NM_DN_C = 'rgba(244,241,235,0.58)';
+const NM_STACK = 118;
+const NM_IN = 0.9;
+const NM_MID = 1.1;                  // ⚠️ VO — между именами
+const NM_HOLD = 3.6;                 // ⚠️ VO — финальный кадр главы
 
 // силуэт борта (вид сверху, нос в −y): фюзеляж, стреловидное крыло, стабилизатор
 const PLANE = [
@@ -743,7 +767,7 @@ export default makeScene2D(function* (view) {
   // переход «карта → табло» — не смена объектов, а смена того, что окно
   // показывает: рамка, тень и радиус те же самые, меняются размер и наполнение.
   const rowY = (i: number) => (i - (FLIGHTS.length - 1) / 2) * ROW_H + ROW_DY;
-  const RULE_W = TABLE_W - 120;
+  const RULE_W = TABLE_W - 144;
 
   // ⚠️ Финал живёт ВНЕ `stage`, поверх него: камера к этому моменту уже стоит
   // в наезде (stage увеличен в ZOOM_S раз), и всё, что попало бы внутрь, ехало
@@ -875,6 +899,44 @@ export default makeScene2D(function* (view) {
     slots.push(slot);
     cellTxt.push(t);
   });
+
+  // ── кода главы: имена и окна ─────────────────────────────────────────
+  // ⚠️ На `view`, как и finale: камера (stage) к этому моменту стоит в наезде,
+  // и всё, что попало бы внутрь неё, приехало бы увеличенным.
+  const coda = createRef<Node>();
+  view.add(<Node ref={coda} />);
+
+  const nmUp = createRef<Txt>();
+  const nmDn = createRef<Txt>();
+  coda().add(
+    <Txt
+      ref={nmUp}
+      text="Unknown"
+      y={-NM_STACK}
+      opacity={0}
+      cache
+      cachePadding={90}
+      fontFamily={MONO}
+      fontSize={NM_FS}
+      fontWeight={500}
+      fill={NM_UP_C}
+    />,
+  );
+  coda().add(
+    <Txt
+      ref={nmDn}
+      text="Not applicable"
+      y={NM_STACK}
+      opacity={0}
+      cache
+      cachePadding={90}
+      fontFamily={MONO}
+      fontSize={NM_FS}
+      fontWeight={500}
+      fill={NM_DN_C}
+    />,
+  );
+
 
   // Обратная печать: старое стирается с конца, новое допечатывается на его
   // месте. Тот же жест, которым в этой сцене переписывала себя строка кода.
@@ -1030,8 +1092,25 @@ export default makeScene2D(function* (view) {
     />,
   );
 
-  // полёт идёт ровно, ритм создаёт только квантование по фиксам
-  const flying = (dur: number) => prog(prog() + RATE * dur, dur, linear);
+  // ⚠️⚠️ ПОЛЁТ — ФОНОВЫЙ ПОТОК-ЧАСЫ, а не сумма твинов по беатам (автор поймал
+  // паузы: «он паузы в движении делает, когда код морфится»). Раньше каждый
+  // беат вёз борт твином своей длительности внутри `all(...)`, но морф кода
+  // длится ДОЛЬШЕ параллельного ему flying(DRIFT): `all` ждёт длинную ветку,
+  // а prog уже дотвинился — и борт стоял. Ровность полёта не должна зависеть
+  // от того, знает ли беат свою длительность, поэтому prog двигает отдельный
+  // поток на каждый кадр. Останавливается он ровно один раз — на STALL, когда
+  // перестают приходить отсчёты: это единственная законная пауза борта.
+  // ⚠️ PROG_CAP страхует от удлинения монтажа: борт обязан потеряться НАД
+  // ОКЕАНОМ, не долетев до Ирландии.
+  const playback = usePlayback();
+  let airborne = true;
+  const PROG_CAP = 0.86;
+  const flightClock = function* (): ThreadGenerator {
+    while (airborne) {
+      prog(Math.min(PROG_CAP, prog() + RATE / playback.fps));
+      yield;
+    }
+  };
 
   // ⚠️ Смена года — ОТДЕЛЬНОЕ СОБЫТИЕ, а не аккомпанемент к правке кода. Жест —
   // обратная печать, язык сцены. Никакого блюр-морфа («морфинг даты» отвергнут).
@@ -1064,17 +1143,19 @@ export default makeScene2D(function* (view) {
   ask().remove();
   yield* waitFor(ASK_GAP);
 
+  // борт в воздухе: с этого кадра и до обрыва часы тикают без остановок
+  yield flightClock();
+
   // ⚠️ Панель приходит КАК ОДНО через focus-pull: блюр на узле — дети
   // блюрятся вместе. Постадийный вход элементов = стоковая библиотека.
   mapNode().filters([blur(MAP_BLUR)]);
   yield* all(
     mapNode().opacity(1, MAP_IN, easeOutCubic),
     mapNode().filters.blur(0, MAP_IN, easeInOutSine),
-    flying(MAP_IN),
   );
   mapNode().filters([]);
 
-  yield* flying(MAP_READ);
+  yield* waitFor(MAP_READ);
 
   // ═══ C. Рядом с продуктом встаёт механизм ═══════════════════════════
   yield* all(
@@ -1084,7 +1165,6 @@ export default makeScene2D(function* (view) {
     mapNode().y(WIN_Y_C, FRAME_MOVE, easeInOutCubic),
     contentDX(CONTENT_DX_C, FRAME_MOVE, easeInOutCubic),
     contentDY(CONTENT_DY_C, FRAME_MOVE, easeInOutCubic),
-    flying(FRAME_MOVE),
     chain(
       waitFor(FRAME_MOVE * 0.45),
       all(
@@ -1095,15 +1175,15 @@ export default makeScene2D(function* (view) {
       ),
     ),
   );
-  yield* flying(CODE_READ);
+  yield* waitFor(CODE_READ);
 
   // ═══ D. Дрейф: три года, ни одного неверного решения ════════════════
   const driftTo = function* (next: string, label: string) {
     // ⚠️ Год меняется ПЕРВЫМ и в одиночку, борт при этом продолжает лететь
     // (замирание борта в этой сцене занято под потерю сигнала и больше ни подо
     // что). Только после короткой тишины трогается код.
-    yield* all(yearTo(label), flying(YEAR_TOTAL));
-    yield* flying(YEAR_BEAT);
+    yield* yearTo(label);
+    yield* waitFor(YEAR_BEAT);
 
     yield* all(
       // ⚠️ Правка вставляется В СЕРЕДИНУ тела, и порядок здесь — смысл:
@@ -1141,9 +1221,8 @@ export default makeScene2D(function* (view) {
         flashRemovedErase: 'reverseType',
         flashRemovedEraseCharDelay: 0.011,
       }),
-      flying(DRIFT),
     );
-    yield* flying(DRIFT_HOLD);
+    yield* waitFor(DRIFT_HOLD);
   };
 
   yield* driftTo(CODE_2024, '2024');
@@ -1152,18 +1231,16 @@ export default makeScene2D(function* (view) {
   // ═══ E. А сигнатура не изменилась ни на символ ══════════════════════
   // ⚠️ Тезис доказывается ТИШИНОЙ вокруг сигнатуры: тело уходит, первая
   // строка остаётся — она одна и та же во всех трёх состояниях.
-  yield* all(
-    rackFocus(RACK),
-    flying(RACK),
-  );
-  yield* flying(RACK_HOLD);
+  yield* rackFocus(RACK);
+  yield* waitFor(RACK_HOLD);
 
   // ═══ F. И в этой тишине борт пропадает ══════════════════════════════
   // ⚠️ Сигнатура горит слева, ничего не изменив за три года; справа гаснет
   // то, ради чего она существует. Второе утверждение не произносится — его
   // держит цвет: строка POSITION была покрашена в лаванду типов ещё при
   // появлении кода, и теперь эта самая строка становится прочерком.
-  yield* waitFor(STALL);            // борт не двигается: отсчёты не приходят
+  airborne = false;                 // отсчёты перестали приходить
+  yield* waitFor(STALL);            // борт стоит — единственная законная пауза
   lost(1);
   yield* all(
     plane().fill(LOST_C, LOSS, easeInOutSine),
@@ -1259,6 +1336,26 @@ export default makeScene2D(function* (view) {
   frame().filters([]);
   yield* waitFor(TABLE_HOLD);
 
+  // ═══ K. Кода: два имени ═════════════════════════════════════════════
+  // ⚠️ Табло уходит целиком, и на тёмном встают два имени — огромные, не
+  // капсом. Второе — после паузы: оно другой сорт пустоты, а не продолжение
+  // списка, и без зазора пара читается одним заголовком.
   yield* finale().opacity(0, TAIL, easeInCubic);
+  finale().remove();
+
+  const pull = function* (n: Node, dur: number, amt = 12): ThreadGenerator {
+    n.filters([blur(amt)]);
+    yield* all(
+      n.opacity(1, dur, easeOutCubic),
+      n.filters.blur(0, dur, easeInOutSine),
+    );
+    n.filters([]);
+  };
+  yield* pull(nmUp(), NM_IN);
+  yield* waitFor(NM_MID);
+  yield* pull(nmDn(), NM_IN);
+  yield* waitFor(NM_HOLD);
+
+  yield* coda().opacity(0, TAIL, easeInCubic);
   yield* waitFor(0.3);
 });

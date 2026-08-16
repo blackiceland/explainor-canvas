@@ -79,6 +79,7 @@ import nullMeansRecordHandlingSceneEn from "./scenes/nullMeansRecordHandlingScen
 import nullMeansActOneSceneEn from "./scenes/nullMeansActOneSceneEn?scene";
 import nullMeansActOneCodaEn from "./scenes/nullMeansActOneCodaEn?scene";
 import nullMeansChapterOneStandEn from "./scenes/nullMeansChapterOneStandEn?scene";
+import nullMeansKindsOfNothingEn from "./scenes/nullMeansKindsOfNothingEn?scene";
 import rd4585SceneRu from "./scenes/rd4585SceneRu?scene";
 import earnedAbstractionSceneEn from "./scenes/earnedAbstractionSceneEn?scene";
 import chapter2ReversibilitySceneEn from "./scenes/chapter2ReversibilitySceneEn?scene";
@@ -215,6 +216,8 @@ export default makeProject({
         // контракт currentPosition(): Coordinates? → дрейф 2023→2025,
         // сигнатура не меняется ни на символ
         nullMeansChapterOneStandEn,
+        // ДВА СОРТА НИЧЕГО: вопрос → борт летит сквозь дыру покрытия (значение
+        // есть, но неизвестно) против отменённого рейса (значения не существует)
         // разобраны на акт выше, оставлены на случай отката:
         // nullMeansPrologueSceneEn,
         // nullMeansRecordHandlingSceneEn,
