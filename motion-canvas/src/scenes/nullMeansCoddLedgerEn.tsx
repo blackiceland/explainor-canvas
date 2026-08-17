@@ -1,4 +1,4 @@
-import {Node, Rect, Txt, blur, makeScene2D} from '@motion-canvas/2d';
+import {Circle, Line, Node, Rect, Txt, blur, makeScene2D} from '@motion-canvas/2d';
 import {
   all,
   chain,
@@ -8,80 +8,93 @@ import {
   easeInOutCubic,
   easeInOutSine,
   easeOutCubic,
+  SimpleSignal,
   waitFor,
   ThreadGenerator,
 } from '@motion-canvas/core';
-import {applyBackground} from '../core/utils';
 import {Fonts} from '../core/theme';
 import {Canon} from '../core/code/model/paletteCanon';
 
 // ═══════════════════════════════════════════════════════════════════════
-// КОДД, 1986 · ДВА СОРТА НИЧЕГО — И ПОЧЕМУ ИХ НЕ ДВА.
+// КОДД, 1986 · ДВА СОРТА НИЧЕГО — И ПОЧЕМУ ИХ НЕ ДВА. ЧЁРНЫЙ ЭКРАН.
 //
-// Мост между кодой главы 1 (два огромных имени `Unknown` / `Not applicable`)
-// и главой про `PositionResult`. Кода НАЗЫВАЕТ, эта сцена ПОКАЗЫВАЕТ и тут же
-// ломает: Кодд предложил две метки, ему ответили «почему две», и это не
-// возражение, а инструкция — число пустот принадлежит предметной области.
-// Отсюда ровно один шаг до «назови все причины у себя в типе».
+// Мост между главой 1 и главой про `PositionResult`. Открывается ДВУМЯ
+// ОГРОМНЫМИ ИМЕНАМИ (перенесены сюда из коды стенда), показывает оба сорта
+// на одной записи, стирает разницу одним словом — и ломает сам счёт «два»:
+// смыслов столько, сколько вопросов задаёт домен.
 //
-// ⚠️ ИСТОРИЮ КОДДА РАССКАЗЫВАЕМ ТАБЛИЦЕЙ. Таблица — его изобретение; весь
-// ролик живёт в табло и леджерах, и человек, давший миру эту форму, получает
-// рассказ на своём же материале. Ни портрета, ни подписи «E. F. Codd · 1986»
-// в кадре нет — имя и год произносит голос.
+// ⚠️ ИСТОРИЮ КОДДА РАССКАЗЫВАЕМ ТАБЛИЦЕЙ. Таблица — его изобретение; ни
+// портрета, ни подписи «E. F. Codd · 1986» — имя и год произносит голос.
 //
-// ⚠️ КАРТОЧКИ ПОД ЛЕДЖЕРОМ НЕТ (в отличие от табло рейсов): чистая типографика
-// и волосяные линии на графите. Это ДРУГОЙ мир — не наш продукт, а его модель.
-//
-// ⚠️ ПРИМЕР — ОДНА ЗАПИСЬ, ДВЕ ЯЧЕЙКИ (решение автора: «вместить и девичьи
-// фамилии»). Галереи примеров нет: три параллельные иллюстрации превратили бы
-// беат в перечисление. `MAIDEN NAME` взята вместо коддовской `COMMISSION`
-// потому, что понятна за полсекунды без единого слова, а `DATE OF BIRTH` —
-// потому, что это дословно поле из объявления Хоара (`integer date of birth`)
-// из акта 1. Рейс в кадр не пускаем: возвращение в мир табло — козырь входа
-// в следующую главу, третий пример унесёт голос.
+// ⚠️ ФОН — ЧИСТЫЙ ЧЁРНЫЙ (просьба автора), как flagCodeGraphSceneRu:
+// applyBackground не зовём, кадр держит плоский #000.
 //
 // ДУГА:
-//   1. Из темноты focus-pull'ом приходит леджер. Три записи, всё на месте.
-//   2. Rack-focus: таблица гаснет до шёпота, живыми остаются ДВА `null`
-//      в одной строке — под разными вопросами, одним словом.
-//   3. Они раскрываются ПО-РАЗНОМУ. Левый (дата рождения) становится
-//      РАЗМЫТЫМ ЗНАЧЕНИЕМ: видно, что что-то есть, не видно что. Правый
-//      (девичья фамилия) просто уходит: там нечему быть в фокусе. Оба
-//      состояния держатся в кадре ОДНОВРЕМЕННО — это и есть главный кадр.
-//   4. ПРЕСТУПЛЕНИЕ одним жестом: поверх обоих печатаются те же четыре серые
-//      буквы. Разница стёрта на глазах.
-//   5. «А почему две» — свет возвращается, линейки уходят вправо за кадр, и
-//      камера едет вдоль схемы. Столбец за столбцом: у каждого свой вопрос,
-//      и в половине клеток одно и то же слово. Пустот столько, сколько
-//      вопросов задаёт домен.
-//   6. Темнота — и тот же самый первый кадр. Таблица не изменилась; изменилось
-//      то, что зритель про неё знает.
+//   0. Из темноты по очереди — `Unknown` (синий) и `Not applicable` (крем).
+//   1. Леджер приходит как одно. Три записи, всё на месте.
+//   2. Rack-focus: живыми остаются два `null` одной записи.
+//   3. Левый (дата рождения) раскрывается ПИКСЕЛЬНОЙ МОЗАИКОЙ ПОД БЛЮРОМ:
+//      значение есть, но не разрешается. Правый (девичья фамилия) просто
+//      уходит: там нечему разрешаться. Оба состояния держатся одновременно.
+//   4. Поверх обоих печатаются те же четыре серые буквы. Разница стёрта.
+//   5. ФИНАЛ — ОДНО ДЛИННОЕ ДВИЖЕНИЕ. Соседние записи гаснут совсем, в кадре
+//      остаётся ОДНА строка (правка «при перемещении камеры зафокусить
+//      центральную строку»), камера едет вдоль схемы, и от каждого её `null`
+//      В ДВИЖЕНИИ прорастает ветвление к возможным смыслам. У каждой клетки
+//      свой набор, ни один нигде не записан. В конце смыслы гаснут — остаются
+//      одинаковые слова.
 //
-// ⚠️ Тезисов и подписей на экране НЕТ (канон акта): их произносит озвучка.
-// Все холды помечены «VO» и подогнаны под неё.
+// ⚠️ Финальный статичный такт с фигурами-примитивами СНЯТ автором («слишком
+// буквально воспринял ромбы»): словарь foreignResponsibilityShapes нельзя
+// цитировать формами, у него берётся принцип — цвет/форма как состояние, —
+// а не сами круг-квадрат-ромб-треугольник.
+//
+// ⚠️ Тезисов и подписей на экране НЕТ: их произносит озвучка. Холды — «VO».
 // ═══════════════════════════════════════════════════════════════════════
 
 const MONO = Fonts.code;
 
-// ── краски ──────────────────────────────────────────────────────────────
-const INK = 'rgba(244,241,235,0.96)';            // имя — ключ записи
-const VAL = 'rgba(244,241,235,0.84)';            // значения
-const KEY_C = 'rgba(244,241,235,0.44)';          // ID
-const HEAD_C = 'rgba(244,241,235,0.38)';         // шапка
-const HAIR = 'rgba(244,241,235,0.10)';           // линейки строк
-const HAIR_HEAD = 'rgba(244,241,235,0.17)';      // линейка под шапкой
-// ⚠️ `null` — ПЛОСКИЙ и тише данных, но не тусклее шапки: он присутствует,
-// он просто ничего не весит. Никакого своего оттенка у него нет — новый цвет
-// сделал бы из него значение.
-const NULL_C = 'rgba(244,241,235,0.55)';
-// ⚠️ Размытое значение — СИНЕЕ. Это краска `Unknown` из коды главы 1 и краска
-// «сигнал есть» всего ролика: цвет говорит «значение существует», блюр —
-// «мы его не знаем». Рифма работает, только если сцены стоят подряд.
+// ── краски ─────────────────────────────────────────────────────────────
+// ⚠️⚠️ НА ЧЁРНОМ ПРОЗРАЧНОСТЬ = ГРЯЗЬ. Композит на #000 просто умножает цвет
+// на альфу: крем 0.44 превращается в rgb(107) — не «тише», а мутно-серо, и
+// вся тёплая нота из него уходит (ровно «грязный оттенок, тёмный текст, хотя
+// и светлый»). Поэтому иерархии по альфе тут больше НЕТ: все ярусы яркие,
+// а разводятся ТЁПЛОСТЬЮ и кеглем — вопросы шапки тёплый тан, данные крем.
+const INK = 'rgba(248,245,239,1)';                  // имена
+const VAL = 'rgba(240,236,228,1)';                  // значения
+// ⚠️ Беж НЕЖНЫЙ, а не канон-насыщенный: у (232,207,174) размах каналов 58 —
+// рядом с кремом это читается песочно-жёлтым пятном. Здесь размах ~35:
+// тепло остаётся, желтизна уходит.
+const KEY_C = 'rgba(238,224,203,0.95)';             // ключ — тёплый
+const HEAD_C = 'rgba(236,220,198,0.92)';            // вопросы
+const HAIR = 'rgba(244,241,235,0.20)';
+const HAIR_HEAD = 'rgba(244,241,235,0.32)';
+// ⚠️ `null` — ПЛОСКИЙ и тише данных: присутствует, но ничего не весит.
+// Своего оттенка нет — новый цвет сделал бы из него значение. Тише ровно
+// настолько, чтобы это читалось как ниже рангом, а не как погасший текст.
+const NULL_C = 'rgba(244,241,235,0.84)';
+// ⚠️ Мозаика — СИНЯЯ: краска `Unknown` и «сигнал есть» всего ролика.
 const FOG_C = Canon.keyword;
+// ⚠️ Единая краска смыслов ОТМЕНЕНА: у каждого `null` своя (см. MEANINGS).
+
+// ── имена (открытие) ───────────────────────────────────────────────────
+const NM_FS = 150;
+const NM_STACK = 118;
+const NM_IN = 0.9;
+const NM_MID = 1.1;                  // ⚠️ VO — между именами
+const NM_HOLD = 2.6;                 // ⚠️ VO
+const NM_OUT = 0.9;
+const NM_GAP = 0.35;
 
 // ── сетка ───────────────────────────────────────────────────────────────
-const FS = 42;                       // мобильная читаемость: не мельче табло
-const HEAD_FS = 22;
+// ⚠️ КРУПНЕЕ И ПРОСТОРНЕЕ (правка «строки в начале разнести и сделать
+// больше»): кегль 42→48, шаг строки 94→120. Ширины колонок пересчитаны по
+// самому длинному содержимому при новом кегле, не масштабированы на глаз.
+const FS = 48;
+// ⚠️ Шапка 25→28: мелкий разряженный капс на телефоне — первое, что
+// перестаёт читаться. Ширины колонок проверены, самая длинная (`EXIT
+// INTERVIEW`) при 28 занимает 269px против 305 доступных.
+const HEAD_FS = 28;
 const HEAD_LS = 2.4;
 
 const HEADS = [
@@ -89,14 +102,9 @@ const HEADS = [
   'COMMISSION', 'SPOUSE', 'CLEARANCE', 'TERMINATED',
   'PENSION PLAN', 'LAST REVIEW', 'NEXT OF KIN', 'EXIT INTERVIEW',
 ];
-// ширины считаны по самому длинному содержимому колонки (шапка или значение)
-// плюс поле; первые четыре — базовый кадр, остальные восемь ждут за краем.
-// ⚠️ «За краем» — не фигура речи и не следствие ширин: кадр 1920 шире базовой
-// таблицы, поэтому пятая-шестая колонки ФИЗИЧЕСКИ попадают в него и в первом
-// кадре были видны. Их держит сигнал `grow` (0 до беата разрастания).
-const COL_W = [165, 418, 317, 292, 225, 265, 205, 317, 250, 317, 292, 282];
+const COL_W = [190, 470, 355, 330, 250, 295, 225, 355, 275, 355, 320, 305];
 const BASE_COLS = 4;
-const X0 = -564;                     // базовые четыре колонки центрированы
+const X0 = -637;
 
 const COL_X: number[] = [];
 {
@@ -106,28 +114,29 @@ const COL_X: number[] = [];
     x += w;
   }
 }
-const SHEET_R = COL_X[COL_X.length - 1] + COL_W[COL_W.length - 1];   // 2781
+const SHEET_R = COL_X[COL_X.length - 1] + COL_W[COL_W.length - 1];
 
-const RULE_L = -612;                 // линейки с напуском по 48px
-const RULE_W_BASE = 1224;
-const RULE_W_FULL = SHEET_R + 48 - RULE_L;
+const RULE_L = -690;
+const RULE_W_BASE = 1380;
+const RULE_W_FULL = SHEET_R + 53 - RULE_L;
 
-const HEAD_Y = -172;
-const HEAD_RULE_Y = -133;
-const ROW_Y0 = -62;
-const ROW_H = 94;
+const ROW_Y0 = -120;
+const ROW_H = 120;
 const rowY = (i: number) => ROW_Y0 + i * ROW_H;
+// ⚠️ СТРОКИ РАВНОЙ ВЫСОТЫ: линейка шапки ровно пол-шага над первой строкой.
+// Раньше верхняя полоса была выше остальных, автор это увидел.
+const HEAD_RULE_Y = rowY(0) - ROW_H / 2;
+const HEAD_Y = HEAD_RULE_Y - 44;
 
-// ⚠️ Запись 0413 — наша: у неё ОБЕ клетки пусты. У соседей обе заполнены,
-// иначе неоткуда узнать, что колонки вообще бывают со значениями. Дальше по
-// схеме `null` рассыпан у всех троих — так выглядит настоящая таблица, а не
-// один сломанный человек.
+// ⚠️ Запись 0413 — наша. У соседей обе базовые клетки заполнены, иначе
+// неоткуда узнать, что колонки бывают со значениями; дальше по схеме камера
+// едет вдоль ЕЁ ОДНОЙ, и её `null` разной природы — предмет финала.
 const NUL = 'null';
 const ROWS: string[][] = [
   ['0412', 'Margaret Ellis', '1979-07-19', 'Whitfield',
    '4 200', 'T. Ellis', 'L3', NUL, NUL, '2025-04-11', NUL, NUL],
   ['0413', 'Peter Hallam', NUL, NUL,
-   NUL, NUL, 'L2', NUL, 'AVC-2', '2025-02-27', 'S. Hallam', NUL],
+   NUL, NUL, NUL, NUL, 'AVC-2', NUL, NUL, NUL],
   ['0414', 'Anna Boyd', '1988-02-03', 'Carrow',
    NUL, 'R. Boyd', NUL, '2024-11-02', NUL, NUL, 'M. Carrow', NUL],
 ];
@@ -135,57 +144,203 @@ const SUBJ_ROW = 1;
 const COL_DOB = 2;
 const COL_MAIDEN = 3;
 
-const FOG_TEXT = '1962-11-04';       // значение, которого мы не знаем
+// ── мозаика: «значение есть, но не разрешается» ─────────────────────────
+// ⚠️ Гауссов блюр по дате заменён пиксельной мозаикой, а мозаика ПОСТАВЛЕНА
+// ПОД БЛЮР (правка автора): голые плитки читались как графический приём,
+// под расфокусом — как нерешаемый сигнал. Плитка крупнее глифа, паттерн
+// живой (пересеивается ~8 раз в секунду) и никогда не садится в читаемое.
+const CADV = FS * 0.6;
+const FOG_CHARS = 10;
+const PX = 18;
+const PX_GAP = 2;
+const MOS_COLS = Math.round((FOG_CHARS * CADV) / PX);
+const MOS_ROWS = 3;
+const MOS_TICK = 0.13;
+const MOS_BLUR_FROM = 26;
+const MOS_BLUR_TO = 7;
+
+// ── ПАУТИНА СМЫСЛОВ ─────────────────────────────────────────────────────
+// ⚠️ Жёсткие скобки (стебель + прямые отростки) СНЯТЫ автором. Постановка:
+// нити ведут себя ФИЗИЧНО — провисают под собственным весом, выходят из одной
+// точки под словом и ЦЕПЛЯЮТСЯ к точкам у смыслов. Паук тянет шёлк: сначала
+// нить дошла, потом на её конце появился узелок, и только потом слово.
+// ⚠️ У КАЖДОГО `null` СВОЯ КРАСКА (нити + узелки + подписи). Ровно это и
+// позволяет паутинам пересекаться, не превращаясь в кашу: сами слова серые
+// и одинаковые, различить можно только смыслы — по цвету.
+// ⚠️ Смыслы живут В НИЖНЕЙ ЧАСТИ КАДРА, тремя ярусами: нить успевает стать
+// нитью, а не подписью под клеткой.
+// ⚠️ Число ветвей РАЗНОЕ (2 или 3): ровно по две у каждой клетки означало бы,
+// что сортов ничего всё-таки два, а беат — про то, что их столько, сколько
+// вопросов у домена.
+// ⚠️ Краски — канон (`paletteCanon`) плюс два приглушённых тёплых: палитра
+// холодная, и без них семь нитей читались бы одним синим пятном. Все на
+// близкой светлоте и низкой насыщенности, чтобы это была палитра, а не радуга.
+// ⚠️ `at` — не на глаз: это момент, когда левый край колонки доходит до
+// экранных +700 при трапецеидальном профиле проезда. Меняешь профиль или
+// длительность — пересчитывай, иначе паутина растёт за краем кадра.
+// ⚠️ `at` — не на глаз: это момент, когда левый край колонки доходит до
+// экранных +700 при трапецеидальном профиле проезда. Меняешь профиль или
+// длительность — пересчитывай, иначе паутина растёт за краем кадра.
+const MEANINGS: {col: number; at: number; color: string; items: string[]}[] = [
+  {col: 4,  at: 0.18, color: '#A3CDFF',                 items: ['salaried', 'not paid yet']},
+  {col: 5,  at: 1.15, color: '#FFAEC0',                 items: ['unmarried', 'not recorded']},
+  {col: 6,  at: 2.05, color: '#A2CDD6',                 items: ['never asked', 'still pending']},
+  {col: 7,  at: 2.73, color: '#94C086',                 items: ['still employed', 'on leave', 'date lost']},
+  {col: 9,  at: 4.66, color: '#E0BE8A',                 items: ['hired last month', 'review skipped']},
+  {col: 10, at: 5.74, color: 'rgba(205,198,250,0.92)',  items: ['declined', 'no family', 'not on file']},
+  {col: 11, at: 6.72, color: '#E79A8E',                 items: ['never left', 'not offered']},
+];
+// ⚠️ Кегль поднят 22→30 (правка автора «на мобилках не будут видны»).
+const MEAN_FS = 30;
+const ORIGIN_DX = 50;                // точка крепления под серединой слова
+const ORIGIN_Y = 44;
+// ⚠️⚠️ ШЕСТЬ ЯРУСОВ, А НЕ ТРИ, И ЧЕРЕДОВАНИЕ ПО ЧЁТНОСТИ ПАУТИНЫ: соседние
+// паутины не делят ни одного яруса, поэтому подписи не могут столкнуться
+// буквами — сколько бы нити ни пересекались. Только это и позволяет держать
+// крупный кегль вместе с широким разлётом; при трёх общих ярусах длинная
+// подпись немедленно налезала на соседнюю колонку.
+// ⚠️ Нижний ярус держим в 70+px от кромки кадра: при крупном кегле подпись
+// шестого яруса вставала почти вплотную к краю.
+const LANE_Y = [228, 272, 316, 360, 404, 448];
+// ⚠️ РАЗЛЁТ И ГЛУБИНА — СВОИ У КАЖДОГО ВЕЕРА. Общий `ITEM_DX` и общая пара
+// ярусов давали одну и ту же букву «Л» семь раз подряд, и повтор штампа глаз
+// ловил раньше, чем дочитывал слова. Правки НАМЕРЕННО скромные: тот же язык,
+// та же чётность ярусов (она и держит подписи от столкновений), меняются
+// только ширина расщепа и то, какие два яруса из своего набора берёт веер.
+// ⚠️ Пробовали радикальнее — свободные точки от солвера и промежуточные
+// узлы-развилки (силуэт Y вместо Λ): автор отверг, «экстрим».
+const FAN_LANES = [[0, 2], [0, 1], [0, 1], [0, 1, 2], [1, 2], [0, 1, 2], [0, 2]];
+const FAN_DX = [
+  [-150, 70], [-100, 120], [-140, 65], [-120, 110, -30],
+  [-250, 105], [-145, 75, -10], [-180, 95],
+];
+// ⚠️ Левые ветви у col 9 и col 11 уведены дальше остальных не для красоты:
+// иначе вторая нить веера проходит ПО СЛОВУ («hired last month», «never left»)
+// и оно читается перечёркнутым. Подпись висит справа от узелка, поэтому нить
+// обязана либо остаться левее её начала, либо уйти правее её конца.
+const laneOf = (fan: number, item: number) => LANE_Y[(fan % 2) + FAN_LANES[fan][item] * 2];
+const DOT_R = 8;
+const LBL_DX = 18;
+const THREAD_W = 1.7;
+const THREAD_DUR = 0.4;
+const THREAD_STEP = 0.22;
+const DOT_DUR = 0.14;
+const LBL_DUR = 0.28;
 
 // ── тайминги ────────────────────────────────────────────────────────────
 const IN = 1.2;
 const HOLD_LEDGER = 3.2;             // ⚠️ VO — Кодд вернулся в 1986
 const RACK = 1.0;
-// ⚠️ У наводки ТРИ ПЛАНА, а не два. Дальний (вся таблица) уходит в шёпот;
-// ближний (ключ и имя нашей записи) остаётся тенью — иначе непонятно, что обе
-// клетки принадлежат одному человеку; а шапки двух наших колонок НЕ ГАСНУТ
-// ВООБЩЕ: без прочитанного `MAIDEN NAME` второй беат не существует — там весь
-// смысл в том, какой вопрос задан этой клетке.
-const RACK_DIM = 0.12;
-const NEAR_DIM = 0.35;
+// ⚠️⚠️ ТРИ ПЛАНА РАЗВОДИТ РАСФОКУС, А НЕ ПРОЗРАЧНОСТЬ. Раньше дальний план
+// уезжал в 0.12 — на чёрном это rgb(28), угольная каша под текстом, из-за
+// которой кадр и читался грязным. Теперь дальний остаётся ЯРКИМ и уходит из
+// фокуса: буквы видно как буквы, но прочесть их нельзя, поэтому глаз садится
+// на резкое. Шапки двух наших колонок не гаснут и не мылятся вовсе — без
+// прочитанного `MAIDEN NAME` второго беата не существует.
+const RACK_DIM = 0.4;
+const NEAR_DIM = 0.72;
+const FAR_BLUR = 7;
+const NEAR_BLUR = 2.4;
 const HOLD_ROW = 1.6;                // ⚠️ VO — одна запись, две пустые клетки
 const FOG_IN = 0.9;
 const HOLD_FOG = 2.6;                // ⚠️ VO — значение есть, мы его не знаем
 const VOID_OUT = 1.1;
 const HOLD_VOID = 2.8;               // ⚠️ VO — узнавать нечего
 const CRIME = 0.5;
-const CRIME_CD = 0.055;              // печать четырёх букв
+const CRIME_CD = 0.055;
 const HOLD_CRIME = 3.0;              // ⚠️ VO — один символ на оба случая
-const OPEN_UP = 0.9;
-const TRUCK = 6.6;                   // ⚠️ VO — почему две; шесть; двенадцать
-const HOLD_TRUCK = 1.6;
-const DARK_OUT = 1.0;
-const DARK = 0.8;                    // ⚠️ VO — и они оставили один
-const HOLD_END = 3.4;                // ⚠️ VO — а смыслы никуда не делись
-const OUT = 1.0;
+const OPEN_UP = 1.0;
+const TRUCK = 8.2;
+const TRUCK_R = 0.12;                // доля разгона/торможения
+const HOLD_TRUCK = 2.6;              // ⚠️ VO — а записано нигде ничего
+const OUT = 1.2;
 
-const TRUCK_DX = RULE_L + RULE_W_BASE - (SHEET_R + 48);   // правый конец линеек
-                                     // встаёт на место правого края базового кадра
-const BLUR_IN = 14;                  // focus-pull входа
-const FOG_BLUR_FROM = 26;
-// ⚠️ Значение обязано остаться НЕЧИТАЕМЫМ. На первом прогоне радиус 5.5 давал
-// разборчивую дату — а «мы знаем, что оно есть, но не знаем какое» ломается
-// ровно в ту секунду, когда зритель дочитал цифры.
-// ⚠️ И не слишком большим: блюр размазывает ту же краску по большей площади,
-// поэтому на 10 значение стало бледнее окружающих данных и читалось как «почти
-// ничего», а нужно «оно есть». 8.5 — граница, где цифры ещё неразличимы, но
-// пятно плотное и синее.
-const FOG_BLUR_TO = 8.5;
+// ⚠️⚠️ ПРОФИЛЬ ПРОЕЗДА — ТРАПЕЦИЯ ПО СКОРОСТИ: синус-разгон, ровный ход,
+// синус-торможение, ОДНИМ твином. Три отдельных твина (easeInSine → linear →
+// easeOutSine) дают РЫВОК на обоих стыках: у easeInSine конечная скорость в
+// π/2 раза выше средней, поэтому на входе в линейный участок камера резко
+// тормозила (513→294 px/с), а на выходе так же резко дёргалась вперёд —
+// ровно то, что автор увидел. Здесь скорость непрерывна и обнуляется на
+// концах. easeInOutSine не годится по-прежнему: его пик вдвое выше средней,
+// и подписи смыслов пролетают быстрее, чем читаются; у трапеции пик +10%.
+const truckEase = (() => {
+  const r = TRUCK_R;
+  const V = 1 / (1 - 2 * r + (4 * r) / Math.PI);
+  const A = (V * 2 * r) / Math.PI;
+  return (t: number): number => {
+    if (t <= r) return A * (1 - Math.cos((Math.PI * t) / (2 * r)));
+    if (t >= 1 - r) return 1 - A * (1 - Math.cos((Math.PI * (1 - t)) / (2 * r)));
+    return A + V * (t - r);
+  };
+})();
+
+const TRUCK_DX = RULE_L + RULE_W_BASE - (SHEET_R + 53);
+const BLUR_IN = 14;
+
+// детерминированный шум
+const rnd = (i: number, s: number) => {
+  const x = Math.sin((i + 1) * 12.9898 + s * 78.233) * 43758.5453;
+  return x - Math.floor(x);
+};
 
 // ═══════════════════════════════════════════════════════════════════════
 export default makeScene2D(function* (view) {
-  applyBackground(view);
+  view.add(<Rect width={1920} height={1080} fill="#000000" />);
 
-  // Вся таблица — один узел: она приходит КАК ОДНО (focus-pull на родителе,
-  // дети размываются вместе) и едет как одно.
-  const ghost = createSignal(1);      // дальний план наводки
-  const near = createSignal(1);       // ближний: ключ и имя нашей записи
+  // focus-pull: узел проявляется как одно, дети размываются вместе
+  const pull = function* (node: Node, sig: SimpleSignal<number>, dur: number): ThreadGenerator {
+    sig(12);
+    yield* all(
+      node.opacity(1, dur * 0.85, easeOutCubic),
+      sig(0, dur, easeInOutCubic),
+    );
+  };
+
+  // ── имена ─────────────────────────────────────────────────────────────
+  const upBlur = createSignal(12);
+  const dnBlur = createSignal(12);
+  const names = createRef<Node>();
+  view.add(<Node ref={names} />);
+  const nmUp = createRef<Txt>();
+  const nmDn = createRef<Txt>();
+  names().add(
+    <Txt
+      ref={nmUp}
+      text="Unknown"
+      y={-NM_STACK}
+      opacity={0}
+      cache
+      cachePadding={90}
+      filters={[blur(() => upBlur())]}
+      fontFamily={MONO}
+      fontSize={NM_FS}
+      fontWeight={500}
+      fill={Canon.keyword}
+    />,
+  );
+  names().add(
+    <Txt
+      ref={nmDn}
+      text="Not applicable"
+      y={NM_STACK}
+      opacity={0}
+      cache
+      cachePadding={90}
+      filters={[blur(() => dnBlur())]}
+      fontFamily={MONO}
+      fontSize={NM_FS}
+      fontWeight={500}
+      fill="rgba(244,241,235,0.82)"
+    />,
+  );
+
+  // ── леджер ────────────────────────────────────────────────────────────
+  const rowsOp = createSignal(1);     // соседние записи и их линейки
+  const subjOp = createSignal(1);     // наша запись целиком
+  const headOp = createSignal(1);     // шапки (кроме двух наших)
   const grow = createSignal(0);       // колонки, которых пока «нет»
+  const farBlur = createSignal(0);    // расфокус дальнего плана
+  const nearBlur = createSignal(0);   // расфокус ближнего
   const sheetBlur = createSignal(BLUR_IN);
   const ruleW = createSignal(RULE_W_BASE);
 
@@ -200,7 +355,7 @@ export default makeScene2D(function* (view) {
     />,
   );
 
-  const rule = (y: number, fill: string) =>
+  const rule = (y: number, fill: string, op: SimpleSignal<number>) =>
     sheet().add(
       <Rect
         x={RULE_L}
@@ -209,28 +364,38 @@ export default makeScene2D(function* (view) {
         width={() => ruleW()}
         height={1}
         fill={fill}
-        opacity={() => ghost()}
+        opacity={() => op()}
       />,
     );
-  rule(HEAD_RULE_Y, HAIR_HEAD);
-  for (let i = 1; i < ROWS.length; i++) rule(rowY(i) - ROW_H / 2, HAIR);
-  rule(rowY(ROWS.length - 1) + ROW_H / 2, HAIR);
+  // линейка под шапкой переживает фокусировку — это черта под вопросами
+  rule(HEAD_RULE_Y, HAIR_HEAD, headOp);
+  for (let i = 1; i < ROWS.length; i++) rule(rowY(i) - ROW_H / 2, HAIR, rowsOp);
+  rule(rowY(ROWS.length - 1) + ROW_H / 2, HAIR, rowsOp);
 
+  // шапка — дальний план целиком, кроме двух наших вопросов: они остаются
+  // резкими и яркими, поэтому живут отдельным ребёнком листа
+  const headFar = new Node({
+    opacity: () => headOp(),
+    cache: true,
+    cachePadding: 60,
+    filters: [blur(() => farBlur())],
+  });
+  sheet().add(headFar);
   HEADS.forEach((h, c) => {
     const subject = c === COL_DOB || c === COL_MAIDEN;
-    sheet().add(
-      <Txt
-        text={h}
-        x={COL_X[c]}
-        y={HEAD_Y}
-        offset={[-1, 0]}
-        fontFamily={MONO}
-        fontSize={HEAD_FS}
-        letterSpacing={HEAD_LS}
-        fill={HEAD_C}
-        opacity={subject ? 1 : c >= BASE_COLS ? () => ghost() * grow() : () => ghost()}
-      />,
-    );
+    const node = new Txt({
+      text: h,
+      x: COL_X[c],
+      y: HEAD_Y,
+      offset: [-1, 0],
+      fontFamily: MONO,
+      fontSize: HEAD_FS,
+      letterSpacing: HEAD_LS,
+      fill: HEAD_C,
+      opacity: subject ? 1 : c >= BASE_COLS ? () => grow() : 1,
+    });
+    if (subject) sheet().add(node);
+    else headFar.add(node);
   });
 
   const cellStyle = (c: number, r: number) => ({
@@ -241,30 +406,34 @@ export default makeScene2D(function* (view) {
     fontSize: FS,
   });
 
-  ROWS.forEach((row, r) =>
+  // каждая запись — свой узел: расфокус берётся по плану, а не по букве
+  ROWS.forEach((row, r) => {
+    const subj = r === SUBJ_ROW;
+    const holder = new Node({
+      opacity: subj ? () => subjOp() : () => rowsOp(),
+      cache: true,
+      cachePadding: 60,
+      filters: [blur(subj ? () => nearBlur() : () => farBlur())],
+    });
+    sheet().add(holder);
     row.forEach((v, c) => {
-      // две клетки нашей записи строятся отдельно — они переживут сцену
-      if (r === SUBJ_ROW && (c === COL_DOB || c === COL_MAIDEN)) return;
+      if (subj && (c === COL_DOB || c === COL_MAIDEN)) return;
       const fill = c === 0 ? KEY_C : c === 1 ? INK : v === NUL ? NULL_C : VAL;
-      const plane = r === SUBJ_ROW && c <= 1 ? near : ghost;
-      sheet().add(
-        <Txt
-          {...cellStyle(c, r)}
-          text={v}
-          fontWeight={c === 1 ? 500 : 400}
-          fill={fill}
-          opacity={c >= BASE_COLS ? () => plane() * grow() : () => plane()}
-        />,
+      holder.add(
+        new Txt({
+          ...cellStyle(c, r),
+          text: v,
+          fontWeight: c === 1 ? 500 : 400,
+          fill,
+          opacity: c >= BASE_COLS ? () => grow() : 1,
+        }),
       );
-    }),
-  );
+    });
+  });
 
   // ── две клетки-предмета ───────────────────────────────────────────────
-  // Они НЕ подчиняются `ghost`: пока таблица уходит в шёпот, живыми остаются
-  // только они. Дальше у каждой своя судьба, поэтому и сигналы свои.
   const dobNullOp = createSignal(1);
-  const dobFogOp = createSignal(0);
-  const fogBlur = createSignal(FOG_BLUR_FROM);
+  const fogOp = createSignal(0);
   const maidenNullOp = createSignal(1);
 
   const dobNull = createRef<Txt>();
@@ -278,19 +447,6 @@ export default makeScene2D(function* (view) {
       opacity={() => dobNullOp()}
     />,
   );
-  // ⚠️ Размытая дата кэшируется отдельно: блюр должен есть ТОЛЬКО её, и ему
-  // нужен запас поля, иначе радиус срежется по краю глифов.
-  sheet().add(
-    <Txt
-      {...cellStyle(COL_DOB, SUBJ_ROW)}
-      text={FOG_TEXT}
-      fill={FOG_C}
-      cache
-      cachePadding={90}
-      filters={[blur(() => fogBlur())]}
-      opacity={() => dobFogOp()}
-    />,
-  );
   sheet().add(
     <Txt
       ref={maidenNull}
@@ -301,6 +457,48 @@ export default makeScene2D(function* (view) {
     />,
   );
 
+  // ── мозаика под блюром ────────────────────────────────────────────────
+  const mosGen = createSignal(0);
+  const mosBlur = createSignal(MOS_BLUR_FROM);
+  const mosaic = createRef<Node>();
+  sheet().add(
+    <Node
+      ref={mosaic}
+      x={COL_X[COL_DOB]}
+      y={rowY(SUBJ_ROW)}
+      opacity={() => fogOp()}
+      cache
+      cachePadding={100}
+      filters={[blur(() => mosBlur())]}
+    />,
+  );
+  for (let r = 0; r < MOS_ROWS; r++) {
+    for (let c = 0; c < MOS_COLS; c++) {
+      const i = r * MOS_COLS + c;
+      mosaic().add(
+        new Rect({
+          x: c * PX + PX / 2,
+          y: (r - (MOS_ROWS - 1) / 2) * PX,
+          width: PX - PX_GAP,
+          height: PX - PX_GAP,
+          radius: 2,
+          fill: FOG_C,
+          opacity: () => {
+            const v = rnd(i + Math.floor(mosGen()) * 997, 5);
+            return 0.08 + 0.9 * Math.pow(v, 1.7);
+          },
+        }),
+      );
+    }
+  }
+  let mosLive = false;
+  const mosaicClock = function* (): ThreadGenerator {
+    while (mosLive) {
+      mosGen(mosGen() + 1);
+      yield* waitFor(MOS_TICK);
+    }
+  };
+
   // печать: те же четыре буквы, что были, тем же цветом
   const typeIn = function* (t: Txt, s: string, cd: number): ThreadGenerator {
     for (let i = 1; i <= s.length; i++) {
@@ -309,7 +507,90 @@ export default makeScene2D(function* (view) {
     }
   };
 
+  // ── паутина смыслов: строится заранее, тянется в движении ─────────────
+  // ⚠️ Не сигнал-переключатель, а просто плотность нити: гасит их родитель.
+  // ⚠️ Нить тоньше волоса и вполсилы на чёрном исчезает на телефоне первой:
+  // 1.3px/0.55 → 1.7px/0.72. Она всё ещё тише узелка и подписи.
+  const THREAD_OP = 0.72;
+
+  // ⚠️ Нити ПРЯМЫЕ (правка автора). Провисание квадратичной кривой снято:
+  // натянутый шёлк честнее — и разлёт ветвей читается как разлёт, а не как
+  // мягкая графика. Нить всё так же ТЯНЕТСЯ (`end` по отрезку).
+  type Fan = {root: Circle; threads: Line[]; dots: Circle[]; labels: Txt[]};
+  const fans: Fan[] = MEANINGS.map((m, fi) => {
+    const ox = COL_X[m.col] + ORIGIN_DX;
+    const root = new Circle({
+      x: ox,
+      y: ORIGIN_Y,
+      size: DOT_R - 2,
+      fill: m.color,
+      opacity: 0,
+    });
+    sheet().add(root);
+    const threads: Line[] = [];
+    const dots: Circle[] = [];
+    const labels: Txt[] = [];
+    m.items.forEach((text, i) => {
+      const ax = ox + FAN_DX[fi][i];
+      const ay = laneOf(fi, i);
+      const th = new Line({
+        points: [[ox, ORIGIN_Y], [ax, ay]],
+        stroke: m.color,
+        lineWidth: THREAD_W,
+        end: 0,
+        opacity: THREAD_OP,
+      });
+      sheet().add(th);
+      threads.push(th);
+      const dot = new Circle({
+        x: ax, y: ay, size: DOT_R, fill: m.color, opacity: 0,
+      });
+      sheet().add(dot);
+      dots.push(dot);
+      const lbl = new Txt({
+        text,
+        x: ax + LBL_DX,
+        y: ay,
+        offset: [-1, 0],
+        fontFamily: MONO,
+        fontSize: MEAN_FS,
+        fill: m.color,
+        opacity: 0,
+      });
+      sheet().add(lbl);
+      labels.push(lbl);
+    });
+    return {root, threads, dots, labels};
+  });
+
+  // Паук тянет шёлк: нить дошла → на конце появился узелок → и только потом
+  // слово. Порядок обязателен, иначе это снова подпись со связкой, а не хват.
+  const growFan = function* (f: Fan): ThreadGenerator {
+    yield* f.root.opacity(1, 0.18, easeOutCubic);
+    yield* all(
+      ...f.threads.map((th, i) =>
+        chain(
+          waitFor(i * THREAD_STEP),
+          th.end(1, THREAD_DUR, easeOutCubic),
+          all(
+            f.dots[i].opacity(1, DOT_DUR, easeOutCubic),
+            f.labels[i].opacity(1, LBL_DUR, easeOutCubic),
+          ),
+        ),
+      ),
+    );
+  };
+
   // ═══ ТАЙМЛАЙН ═══════════════════════════════════════════════════════
+  // 0. имена: по очереди, из фокуса
+  yield* pull(nmUp(), upBlur, NM_IN);
+  yield* waitFor(NM_MID);
+  yield* pull(nmDn(), dnBlur, NM_IN);
+  yield* waitFor(NM_HOLD);
+  yield* names().opacity(0, NM_OUT, easeInCubic);
+  names().remove();
+  yield* waitFor(NM_GAP);
+
   // 1. леджер приходит как одно
   yield* all(
     sheet().opacity(1, IN * 0.8, easeOutCubic),
@@ -319,22 +600,27 @@ export default makeScene2D(function* (view) {
 
   // 2. rack-focus на одну запись: живыми остаются два `null`
   yield* all(
-    ghost(RACK_DIM, RACK, easeInOutSine),
-    near(NEAR_DIM, RACK, easeInOutSine),
+    rowsOp(RACK_DIM, RACK, easeInOutSine),
+    headOp(RACK_DIM, RACK, easeInOutSine),
+    subjOp(NEAR_DIM, RACK, easeInOutSine),
+    farBlur(FAR_BLUR, RACK, easeInOutCubic),
+    nearBlur(NEAR_BLUR, RACK, easeInOutCubic),
   );
   yield* waitFor(HOLD_ROW);
 
-  // 3a. левая клетка раскрывается ЗНАЧЕНИЕМ — оно есть, но не в фокусе
+  // 3a. левая клетка раскрывается мозаикой под блюром
+  mosLive = true;
+  yield mosaicClock();
   yield* all(
     dobNullOp(0, FOG_IN * 0.55, easeInCubic),
-    dobFogOp(1, FOG_IN * 0.8, easeOutCubic),
-    fogBlur(FOG_BLUR_TO, FOG_IN, easeOutCubic),
+    fogOp(1, FOG_IN * 0.8, easeOutCubic),
+    mosBlur(MOS_BLUR_TO, FOG_IN, easeOutCubic),
   );
   dobNull().text('');
   yield* waitFor(HOLD_FOG);
 
-  // 3b. правая просто уходит: там нечему быть в фокусе. Размытая дата при этом
-  // ОСТАЁТСЯ на экране — два разных ничего рядом и есть главный кадр сцены.
+  // 3b. правая просто уходит: там нечему разрешаться. Мозаика ОСТАЁТСЯ —
+  // два разных ничего рядом и есть главный кадр сцены.
   yield* maidenNullOp(0, VOID_OUT, easeInCubic);
   maidenNull().text('');
   yield* waitFor(HOLD_VOID);
@@ -343,7 +629,7 @@ export default makeScene2D(function* (view) {
   dobNullOp(1);
   maidenNullOp(1);
   yield* all(
-    dobFogOp(0, CRIME * 0.6, easeInCubic),
+    fogOp(0, CRIME * 0.6, easeInCubic),
     chain(
       waitFor(CRIME * 0.36),
       all(
@@ -352,43 +638,36 @@ export default makeScene2D(function* (view) {
       ),
     ),
   );
-  fogBlur(FOG_BLUR_FROM);
+  mosLive = false;
   yield* waitFor(HOLD_CRIME);
 
-  // 5. «а почему две» — свет возвращается, схема оказывается шире кадра
-  // и уходит вправо. Линейки уезжают вместе с проявлением новых колонок: это
-  // одно движение — таблица разворачивается, — а не две отдельные анимации.
+  // 5. фокус на нашей строке: соседние записи уходят СОВСЕМ, вопросы
+  // остаются, схема оказывается шире кадра
   yield* all(
-    ghost(1, OPEN_UP, easeInOutSine),
-    near(1, OPEN_UP, easeInOutSine),
+    rowsOp(0, OPEN_UP, easeInOutSine),
+    headOp(1, OPEN_UP, easeInOutSine),
+    subjOp(1, OPEN_UP, easeInOutSine),
     grow(1, OPEN_UP, easeInOutSine),
+    farBlur(0, OPEN_UP, easeInOutCubic),
+    nearBlur(0, OPEN_UP, easeInOutCubic),
     ruleW(RULE_W_FULL, OPEN_UP * 1.1, easeInOutCubic),
   );
-  yield* sheet().x(TRUCK_DX, TRUCK, easeInOutSine);
+
+  // 6. проезд вдоль схемы; от каждого `null` в движении прорастают смыслы
+  yield* all(
+    sheet().x(TRUCK_DX, TRUCK, truckEase),
+    ...fans.map((f, i) => chain(waitFor(MEANINGS[i].at), growFan(f))),
+  );
   yield* waitFor(HOLD_TRUCK);
 
-  // 6. темнота — и тот же самый первый кадр
-  yield* all(
-    sheet().opacity(0, DARK_OUT, easeInCubic),
-    sheetBlur(9, DARK_OUT, easeInCubic),
-  );
-  // ⚠️ В темноте возвращаем ВСЁ состояние первого кадра — иначе «тот же кадр»
-  // будет неправдой: и положение, и длина линеек, и невидимость колонок роста.
-  sheet().x(0);
-  ruleW(RULE_W_BASE);
-  grow(0);
-  sheetBlur(BLUR_IN);
-  yield* waitFor(DARK);
-
-  yield* all(
-    sheet().opacity(1, IN * 0.8, easeOutCubic),
-    sheetBlur(0, IN, easeInOutCubic),
-  );
-  yield* waitFor(HOLD_END);
-
+  // 7. ВСЁ уходит ОДНИМ движением.
+  // ⚠️ Отдельного такта «паутина гаснет — слова остаются» больше нет (правка
+  // автора): он читался как две разные концовки подряд. Паутины живут ВНУТРИ
+  // `sheet`, поэтому гасить нужно только родителя — прозрачность копится, и
+  // нити, узелки, подписи, строка и шапка уходят строго синхронно.
   yield* all(
     sheet().opacity(0, OUT, easeInCubic),
-    sheetBlur(7, OUT, easeInCubic),
+    sheetBlur(8, OUT, easeInCubic),
   );
   yield* waitFor(0.3);
 });

@@ -81,6 +81,7 @@ import nullMeansActOneCodaEn from "./scenes/nullMeansActOneCodaEn?scene";
 import nullMeansChapterOneStandEn from "./scenes/nullMeansChapterOneStandEn?scene";
 import nullMeansKindsOfNothingEn from "./scenes/nullMeansKindsOfNothingEn?scene";
 import nullMeansCoddLedgerEn from "./scenes/nullMeansCoddLedgerEn?scene";
+import nullMeansCoddPrintoutLabEn from "./scenes/nullMeansCoddPrintoutLabEn?scene";
 import rd4585SceneRu from "./scenes/rd4585SceneRu?scene";
 import earnedAbstractionSceneEn from "./scenes/earnedAbstractionSceneEn?scene";
 import chapter2ReversibilitySceneEn from "./scenes/chapter2ReversibilitySceneEn?scene";
@@ -216,11 +217,15 @@ export default makeProject({
         // ГЛАВА 1 «NO SIGNAL», стенд №1: вопрос → карта трекера рейсов →
         // контракт currentPosition(): Coordinates? → дрейф 2023→2025,
         // сигнатура не меняется ни на символ
-        nullMeansChapterOneStandEn,
-        // КОДД 1986: леджер → две пустые клетки одной записи раскрываются
-        // по-разному (размытое значение против пустоты) → поверх обоих снова
-        // `null` → «а почему две» — камера едет вдоль разросшейся схемы
+        // nullMeansChapterOneStandEn,
+        // КОДД 1986, чёрный экран: Unknown / Not applicable гигантами →
+        // леджер (равные строки) → мозаика пикселей против пустоты → поверх
+        // обоих `null` → проезд вдоль разросшейся схемы → клетка-мембрана,
+        // четыре фигуры схлопываются в одно слово
         nullMeansCoddLedgerEn,
+        // ЛАБА к ней: тот же леджер материалом распечатки АЦПУ (фальцовка,
+        // перфорация, 10 CPI / 6 LPI, линейки знаками) — кадр для выбора
+        // nullMeansCoddPrintoutLabEn,
         // ДВА СОРТА НИЧЕГО: вопрос → борт летит сквозь дыру покрытия (значение
         // есть, но неизвестно) против отменённого рейса (значения не существует)
         // разобраны на акт выше, оставлены на случай отката:
