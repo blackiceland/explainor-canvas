@@ -81,6 +81,7 @@ import nullMeansActOneCodaEn from "./scenes/nullMeansActOneCodaEn?scene";
 import nullMeansChapterOneStandEn from "./scenes/nullMeansChapterOneStandEn?scene";
 import nullMeansKindsOfNothingEn from "./scenes/nullMeansKindsOfNothingEn?scene";
 import nullMeansCoddLedgerEn from "./scenes/nullMeansCoddLedgerEn?scene";
+import nullMeansAllTheReasonsEn from "./scenes/nullMeansAllTheReasonsEn?scene";
 import nullMeansCoddPrintoutLabEn from "./scenes/nullMeansCoddPrintoutLabEn?scene";
 import rd4585SceneRu from "./scenes/rd4585SceneRu?scene";
 import earnedAbstractionSceneEn from "./scenes/earnedAbstractionSceneEn?scene";
@@ -222,7 +223,11 @@ export default makeProject({
         // леджер (равные строки) → мозаика пикселей против пустоты → поверх
         // обоих `null` → проезд вдоль разросшейся схемы → клетка-мембрана,
         // четыре фигуры схлопываются в одно слово
-        nullMeansCoddLedgerEn,
+        // nullMeansCoddLedgerEn,
+        // РЕШЕНИЕ: у причин появляются имена. Тот же currentPosition — три
+        // одинаковых return null становятся тремя разными случаями, табло справа
+        // откручивает NO SIGNAL обратно в пять правд; финал — sealed-объявление
+        nullMeansAllTheReasonsEn,
         // ЛАБА к ней: тот же леджер материалом распечатки АЦПУ (фальцовка,
         // перфорация, 10 CPI / 6 LPI, линейки знаками) — кадр для выбора
         // nullMeansCoddPrintoutLabEn,

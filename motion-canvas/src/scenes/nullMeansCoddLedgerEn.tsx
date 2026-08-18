@@ -75,6 +75,12 @@ const HAIR_HEAD = 'rgba(244,241,235,0.32)';
 const NULL_C = 'rgba(244,241,235,0.84)';
 // ⚠️ Мозаика — СИНЯЯ: краска `Unknown` и «сигнал есть» всего ролика.
 const FOG_C = Canon.keyword;
+// ⚠️⚠️ ДВЕ КРАСКИ-ИМЕНИ. Синяя = `Unknown` (ею же набран гигант в открытии и
+// сама мозаика), зелёная = `Not applicable` (гигант тоже зелёный). Больше ни
+// на что в сцене они не назначены: это ИМЕНА СОСТОЯНИЙ, а не украшение —
+// и беат 4 стирает вместе с ними обе сноски.
+const UNK_C = Canon.keyword;
+const NA_C = Canon.string;
 // ⚠️ Единая краска смыслов ОТМЕНЕНА: у каждого `null` своя (см. MEANINGS).
 
 // ── имена (открытие) ───────────────────────────────────────────────────
@@ -159,6 +165,37 @@ const MOS_TICK = 0.13;
 const MOS_BLUR_FROM = 26;
 const MOS_BLUR_TO = 7;
 
+// ── сноски: у двух пустот появляются ИМЕНА ──────────────────────────────
+// ⚠️ Грамматика ЛЕДЖЕРА, а не подписи-ярлыки: надстрочный маркер сразу за
+// клеткой + расшифровка внизу таблицы с висячим отступом. Так аккуратный
+// архивариус и пометил бы две разные пустоты — двумя сносками.
+// ⚠️ Рамки на месте девичьей фамилии НЕТ (снята автором): клетка просто
+// пустая, и этого достаточно — контур делал из пустоты объект.
+// ⚠️ Маркер ОБЯЗАН быть надстрочным и прижатым к своей клетке: поставленный
+// вровень со строкой и на отлёте, он слипается со значением СОСЕДНЕЙ колонки
+// и читается как сноска к нему («* null»). У даты он идёт ЗА мозаикой (она
+// занимает место значения), у пустой клетки — с её левого края, оттуда, где
+// значение начиналось бы.
+const MOS_W = MOS_COLS * PX - PX_GAP;
+const MARK_FS = 34;
+const MARK_DY = -20;
+// ⚠️ ОБА маркера на ОДНОМ отступе от начала своей колонки — за слотом
+// значения. Это и делает их парой, и уводит из поля: поставленный по левому
+// краю пустой клетки `**` встаёт НА МЕСТО значения (читается как содержимое)
+// и вдобавок липнет к `*` соседа — два маркера читаются группой «* **».
+const MARK_DX = MOS_W + 12;
+// ⚠️ Сноски КРУПНЫЕ: это имена состояний, а не служебная мелочь, и на
+// телефоне мелкий разряженный текст пропадает первым.
+const NOTE_FS = 52;
+const NOTE_X = COL_X[COL_DOB];
+const NOTE_MARK_DX = -16;            // висячий отступ
+const NOTE_Y0 = rowY(ROWS.length - 1) + ROW_H / 2 + 100;
+const NOTE_PITCH = 68;
+const NOTE_IN = 0.55;
+// ⚠️ Уходят МЕДЛЕННО и своей длительностью, а не заодно с мозаикой: имена —
+// текст, его читают, и синхронный с печатью щелчок гасит их слишком резко.
+const NOTE_OUT = 1.4;
+
 // ── ПАУТИНА СМЫСЛОВ ─────────────────────────────────────────────────────
 // ⚠️ Жёсткие скобки (стебель + прямые отростки) СНЯТЫ автором. Постановка:
 // нити ведут себя ФИЗИЧНО — провисают под собственным весом, выходят из одной
@@ -172,9 +209,15 @@ const MOS_BLUR_TO = 7;
 // ⚠️ Число ветвей РАЗНОЕ (2 или 3): ровно по две у каждой клетки означало бы,
 // что сортов ничего всё-таки два, а беат — про то, что их столько, сколько
 // вопросов у домена.
-// ⚠️ Краски — канон (`paletteCanon`) плюс два приглушённых тёплых: палитра
+// ⚠️ Краски — канон (`paletteCanon`) плюс приглушённые тёплые: палитра
 // холодная, и без них семь нитей читались бы одним синим пятном. Все на
 // близкой светлоте и низкой насыщенности, чтобы это была палитра, а не радуга.
+// ⚠️⚠️ СИНЕГО `#A3CDFF` И ЗЕЛЁНОГО `#94C086` ЗДЕСЬ БЫТЬ НЕ ДОЛЖНО: за двадцать
+// секунд до этого они назначены именами состояний (`* Unknown` / `** Not
+// applicable`), и веер такой краски прочитается продолжением легенды — причём
+// СОВРЁТ (у «синего» COMMISSION смыслы как раз неприменимости). Были на col 4
+// и col 7, заменены на охру и орхидею; менять фан-краски — сверяться с
+// легендой.
 // ⚠️ `at` — не на глаз: это момент, когда левый край колонки доходит до
 // экранных +700 при трапецеидальном профиле проезда. Меняешь профиль или
 // длительность — пересчитывай, иначе паутина растёт за краем кадра.
@@ -182,10 +225,10 @@ const MOS_BLUR_TO = 7;
 // экранных +700 при трапецеидальном профиле проезда. Меняешь профиль или
 // длительность — пересчитывай, иначе паутина растёт за краем кадра.
 const MEANINGS: {col: number; at: number; color: string; items: string[]}[] = [
-  {col: 4,  at: 0.18, color: '#A3CDFF',                 items: ['salaried', 'not paid yet']},
+  {col: 4,  at: 0.18, color: '#C6BE84',                 items: ['salaried', 'not paid yet']},
   {col: 5,  at: 1.15, color: '#FFAEC0',                 items: ['unmarried', 'not recorded']},
   {col: 6,  at: 2.05, color: '#A2CDD6',                 items: ['never asked', 'still pending']},
-  {col: 7,  at: 2.73, color: '#94C086',                 items: ['still employed', 'on leave', 'date lost']},
+  {col: 7,  at: 2.73, color: '#C89BC9',                 items: ['still employed', 'on leave', 'date lost']},
   {col: 9,  at: 4.66, color: '#E0BE8A',                 items: ['hired last month', 'review skipped']},
   {col: 10, at: 5.74, color: 'rgba(205,198,250,0.92)',  items: ['declined', 'no family', 'not on file']},
   {col: 11, at: 6.72, color: '#E79A8E',                 items: ['never left', 'not offered']},
@@ -330,7 +373,7 @@ export default makeScene2D(function* (view) {
       fontFamily={MONO}
       fontSize={NM_FS}
       fontWeight={500}
-      fill="rgba(244,241,235,0.82)"
+      fill={NA_C}
     />,
   );
 
@@ -491,6 +534,56 @@ export default makeScene2D(function* (view) {
       );
     }
   }
+  // ── две сноски ────────────────────────────────────────────────────────
+  // Каждая = маркер у клетки + строка внизу таблицы; гаснут одним узлом.
+  const note = (
+    marks: string,
+    markX: number,
+    color: string,
+    label: string,
+    line: number,
+  ) => {
+    const n = createRef<Node>();
+    sheet().add(<Node ref={n} opacity={0} />);
+    n().add(
+      <Txt
+        text={marks}
+        x={markX}
+        y={rowY(SUBJ_ROW) + MARK_DY}
+        offset={[-1, 0]}
+        fontFamily={MONO}
+        fontSize={MARK_FS}
+        fill={color}
+      />,
+    );
+    const y = NOTE_Y0 + line * NOTE_PITCH;
+    n().add(
+      <Txt
+        text={marks}
+        x={NOTE_X + NOTE_MARK_DX}
+        y={y}
+        offset={[1, 0]}
+        fontFamily={MONO}
+        fontSize={NOTE_FS}
+        fill={color}
+      />,
+    );
+    n().add(
+      <Txt
+        text={label}
+        x={NOTE_X}
+        y={y}
+        offset={[-1, 0]}
+        fontFamily={MONO}
+        fontSize={NOTE_FS}
+        fill={color}
+      />,
+    );
+    return n;
+  };
+  const unkNote = note('*', COL_X[COL_DOB] + MARK_DX, UNK_C, 'Unknown', 0);
+  const naNote = note('**', COL_X[COL_MAIDEN] + MARK_DX, NA_C, 'Not applicable', 1);
+
   let mosLive = false;
   const mosaicClock = function* (): ThreadGenerator {
     while (mosLive) {
@@ -615,21 +708,30 @@ export default makeScene2D(function* (view) {
     dobNullOp(0, FOG_IN * 0.55, easeInCubic),
     fogOp(1, FOG_IN * 0.8, easeOutCubic),
     mosBlur(MOS_BLUR_TO, FOG_IN, easeOutCubic),
+    chain(waitFor(FOG_IN * 0.5), unkNote().opacity(1, NOTE_IN, easeOutCubic)),
   );
   dobNull().text('');
   yield* waitFor(HOLD_FOG);
 
-  // 3b. правая просто уходит: там нечему разрешаться. Мозаика ОСТАЁТСЯ —
-  // два разных ничего рядом и есть главный кадр сцены.
-  yield* maidenNullOp(0, VOID_OUT, easeInCubic);
+  // 3b. правая уходит, и на её месте остаётся ПУСТАЯ РАМКА: разрешаться
+  // нечему. Мозаика ОСТАЁТСЯ — два разных ничего рядом, под своими именами,
+  // и есть главный кадр сцены.
+  yield* all(
+    maidenNullOp(0, VOID_OUT, easeInCubic),
+    chain(waitFor(VOID_OUT * 0.5), naNote().opacity(1, NOTE_IN, easeOutCubic)),
+  );
   maidenNull().text('');
   yield* waitFor(HOLD_VOID);
 
   // 4. преступление: поверх обоих печатается одно и то же слово
   dobNullOp(1);
   maidenNullOp(1);
+  // ⚠️ Вместе с мозаикой и рамкой уходят ОБЕ СНОСКИ: стирается не только
+  // разница состояний, но и сами их имена — остаются одинаковые буквы.
   yield* all(
     fogOp(0, CRIME * 0.6, easeInCubic),
+    unkNote().opacity(0, NOTE_OUT, easeInOutSine),
+    naNote().opacity(0, NOTE_OUT, easeInOutSine),
     chain(
       waitFor(CRIME * 0.36),
       all(
