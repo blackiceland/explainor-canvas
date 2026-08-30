@@ -1,4 +1,4 @@
-import {Node, Path, Rect, Txt, blur, makeScene2D} from '@motion-canvas/2d';
+import {Line, Node, Path, Rect, Txt, blur, makeScene2D} from '@motion-canvas/2d';
 import {
   all,
   chain,
@@ -397,6 +397,29 @@ const S5 = `fun currentPosition(flightId: FlightId): Position {
     return Tracked(fix.coordinates)
 }`;
 
+// ⚠️⚠️ S5B — ТИП ПРИХОДИТ ОТДЕЛЬНЫМ ТАКТОМ (правка автора: «ты Fix не
+// напечатал»). Раньше `: Fix?` и разворот элвиса делались одним морфом, и при
+// `charDelay = 0.012` шесть знаков набирались за два кадра — то есть не
+// набирались вовсе. Теперь сначала печатается ТОЛЬКО аннотация, медленно, и на
+// ней держится пауза: строка вслух называет, что `latestFix` возвращает `Fix?`.
+// И лишь потом элвис разворачивается в гард. Два события — два такта.
+const S5B = `fun currentPosition(flightId: FlightId): Position {
+    val flight = flights.byId(flightId)
+
+    if (flight.isTrackingRestricted) {
+        return Restricted
+    }
+
+    val fix: Fix? = tracking.latestFix(flight)
+        ?: return OutOfCoverage
+
+    if (fix.isStale()) {
+        return Stale
+    }
+
+    return Tracked(fix.coordinates)
+}`;
+
 // ⚠️⚠️ S6 — ЕДИНСТВЕННАЯ ПРАВКА КОДА ВО ВСЕЙ ЧАСТИ II: явный тип и развёрнутый
 // гард. Она доказывает то, что иначе пришлось бы утверждать голосом:
 // `latestFix` возвращает `Fix?`, то есть nullable живёт в САМОМ МАЛЕНЬКОМ
@@ -433,6 +456,11 @@ const S6 = `fun currentPosition(flightId: FlightId): Position {
 
 // строки кода, на которых стоит очередное имя (в СВОЁМ состоянии)
 const CL_RESTRICTED = 4;
+// ⚠️⚠️ РЕЗКИМ СТАНОВИТСЯ ВЕСЬ ГАРД, А НЕ ОДНА СТРОКА (правка автора: «вместе с
+// выделением Restricted выдели блок if»). Он прав по сути: одна строка
+// `return Restricted` не объясняет ничего — смысл ей даёт условие над ней.
+const CL_GUARD_FROM = 3;             // if (flight.isTrackingRestricted) {
+const CL_GUARD_TO = 5;               // закрывающая скобка гарда
 const CL_COVERAGE = 8;
 const CL_STALE = 11;
 const CL_TRACKED = 14;
@@ -637,58 +665,61 @@ const IN_MIRROR = 'NoSuchFlight';
 const OUT_HEAD = 'HTTP/1.1 ';
 const OUT_OK = '403 Forbidden';
 const OUT_LIE = '404 Not Found';
-const IN_X = SEAM_X - BND_GAP;       // правый край слова (выключка вправо)
+// ⚠️⚠️ ЗАЗОР СЛЕВА МЕРЯЕТСЯ ОТ САМОГО ДЛИННОГО СЛОВА КОЛОНКИ, А НЕ ОТ
+// `Restricted` (правка автора: «не нравится сдвиг Restricted влево»). Раньше он
+// стоял в 90 от зазора и ОТЪЕЗЖАЛ на 60 влево, когда под общую левую кромку
+// вставал более длинный `NoSuchFlight`. Отъезд убран: колонка сразу стоит там,
+// где ей стоять при двух строках. Её правая граница — правый край длинного
+// слова — оказывается ровно в 90 от зазора, то есть строго напротив статуса.
+// Симметрия зазора сохранена, а `Restricted`, будучи короче, просто не достаёт
+// до кромки своей колонки. За всю часть слева не двигается ни один пиксель.
+const COL_GAP = (IN_MIRROR.length - IN_WORD.length) * BND_ADV;
+const IN_X = SEAM_X - BND_GAP - COL_GAP;   // правый край `Restricted`
 const OUT_X = SEAM_X + BND_GAP;      // левый край строки
 const WIRE_C = 'rgba(244,241,235,0.52)';
+const MIR_C = '#E0BE8A';             // второй внутренний факт — другой цвет
 
+const IN_LX = IN_X - IN_WORD.length * BND_ADV;   // левая кромка слова
 
-// ── жест границы (часть II) ─────────────────────────────────────────────
-// ⚠️⚠️ ПРАВИЛО КАДРА: У КАЖДОЙ СТОРОНЫ СВОЙ ЯЗЫК, И ЦВЕТ — ЭТО ЯЗЫК. Слева всё
-// лавандовое (цвет типа, которым набрано `Restricted`), справа всё кремовое
-// (цвет строки ответа). Метка, пересекая брус, меняет цвет — потому что попала
-// на другую сторону. Правило объявлено ещё до движения: контуры и подписи сторон
-// уже покрашены своими языками, и метке остаётся только его подтвердить.
-// ⚠️⚠️ ФОРМЫ РАВНЫЕ И СИММЕТРИЧНЫЕ ОТНОСИТЕЛЬНО ШВА. Прошлая версия подгоняла
-// ширины под колонки слов внизу — замысел был честный, но глазом это читается
-// просто как «коробки разного размера». Баланс берётся симметрией.
-// ⚠️ Зазор между формами — тот же зазор, что у пары (`IN_X`..`OUT_X`), и брус
-// стоит ровно в нём. Один шов на два этажа.
-// ⚠️ Подписи сторон ЕСТЬ и они внутри форм, слева вверху — как колонтитул.
-// ⚠️ Метки паркуются точно над своими словами: лавандовая над центром
-// `Restricted`, кремовая над глифами `403`.
-// ⚠️⚠️ В ЗЕРКАЛЕ ЕДЕТ ТРЕТИЙ ЦВЕТ. `NoSuchFlight` — другой внутренний факт,
-// поэтому и метка внутри, и слово внизу становятся ЯНТАРНЫМИ. Копия янтарной
-// метки идёт наружу, на брусе становится кремовой и СЛИВАЕТСЯ с той, что уже
-// там стоит: два разных цвета внутри, один и тот же снаружи. Это тезис фильма,
-// сказанный формами, и без него зеркало держится только на словах.
-const GST_Y = -585;
-const GST_W = 380;                   // обе формы одинаковые
-const GST_H = 230;
-const GST_LCX = IN_X - GST_W / 2;    // центр левой формы, правая кромка на шве
-const GST_RCX = OUT_X + GST_W / 2;
-const GST_PAD = 34;
-const GST_IN_C = Canon.type;         // язык сервера
-const GST_OUT_C = INK;               // язык клиента
-const GST_MIR_C = '#E0BE8A';         // третий факт: другой, но выходит так же
-const GST_EDGE_IN = 'rgba(205,198,250,0.32)';
-const GST_EDGE_OUT = 'rgba(244,241,235,0.32)';
-const GST_LABEL_IN = 'rgba(205,198,250,0.72)';
-const GST_LABEL_OUT = 'rgba(244,241,235,0.72)';
-const GST_LABEL_FS = 20;
-const GST_WALL_W = 6;
-const GST_WALL_C = 'rgba(244,241,235,0.34)';
-const GST_SQ = 44;
-const GST_METHOD = 'currentPosition';
-const GST_METHOD_FS = 22;
-const GST_METHOD_C = 'rgba(205,198,250,0.55)';
-const GST_METHOD_LIT = 'rgba(205,198,250,1)';
-const GST_LABEL_Y = GST_Y - GST_H / 2 + 34;
-const GST_METHOD_Y = GST_Y - 8;
-const GST_MARK_Y = GST_Y + 62;
-const GST_DOCK_IN = IN_X - (IN_WORD.length * BND_ADV) / 2;           // над словом
-const GST_DOCK_OUT = OUT_X + (OUT_HEAD.length + 1.5) * BND_ADV;      // над `403`
-const GST_CROSS_IN = (GST_DOCK_OUT - SEAM_X) / (GST_DOCK_OUT - GST_DOCK_IN);
-const GST_CROSS_OUT = (SEAM_X - GST_DOCK_IN) / (GST_DOCK_OUT - GST_DOCK_IN);
+// ── схождение (часть II) ────────────────────────────────────────────────
+// ⚠️⚠️ ЭТО НЕ СТРЕЛКИ, А СЛИЯНИЕ, И РАЗНИЦА СМЫСЛОВАЯ. Стрелка говорит слабое:
+// «A связано с B». Здесь нужно сказать сильное: «A и B снаружи неразличимы».
+// Поэтому две ветки не упираются в статус двумя наконечниками, а СХОДЯТСЯ В
+// ОДНУ линию, и дальше идёт один провод. Точка слияния и есть высказывание.
+// ⚠️⚠️ СХОДЯТСЯ ОНИ РОВНО НА ШВЕ (`FORK_X1 = SEAM_X`). Граница в этом ролике
+// уже определена как пустой зазор между колонками — и именно на ней два
+// внутренних факта перестают отличаться друг от друга. Место слияния не
+// выбрано, оно вычислено.
+// ⚠️ Цвет веток — цвет их факта (лаванда и янтарь), цвет ствола — цвет провода.
+// Два языка входят, один выходит: смена краски на стыке уже выучена зрителем
+// по всей части, нового словаря не заводим.
+// ⚠️⚠️ ДВА ФАКТА — ЛЕВОСТОРОННИЙ СПИСОК (правка автора: «NoSuchFlight выровнен
+// по левому краю надписи Restricted»). Обе строки стоят на общей левой кромке
+// `IN_LX` и НИКОГДА не двигаются: колонка размечена по длинному слову с самого
+// начала, см. `COL_GAP` выше.
+// ⚠️⚠️ ЛИНИИ НАЧИНАЮТСЯ С ОДНОЙ ВЕРТИКАЛИ (правка автора: «Restricted и NoSuch
+// получилось крайне уродливо»). И он был прав: когда каждая линия стартовала в
+// 24px от СВОЕГО слова, провод от короткого `Restricted` начинался ЛЕВЕЕ, чем
+// кончалось длинное слово над ним, — то есть проходил под его хвостом и читался
+// подчёркиванием. Теперь обе линии выходят из общей вертикали `WIRE_X0`,
+// поставленной за правой кромкой САМОГО ДЛИННОГО слова: у колонки появляется
+// внятная правая граница, а лишний просвет после короткого слова прячется под
+// хвост длинного и просветом не читается.
+// ⚠️⚠️ ПРИТОК ИДЁТ ПОД ПРЯМЫМ УГЛОМ, А НЕ НАИСКОСЬ. Диагональ втыкалась в провод
+// острым клином — он читался наконечником стрелки, то есть ровно тем словарём,
+// от которого мы уходили. Ортогональный ход со скруглением — родной словарь
+// автора (step-коннекторы `conn4` в его же сценах): второй факт идёт СВОЕЙ
+// дорожкой параллельно проводу и сворачивает в него на шве.
+// ⚠️ `Restricted` не сходит со своей строки и не сдвигается вбок: она посередине
+// кадра и стоит там неподвижно всю часть.
+const FORK_DY = 80;                  // вторая строка списка — над проводом
+const COL_R = IN_LX + IN_MIRROR.length * BND_ADV;   // правая граница колонки
+const WIRE_X0 = COL_R + 24;          // обе линии выходят из одной вертикали
+const FORK_X1 = SEAM_X;              // приток сворачивает в провод на границе
+const FORK_R = 16;                   // скругление угла
+const TRUNK_X1 = OUT_X - 24;         // один провод доходит до статуса
+const FORK_W = 3;
+
 
 // ── документ ────────────────────────────────────────────────────────────
 // ⚠️⚠️ БУМАГУ НЕ ПОДДЕЛЫВАЕМ. Сканы Хоара работали, потому что тот документ
@@ -797,6 +828,8 @@ const TABLE_HOLD = 3.0;              // ⚠️ VO — и экран наконе
 // нами с конца части I. Стыком служит TABLE_HOLD, дальше сразу наезд.
 const DIVE = 1.6;
 const DIVE_HOLD = 0.9;
+const ANNOT_CD = 0.055;               // ⚠️ тип печатается ВИДИМО, не за два кадра
+const ANNOT_SEE = 1.2;               // ⚠️ VO — nullable живёт в самом маленьком контракте
 const ANNOT_HOLD = 1.0;
 // ⚠️ Наезд считан по ВЫСОТЕ ФИНАЛЬНОГО кода: 19 строк × 40 = 760px. При 1.5
 // функция вставала больше кадра и нижняя скобка срезалась; 1.28 оставляет по
@@ -817,32 +850,22 @@ const CODE_BLUR = 5;
 // табло (34) сильно крупнее кода (25), и при одинаковом блюре его строки
 // продолжают читаться и тянут глаз, пока мы смотрим в код.
 const CODE_AWAY = 7;
-const CODE_GONE = 28;                // код на кадре табло — только кромкой
+const CODE_GONE = 38;                // код на кадре табло — только кромкой
 const BOARD_AWAY = 11;
 const RISE = 2.2;
-const BND_CAM_Y = -532;              // одна рамка: пара внизу, полоса жеста сверху
-const BND_CAM_X = 70;                // между центром жеста и центром пары
+// ⚠️ Строка пары стоит РОВНО ПО ЦЕНТРУ КАДРА ПО ВЫСОТЕ (правка автора). Было
+// -430 — строка сидела на 56px ниже середины, и кадр читался просевшим.
+const BND_CAM_Y = BND_Y;
+// ⚠️ Боковой проезд кончается на ЦЕНТРЕ ПАРЫ (`bndMid`), а не на подогнанной
+// константе: поле жеста над парой убрано, и компенсировать больше нечего.
 const BND_S = 1.4;                   // масштаб границы; на проезде НЕ меняется
-const IN_IN = 0.6;
-const IN_HOLD = 2.0;                 // ⚠️ VO — география: сервер, клиент, стена
+const IN_HOLD = 2.8;                 // ⚠️ VO — география: сервер, клиент, стена
 const CROSS = 1.5;                   // боковой проезд через зазор
-// ── такты жеста границы ────────────────────────────────────────────────
-const GST_IN = 1.1;                  // поле приходит как одно, камера стоит
-const GST_HOLD = 0.7;
-const GST_ASK = 1.5;                 // вопрос идёт внутрь
-const GST_RECOLOR = 0.3;             // смена языка на брусе
-const GST_DOCK_HOLD = 0.5;
-const GST_RUN = 0.45;                // метод отзывается
-const GST_RUN_HOLD = 0.5;
-const GST_ANSWER = 1.5;              // ответ идёт наружу
-const GST_READ = 1.6;                // ⚠️ VO — на границе меняется язык
-const MIR_TINT = 0.45;               // другой факт — другой цвет
-const MIR_HOLD_IN = 0.9;
-const MIR_SEND = 1.4;                // янтарная копия идёт тем же путём
 const BOARD_GONE = 32;
 
 const TYPE_CD = 0.032;
-const BND_HOLD = 1.6;                // ⚠️ VO — честный перевод
+const BND_CD = TYPE_CD * 1.6;        // печать внутренних слов — крупнее кегль
+const BND_HOLD = 3.4;                // ⚠️ VO — честный перевод
 const DOC_IN = 1.1;
 const DOC_READ = 2.2;                // ⚠️ VO — сухая страница стандарта
 const DOC_PUSH = 1.5;
@@ -855,10 +878,12 @@ const MAY_HOLD = 4.2;                // ⚠️ VO — стандарт разр�
 const DOC_OUT = 0.9;
 const BACK_HOLD = 1.5;
 const FLIP_GAP = 0.3;
-const FLIP_HOLD = 2.6;               // ⚠️ VO — внутри не изменилось ничего
-const MIRROR_OUT = 0.5;
-const MIRROR_IN = 0.55;
-const MIRROR_HOLD = 2.0;             // ⚠️ VO — и этот рейс получит тот же ответ
+const FLIP_HOLD = 3.2;               // ⚠️ VO — внутри не изменилось ничего
+const MRG_HOLD_IN = 1.0;             // ⚠️ VO — два разных факта
+const MRG_DRAW = 0.95;               // ветки идут к шву
+const MRG_TRUNK = 0.55;              // дальше — один провод
+const MIRROR_HOLD = 2.8;             // ⚠️ VO — и этот рейс получит тот же ответ
+const MRG_OUT = 0.9;                 // схождение уходит как одно
 const MIRROR_BACK_HOLD = 1.4;
 // ⚠️⚠️ КАДР ТАБЛО ПЕРЕСЧИТАН ПО САМОЙ КАРТОЧКЕ (правка автора: «табло ужалось
 // вниз и надписи сверху странно расположились во фрейме»). Было
@@ -1280,87 +1305,28 @@ export default makeScene2D(function* (view) {
     rowCells.push([c1, c2, c3]);
   });
 
-  // ── жест границы (часть II) ───────────────────────────────────────────
-  // ⚠️ Всё поле приходит КАК ОДНО: две формы, две подписи, брус, имя метода и
-  // метка у клиента — один фокус-пулл. Дальше двигается только метка.
-  const gst = createRef<Node>();
-  world().add(<Node ref={gst} opacity={0} cachePadding={70} />);
-  const gstBlur = attachBlur(gst(), 70);
-
-  const region = (cx: number, edge: string, label: string, labelC: string) => {
-    gst().add(
-      <Rect
-        x={cx}
-        y={GST_Y}
-        width={GST_W}
-        height={GST_H}
-        stroke={edge}
-        lineWidth={2}
-      />,
-    );
-    gst().add(
-      <Txt
-        text={label}
-        x={cx - GST_W / 2 + GST_PAD}
-        y={GST_LABEL_Y}
-        offset={[-1, 0]}
-        fontFamily={MONO}
-        fontSize={GST_LABEL_FS}
-        letterSpacing={2.4}
-        fill={labelC}
-      />,
-    );
-  };
-  region(GST_LCX, GST_EDGE_IN, 'server', GST_LABEL_IN);
-  region(GST_RCX, GST_EDGE_OUT, 'client', GST_LABEL_OUT);
-
-  gst().add(
-    <Rect x={SEAM_X} y={GST_Y} width={GST_WALL_W} height={GST_H} fill={GST_WALL_C} />,
-  );
-
-  const methodTxt = createRef<Txt>();
-  gst().add(
-    <Txt
-      ref={methodTxt}
-      text={GST_METHOD}
-      x={GST_DOCK_IN}
-      y={GST_METHOD_Y}
-      fontFamily={MONO}
-      fontSize={GST_METHOD_FS}
-      fill={GST_METHOD_C}
-    />,
-  );
-
-  const mark = createRef<Rect>();
-  gst().add(
-    <Rect
-      ref={mark}
-      x={GST_DOCK_OUT}
-      y={GST_MARK_Y}
-      width={GST_SQ}
-      height={GST_SQ}
-      fill={GST_OUT_C}
-    />,
-  );
-
   // ── граница (часть II) ────────────────────────────────────────────────
   // Живёт в мире с первого кадра, прозрачной: пара не «приезжает», мы просто
   // до неё доедем.
   const bnd = createRef<Node>();
   world().add(<Node ref={bnd} />);
 
+  // ⚠️⚠️ СЛОВО ВЫКЛЮЧЕНО ВЛЕВО, ХОТЯ ВИЗУАЛЬНО ЖМЁТСЯ К ЗАЗОРУ. Это нужно ради
+  // печати (правка автора: «нормально его анимируй печатанием»): при выключке
+  // вправо буквы росли бы ВЛЕВО от неподвижной правой кромки — так не печатают.
+  // Слева якорь, и слово пишется В СТОРОНУ ГРАНИЦЫ, доходя до неё последней
+  // буквой. Левая кромка заодно становится общей для списка из двух фактов.
   const inWord = createRef<Txt>();
   bnd().add(
     <Txt
       ref={inWord}
-      text={IN_WORD}
-      x={IN_X}
+      text=""
+      x={IN_LX}
       y={BND_Y}
-      offset={[1, 0]}
+      offset={[-1, 0]}
       fontFamily={MONO}
       fontSize={BND_FS}
       fill={Canon.type}
-      opacity={0}
     />,
   );
 
@@ -1388,6 +1354,71 @@ export default makeScene2D(function* (view) {
       fontFamily={MONO}
       fontSize={BND_FS}
       fill={INK}
+    />,
+  );
+
+  // ── схождение (часть II) ──────────────────────────────────────────────
+  // ⚠️ Второе слово живёт отдельным Txt, а не подменой текста в первом: в этом
+  // такте они обязаны стоять ОДНОВРЕМЕННО. Схождение, показанное подменой,
+  // живёт в памяти зрителя; показанное двумя словами сразу — живёт в кадре.
+  // ⚠️ Весь такт живёт в одном узле: второе слово И линии приходят и уходят как
+  // одно. Внутри узел прозрачен только по содержимому — слово с пустым текстом,
+  // линии с нулевой длиной, — поэтому проявлять его на входе не нужно.
+  const mrg = createRef<Node>();
+  bnd().add(<Node ref={mrg} cachePadding={40} />);
+
+  const mirWord = createRef<Txt>();
+  mrg().add(
+    <Txt
+      ref={mirWord}
+      text=""
+      x={IN_LX}
+      y={BND_Y - FORK_DY}
+      offset={[-1, 0]}
+      fontFamily={MONO}
+      fontSize={BND_FS}
+      fill={MIR_C}
+    />,
+  );
+
+  // ⚠️ Линии рисуются ростом (`end` 0→1), а не проявлением: провод ИДЁТ от
+  // своего слова к шву. Появившаяся целиком линия была бы просто соединителем.
+  // ⚠️ `wireIn` и `trunk` КОЛЛИНЕАРНЫ: это один горизонтальный провод, который
+  // на шве меняет краску с цвета типа на цвет провода. Диагональ впадает в него
+  // ровно в этой точке — цвет меняется там, где приходит второй факт.
+  const wireIn = createRef<Line>();
+  const forkTop = createRef<Line>();
+  const trunk = createRef<Line>();
+  mrg().add(
+    <Line
+      ref={wireIn}
+      points={[[WIRE_X0, BND_Y], [FORK_X1, BND_Y]]}
+      stroke={Canon.type}
+      lineWidth={FORK_W}
+      end={0}
+    />,
+  );
+  mrg().add(
+    <Line
+      ref={forkTop}
+      points={[
+        [WIRE_X0, BND_Y - FORK_DY],
+        [FORK_X1, BND_Y - FORK_DY],
+        [FORK_X1, BND_Y],
+      ]}
+      radius={FORK_R}
+      stroke={MIR_C}
+      lineWidth={FORK_W}
+      end={0}
+    />,
+  );
+  mrg().add(
+    <Line
+      ref={trunk}
+      points={[[FORK_X1, BND_Y], [TRUNK_X1, BND_Y]]}
+      stroke={INK}
+      lineWidth={FORK_W}
+      end={0}
     />,
   );
 
@@ -1661,6 +1692,17 @@ export default makeScene2D(function* (view) {
   );
   yield* waitFor(DIVE_HOLD);
 
+  // ⚠️ Сначала ТОЛЬКО тип, и он печатается по-настоящему: `: Fix?` — это шесть
+  // знаков, которые и есть всё доказательство главы, их нельзя проскочить.
+  // ⚠️⚠️ ЗДЕСЬ `tokenSlideDuration` НУЖЕН — единственное место в сцене. Общий
+  // `MORPH` держит 0, потому что на больших правках пережившие токены ехали
+  // сквозь набираемый текст. Но тут правка одна и она ЧИСТАЯ ВСТАВКА: хвост
+  // строки обязан ЕХАТЬ ВПРАВО, пока набирается тип, — так и печатают. При 0
+  // хвост прыгал на новое место сразу, между `Fi` и `=` зияли два пробела, а
+  // закрывающая скобка `latestFix(flight)` пропадала и допечатывалась последней.
+  yield* code.morphTo(S5B, {...MORPH, charDelay: ANNOT_CD, tokenSlideDuration: 0.32});
+  yield* waitFor(ANNOT_SEE);
+  // ⚠️ И только теперь элвис разворачивается в гард — второе событие.
   yield* code.morphTo(S6, MORPH);
   yield* waitFor(ANNOT_HOLD);
 
@@ -1679,26 +1721,29 @@ export default makeScene2D(function* (view) {
   yield* waitFor(PROOF_HOLD);
 
   // ═══ 1b. Фокус переезжает на героя ══════════════════════════════════
-  // ⚠️ Тем же жестом и на том же масштабе: резким становится `return Restricted`,
-  // и камера подтягивается к нему. Исключение мы навестили, а живём — здесь.
+  // ⚠️ Тем же жестом и на том же масштабе: резким становится ВЕСЬ ГАРД —
+  // условие, возврат и скобка, — и камера подтягивается к нему. Исключение мы
+  // навестили, а живём — здесь.
   yield* all(
     ...look(CODE_X + CODE_LEFT + 23 * CODE_ADV, codeLineY(CL_RESTRICTED), DIVE_S, SHIFT),
-    ...lineBlur.map((b, i) => b(i === CL_RESTRICTED ? 0 : CODE_BLUR, SHIFT, easeInOutSine)),
+    ...lineBlur.map((b, i) =>
+      b(i >= CL_GUARD_FROM && i <= CL_GUARD_TO ? 0 : CODE_BLUR, SHIFT, easeInOutSine),
+    ),
   );
   yield* waitFor(SHIFT_HOLD);
 
   // ═══ 2. Всплытие к границе ══════════════════════════════════════════
   // ⚠️ ОДНО ДВИЖЕНИЕ: камера идёт вверх-вправо, рэк отпускается ПО ДОРОГЕ, и
   // тем же движением весь код уходит в мягкое целиком.
-  // ⚠️⚠️ `Restricted` ПРОЯВЛЯЕТСЯ ПО ДОРОГЕ, а не по приезде: иначе камера
+  // ⚠️⚠️ `Restricted` ПЕЧАТАЕТСЯ ПО ДОРОГЕ, а не по приезде: иначе камера
   // почти две секунды едет в пустой верх кадра и приезжает в ничто.
+  // ⚠️ Печать, а не фокус-пулл (правка автора). Слово пишется слева направо,
+  // В СТОРОНУ ГРАНИЦЫ, и последняя буква садится ровно на кромку зазора —
+  // жест кончается там, где начнётся всё остальное.
   // ⚠️⚠️ ВСПЛЫТИЕ ИДЁТ К САМОМУ СЛОВУ, А НЕ К ЦЕНТРУ ПАРЫ. Когда камера сразу
   // вставала на пару, она приезжала в кадр, где слово прижато влево, а две
   // трети экрана держат пустоту в ожидании ещё не напечатанного ответа.
-  const inBlur = attachBlur(inWord(), 40);
-  // ⚠️ Копия ответа нужна и в такте жеста, и в зеркале — поэтому живёт снаружи.
-  let outMark: Rect;
-  const bndL = IN_X - IN_WORD.length * BND_ADV;
+  const bndL = IN_LX;
   const bndR = OUT_X + (OUT_HEAD + OUT_OK).length * BND_ADV;
   const inMid = (bndL + IN_X) / 2;     // центр слова
   const bndMid = (bndL + bndR) / 2;    // центр пары
@@ -1710,7 +1755,7 @@ export default makeScene2D(function* (view) {
     // `CODE_AWAY` строки кода ещё разбирались и тянули глаз вниз.
     chain(waitFor(RISE * 0.35), codeBlur(CODE_GONE, RISE * 0.65, easeInOutSine)),
     chain(waitFor(RISE * 0.35), boardBlur(BOARD_GONE, RISE * 0.65, easeInOutSine)),
-    chain(waitFor(RISE * 0.55), proveIn(inWord(), inBlur, IN_IN, 10)),
+    chain(waitFor(RISE * 0.45), typeOn(inWord(), IN_WORD, BND_CD)),
   );
 
   // ═══ 3. Честный перевод ═════════════════════════════════════════════
@@ -1722,7 +1767,7 @@ export default makeScene2D(function* (view) {
   // ответ печатается ровно в то место, которое проезд только что открыл.
   yield* waitFor(IN_HOLD);
   yield* all(
-    ...look(BND_CAM_X, BND_CAM_Y, BND_S, CROSS),
+    ...look(bndMid, BND_CAM_Y, BND_S, CROSS),
     chain(
       waitFor(CROSS * 0.28),
       typeOn(outHead(), OUT_HEAD),
@@ -1730,49 +1775,6 @@ export default makeScene2D(function* (view) {
     ),
   );
   yield* waitFor(BND_HOLD);
-  // ═══ 3b. Жест границы: на брусе меняется язык ════════════════════════
-  // ⚠️ Камера не двигается. Полоса над парой пуста с самого приезда и ждала
-  // именно этого: поле просто проявляется в ней.
-  yield* proveIn(gst(), gstBlur, GST_IN, 12);
-  yield* waitFor(GST_HOLD);
-
-  // ⚠️ ВОПРОС ИДЁТ ВНУТРЬ и на брусе меняет цвет: он попал на территорию, где
-  // всё называется по-другому.
-  yield* all(
-    mark().x(GST_DOCK_IN, GST_ASK, easeInOutCubic),
-    chain(
-      waitFor(GST_ASK * GST_CROSS_IN),
-      mark().fill(GST_IN_C, GST_RECOLOR, easeInOutSine),
-    ),
-  );
-  yield* waitFor(GST_DOCK_HOLD);
-
-  // ⚠️ Метод не нарисован формой — он ОТЗЫВАЕТСЯ. Имя набирает полную краску и
-  // отпускает её: работа кода в этом кадре и есть весь метод.
-  yield* methodTxt().fill(GST_METHOD_LIT, GST_RUN, easeOutCubic);
-  yield* methodTxt().fill(GST_METHOD_C, GST_RUN, easeInOutSine);
-  yield* waitFor(GST_RUN_HOLD);
-
-  // ⚠️⚠️ ОТВЕТ УХОДИТ КОПИЕЙ, А ОРИГИНАЛ ОСТАЁТСЯ. Копия рождается ровно под
-  // меткой, поэтому в кадре одно становится двумя: причина по-прежнему внутри,
-  // наружу ушёл её двойник на другом языке.
-  outMark = new Rect({
-    x: GST_DOCK_IN,
-    y: GST_MARK_Y,
-    width: GST_SQ,
-    height: GST_SQ,
-    fill: GST_IN_C,
-  });
-  gst().add(outMark);
-  yield* all(
-    outMark.x(GST_DOCK_OUT, GST_ANSWER, easeInOutCubic),
-    chain(
-      waitFor(GST_ANSWER * GST_CROSS_OUT),
-      outMark.fill(GST_OUT_C, GST_RECOLOR, easeInOutSine),
-    ),
-  );
-  yield* waitFor(GST_READ);
-
 
   // ═══ 4. Документ ════════════════════════════════════════════════════
   // ⚠️ Мир не гаснет и никуда не уходит — он уходит в расфокус под скримом и
@@ -1853,49 +1855,33 @@ export default makeScene2D(function* (view) {
   // ⚠️ Слово ВОЗВРАЩАЕТСЯ. Финальный кадр обязан остаться прежним — слева
   // `Restricted`, который никуда не делся, справа ложь: это тезис главы, и
   // отдавать его ради второй правды нельзя. Зеркало навещают, в нём не живут.
-  // ⚠️⚠️ ЗЕРКАЛО ЕДЕТ ФОРМАМИ, А НЕ ТОЛЬКО СЛОВАМИ (правка автора: «NoSuchFlight
-  // тоже должен двигаться, но быть другого цвета»). Другой внутренний факт —
-  // другой цвет: янтарь. Его копия проходит тот же путь, на брусе становится
-  // тем же кремовым и СЛИВАЕТСЯ с меткой, которая уже стоит снаружи. Два разных
-  // цвета внутри, один и тот же снаружи — это и есть название фильма, сказанное
-  // формами. Слово внизу красится тем же янтарём, иначе связка распадётся.
-  yield* proveOut(inWord(), inBlur, MIRROR_OUT, 10);
-  inWord().text(IN_MIRROR);
-  inWord().fill(GST_MIR_C);
-  yield* all(
-    proveIn(inWord(), inBlur, MIRROR_IN, 10),
-    mark().fill(GST_MIR_C, MIR_TINT, easeInOutSine),
-  );
-  yield* waitFor(MIR_HOLD_IN);
+  // ⚠️⚠️ ДВА ФАКТА СТОЯТ ОДНОВРЕМЕННО, И ЭТО ГЛАВНОЕ ОТЛИЧИЕ ОТ ПОДМЕНЫ. Пока
+  // `NoSuchFlight` заменял `Restricted` в той же строке, схождение приходилось
+  // держать в памяти: «а прошлое слово было другое». Теперь оба видны сразу, и
+  // одинаковость ответа — не вывод, а то, что нарисовано.
+  // ⚠️⚠️ СЛЕВА НЕ ДВИГАЕТСЯ НИЧЕГО (правка автора: «не нравится сдвиг Restricted
+  // влево»). Место под второй факт не отвоёвывается на глазах — оно было
+  // размечено с самого начала: колонка стоит по своему длинному слову, и
+  // `Restricted` просто не достаёт до её правой кромки. Второе слово приходит
+  // печатью в готовую строку, ни одна буква под ним не шевелится.
+  const mrgBlur = attachBlur(mrg(), 40);
+  yield* typeOn(mirWord(), IN_MIRROR, BND_CD);
+  yield* waitFor(MRG_HOLD_IN);
 
-  const mirMark = new Rect({
-    x: GST_DOCK_IN,
-    y: GST_MARK_Y,
-    width: GST_SQ,
-    height: GST_SQ,
-    fill: GST_MIR_C,
-  });
-  gst().add(mirMark);
+  // ⚠️ Провод и приток идут к шву ОДНОВРЕМЕННО: ни один из двух фактов не
+  // главнее другого, оба доходят до границы сами. Ствол трогается только после
+  // встречи — иначе слияние читалось бы как совпадение, а не как причина.
   yield* all(
-    mirMark.x(GST_DOCK_OUT, MIR_SEND, easeInOutCubic),
-    chain(
-      waitFor(MIR_SEND * GST_CROSS_OUT),
-      mirMark.fill(GST_OUT_C, GST_RECOLOR, easeInOutSine),
-    ),
+    wireIn().end(1, MRG_DRAW, easeInOutCubic),
+    forkTop().end(1, MRG_DRAW, easeInOutCubic),
   );
+  yield* trunk().end(1, MRG_TRUNK, easeOutCubic);
   yield* waitFor(MIRROR_HOLD);
 
-  // ⚠️ Возврат: слово и метка снова становятся лавандовыми, слившаяся копия
-  // снимается молча — она стоит ровно под кремовой меткой, и убирать её видимым
-  // жестом значило бы разбирать то, что только что сложилось.
-  yield* proveOut(inWord(), inBlur, MIRROR_OUT, 10);
-  inWord().text(IN_WORD);
-  inWord().fill(Canon.type);
-  mirMark.remove();
-  yield* all(
-    proveIn(inWord(), inBlur, MIRROR_IN, 10),
-    mark().fill(GST_IN_C, MIR_TINT, easeInOutSine),
-  );
+  // ⚠️ Возврат: схождение и второй факт уходят КАК ОДНО. `Restricted` при этом
+  // не возвращается — он никуда и не уходил. Финальный кадр обязан остаться
+  // прежним: слева `Restricted`, справа ложь. Это тезис главы.
+  yield* proveOut(mrg(), mrgBlur, MRG_OUT, 10);
   yield* waitFor(MIRROR_BACK_HOLD);
 
   // ═══ 7. Публичная запись исчезает ═══════════════════════════════════
@@ -1907,9 +1893,6 @@ export default makeScene2D(function* (view) {
     // пятнами. Догоняем до `CODE_GONE`: край становится бесформенным свечением,
     // то есть глубиной, а не мусором. На общем плане блюр всё равно снимается.
     codeBlur(CODE_GONE, TO_BOARD, easeInOutSine),
-    // ⚠️ Полоса жеста растворяется НА ПРОЕЗДЕ: она уже вне кадра, но в финальный
-    // общий план возвращаться не должна — там от неё осталась бы нижняя кромка.
-    proveOut(gst(), gstBlur, TO_BOARD * 0.55, 12),
   );
   yield* waitFor(BOARD_STAY);
 

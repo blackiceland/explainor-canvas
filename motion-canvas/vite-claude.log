@@ -1,49 +1,14 @@
 [33mThe CJS build of Vite's Node API is deprecated. See https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for more details.[39m
 
-  VITE v5.4.21  ready in 2755 ms
+  VITE v5.4.21  ready in 2945 ms
 
   ➜  Local:   http://localhost:5173/
   ➜  Network: http://10.8.1.4:5173/
   ➜  Network: http://192.168.0.11:5173/
   ➜  Network: http://172.31.80.1:5173/
   ➜  press h + enter to show help
-15:28:54 [vite] hmr update /src/scenes/nullMeansCoddLedgerEn.meta
-15:30:40 [vite] hmr update /src/scenes/nullMeansCoddLedgerEn.tsx?scene
-15:30:54 [vite] hmr update /src/scenes/nullMeansCoddLedgerEn.tsx?scene
-15:31:01 [vite] hmr update /src/scenes/nullMeansCoddLedgerEn.tsx?scene
-15:31:09 [vite] hmr update /src/scenes/nullMeansCoddLedgerEn.tsx?scene
-15:31:15 [vite] hmr update /src/scenes/nullMeansCoddLedgerEn.tsx?scene
-15:31:22 [vite] hmr update /src/scenes/nullMeansCoddLedgerEn.tsx?scene
-15:31:28 [vite] hmr update /src/scenes/nullMeansCoddLedgerEn.tsx?scene
-15:31:32 [vite] hmr update /src/scenes/nullMeansCoddLedgerEn.tsx?scene
-15:31:37 [vite] hmr update /src/scenes/nullMeansCoddLedgerEn.tsx?scene
-15:31:43 [vite] hmr update /src/scenes/nullMeansCoddLedgerEn.tsx?scene
-15:31:50 [vite] hmr update /src/scenes/nullMeansCoddLedgerEn.tsx?scene
-15:32:45 [vite] hmr update /src/scenes/nullMeansCoddLedgerEn.tsx?scene
-15:47:58 [vite] page reload src/project.ts
-15:48:04 [vite] page reload src/project.ts
-15:48:05 [vite] hmr update /src/scenes/nullMeansCoddPrintoutLabEn.meta
-17:27:26 [vite] page reload src/project.ts
-17:27:38 [vite] page reload src/project.ts
-17:33:05 [vite] hmr update /src/scenes/nullMeansCoddLedgerEn.tsx?scene
-17:33:12 [vite] hmr update /src/scenes/nullMeansCoddLedgerEn.tsx?scene
-17:33:19 [vite] hmr update /src/scenes/nullMeansCoddLedgerEn.tsx?scene
-17:33:24 [vite] hmr update /src/scenes/nullMeansCoddLedgerEn.tsx?scene
-17:33:38 [vite] page reload src/project.ts
-18:15:44 [vite] hmr update /src/scenes/nullMeansCoddLedgerEn.tsx?scene
-18:16:00 [vite] hmr update /src/scenes/nullMeansCoddLedgerEn.tsx?scene
-18:34:54 [vite] hmr update /src/scenes/nullMeansCoddLedgerEn.tsx?scene
-18:35:20 [vite] hmr update /src/scenes/nullMeansCoddLedgerEn.tsx?scene
-18:35:29 [vite] hmr update /src/scenes/nullMeansCoddLedgerEn.tsx?scene
-18:35:37 [vite] hmr update /src/scenes/nullMeansCoddLedgerEn.tsx?scene
-18:35:45 [vite] hmr update /src/scenes/nullMeansCoddLedgerEn.tsx?scene
-18:42:54 [vite] hmr update /src/scenes/nullMeansCoddLedgerEn.tsx?scene
-18:43:08 [vite] hmr update /src/scenes/nullMeansCoddLedgerEn.tsx?scene
-18:43:16 [vite] hmr update /src/scenes/nullMeansCoddLedgerEn.tsx?scene
-18:43:57 [vite] hmr update /src/scenes/nullMeansCoddLedgerEn.tsx?scene
-18:55:47 [vite] hmr update /src/scenes/nullMeansCoddLedgerEn.tsx?scene
-18:56:06 [vite] hmr update /src/scenes/nullMeansCoddLedgerEn.tsx?scene
-18:56:25 [vite] hmr update /src/scenes/nullMeansCoddLedgerEn.tsx?scene
-18:56:31 [vite] hmr update /src/scenes/nullMeansCoddLedgerEn.tsx?scene
-18:56:46 [vite] hmr update /src/scenes/nullMeansCoddLedgerEn.tsx?scene
-18:56:52 [vite] hmr update /src/scenes/nullMeansCoddLedgerEn.tsx?scene
+22:40:57 [vite] hmr update /src/scenes/nullMeansChapter2En.tsx?scene
+22:41:04 [vite] hmr update /src/scenes/nullMeansChapter2En.tsx?scene
+22:42:02 [vite] hmr update /src/scenes/nullMeansChapter2En.tsx?scene
+22:42:07 [vite] hmr update /src/scenes/nullMeansChapter2En.tsx?scene
+22:43:21 [vite] hmr update /src/scenes/nullMeansChapter2En.tsx?scene

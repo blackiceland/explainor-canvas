@@ -82,6 +82,7 @@ import nullMeansChapterOneStandEn from "./scenes/nullMeansChapterOneStandEn?scen
 import nullMeansKindsOfNothingEn from "./scenes/nullMeansKindsOfNothingEn?scene";
 import nullMeansCoddLedgerEn from "./scenes/nullMeansCoddLedgerEn?scene";
 import nullMeansAllTheReasonsEn from "./scenes/nullMeansAllTheReasonsEn?scene";
+import nullMeansChapter2En from "./scenes/nullMeansChapter2En?scene";
 import nullMeansCoddPrintoutLabEn from "./scenes/nullMeansCoddPrintoutLabEn?scene";
 import rd4585SceneRu from "./scenes/rd4585SceneRu?scene";
 import earnedAbstractionSceneEn from "./scenes/earnedAbstractionSceneEn?scene";
@@ -98,6 +99,7 @@ import pipelineGrabGrowthSceneEn from "./scenes/pipelineGrabGrowthSceneEn?scene"
 import grabStrategyOrbitSceneEn from "./scenes/grabStrategyOrbitSceneEn?scene";
 import problemsYouDontHaveCostSceneEn from "./scenes/problemsYouDontHaveCostSceneEn?scene";
 import duplicationHateIntroScene from "./scenes/duplicationHateIntroScene?scene";
+import chargingHeroDemoScene from "./scenes/chargingHeroDemoScene?scene";
 import introMergeScene from "./scenes/introMergeScene?scene";
 import chapter1IntroScene from "./scenes/chapter1IntroScene?scene";
 import duplicationBestChoiceTitleSceneEn from "./scenes/duplicationBestChoiceTitleSceneEn?scene";
@@ -107,7 +109,7 @@ export default makeProject({
     scenes: [
 
         // I — YOUR NULL MEANS TOO MUCH
-        // duplicationHateIntroScene,
+         // duplicationHateIntroScene,
         // introMergeScene,
         // chapter1IntroScene,
 
@@ -230,7 +232,12 @@ export default makeProject({
         // Часть II, без единого стыка, только камерой: последний честный null в
         // маленьком контракте → Restricted | 403 Forbidden через зазор → RFC
         // 9110 §15.5.4 разрешает скрыть → 404 Not Found → борт исчезает с табло
-        nullMeansAllTheReasonsEn,
+        // nullMeansAllTheReasonsEn,
+        nullMeansChapter2En,
+
+        // ДЕМО ОПЕРАТОРСКОЙ РАБОТЫ: Honda e у зарядной стойки, быстрый наезд
+        // по дуге из расфокуса в низкую точку три четверти спереди
+        // chargingHeroDemoScene,
         // ЛАБА к ней: тот же леджер материалом распечатки АЦПУ (фальцовка,
         // перфорация, 10 CPI / 6 LPI, линейки знаками) — кадр для выбора
         // nullMeansCoddPrintoutLabEn,
