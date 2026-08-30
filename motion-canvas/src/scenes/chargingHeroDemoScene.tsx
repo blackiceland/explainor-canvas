@@ -38,9 +38,10 @@ import {applyBackground} from '../core/utils';
 import {Manticore} from '../core/code/components/Manticore';
 import {buildCanonRules, CanonCodeTheme, paintCanonMethodCalls} from '../core/code/model/paletteCanon';
 
-// Операторская демка. Два такта: герой Honda e у стойки → отъезд с подъёмом, к концу
-// которого одним моментом проступают оба блока кода и автопарк.
-// Появление у всех одно и то же — выход из размытия, без единого перемещения.
+// Операторская демка. Автопарк стоит в кадре С САМОГО НАЧАЛА — глубоко в расфокусе,
+// как задний план за героем. Ничто ниоткуда не появляется: мир цел с первого кадра.
+// Два такта: резкое приближение к Honda e у стойки → отъезд с подъёмом, к концу
+// которого задний план входит в фокус, а на своих местах проступают оба блока кода.
 // Нижняя пара доходит до полной резкости, верхняя остаётся приглушённой: она фон.
 // Камера за всю сцену не меняет ни азимут, ни объектив.
 // Земли и тумана нет: всё стоит на графите applyBackground, тени ловит
@@ -208,7 +209,7 @@ export default makeScene2D(function* (view) {
   depot.rotation.y = -31 * D2R;
   sceneD.add(depot);
 
-  const depotLit = createSignal(0);
+  const depotLit = createSignal(1);
   const depotMats: MeshStandardMaterial[] = [];
   const vanSrc = vanGltf.scene as Object3D;
   const COLS = 3, SU = 3.3, ROW = 4.6, SPINE = 0.75;
@@ -247,11 +248,11 @@ export default makeScene2D(function* (view) {
   // Один жест, четыре канала на одной кривой, никакого доворота в конце.
   const AZ = 14 * D2R;
   const camera = new PerspectiveCamera(34, Screen.width / Screen.height, 0.1, 300);
-  const camEl = createSignal(15 * D2R);
-  const camDist = createSignal(9.5);
-  const tgtX = createSignal(-0.55);
-  const tgtY = createSignal(0.95);
-  const tgtZ = createSignal(0.10);
+  const camEl = createSignal(16 * D2R);
+  const camDist = createSignal(10.5);
+  const tgtX = createSignal(-0.62);
+  const tgtY = createSignal(1.00);
+  const tgtZ = createSignal(0.12);
   // Сдвиг точки прицеливания вдоль «вправо» камеры: двигает мир по кадру,
   // не трогая камеру — так левая колонна освобождается под код.
   const lookOff = createSignal(0);
@@ -288,7 +289,10 @@ export default makeScene2D(function* (view) {
     width: Screen.width, height: Screen.height, scene: sceneD, camera,
     onRender: r => frame(r, sceneD),
   });
-  const IN_BLUR_DEPOT = 8;
+  // Радиус держим малым относительно объекта: фургон на стартовом кадре ~147 px,
+  // 7 это пять процентов его высоты. Больше — и просветы между машинами затекают,
+  // ряд превращается в одно пятно; расфокус должен убирать фактуру, а не силуэт.
+  const IN_BLUR_DEPOT = 7;
   const depShot = depotView.node;
   const depFocus = blur(IN_BLUR_DEPOT);
   depShot.opacity(0);
@@ -386,24 +390,26 @@ export default makeScene2D(function* (view) {
   // ── Таймлайн ─────────────────────────────────────────────────────────────
   yield* waitFor(0.12);
 
-  // Такт 1. Герой: выход из расфокуса и умеренный наезд. Камера идёт с небольшой
-  // высоты и недалека — размах намеренно сдержанный, азимут и объектив не трогаются.
+  // Такт 1. Кадр открывается разом: герой выходит из расфокуса, автопарк уже стоит
+  // за ним глубоким боке. Приближение короткое и резкое — 1.5 с на квинтике, то есть
+  // бросок и мягкая посадка, а не плавный проезд.
   yield* all(
-    shot.opacity(1, 0.55, easeOutCubic),
-    focus.value(0, 1.75, easeOutCubic),
-    camDist(5.70, 2.2, easeOutQuint),
-    camEl(8.5 * D2R, 2.2, easeInOutSine),
-    tgtX(-0.30, 2.2, easeInOutCubic),
-    tgtY(0.78, 2.2, easeInOutCubic),
-    tgtZ(0.00, 2.2, easeInOutCubic),
+    shot.opacity(1, 0.5, easeOutCubic),
+    depShot.opacity(DIM_OP, 0.5, easeOutCubic),
+    focus.value(0, 1.25, easeOutCubic),
+    camDist(5.70, 1.5, easeOutQuint),
+    camEl(8.5 * D2R, 1.5, easeOutQuint),
+    tgtX(-0.30, 1.5, easeOutQuint),
+    tgtY(0.78, 1.5, easeOutQuint),
+    tgtZ(0.00, 1.5, easeOutQuint),
   );
   yield* postLit(1, 0.7, easeOutCubic);
   yield* waitFor(0.5);
 
-  // Такт 2. Отъезд с подъёмом. К концу его, когда кадр уже раскрылся, ОДНИМ
-  // моментом и ОДНИМ жестом проступают все трое: оба блока кода и автопарк.
-  // Ничто никуда не едет — только выход из размытия. Нижний блок доходит до
-  // полной резкости, верхняя пара останавливается на приглушении: она фон.
+  // Такт 2. Отъезд с подъёмом. К концу его, когда кадр уже раскрылся, задний план
+  // входит в фокус, а на своих местах проступают оба блока кода — одним моментом
+  // и одним жестом. Ничто никуда не едет: только выход из размытия. Нижний блок
+  // доходит до полной резкости, верхняя пара останавливается на приглушении.
   const APPEAR = 1.3;
   yield* all(
     camDist(17.0, 2.6, easeInOutCubic),
@@ -419,13 +425,10 @@ export default makeScene2D(function* (view) {
         publicBlur.value(0, APPEAR, easeOutCubic),
         fleetWrap.opacity(DIM_OP, APPEAR, easeOutCubic),
         fleetBlur.value(DIM_BLUR, APPEAR, easeOutCubic),
-        depShot.opacity(DIM_OP, APPEAR, easeOutCubic),
         depFocus.value(DIM_BLUR, APPEAR, easeOutCubic),
       ),
     ),
   );
-  // Кольца загораются после того, как ряд собрался, — глаз успевает его найти.
-  yield* depotLit(1, 0.9, easeOutCubic);
 
   // Камера доехала и стоит. Никакого доворота.
   yield* waitFor(0.8);
