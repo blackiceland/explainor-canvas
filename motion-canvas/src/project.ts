@@ -100,6 +100,7 @@ import grabStrategyOrbitSceneEn from "./scenes/grabStrategyOrbitSceneEn?scene";
 import problemsYouDontHaveCostSceneEn from "./scenes/problemsYouDontHaveCostSceneEn?scene";
 import duplicationHateIntroScene from "./scenes/duplicationHateIntroScene?scene";
 import chargingHeroDemoScene from "./scenes/chargingHeroDemoScene?scene";
+import openingMergeTimelapseSceneEn from "./scenes/openingMergeTimelapseSceneEn?scene";
 import introMergeScene from "./scenes/introMergeScene?scene";
 import chapter1IntroScene from "./scenes/chapter1IntroScene?scene";
 import duplicationBestChoiceTitleSceneEn from "./scenes/duplicationBestChoiceTitleSceneEn?scene";
@@ -233,11 +234,16 @@ export default makeProject({
         // маленьком контракте → Restricted | 403 Forbidden через зазор → RFC
         // 9110 §15.5.4 разрешает скрыть → 404 Not Found → борт исчезает с табло
         // nullMeansAllTheReasonsEn,
-        nullMeansChapter2En,
+        // nullMeansChapter2En,
 
-        // ДЕМО ОПЕРАТОРСКОЙ РАБОТЫ: Honda e у зарядной стойки, быстрый наезд
-        // по дуге из расфокуса в низкую точку три четверти спереди
+
+        // DUPLICATION V2
+
+        // ОПЕНИНГ ФИНАЛЬНОГО СЮЖЕТА (~10 с, под VO): синематик-таймлапс
+        // слияний настоящего кода, механика introMergeScene без строба/титула
+         openingMergeTimelapseSceneEn,
         // chargingHeroDemoScene,
+
         // ЛАБА к ней: тот же леджер материалом распечатки АЦПУ (фальцовка,
         // перфорация, 10 CPI / 6 LPI, линейки знаками) — кадр для выбора
         // nullMeansCoddPrintoutLabEn,
