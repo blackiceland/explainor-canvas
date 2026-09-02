@@ -37,6 +37,7 @@ import {Screen} from '../core/theme';
 import {applyBackground} from '../core/utils';
 import {Manticore} from '../core/code/components/Manticore';
 import {buildCanonRules, CanonCodeTheme, paintCanonMethodCalls} from '../core/code/model/paletteCanon';
+import {mountVignette} from '../core/components/SoftVignette';
 
 // Операторская демка. Автопарк стоит в кадре С САМОГО НАЧАЛА — глубоко в расфокусе,
 // как задний план за героем. Ничто ниоткуда не появляется: мир цел с первого кадра.
@@ -387,6 +388,11 @@ export default makeScene2D(function* (view) {
   fleetWrap.filters([fleetBlur]);
 
 
+  // Та же мягкая круговая виньетка, что на титре: сцена открывается тем же
+  // кадром, что закрылся эпиграф. Держится весь первый такт и уходит вместе
+  // с отъездом — когда кадр раскрывается под код, сжимать его нечем.
+  const vignette = mountVignette(view);
+
   // ── Таймлайн ─────────────────────────────────────────────────────────────
   yield* waitFor(0.12);
 
@@ -418,6 +424,9 @@ export default makeScene2D(function* (view) {
     tgtY(1.45, 2.6, easeInOutCubic),
     tgtZ(-1.2, 2.6, easeInOutCubic),
     lookOff(-5.6, 2.6, easeInOutCubic),
+    // Гасим силой, а не прозрачностью узла: иначе дизеринг умножается на неё
+    // же, перестаёт работать, и по кадру едут кольца квантования.
+    vignette.strength(0, 2.6, easeInOutCubic),
     chain(
       waitFor(1.9),
       all(
