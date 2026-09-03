@@ -101,6 +101,7 @@ import problemsYouDontHaveCostSceneEn from "./scenes/problemsYouDontHaveCostScen
 import duplicationHateIntroScene from "./scenes/duplicationHateIntroScene?scene";
 import chargingHeroDemoScene from "./scenes/chargingHeroDemoScene?scene";
 import openingMergeTimelapseSceneEn from "./scenes/openingMergeTimelapseSceneEn?scene";
+import duplicationCitySceneEn from "./scenes/duplicationCitySceneEn?scene";
 import introMergeScene from "./scenes/introMergeScene?scene";
 import chapter1IntroScene from "./scenes/chapter1IntroScene?scene";
 import duplicationBestChoiceTitleSceneEn from "./scenes/duplicationBestChoiceTitleSceneEn?scene";
@@ -243,6 +244,10 @@ export default makeProject({
         // слияний настоящего кода, механика introMergeScene без строба/титула
          openingMergeTimelapseSceneEn,
         // chargingHeroDemoScene,
+
+        // АКТ 7: ГОРОД — один код превращается в окно, окно в город, между
+        // домами вспыхивают связи; геройская нить на третий раз не гаснет
+        // duplicationCitySceneEn,
 
         // ЛАБА к ней: тот же леджер материалом распечатки АЦПУ (фальцовка,
         // перфорация, 10 CPI / 6 LPI, линейки знаками) — кадр для выбора
