@@ -1,4 +1,4 @@
-import {blur, Filter, makeScene2D, Node, Rect, Txt} from '@motion-canvas/2d';
+import {blur, Filter, makeScene2D, Node, Txt} from '@motion-canvas/2d';
 import {
   all, chain, createRef, createSignal, easeInCubic, easeInOutCubic,
   easeInOutSine, easeOutCubic, linear, spawn, ThreadGenerator, waitFor,
@@ -8,7 +8,8 @@ import {
   CanonCodeTheme, buildCanonRules, paintCanonMethodCalls, paintCanonParams,
 } from '../core/code/model/paletteCanon';
 import {getCodePaddingX, measureChar} from '../core/code/shared/TextMeasure';
-import {Fonts, Screen} from '../core/theme';
+import {backdropRect, grainRect} from '../core/components/OpeningBackdrop';
+import {Fonts} from '../core/theme';
 
 // ── DON'T FIGHT DUPLICATION · первые 10 секунд ─────────────────────────────
 // Разумное решение незаметно превращается в автоматический рефлекс.
@@ -40,6 +41,21 @@ const CW = measureChar(FS);           // ширина знака моношир�
 const PAD_X = getCodePaddingX(FS);    // width = 2*PAD_X ⇒ левый край текста = node.x
 const SPREAD = 490;                   // старт копий: центры на ±SPREAD
 const ECHO_AT = 0.5;                  // фантомы — на полпути от старта к центру
+const ECHO_OP = 0.073;                // пик фантома: след виден, копией не читается
+
+// ── Передача эстафеты после первого слияния ────────────────────────────────
+// Пока слитая строка догорает в центре, следующая пара уже ПРОСТУПАЕТ по
+// краям — призраками, в том же тумане, в котором уходит предыдущая. Без этого
+// первый стык читается как «кончилось, потом началось»: строка растаяла, кадр
+// на мгновение пуст, и два блока возникают из ничего. С этим конвейер течёт:
+// одно и то же вещество отдаёт одну строку и набирает следующую.
+// Только этой паре: дальше по сцене полёты и так перекрываются, и туман по
+// краям стал бы просто грязью.
+const PRE_AT = 1;                     // единственная пара, выходящая из тумана
+const PRE_DUR = 0.8;                  // столько она проступает, не двигаясь
+const PRE_OP = 0.28;                  // пятно видно, текст ещё не читается
+const PRE_BLUR = 9;                   // мягче обычного входящего (IN_BLUR)
+const PRE_RAMP = 0.22;                // и дольше набирает яркость на старте
 
 // ── Глубина резкости ───────────────────────────────────────────────────────
 // Входящий фрагмент: blur 6 → 0, scale 0.96 → 1, opacity 0.55 → 1.
@@ -76,6 +92,15 @@ const GLOW_BASE = 0.32;               // рабочая яркость орео�
 const GLOW_PEAK = 0.42;               // мгновенная вспышка в самой точке совпадения
 const GLOW_SPIKE = 3 / FPS;           // и живёт она ровно три кадра
 const GLOW_KEEP = 0.4;                // доля, с которой ореол переживает строку
+
+// До какой яркости первая слитая строка успевает стаять за свою стойку.
+// Дальше она гаснет уже до нуля — обычным уходом, но стартует не с единицы,
+// и перехода между «стоит» и «уходит» не видно.
+const MELT_TO = 0.55;
+// Но таять она начинает НЕ с удара: сначала пару мгновений стоит на полной
+// яркости — зритель должен успеть увидеть результат целым, а не уже
+// уходящим (автор). Стойка та же, таяние просто короче.
+const FIRST_HOLD = 0.45;
 
 // ── Покраска — канон проекта ───────────────────────────────────────────────
 const CUSTOM_TYPES = [
@@ -192,103 +217,12 @@ const MB_OPS = [0.14, 0.09, 0.05, 0.028];
 const mbScale = (travel: number) => Math.min(1, Math.max(0.4, 0.45 / travel));
 
 // ── Фон ────────────────────────────────────────────────────────────────────
-// Радиальные градиенты на почти чёрном распадаются на кольца: перепад в
-// полтора десятка уровней растянут на тысячу пикселей, и каждый шаг 1/255
-// виден как отдельная окружность. Добавлением стопов это не лечится — это
-// квантование, а не нехватка стопов. Поэтому фон (вертикальная база +
-// подсветка центра + виньетка) считается попиксельно и дизерится шумом в
-// пол-уровня. Одна генерация на сцену.
-const makeBackdrop = (): HTMLCanvasElement => {
-  const W = Screen.width;
-  const H = Screen.height;
-  const cv = document.createElement('canvas');
-  cv.width = W;
-  cv.height = H;
-  const ctx = cv.getContext('2d')!;
-  const img = ctx.createImageData(W, H);
-  const d = img.data;
-
-  const top = [10, 11, 14];           // #0A0B0E
-  const bot = [14, 15, 20];           // #0E0F14
-  const lift = [164, 168, 196];       // холодная подсветка центра
-  const LIFT_A = 0.075;
-  const rLift = W * 0.55;
-  const vIn = W * 0.3;
-  const vOut = W * 0.8;
-  const VIG = 0.42;
-
-  const cx = W / 2;
-  const cy = H / 2;
-  let p = 0;
-  for (let y = 0; y < H; y++) {
-    const ty = y / (H - 1);
-    const dy = y - cy;
-    for (let x = 0; x < W; x++) {
-      const dx = x - cx;
-      const r = Math.sqrt(dx * dx + dy * dy);
-      const kLift = LIFT_A * Math.max(0, 1 - r / rLift);
-      const kVig = 1 - VIG * Math.min(1, Math.max(0, (r - vIn) / (vOut - vIn)));
-      for (let c = 0; c < 3; c++) {
-        const base = top[c] + (bot[c] - top[c]) * ty;
-        const v = (base + (lift[c] - base) * kLift) * kVig;
-        d[p + c] = Math.max(0, Math.min(255, Math.round(v + Math.random() - 0.5)));
-      }
-      d[p + 3] = 255;
-      p += 4;
-    }
-  }
-  ctx.putImageData(img, 0, 0);
-  return cv;
-};
-
-// Плёночное зерно: атлас больше кадра, каждый кадр блитуется другой участок.
-// Зерно ПОЛУРАЗРЕШЕНИЯ и растягивается вдвое: попиксельный шум, меняющийся
-// каждый кадр, на почти чёрном фоне разваливается при любом уменьшении
-// картинки — в плеере, на телефоне, в кодеке. Зерно 2×2 переживает
-// пересэмплирование, поэтому пустой тёмный кадр в начале остаётся чистым.
-const GRAIN_PX = 2;
-const GRAIN_A = 0.015;
-const makeNoise = (): HTMLCanvasElement => {
-  const cv = document.createElement('canvas');
-  cv.width = Math.ceil(Screen.width / GRAIN_PX) + 320;
-  cv.height = Math.ceil(Screen.height / GRAIN_PX) + 180;
-  const ctx = cv.getContext('2d')!;
-  const img = ctx.createImageData(cv.width, cv.height);
-  for (let i = 0; i < img.data.length; i += 4) {
-    const v = Math.random() * 170;
-    img.data[i] = v;
-    img.data[i + 1] = v;
-    img.data[i + 2] = v;
-    img.data[i + 3] = 255;
-  }
-  ctx.putImageData(img, 0, 0);
-  return cv;
-};
-
-// Оба атласа считаются один раз на модуль: генератор сцены переигрывается
-// при каждой перемотке назад, и попиксельный проход по кадру там недопустим.
-let backdropCache: HTMLCanvasElement | null = null;
-let noiseCache: HTMLCanvasElement | null = null;
-const backdrop = () => (backdropCache ??= makeBackdrop());
-const noiseAtlas = () => (noiseCache ??= makeNoise());
-
-// Rect, который блитует готовый canvas вместо собственной заливки.
-const blitRect = (draw: (c: CanvasRenderingContext2D) => void) => {
-  const rect = new Rect({width: Screen.width, height: Screen.height});
-  const orig = (rect as any).draw.bind(rect);
-  (rect as any).draw = function (ctx: CanvasRenderingContext2D) {
-    ctx.save();
-    draw(ctx);
-    ctx.restore();
-    orig(ctx);
-  };
-  return rect;
-};
+// Растр фона и зерно живут в core/components/OpeningBackdrop.ts: на них стоит
+// мост в chargingHeroDemoScene — последний кадр здесь и первый кадр там обязаны
+// быть одним и тем же растром, иначе на срезе виден скачок.
 
 export default makeScene2D(function* (view) {
-  view.add(blitRect(ctx => {
-    ctx.drawImage(backdrop(), -Screen.width / 2, -Screen.height / 2);
-  }));
+  view.add(backdropRect());
 
   // Единые часы сцены: от них живёт наезд камеры, не зависящий от порядка
   // спавнов.
@@ -430,17 +364,18 @@ export default makeScene2D(function* (view) {
     echoLayer().add(g);
     lines.forEach((t, i) => addLine(g, t, i, lines.length, tw, GHOST, 1));
     spawn(chain(
-      g.opacity(0.06, cool * 0.45, easeOutCubic),
+      g.opacity(ECHO_OP, cool * 0.45, easeOutCubic),
       g.opacity(0, cool + 0.35, easeOutCubic),
       (function* () { g.remove(); })(),
     ));
   };
 
   // ── Пара ─────────────────────────────────────────────────────────────────
-  function* runPair(i: number, f: Frag, travel: number): ThreadGenerator {
+  function* runPair(i: number, f: Frag, travel: number, pre: number): ThreadGenerator {
     const first = i === 0;
-    const left = mkCopy(f.left, -SPREAD, codeLayer(), first ? FIRST_BLUR : IN_BLUR);
-    const right = mkCopy(f.right, SPREAD, codeLayer(), first ? FIRST_BLUR : IN_BLUR);
+    const blur0 = first ? FIRST_BLUR : pre > 0 ? PRE_BLUR : IN_BLUR;
+    const left = mkCopy(f.left, -SPREAD, codeLayer(), blur0);
+    const right = mkCopy(f.right, SPREAD, codeLayer(), blur0);
 
     if (first) {
       // Возникновение — один жест: два мягких пятна света конденсируются в
@@ -456,6 +391,19 @@ export default makeScene2D(function* (view) {
         right.wrapper.scale(1, T_SHARP, easeInOutCubic),
       );
       yield* waitFor(T_GO - T_SHARP);
+    }
+
+    if (pre > 0) {
+      // Проступание, а не появление: обе копии стоят на своих местах и
+      // медленно набирают призрачную яркость, пока в центре тает предыдущая
+      // строка. Расфокус за то же время подтягивается к обычному входящему,
+      // так что дальше полёт идёт по общей кривой и стыка не видно.
+      yield* all(
+        left.wrapper.opacity(PRE_OP, pre, easeInOutSine),
+        right.wrapper.opacity(PRE_OP, pre, easeInOutSine),
+        left.bf.value(IN_BLUR, pre, easeInOutSine),
+        right.bf.value(IN_BLUR, pre, easeInOutSine),
+      );
     }
 
     launchTrail(left, travel);
@@ -474,13 +422,15 @@ export default makeScene2D(function* (view) {
     const tOver = travel - tTouch;
     const cool = coolAt(travel);
 
-    const opCurve = (c: Copy) => chain(
-      first
-        ? waitFor(tTouch)               // первая пара уже стоит резкой и яркой
-        : chain(
-          c.wrapper.opacity(IN_OP, 0.09, linear),
-          c.wrapper.opacity(1, Math.max(0.02, tTouch - 0.09), easeInCubic),
-        ),
+    // Первая пара идёт к центру, НЕ теряя яркости ни на кадр: она одна стоит
+    // в пустом кадре, зритель на ней и держится, и любое притухание на медленном
+    // темпе читается как «строка сдаёт». Наложение там прячет один смаз.
+    // Пара, вышедшая из тумана, набирает рабочую яркость дольше: она уже
+    // видна, и мгновенный скачок с призрака на полсилы читался бы как рывок.
+    const ramp = pre > 0 ? PRE_RAMP : 0.09;
+    const opCurve = (c: Copy) => first ? waitFor(travel) : chain(
+      c.wrapper.opacity(IN_OP, ramp, linear),
+      c.wrapper.opacity(1, Math.max(0.02, tTouch - ramp), easeInCubic),
       // Возврат яркости — длиннее провала и с easeInOutCubic, и заканчивается
       // ЗАРАНЕЕ, а не в точке совпадения. С easeInCubic весь набор яркости
       // приходился на последние кадры: строки успевали сойтись ещё бледными и
@@ -543,14 +493,25 @@ export default makeScene2D(function* (view) {
     echo(f.right, SPREAD * ECHO_AT, cool);
 
     // ── Остывание: строка выходит из смаза в резкость ─────────────────────
-    yield* result.bf.value(0, cool, easeOutCubic);
-
     // ── Уход результата: только гашение, строка не двигается ──────────────
     // easeInOutCubic, а не easeOutCubic: тот срывал яркость на первых же
     // кадрах и оставлял длинный еле заметный хвост — уход читался как рывок.
     // Никакого расфокуса, масштаба и распада: всё это добавляло в кадр
     // событие, которого беат не просит. Событие даёт СВЕТ, а не текст.
-    yield* waitFor(holdAt(i));
+    //
+    // У первого раунда стойка длинная (1.35 с), и стоять всё это время на
+    // полной яркости, чтобы потом разом погаснуть, — два состояния подряд.
+    // Поэтому строка выходит из смаза целой, стоит FIRST_HOLD, и дальше тает
+    // до конца стойки — РАВНОМЕРНО: linear, а не easeInCubic — тот за первую
+    // половину отдаёт всего четыре процента, и «начала» таяния не видно вовсе.
+    if (i === 0) {
+      yield* result.bf.value(0, cool, easeOutCubic);
+      yield* waitFor(FIRST_HOLD);
+      yield* result.wrapper.opacity(MELT_TO, holdAt(0) - FIRST_HOLD, linear);
+    } else {
+      yield* result.bf.value(0, cool, easeOutCubic);
+      yield* waitFor(holdAt(i));
+    }
     yield* result.wrapper.opacity(0, departAt(i), easeInOutCubic);
     result.wrapper.remove();
     // Строки уже нет, а ореол ещё стоит на её месте и гаснет там. Раунд
@@ -559,29 +520,17 @@ export default makeScene2D(function* (view) {
   }
 
   // ── Зерно (вне камеры — не участвует в наезде) ───────────────────────────
-  view.add(blitRect(ctx => {
-    const noise = noiseAtlas();
-    const sw = Screen.width / GRAIN_PX;
-    const sh = Screen.height / GRAIN_PX;
-    const dx = Math.floor(Math.random() * (noise.width - sw));
-    const dy = Math.floor(Math.random() * (noise.height - sh));
-    ctx.globalAlpha = GRAIN_A;
-    ctx.globalCompositeOperation = 'screen';
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(
-      noise, dx, dy, sw, sh,
-      -Screen.width / 2, -Screen.height / 2, Screen.width, Screen.height,
-    );
-  }));
+  view.add(grainRect());
 
   // ── Прогон по абсолютному расписанию ─────────────────────────────────────
   const evts: {t: number; run: () => void}[] = [];
 
   MERGE_AT.forEach((m, i) => {
     const travel = travelAt(i);
+    const pre = i === PRE_AT ? PRE_DUR : 0;
     evts.push({
-      t: i === 0 ? 0 : m - travel,
-      run: () => { spawn(runPair(i, FRAGS[i], travel)); },
+      t: i === 0 ? 0 : m - travel - pre,
+      run: () => { spawn(runPair(i, FRAGS[i], travel, pre)); },
     });
   });
 

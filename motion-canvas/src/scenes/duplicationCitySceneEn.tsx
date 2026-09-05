@@ -5,12 +5,10 @@ import {
   BoxGeometry,
   BufferGeometry,
   Color,
-  DoubleSide,
   Float32BufferAttribute,
   Fog,
   InstancedMesh,
   Matrix4,
-  Mesh,
   MeshBasicMaterial,
   NoToneMapping,
   PerspectiveCamera,
@@ -26,6 +24,7 @@ import {UnrealBloomPass} from 'three/examples/jsm/postprocessing/UnrealBloomPass
 import {OutputPass} from 'three/examples/jsm/postprocessing/OutputPass.js';
 import {ShaderPass} from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import {createThreeView} from '../core/three/ThreeCanvas';
+import {DollyRig, EndSparks, Ribbons, arc, evalLink, rng, scheduleFlashes} from '../core/three/hydra';
 import {Screen} from '../core/theme';
 import {applyBackground} from '../core/utils';
 import {mountVignette} from '../core/components/SoftVignette';
@@ -93,17 +92,14 @@ const FLASH_DUR = 1.25;
 // золотой ночной город — это открытка, а не графит с кремовым.
 const C_WIN_DIM = new Color('#8FA0B8');    // холодное неосвещённое окно
 const C_WIN_LIT = new Color('#F4EEE0');    // кремовое освещённое
-const C_FLICK = new Color('#EDE8DA');      // мерцающая нить
-const C_PERSIST = new Color('#FFDCAE');    // постоянная — чуть теплее и ярче
+const C_FLICK = '#EDE8DA';                 // мерцающая нить
+const C_PERSIST = '#FFDCAE';               // постоянная — чуть теплее и ярче
 
 interface B {x: number; z: number; w: number; d: number; h: number}
 
 interface Link {
   ai: number; bi: number;
   a: Vector3; b: Vector3;
-  flashes: number[];
-  latchAt: number;                         // ранг в очереди «остаться гореть»
-  seg0: number;
 }
 
 const DITHER = {
@@ -128,25 +124,6 @@ const DITHER = {
 // карте пару полноразмерных таргетов. Сцена и камера у пассов подменяются.
 let _composer: EffectComposer | null = null;
 let _renderPass: RenderPass | null = null;
-
-// mulberry32 — город обязан быть одним и тем же при каждом прогоне
-function rng(seed: number) {
-  let s = seed >>> 0;
-  return () => {
-    s = (s + 0x6d2b79f5) >>> 0;
-    let t = Math.imul(s ^ (s >>> 15), 1 | s);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-// Быстрая атака, длинный хвост: нить «протягивается» и тает, а не моргает.
-function pulse(dt: number, dur: number): number {
-  if (dt < 0 || dt > dur) return 0;
-  const p = dt / dur;
-  const a = p < 0.16 ? p / 0.16 : 1 - (p - 0.16) / 0.84;
-  return a <= 0 ? 0 : a * a * a;
-}
 
 export default makeScene2D(function* (view) {
   applyBackground(view);
@@ -322,9 +299,6 @@ export default makeScene2D(function* (view) {
     ai: 0, bi: hi,
     a: HERO_WIN.clone(),
     b: top(bld[hi]),
-    flashes: HERO_FLASH.slice(),
-    latchAt: 0,
-    seg0: 0,
   });
   used.set(0, 1);
   used.set(hi, 1);
@@ -343,193 +317,40 @@ export default makeScene2D(function* (view) {
     if (Math.abs((dx * Math.sin(AZ) + dz * Math.cos(AZ)) / dist) > 0.72) continue;
     used.set(ai, (used.get(ai) ?? 0) + 1);
     used.set(bi, (used.get(bi) ?? 0) + 1);
-    links.push({ai, bi, a: top(bld[ai]), b: top(bld[bi]), flashes: [], latchAt: links.length, seg0: 0});
+    links.push({ai, bi, a: top(bld[ai]), b: top(bld[bi])});
   }
 
-  // Расписание фоновых вспышек. Считаем не «сколько мигает у каждой», а
-  // сколько всего событий за окно: одновременно в кадре должно быть 3–6 нитей,
-  // иначе город превращается в кашу.
-  for (let e = 0; e < EVENTS; e++) {
-    const i = 1 + ((rnd() * (links.length - 1)) | 0);
-    const t = 0.5 + rnd() * (NET_LEN - 2.5);
-    links[i].flashes.push(t);
-    // Неровный ритм: иногда пара нитей вспыхивает почти одновременно.
-    if (rnd() < 0.25) {
-      const j = 1 + ((rnd() * (links.length - 1)) | 0);
-      links[j].flashes.push(t + 0.15 + rnd() * 0.45);
-    }
-  }
-  for (const l of links) l.flashes.sort((p, q) => p - q);
+  // Расписание фоновых вспышек: одновременно в кадре 3–6 нитей, иначе город
+  // превращается в кашу. Геройская — по своему списку.
+  const flashes = scheduleFlashes(rnd, links.length, {events: EVENTS, length: NET_LEN});
+  flashes[0] = HERO_FLASH.slice();
 
-  // Геометрия нитей: дуга из SEGS сегментов. Прямая между двумя точками на
-  // таком расстоянии читается как чертёжная линия; дуга — как связь.
-  //
-  // ⚠️ Нить — СПЛОШНАЯ ЛЕНТА, а не LineSegments2. Толстая линия из отдельных
-  // отрезков рисуется квадами с круглыми торцами; на аддитивном блендинге
-  // торцы соседних отрезков складываются, и на каждом стыке садится бусина.
-  // Нить читается пунктиром — ровно тот словарь, которого в кадре быть не
-  // должно. Лента с общими вершинами стыков не имеет вовсе, а ширину в
-  // пикселях и мягкий край даёт вершинный шейдер.
-  const VN = SEGS + 1;                        // точек на нить
-  const VV = VN * 2;                          // вершин на нить (две кромки)
-  const tPos = new Float32Array(links.length * VV * 3);
-  const tTan = new Float32Array(links.length * VV * 3);
-  const tSide = new Float32Array(links.length * VV);
-  const tParam = new Float32Array(links.length * VV);
-  const tAlpha = new Float32Array(links.length * VV);
-  const tWarm = new Float32Array(links.length * VV);
-  const tIdx: number[] = [];
-
-  for (let li = 0; li < links.length; li++) {
-    const l = links[li];
-    l.seg0 = li * VV;
-    const len = l.a.distanceTo(l.b);
-    const lift = len * ARC;
-    const pt = (t: number) => new Vector3(
-      l.a.x + (l.b.x - l.a.x) * t,
-      l.a.y + (l.b.y - l.a.y) * t + Math.sin(Math.PI * t) * lift,
-      l.a.z + (l.b.z - l.a.z) * t,
-    );
-    const pts: Vector3[] = [];
-    for (let i = 0; i < VN; i++) pts.push(pt(i / SEGS));
-    for (let i = 0; i < VN; i++) {
-      const prev = pts[Math.max(0, i - 1)];
-      const next = pts[Math.min(VN - 1, i + 1)];
-      const tan = next.clone().sub(prev).normalize().multiplyScalar(5);
-      for (let sd = 0; sd < 2; sd++) {
-        const v = li * VV + i * 2 + sd;
-        tPos[v * 3] = pts[i].x; tPos[v * 3 + 1] = pts[i].y; tPos[v * 3 + 2] = pts[i].z;
-        tTan[v * 3] = tan.x; tTan[v * 3 + 1] = tan.y; tTan[v * 3 + 2] = tan.z;
-        tSide[v] = sd === 0 ? -1 : 1;
-        tParam[v] = i / SEGS;
-      }
-      if (i < VN - 1) {
-        const b = li * VV + i * 2;
-        tIdx.push(b, b + 1, b + 2, b + 2, b + 1, b + 3);
-      }
-    }
-  }
-
-  const threadGeo = new BufferGeometry();
-  threadGeo.setAttribute('position', new Float32BufferAttribute(tPos, 3));
-  threadGeo.setAttribute('aTangent', new Float32BufferAttribute(tTan, 3));
-  threadGeo.setAttribute('aSide', new Float32BufferAttribute(tSide, 1));
-  threadGeo.setAttribute('aParam', new Float32BufferAttribute(tParam, 1));
-  threadGeo.setAttribute('aAlpha', new Float32BufferAttribute(tAlpha, 1));
-  threadGeo.setAttribute('aWarm', new Float32BufferAttribute(tWarm, 1));
-  threadGeo.setIndex(tIdx);
-
-  const threadMat = new ShaderMaterial({
-    uniforms: {
-      uRes: {value: new Vector2(RW, RH)},
-      uW: {value: 1.6},                       // полуширина нити в пикселях буфера
-      uFlick: {value: C_FLICK.clone().convertSRGBToLinear()},
-      uPersist: {value: C_PERSIST.clone().convertSRGBToLinear()},
-    },
-    vertexShader: `
-      attribute vec3 aTangent;
-      attribute float aSide;
-      attribute float aParam;
-      attribute float aAlpha;
-      attribute float aWarm;
-      uniform vec2 uRes;
-      uniform float uW;
-      varying float vSide;
-      varying float vAlpha;
-      varying float vWarm;
-      void main() {
-        vec4 c0 = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        vec4 c1 = projectionMatrix * modelViewMatrix * vec4(position + aTangent, 1.0);
-        vec2 d = normalize((c1.xy / c1.w - c0.xy / c0.w) * uRes);
-        vec2 n = vec2(-d.y, d.x);
-        c0.xy += n * aSide * uW / uRes * 2.0 * c0.w;
-        gl_Position = c0;
-        vSide = aSide;
-        // Затухание к концам: нить не должна обрываться о крышу дома.
-        vAlpha = aAlpha * smoothstep(0.0, 0.08, aParam) * (1.0 - smoothstep(0.92, 1.0, aParam));
-        vWarm = aWarm;
-      }
-    `,
-    fragmentShader: `
-      uniform vec3 uFlick;
-      uniform vec3 uPersist;
-      varying float vSide;
-      varying float vAlpha;
-      varying float vWarm;
-      void main() {
-        if (vAlpha < 0.003) discard;
-        float edge = 1.0 - smoothstep(0.25, 1.0, abs(vSide));
-        gl_FragColor = vec4(mix(uFlick, uPersist, vWarm) * (1.0 + vWarm * 0.15), edge * vAlpha);
-      }
-    `,
-    transparent: true,
-    blending: AdditiveBlending,
-    depthTest: false,
-    depthWrite: false,
-    side: DoubleSide,
+  // Нити — сплошная лента Hydra (не LineSegments2: круглые торцы отрезков на
+  // аддитиве садятся бусинами, нить читается пунктиром). Дуга: прямая между
+  // домами на таком расстоянии читается как чертёжная линия, дуга — как связь.
+  const polylines = links.map(l => arc(l.a, l.b, SEGS, ARC));
+  const threads = new Ribbons(polylines, {
+    res: new Vector2(RW, RH),
+    halfWidth: 1.6,
+    colorA: C_FLICK, colorB: C_PERSIST, holdBoost: 0.15,
+    fade: 0.08,
   });
-
-  const threads = new Mesh(threadGeo, threadMat);
-  threads.frustumCulled = false;
-  threads.renderOrder = 3;
-  const thAlphaAttr = threadGeo.getAttribute('aAlpha');
-  const thWarmAttr = threadGeo.getAttribute('aWarm');
+  threads.mesh.renderOrder = 3;
 
   // Концевые искры: на вспышке загораются оба дома, а не только нить между
   // ними — «два дома на разных концах города вспыхивают одновременно».
-  const spPos: number[] = [];
-  for (const l of links) spPos.push(l.a.x, l.a.y, l.a.z, l.b.x, l.b.y, l.b.z);
-  const spA = new Float32Array(links.length * 2);
-  const sparkGeo = new BufferGeometry();
-  sparkGeo.setAttribute('position', new Float32BufferAttribute(spPos, 3));
-  sparkGeo.setAttribute('aAlpha', new Float32BufferAttribute(spA, 1));
-  const sparkMat = new ShaderMaterial({
-    uniforms: {
-      uScale: {value: 5.0},
-      uFlick: {value: C_FLICK.clone().convertSRGBToLinear()},
-      uPersist: {value: C_PERSIST.clone().convertSRGBToLinear()},
-    },
-    vertexShader: `
-      attribute float aAlpha;
-      uniform float uScale;
-      varying float vA;
-      void main() {
-        vec4 mv = modelViewMatrix * vec4(position, 1.0);
-        gl_Position = projectionMatrix * mv;
-        vA = abs(aAlpha);
-        gl_PointSize = clamp(uScale * 3.2 * (260.0 / max(-mv.z, 1.0)), 1.0, 26.0);
-      }
-    `,
-    fragmentShader: `
-      uniform vec3 uFlick;
-      varying float vA;
-      void main() {
-        if (vA < 0.004) discard;
-        vec2 q = gl_PointCoord - 0.5;
-        float r = length(q);
-        if (r > 0.5) discard;
-        float core = 1.0 - smoothstep(0.05, 0.5, r);
-        gl_FragColor = vec4(uFlick * 1.2, core * vA);
-      }
-    `,
-    transparent: true,
-    blending: AdditiveBlending,
-    depthTest: false,
-    depthWrite: false,
-  });
-  const sparks = new Points(sparkGeo, sparkMat);
-  sparks.frustumCulled = false;
-  sparks.renderOrder = 2;
-  const spAttr = sparkGeo.getAttribute('aAlpha');
+  const sparks = new EndSparks(polylines, {px: 16, refDist: 260, minPx: 1, maxPx: 26, color: C_FLICK, brightness: 1.2});
+  sparks.points.renderOrder = 2;
 
   const scene3 = new Scene();
   // Дымка — только для окклюдеров (шейдерные материалы её не читают). Ближние
   // здания остаются чёрными силуэтами, дальние растворяются в фоне: без этого
   // коробки читаются как плоские серые карточки, а не как масса города.
   scene3.fog = new Fog(BG, 350, 2800);
-  scene3.add(mass, windows, sparks, threads);
+  scene3.add(mass, windows, sparks.points, threads.mesh);
 
   const camera = new PerspectiveCamera(34, Screen.width / Screen.height, 1, 6000);
+  const rig = new DollyRig({az: AZ, el0: EL0, el1: EL1, len0: LEN0, len1: LEN1, fov0: 34, fov1: 34, tgt0: HERO_WIN, tgt1: CITY_TGT}, camera);
 
   // ── Сигналы ──────────────────────────────────────────────────────────────
   const camP = createSignal(0);          // 0 → 1 — вся траектория подъёма
@@ -538,10 +359,6 @@ export default makeScene2D(function* (view) {
   const flickerD = createSignal(0);      // сила мерцающих связей
   const heroHold = createSignal(0);      // геройская нить осталась гореть
   const persistRatio = createSignal(0);  // доля остальных, что залипнут (такт 4)
-
-  const cF = C_FLICK.clone().convertSRGBToLinear();
-  const cP = C_PERSIST.clone().convertSRGBToLinear();
-  const tgt = new Vector3();
 
   const threeView = createThreeView({
     width: Screen.width,
@@ -573,19 +390,9 @@ export default makeScene2D(function* (view) {
       renderer.toneMapping = NoToneMapping;
       renderer.toneMappingExposure = 1.0;
 
-      // Камера: одно движение. Длина растёт экспоненциально — так отъезд
-      // ощущается равномерным на всех масштабах.
-      const p = camP();
-      const el = EL0 + (EL1 - EL0) * p;
-      const len = LEN0 * Math.pow(LEN1 / LEN0, p);
-      tgt.lerpVectors(HERO_WIN, CITY_TGT, p);
-      const ce = Math.cos(el);
-      camera.position.set(
-        tgt.x + Math.sin(AZ) * ce * len,
-        tgt.y + Math.sin(el) * len,
-        tgt.z + Math.cos(AZ) * ce * len,
-      );
-      camera.lookAt(tgt);
+      // Камера: одно движение (Hydra DollyRig). Длина растёт экспоненциально —
+      // так отъезд ощущается равномерным на всех масштабах.
+      const {len} = rig.apply(camP());
 
       // Фронт раскрытия привязан к дистанции камеры: он всегда чуть шире
       // кадра, поэтому город именно ПРОСТУПАЕТ по мере отъезда, а не
@@ -598,48 +405,18 @@ export default makeScene2D(function* (view) {
       winMat.uniforms.uEdge.value = 40 + Math.max(0, rr) * 0.35;
 
       // Связи
-      const nt = netT();
-      const fd = flickerD();
-      const pr = persistRatio();
-      const hold = heroHold();
-      const sa = spAttr.array as Float32Array;
-      const th = thAlphaAttr.array as Float32Array;
-      const tw = thWarmAttr.array as Float32Array;
-
+      const state = {
+        t: netT(), flicker: flickerD(), heroHold: heroHold(), persistRatio: persistRatio(),
+        flashDur: FLASH_DUR,
+        latchLevel: 0.94,
+      };
       for (let i = 0; i < links.length; i++) {
-        const l = links[i];
-        let a = 0;
-        let warm = 0;
-
-        for (const t0 of l.flashes) {
-          if (t0 > nt) break;
-          a = Math.max(a, pulse(nt - t0, FLASH_DUR));
-        }
-        a *= fd;
-
-        if (i === 0) {
-          // Геройская: третья вспышка не гаснет. Держим ровно, лёгкое
-          // дыхание в 4% — чтобы не выглядело мёртвым пикселем.
-          const h = hold * (0.94 + 0.06 * Math.sin(nt * 1.7));
-          if (h > a) {a = h; warm = 1;}
-          else if (hold > 0.5) warm = 1;
-        } else if (pr > 0 && l.latchAt / links.length <= pr) {
-          // Такт 4: тот же механизм для остальных — залипает та самая нить,
-          // что только что мигнула, а не появляется новая.
-          a = Math.max(a, 0.94);
-          warm = 1;
-        }
-
-        for (let v = 0; v < VV; v++) {
-          th[l.seg0 + v] = a;
-          tw[l.seg0 + v] = warm;
-        }
-        sa[i * 2] = a * 0.85;
-        sa[i * 2 + 1] = a * 0.85;
+        const {alpha, hold} = evalLink(i, 0, flashes[i], i, links.length, state);
+        threads.set(i, alpha, hold);
+        sparks.set(i, alpha * 0.85);
       }
-      thAlphaAttr.needsUpdate = true;
-      thWarmAttr.needsUpdate = true;
-      spAttr.needsUpdate = true;
+      threads.commit();
+      sparks.commit();
 
       _composer.render();
     },

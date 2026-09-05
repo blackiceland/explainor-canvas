@@ -102,9 +102,11 @@ import duplicationHateIntroScene from "./scenes/duplicationHateIntroScene?scene"
 import chargingHeroDemoScene from "./scenes/chargingHeroDemoScene?scene";
 import openingMergeTimelapseSceneEn from "./scenes/openingMergeTimelapseSceneEn?scene";
 import duplicationCitySceneEn from "./scenes/duplicationCitySceneEn?scene";
+import duplicationFieldSceneEn from "./scenes/duplicationFieldSceneEn?scene";
 import introMergeScene from "./scenes/introMergeScene?scene";
 import chapter1IntroScene from "./scenes/chapter1IntroScene?scene";
 import duplicationBestChoiceTitleSceneEn from "./scenes/duplicationBestChoiceTitleSceneEn?scene";
+import dryConditionsScene from "./scenes/dryConditionsScene?scene";
 
 export default makeProject({
     experimentalFeatures: true,
@@ -116,7 +118,7 @@ export default makeProject({
         // chapter1IntroScene,
 
         // dryFiltersScene,
-        // dryConditionsScene,
+        //  dryConditionsScene,
         // chapter2IntroScene,
         // paymentInputsScene,
         // splitDtoScene,
@@ -243,11 +245,11 @@ export default makeProject({
         // ОПЕНИНГ ФИНАЛЬНОГО СЮЖЕТА (~10 с, под VO): синематик-таймлапс
         // слияний настоящего кода, механика introMergeScene без строба/титула
          openingMergeTimelapseSceneEn,
-        // chargingHeroDemoScene,
+         chargingHeroDemoScene,
 
-        // АКТ 7: ГОРОД — один код превращается в окно, окно в город, между
-        // домами вспыхивают связи; геройская нить на третий раз не гаснет
-        // duplicationCitySceneEn,
+        // АКТ 7, ВАРИАНТ 2: ПОЛЕ ПЛОТНОСТИ — вместо коробок непрерывный
+        // рельеф из точек, яркость набирается накоплением слоёв
+        // duplicationFieldSceneEn,
 
         // ЛАБА к ней: тот же леджер материалом распечатки АЦПУ (фальцовка,
         // перфорация, 10 CPI / 6 LPI, линейки знаками) — кадр для выбора
