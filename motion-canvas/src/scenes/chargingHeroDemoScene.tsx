@@ -1,8 +1,9 @@
-import {blur, makeScene2D, Node} from '@motion-canvas/2d';
+import {blur, brightness, makeScene2D, Node, saturate, sepia} from '@motion-canvas/2d';
 import {
   all,
   chain,
   createSignal,
+  easeInCubic,
   easeInOutCubic,
   easeInOutSine,
   easeOutCubic,
@@ -42,7 +43,10 @@ import {createThreeView} from '../core/three/ThreeCanvas';
 import {Screen} from '../core/theme';
 import {applyBackground} from '../core/utils';
 import {Manticore} from '../core/code/components/Manticore';
-import {buildCanonRules, Canon, CanonCodeTheme, paintCanonMethodCalls} from '../core/code/model/paletteCanon';
+import type {CodeLine} from '../core/code/components/CodeLine';
+import {
+  buildCanonRules, Canon, CanonCodeTheme, paintCanonMethodCalls, paintCanonMethodCallsLine,
+} from '../core/code/model/paletteCanon';
 import {mountVignette} from '../core/components/SoftVignette';
 import {backdropRect, grainRect} from '../core/components/OpeningBackdrop';
 
@@ -96,6 +100,17 @@ function makeStudioEnv(): Scene {
 export default makeScene2D(function* (view) {
   applyBackground(view);
 
+  // ── Кадр ─────────────────────────────────────────────────────────────────
+  // Всё содержимое сцены живёт в одном узле, чтобы к финалу его можно было
+  // погасить ЦЕЛИКОМ: следующей идёт карточка главы, ей нужен пустой фон.
+  // Порядок добавления внутри узла тот же, что был на view, — z-порядок не
+  // меняется; виньетка тоже внутри. Подложка снаружи: она и остаётся под
+  // кадром, когда тот гаснет, поэтому стык между сценами не виден.
+  // ⚠️ Дрейф кадра под финальной репликой (scale 1.022 + снос вниз за 9.3 с)
+  // ОТМЕНЁН автором: «зум не нравится, давай уберем». Кадр под речью стоит.
+  const stage = new Node({});
+  view.add(stage);
+
   // ── Мост из опенинга ─────────────────────────────────────────────────────
   // Последний кадр опенинга — его фон и зерно, конвейер к тому моменту погашен.
   // Первый кадр этой сцены — ТОТ ЖЕ растр поверх графита: срез невидим, потому
@@ -105,8 +120,8 @@ export default makeScene2D(function* (view) {
   // спуск это гашение опенинга на ходу, подъём это наводка машины.
   const bridge = backdropRect();
   const bridgeGrain = grainRect();
-  view.add(bridge);
-  view.add(bridgeGrain);
+  stage.add(bridge);
+  stage.add(bridgeGrain);
 
   // ── Общие утилиты ────────────────────────────────────────────────────────
   // Автокраска приходит зеркальной (roughness 0) — любой направленный источник
@@ -363,12 +378,12 @@ export default makeScene2D(function* (view) {
   }
 
   // ── Янтарь захвата: оболочки стойки и машины ─────────────────────────────
-  // Одно устройство на три роли по возрастающей: ЗАНЯТО — янтарь ложится на
-  // стойку и держится (connectors.acquire: разъём недоступен другим; машину не
-  // трогаем — она клиент, её никто не выключал); СВЯЗАНО — захват перекидывается
-  // на машину, оба мигают дважды синхронно (sessions.open); ТОК ПОШЁЛ — один
-  // прогон от стойки к машине с задержкой, и дальше устоявшееся состояние
-  // (charger.energize). Решается ЯВНО, цветом корпусов, а не отсветом и не
+  // ЗАНЯТО: янтарь ложится на стойку и держится (connectors.acquire — разъём
+  // недоступен другим; машину не трогаем, она клиент, её никто не выключал).
+  // ⚠️ Роль СВЯЗАНО отсюда УБРАНА: две оболочки, мигающие синхронно, читались
+  // как «оба выделены», а выделение — не отношение. Связь теперь рисуется
+  // границей на асфальте, см. «Пост зарядки» ниже. Поэтому оболочка осталась
+  // только у стойки. Решается ЯВНО, цветом корпуса, а не отсветом и не
   // тинтом альбедо (у стойки эмиссия замаскирована текстурой, корпус от неё не
   // загорится): клон геометрии с плоским неосвещённым материалом поверх.
   // depthWrite выключен, а глубина уже записана самим объектом, поэтому
@@ -376,14 +391,12 @@ export default makeScene2D(function* (view) {
   const LINK = new Color('#FFA85A');
   const SHELL_MAX = 0.55;
   const postClaim = createSignal(0);
-  const carClaim = createSignal(0);
   const mkShellMat = () => new MeshBasicMaterial({
     color: LINK, transparent: true, opacity: 0, depthWrite: false,
     polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
     toneMapped: false,
   });
   const postShellMat = mkShellMat();
-  const carShellMat = mkShellMat();
   const mkShell = (src: Object3D, mat: MeshBasicMaterial) => {
     const sh = src.clone(true);
     sh.traverse((n: any) => {
@@ -396,8 +409,121 @@ export default makeScene2D(function* (view) {
     scene3.add(sh);
     return sh;
   };
-  const carShell = mkShell(car, carShellMat);
   const postShell = mkShell(post, postShellMat);
+
+  // ── Пост зарядки на асфальте ─────────────────────────────────────────────
+  // sessions.open — единственная из пяти строк, которая физически не делает
+  // НИЧЕГО: она заводит запись, держащую вместе разъём и водителя. Сессия это
+  // отношение, а отношение показывается границей, внутри которой стоят оба, —
+  // не вспышкой на обоих. У фигуры есть настоящий прообраз: размеченное место
+  // у зарядной станции существует в жизни, поэтому она ложится НА ЗЕМЛЮ, а не
+  // поверх кадра. И держится до сброса: сессия не мигает, она открыта.
+  // ⚠️ Зелёный сюда нельзя, хотя первым просится он: в этой сцене зелёный уже
+  // значит «свободна» (POST_IDLE), и строкой раньше acquire увёл индикатор
+  // именно из него. Граница берёт тот же янтарь связи, что и оболочка, — весь
+  // такт занятости говорит одним цветом.
+  const bayOp = createSignal(0);
+  const bayCv = document.createElement('canvas');
+  const bayMat = new MeshBasicMaterial({
+    transparent: true, opacity: 0, depthWrite: false, toneMapped: false,
+  });
+  const bay = new Mesh(new PlaneGeometry(1, 1), bayMat);
+  bay.rotation.x = -Math.PI / 2;
+  bay.renderOrder = 2;
+  bay.visible = false;
+  scene3.add(bay);
+  {
+    // Габарит меряется в СОБСТВЕННОЙ системе объекта: у машины, повёрнутой на
+    // 31°, коробка по осям мира почти вдвое шире самой машины.
+    const footprint = (o: Object3D): [number, number][] => {
+      const yaw = o.rotation.y;
+      o.rotation.y = 0;
+      o.updateMatrixWorld(true);
+      const b = new Box3().setFromObject(o);
+      o.rotation.y = yaw;
+      o.updateMatrixWorld(true);
+      const cs = Math.cos(yaw), sn = Math.sin(yaw);
+      const at = (x: number, z: number): [number, number] => {
+        const dx = x - o.position.x, dz = z - o.position.z;
+        return [o.position.x + dx * cs + dz * sn, o.position.z - dx * sn + dz * cs];
+      };
+      return [at(b.min.x, b.min.z), at(b.max.x, b.min.z),
+              at(b.max.x, b.max.z), at(b.min.x, b.max.z)];
+    };
+    // ⚠️ Прямоугольником пару не обвести: стойка стоит у машины сбоку-впереди,
+    // и любая ось (мира, машины, пары) даёт фигуру вдвое больше самих тел с
+    // пустыми углами. Поэтому граница — выпуклая оболочка двух опор, раздутая
+    // наружу на PAD со скруглением в вершинах. Она облегает ровно то, что
+    // внутри, и потому читается как «эти двое», а не как парковочный карман.
+    const PAD = 0.44, LW = 0.062;
+    const pts = [...footprint(car), ...footprint(post)];
+    const cross = (o: number[], a: number[], b: number[]) =>
+      (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+    const chain = (src: [number, number][]) => {
+      const h: [number, number][] = [];
+      for (const q of src) {
+        while (h.length >= 2 && cross(h[h.length - 2], h[h.length - 1], q) <= 0) h.pop();
+        h.push(q);
+      }
+      h.pop();
+      return h;
+    };
+    const sorted = [...pts].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    const H = [...chain(sorted), ...chain([...sorted].reverse())];
+
+    const M = PAD + LW * 2 + 0.06;
+    const xs = H.map(q => q[0]), zs = H.map(q => q[1]);
+    const x0 = Math.min(...xs) - M, x1 = Math.max(...xs) + M;
+    const z0 = Math.min(...zs) - M, z1 = Math.max(...zs) + M;
+    const L = x1 - x0, W = z1 - z0;
+    bay.geometry.dispose();
+    bay.geometry = new PlaneGeometry(L, W);
+    bay.position.set((x0 + x1) / 2, 0.012, (z0 + z1) / 2);
+
+    // Плоскость лежит лицом вверх: локальный +X это мир +X, локальный +Y это
+    // мир −Z, а flipY у CanvasTexture ставит начало UV в НИЖНИЙ левый угол
+    // холста. Отсюда прямое соответствие: пиксель (x, y) = мир (x0 + x/PXM,
+    // z0 + y/PXM), без переворотов.
+    const PXM = 1024 / L;
+    bayCv.width = 1024;
+    bayCv.height = Math.max(2, Math.round(W * PXM));
+    const c = bayCv.getContext('2d')!;
+    const P = H.map(q => [(q[0] - x0) * PXM, (q[1] - z0) * PXM] as [number, number]);
+    const gx = P.reduce((a, q) => a + q[0], 0) / P.length;
+    const gy = P.reduce((a, q) => a + q[1], 0) / P.length;
+    // Угол ВНЕШНЕЙ нормали ребра: направление выбирается от центра тяжести,
+    // поэтому обход оболочки может идти в любую сторону.
+    const nAng = (a: [number, number], b: [number, number]) => {
+      const ex = b[0] - a[0], ez = b[1] - a[1];
+      const l = Math.hypot(ex, ez) || 1;
+      let nx = ez / l, ny = -ex / l;
+      if (nx * ((a[0] + b[0]) / 2 - gx) + ny * ((a[1] + b[1]) / 2 - gy) < 0) { nx = -nx; ny = -ny; }
+      return Math.atan2(ny, nx);
+    };
+    const N = P.length, R = PAD * PXM;
+    c.beginPath();
+    for (let i = 0; i < N; i++) {
+      const a1 = nAng(P[(i + N - 1) % N], P[i]);
+      const a2 = nAng(P[i], P[(i + 1) % N]);
+      let d = a2 - a1;
+      while (d > Math.PI) d -= Math.PI * 2;
+      while (d < -Math.PI) d += Math.PI * 2;
+      c.arc(P[i][0], P[i][1], R, a1, a1 + d, d < 0);
+    }
+    c.closePath();
+    // Краска, а не свечение. Мягкое плечо под чёткой линией — чтобы край не
+    // рассыпался на дистанции; ореола нет, светящаяся зона на полу это лоадер.
+    c.strokeStyle = 'rgba(255, 168, 90, 0.15)';   // = LINK
+    c.lineWidth = LW * PXM * 3.2;
+    c.stroke();
+    c.strokeStyle = 'rgba(255, 168, 90, 0.70)';
+    c.lineWidth = LW * PXM;
+    c.stroke();
+    const tex = new CanvasTexture(bayCv);
+    tex.anisotropy = 8;
+    bayMat.map = tex;
+    bayMat.needsUpdate = true;
+  }
 
   // Индикатор стойки живёт двумя сигналами. Уровень — сколько света;
   // оттенок — какое состояние. У модели эмиссия идёт по текстуре, светятся
@@ -500,8 +626,8 @@ export default makeScene2D(function* (view) {
     // стал цветным», а не «поверх положили плоский вырез». Автор: «нежнее».
     postShellMat.opacity = postClaim() * SHELL_MAX;
     postShell.visible = postClaim() > 0.004;
-    carShellMat.opacity = carClaim() * SHELL_MAX;
-    carShell.visible = carClaim() > 0.004;
+    bayMat.opacity = bayOp();
+    bay.visible = bayOp() > 0.004;
     cardMat.opacity = cardOp();
     drawCard();
     // Депо остаётся зелёным: там сессий никто не открывал.
@@ -530,7 +656,7 @@ export default makeScene2D(function* (view) {
   const depFocus = blur(IN_BLUR_DEPOT);
   depShot.opacity(0);
   depShot.filters([depFocus]);
-  view.add(depShot);
+  stage.add(depShot);
 
   const mainView = createThreeView({
     width: Screen.width, height: Screen.height, scene: scene3, camera,
@@ -540,7 +666,7 @@ export default makeScene2D(function* (view) {
   const focus = blur(30);
   shot.opacity(0);
   shot.filters([focus]);
-  view.add(shot);
+  stage.add(shot);
 
   // ── Код: ДВА блока ───────────────────────────────────────────────────────
   // Каждый мир приносит свою функцию: сначала уличная (она уже в кадре),
@@ -581,8 +707,17 @@ export default makeScene2D(function* (view) {
   const BODY_TO = 5;
 
   const CODE_TYPES = [
-    'StartPublic', 'StartFleet', 'StartSession', 'SessionStarted', 'SessionOwner',
+    'StartPublic', 'StartFleet', 'StartSession', 'SessionStarted',
+    'SessionOwner', 'Driver', 'Vehicle', 'ConnectorId',
   ];
+  const CODE_RULES = buildCanonRules({
+    types: CODE_TYPES,
+    methods: ['startPublicSession', 'startFleetSession', 'startSession'],
+    vars: [
+      'cmd', 'connector', 'connectors', 'session', 'sessions',
+      'metering', 'charger', 'events', 'driver', 'vehicle', 'owner', 'id',
+    ],
+  });
 
   // Кегль 25, а не 27: самая длинная строка тела 55 знаков, при 27 в блок
   // влезает 52. Расширить блок нельзя — фургоны депо начинаются на +50 от
@@ -591,6 +726,11 @@ export default makeScene2D(function* (view) {
   // Каждый блок стоит НАПРОТИВ своего объекта, а не по порядку чтения:
   // депо сидит в кадре на y≈265 px, Хонда на y≈717 px — отсюда и центры блоков.
   // Порядок ПОЯВЛЕНИЯ при этом обратный: сначала нижний, уличный.
+  // ⚠️ ЭТИ ДВА ЧИСЛА НЕ ТРОГАТЬ. Каждый блок стоит НАПРОТИВ своего объекта:
+  // депо сидит в кадре на y≈265 px, Хонда на y≈717 px. Попытка поправить
+  // композицию финальной колонки общим сдвигом всей вертикали (COL_Y 140)
+  // ОТМЕНЕНА автором: вместе с колонкой уехали и эти блоки, а их положение —
+  // содержание такта, а не свободный параметр.
   const Y_FLEET = -275;                      // напротив автопарка
   const Y_PUBLIC = 177;                      // напротив Хонды
 
@@ -603,8 +743,8 @@ export default makeScene2D(function* (view) {
   const CODE_W = 960;
   const publicWrap = new Node({opacity: 0});
   const fleetWrap = new Node({opacity: 0});
-  view.add(publicWrap);
-  view.add(fleetWrap);
+  stage.add(publicWrap);
+  stage.add(fleetWrap);
 
   const mkCode = (src: string, y: number, parent: Node) => {
     const m = Manticore.create(src, {
@@ -617,25 +757,55 @@ export default makeScene2D(function* (view) {
       glowAccent: false,
       customTypes: CODE_TYPES,
       cardStyle: {fill: 'rgba(0,0,0,0)', stroke: 'rgba(0,0,0,0)', radius: 0, edge: false},
+      // Без клипа: на слиянии строки тела уезжают за границы своей карточки.
+      noClip: true,
     });
     m.mount(parent);
-    m.colorize(buildCanonRules({
-      types: CODE_TYPES,
-      methods: ['startPublicSession', 'startFleetSession', 'startSession'],
-      vars: [
-        'cmd', 'connector', 'connectors', 'session', 'sessions',
-        'metering', 'charger', 'events', 'driver', 'vehicle',
-      ],
-    }));
-    paintCanonMethodCalls(m);
+    recolor(m);
     return m;
   };
+  // Морф красит новые токены встроенными правилами, но вызовы методов —
+  // отдельный проход; после каждого морфа перекрашиваем целиком (канон
+  // velvetCartReminder), а хук recolorLine красит вызовы ещё на проявлении.
+  function recolor(m: Manticore): void {
+    m.colorize(CODE_RULES);
+    paintCanonMethodCalls(m);
+  }
 
   const codeFleet = mkCode(CODE_FLEET, Y_FLEET, fleetWrap);
   const codePublic = mkCode(CODE_PUBLIC, Y_PUBLIC, publicWrap);
   // Manticore.mount ставит контейнеру opacity 0 — поднимаем, видимостью правит обёртка.
   codeFleet.node.opacity(1);
   codePublic.node.opacity(1);
+
+  // ⚠️ resetColors возвращает токен к цвету ТЕМЫ, а не к канонному, и после
+  // сравнения `val` становился белым, а розовые вызовы — серыми. Причина:
+  // `val`/`fun` не ключевые слова для тайпкодера (словарь джавовый), синеву им
+  // даёт правило buildCanonRules, а colorizeByRule пишет прямо в fill и
+  // originalColor не трогает. Поэтому снимаем палитру ДО любой подсветки и
+  // возвращаемся ровно в неё.
+  const palettes = new Map<Manticore, unknown[][]>();
+  const snapPalette = (m: Manticore) => {
+    const rows: unknown[][] = [];
+    for (let i = 0; i < m.lineCount; i++) rows.push(m.getLine(i)!.tokens.map(t => t.ref().fill()));
+    palettes.set(m, rows);
+  };
+  function* restorePalette(m: Manticore, dur: number): ThreadGenerator {
+    const rows = palettes.get(m);
+    if (!rows) return;
+    const anims: ThreadGenerator[] = [];
+    for (let i = 0; i < m.lineCount; i++) {
+      const line = m.getLine(i);
+      if (!line) continue;
+      line.tokens.forEach((t, k) => {
+        const c = rows[i]?.[k];
+        if (c !== undefined) anims.push(t.ref().fill(c as string, dur, easeInOutCubic));
+      });
+    }
+    if (anims.length > 0) yield* all(...anims);
+  }
+  snapPalette(codeFleet);
+  snapPalette(codePublic);
   // Верхняя пара — фон разговора: и автопарк, и его код остаются под расфокусом с
   // частичной прозрачностью. Нижняя пара выходит в полную резкость.
   const DIM_OP = 0.45, DIM_BLUR = 4;
@@ -653,7 +823,7 @@ export default makeScene2D(function* (view) {
   // Та же мягкая круговая виньетка, что на титре: сцена открывается тем же
   // кадром, что закрылся эпиграф. Держится весь первый такт и уходит вместе
   // с отъездом — когда кадр раскрывается под код, сжимать его нечем.
-  const vignette = mountVignette(view, 0);
+  const vignette = mountVignette(stage, 0);
 
   // ── Чтение кода ──────────────────────────────────────────────────────────
   // ОБЪЯСНЕНИЕ читается прозрачностью: активная 1, пройденные 0.58, остальные
@@ -710,14 +880,10 @@ export default makeScene2D(function* (view) {
   }
 
   function* cmpOff(m: Manticore, dur: number): ThreadGenerator {
-    const anims: ThreadGenerator[] = [];
-    for (let i = 0; i < m.lineCount; i++) {
-      const line = m.getLine(i);
-      if (!line) continue;
-      anims.push(line.setOpacity(1, dur));
-      if (i >= BODY_FROM && i <= BODY_TO) anims.push(line.resetColors(dur));
-    }
-    yield* all(...anims);
+    yield* all(
+      ...Array.from({length: m.lineCount}, (_, i) => m.getLine(i)!.setOpacity(1, dur)),
+      restorePalette(m, dur),
+    );
   }
 
   // ── Реакция мира: причинно-следственная цепочка на пять строк ────────────
@@ -753,13 +919,10 @@ export default makeScene2D(function* (view) {
   // мягко пульсируют янтарём и сходят на нет — дыхание, а не строб (атака в
   // два кадра читалась как глитч). Дальше «занято» несёт индикатор стойки.
   function* wOpen(): ThreadGenerator {
-    const pulse = (v: typeof carClaim) => chain(
-      v(1, 0.22, easeInOutSine),
-      v(0.25, 0.3, easeInOutSine),
-      v(1, 0.22, easeInOutSine),
-      v(0, 0.55, easeInOutSine),
-    );
-    yield* all(pulse(postClaim), pulse(carClaim));
+    // Граница проявляется КАК ОДНО и дальше просто стоит. Ни роста, ни бегущей
+    // линии: «дорого» здесь делает неподвижность, а не анимация, а сессия и не
+    // должна мигать — она открыта.
+    yield* bayOp(1, 0.85, easeOutCubic);
   }
 
   // Учёт готов, но ток не подан: карточка приходит из расфокуса и показывает
@@ -876,6 +1039,7 @@ export default makeScene2D(function* (view) {
   // Карточка уходит так же, как пришла, в расфокус; порт, отсвет и индикатор
   // стойки — в исходное. К сравнению оба мира стоят одинаково тихо.
   yield* all(
+    bayOp(0, 1.2, easeInOutSine),
     cardOp(0, 1.2, easeInOutSine),
     cardBlur(18, 1.2, easeInOutSine),
     portLit(0, 1.2, easeInOutSine),
@@ -947,4 +1111,223 @@ export default makeScene2D(function* (view) {
     yield* diffPulse(DIFF_BLUE);
   }
   yield* waitFor(2.4);
+
+  // ── Слияние ──────────────────────────────────────────────────────────────
+  // Порядок жестов авторский. Дублировались ТЕЛА — значит мержится тело, а
+  // сигнатура это решение, принятое после, и его печатают.
+  //
+  // 1. Имена методов просто ИСЧЕЗАЮТ. ⚠️ Обратный тайп здесь пробовали и
+  //    отменили: разбирать по буквам нужно только то, что меняется по существу.
+  // 2. Тела едут навстречу, и ПРЯМО В ДВИЖЕНИИ стирается единственное
+  //    различие — аргумент владельца. К моменту встречи тела одинаковы буква в
+  //    букву, с открытой скобкой в ожидании.
+  //    ⚠️ Яркость на проходе НЕ снижается и расфокуса нет: объединение надо
+  //    показать, а не спрятать (оба варианта автор отменил).
+  //    ⚠️ Закрывающая скобка не стирается и не печатается заново — она едет
+  //    вместе со своим телом и остаётся скобкой слитой функции.
+  // 3. В слитом теле печатается новый аргумент, потом сигнатура.
+  // 4. НАД ней печатаются два вызывающих метода, через пустую строку каждый.
+  //
+  // ⚠️ Различие в теле обязано быть ОДНО, иначе «стереть в обоих телах» не
+  // сходится. Поэтому слитая функция берёт ОДНУ команду: строка acquire не
+  // меняется вовсе, меняется только open(). Синтаксис `fun f() = expr` не
+  // используем — тело всегда в фигурных скобках (правило автора).
+  const CODE_MERGED = `fun startSession(cmd: StartSession) {
+    val connector = connectors.acquire(cmd.connector)
+    val session = sessions.open(connector, cmd.owner)
+    metering.start(session.id)
+    charger.energize(connector.id)
+    events.publish(SessionStarted(session.id))
+}`;
+  const WRAP_FLEET = `fun startFleetSession(cmd: StartFleet) {
+    val owner = SessionOwner.Vehicle(cmd.vehicle)
+    startSession(StartSession(cmd.connector, owner))
+}`;
+  const WRAP_PUBLIC = `fun startPublicSession(cmd: StartPublic) {
+    val owner = SessionOwner.Driver(cmd.driver)
+    startSession(StartSession(cmd.connector, owner))
+}`;
+
+  // Позиции символов считаются по РЕАЛЬНЫМ токенам строки, а не по длине
+  // исходника: разбиение на токены своё, и хардкод здесь молча разъедется.
+  const lineLen = (line: CodeLine) =>
+    line.tokens.reduce((n, t) => n + t.text.length, 0);
+  const charPosOf = (line: CodeLine, needle: string) => {
+    let pos = 0;
+    for (const t of line.tokens) {
+      if (t.text === needle) return pos;
+      pos += t.text.length;
+    }
+    // Токена нет — значит разбиение изменилось. Молча вернуть −1 нельзя:
+    // обратный тайп доедет до нуля и сотрёт строку целиком.
+    throw new Error(`charPosOf: нет токена ${needle}`);
+  };
+  function* unType(line: CodeLine, from: number, to: number, delay: number): ThreadGenerator {
+    for (let c = from - 1; c >= to; c--) {
+      line.showTokensUpTo(c);
+      yield* waitFor(delay);
+    }
+  }
+
+  const LH = codePublic.getLineY(1) - codePublic.getLineY(0);
+  // ⚠️⚠️ ДОМ = ФИНАЛЬНАЯ КОМПОЗИЦИЯ. Блок садится ровно туда, где он останется
+  // до конца сцены: после посадки код НЕ ДВИГАЕТСЯ ВООБЩЕ. Обе попытки поправить
+  // композицию движением автор снёс — и сдвиг всей вертикали (уехали блоки,
+  // стоящие напротив своих объектов), и сдвиг колонки под печать обёрток.
+  //
+  // Дом — на две строки ВЫШЕ уличного блока: фургонный сходит вниз 377 px,
+  // уличный поднимается 75 px. Едут оба (автор: «не нравится что нижний код не
+  // двинулся даже, пусть немного выше встанут»), и подъём в две строки читается
+  // однозначно — это не дёрганье на десяток пикселей.
+  // Композиция: чернила колонки 144..766, поля 144 / 314.
+  const Y_HOME = Y_PUBLIC - 2 * LH;
+  const Y_WRAP_PUBLIC = Y_HOME - 6.5 * LH;   // 3 строки вверх + пустая строка
+  const Y_WRAP_FLEET = Y_WRAP_PUBLIC - 5 * LH;
+
+  const mergedWrap = new Node({});
+  stage.add(mergedWrap);
+  const codeMerged = mkCode(CODE_MERGED, Y_HOME, mergedWrap);
+  codeMerged.node.opacity(1);                 // ⚠️ mount() ставит контейнеру 0
+  const mHead = codeMerged.getLine(0)!;
+  const mOpen = codeMerged.getLine(2)!;
+  const M_CUT = charPosOf(mOpen, 'cmd');      // граница «строка ждёт аргумент»
+  // ⚠️ Закрывающая скобка В СЛИЯНИИ НЕ УЧАСТВУЕТ (правка автора). Оболочка
+  // функции — это сигнатура И скобка: дублировались ТЕЛА, оболочка уходит перед
+  // слиянием и печатается заново после. Скобка прячется ЗДЕСЬ, до снимка для
+  // halation, иначе она попадёт в ореол и будет светить в кадре, где её нет.
+  const mClose = codeMerged.getLine(BODY_TO + 1)!;
+  mHead.hideTokensInstantly();
+  mClose.hideTokensInstantly();
+  mOpen.showTokensUpTo(M_CUT);
+
+  // ── Вспышка слияния ──────────────────────────────────────────────────────
+  // Канон halation: снимок блока кладётся ПОД резкий оригинал и складывается
+  // светом. Резкий текст не трогают вообще.
+  // ⚠️ Тень НА САМИХ ТОКЕНАХ (shadowColor/shadowBlur) — это был «визуальный лаг,
+  // словно проблема наложения»; возвращать её нельзя. Размытие тени больше нуля
+  // переводит ноду в КЭШ: глиф уходит в отдельный прозрачный холст и
+  // накладывается картинкой, сглаживание меняется, и весь блок разом меняет вес
+  // букв в кадре зажигания и в кадре гашения. Плюс семь десятков холстов,
+  // пересоздающихся каждый кадр, пока размытие едет.
+  // ⚠️ СНИМОК СНИМАЕТСЯ ЗДЕСЬ, пока строки блока ещё непрозрачны, а не в точке
+  // совпадения: свет обязан РАЗГОРЕТЬСЯ К УДАРУ, а не после него (автор: «глоу
+  // сияет не в моменте слияния, а после»). Это же правило работает в опенинге —
+  // ореол там запускается заранее. Гасить строки блока можно только ПОСЛЕ
+  // снимка, иначе слепок выйдет пустым.
+  const HAL_WARM_BLUR = 18, HAL_WARM_OP = 0.76;   // −15% по просьбе автора
+  const HAL_BLOOM_BLUR = 6, HAL_BLOOM_OP = 0.60;  // было 0.9 / 0.7
+  const mergeGlow = createSignal(0);
+  const halWarm = codeMerged.node.snapshotClone();
+  halWarm.filters([blur(HAL_WARM_BLUR), sepia(1), saturate(3.2), brightness(1.6)]);
+  halWarm.cachePadding(HAL_WARM_BLUR * 4);
+  halWarm.compositeOperation('lighter');
+  halWarm.zIndex(-2);
+  halWarm.opacity(() => mergeGlow() * HAL_WARM_OP);
+  const halBloom = codeMerged.node.snapshotClone();
+  halBloom.filters([blur(HAL_BLOOM_BLUR)]);
+  halBloom.cachePadding(HAL_BLOOM_BLUR * 4);
+  halBloom.compositeOperation('lighter');
+  halBloom.zIndex(-1);
+  halBloom.opacity(() => mergeGlow() * HAL_BLOOM_OP);
+  mergedWrap.add(halWarm);
+  mergedWrap.add(halBloom);
+
+  // Гасятся только строки ТЕЛА: у сигнатуры и скобки прозрачность узла остаётся
+  // единицей, невидимы они за счёт спрятанных токенов — иначе typewriter потом
+  // напечатает их в пустоту.
+  for (let i = BODY_FROM; i <= BODY_TO; i++) codeMerged.getLine(i)!.node.opacity(0);
+
+  const wrapFleetNode = new Node({});
+  const wrapPublicNode = new Node({});
+  stage.add(wrapFleetNode);
+  stage.add(wrapPublicNode);
+  const codeWrapFleet = mkCode(WRAP_FLEET, Y_WRAP_FLEET, wrapFleetNode);
+  const codeWrapPublic = mkCode(WRAP_PUBLIC, Y_WRAP_PUBLIC, wrapPublicNode);
+  for (const m of [codeWrapFleet, codeWrapPublic]) {
+    m.node.opacity(1);
+    for (let i = 0; i < m.lineCount; i++) m.getLine(i)!.hideTokensInstantly();
+  }
+
+  // Едет ТОЛЬКО тело. Скобка остаётся на месте и гаснет вместе с именем: две
+  // одинокие скобки, летящие через кадр без своих сигнатур, — лишний предмет в
+  // жесте, который и так про пять строк (правка автора).
+  const movingLines = (m: Manticore) =>
+    Array.from({length: BODY_TO - BODY_FROM + 1}, (_, k) => m.getLine(BODY_FROM + k)!);
+
+  // 0. Синее отпускается, палитра возвращается канонная.
+  yield* all(
+    ...[codePublic, codeFleet].flatMap(m => Array.from({length: m.lineCount}, (_, i) =>
+      m.getLine(i)!.setOpacity(1, 0.5))),
+    restorePalette(codePublic, 0.5),
+    restorePalette(codeFleet, 0.5),
+  );
+  yield* waitFor(0.5);
+
+  // 1. Имена уходят: два различия из трёх жили в сигнатурах.
+  yield* all(
+    ...[codePublic, codeFleet].flatMap(m => [
+      m.getLine(0)!.setOpacity(0, 0.45),
+      m.getLine(BODY_TO + 1)!.setOpacity(0, 0.45),
+    ]),
+  );
+  yield* waitFor(0.3);
+
+  // 2. Схождение, и прямо на ходу стирается третье различие.
+  const SLIDE = 0.9;
+  // Свет копится последние кадры пути и выходит на максимум РОВНО в кадр
+  // совпадения. easeInCubic: почти ничего до самого конца и резкий выход —
+  // разгорание читается как причина удара, а не как его последствие.
+  const GLOW_RISE = 0.16;
+  yield* all(
+    chain(waitFor(SLIDE - GLOW_RISE), mergeGlow(1, GLOW_RISE, easeInCubic)),
+    ...movingLines(codeFleet).map(l => l.node.y(l.node.y() + (Y_HOME - Y_FLEET), SLIDE, easeInOutCubic)),
+    ...movingLines(codePublic).map(l => l.node.y(l.node.y() + (Y_HOME - Y_PUBLIC), SLIDE, easeInOutCubic)),
+    ...[codePublic, codeFleet].map(m => chain(
+      waitFor(SLIDE * 0.1),
+      (function* (): ThreadGenerator {
+        const line = m.getLine(2)!;
+        yield* unType(line, lineLen(line), charPosOf(line, 'cmd'), 0.035);
+      })(),
+    )),
+  );
+  // Точка совпадения: под уходящими лежит такая же, пиксель в пиксель.
+  for (let i = BODY_FROM; i <= BODY_TO; i++) codeMerged.getLine(i)!.node.opacity(1);
+  fleetWrap.remove();
+  publicWrap.remove();
+
+  // Свет уже на максимуме — теперь он оседает. Снимок статичен: дальше в блоке
+  // печатают аргумент, и держать слепок прошлого состояния под живой строкой
+  // незачем, поэтому обе копии снимаются в конце спада.
+  spawn(chain(
+    mergeGlow(0, 0.4, easeInOutSine),
+    (function* (): ThreadGenerator { halWarm.remove(); halBloom.remove(); })(),
+  ));
+  yield* waitFor(0.5);
+
+  // 3. Новый аргумент печатается в строку, которая его ждала.
+  yield* mOpen.typewriterFrom(M_CUT, 0.03);
+  yield* waitFor(0.6);
+
+  // 4. Сигнатура общей функции и оба вызывающих метода печатаются ОДНОВРЕМЕННО.
+  //    Это одно решение, принятое после слияния: у тела появляется имя, и у
+  //    имени сразу появляются две двери. Раньше сигнатура стартовала первой, и
+  //    кадр читался в два приёма (правка автора). Обёртки идут парой между
+  //    собой — они и существуют парой; здесь же SessionOwner получает свои две
+  //    формы, Driver и Vehicle: они живут у дверей, а не в общей комнате.
+  yield* all(
+    chain(mHead.typewriter(0.018), mClose.typewriter(0.018)),
+    (function* (): ThreadGenerator {
+      for (let i = 0; i < 4; i++) {
+        yield* all(
+          codeWrapFleet.getLine(i)!.typewriter(0.016),
+          codeWrapPublic.getLine(i)!.typewriter(0.016),
+        );
+      }
+    })(),
+  );
+  // Реплика договаривается над неподвижным (для глаза) кадром, и сцена уходит
+  // в подложку: карточка главы идёт следующей сценой и обязана начинаться с
+  // пустого фона, иначе титул ляжет на код.
+  yield* waitFor(5.5);
+  yield* stage.opacity(0, 1.2, easeInOutCubic);
 });

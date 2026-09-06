@@ -101,8 +101,11 @@ import problemsYouDontHaveCostSceneEn from "./scenes/problemsYouDontHaveCostScen
 import duplicationHateIntroScene from "./scenes/duplicationHateIntroScene?scene";
 import chargingHeroDemoScene from "./scenes/chargingHeroDemoScene?scene";
 import openingMergeTimelapseSceneEn from "./scenes/openingMergeTimelapseSceneEn?scene";
+import duplicationChapterOneTitleSceneEn from "./scenes/duplicationChapterOneTitleSceneEn?scene";
 import duplicationCitySceneEn from "./scenes/duplicationCitySceneEn?scene";
 import duplicationFieldSceneEn from "./scenes/duplicationFieldSceneEn?scene";
+import duplicationCityParticlesSceneEn from "./scenes/duplicationCityParticlesSceneEn?scene";
+import duplicationWorldSceneEn from "./scenes/duplicationWorldSceneEn?scene";
 import introMergeScene from "./scenes/introMergeScene?scene";
 import chapter1IntroScene from "./scenes/chapter1IntroScene?scene";
 import duplicationBestChoiceTitleSceneEn from "./scenes/duplicationBestChoiceTitleSceneEn?scene";
@@ -118,7 +121,7 @@ export default makeProject({
         // chapter1IntroScene,
 
         // dryFiltersScene,
-        //  dryConditionsScene,
+         // dryConditionsScene,
         // chapter2IntroScene,
         // paymentInputsScene,
         // splitDtoScene,
@@ -246,6 +249,18 @@ export default makeProject({
         // слияний настоящего кода, механика introMergeScene без строба/титула
          openingMergeTimelapseSceneEn,
          chargingHeroDemoScene,
+         duplicationChapterOneTitleSceneEn,
+
+        // АКТ 7, ПРОТОТИП (8 с, такты 1→2): код становится точками, точки
+        // собираются в машину. В кадре нет ни одного меша — только частицы;
+        // и код в начале, и машина в конце нарисованы одним облаком.
+        // duplicationWorldSceneEn,
+
+        // АКТ 7, ВАРИАНТ 3, ПРОТОТИП (10 с, такты 1→2): город ИЗ ТОЧЕК.
+        // В сцене нет ни одного меша — только частицы; модели сэмплируются
+        // один раз при подготовке. Станция рассыпается, собирается заново и
+        // остаётся якорем, вокруг неё кольцами поднимается квартал.
+        //  duplicationCityParticlesSceneEn,
 
         // АКТ 7, ВАРИАНТ 2: ПОЛЕ ПЛОТНОСТИ — вместо коробок непрерывный
         // рельеф из точек, яркость набирается накоплением слоёв
