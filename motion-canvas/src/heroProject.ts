@@ -4,6 +4,7 @@ import openingMergeTimelapseSceneEn from './scenes/openingMergeTimelapseSceneEn?
 import duplicationEpigraphSceneEn from './scenes/duplicationEpigraphSceneEn?scene';
 import duplicationCitySceneEn from './scenes/duplicationCitySceneEn?scene';
 import duplicationChapterOneTitleSceneEn from './scenes/duplicationChapterOneTitleSceneEn?scene';
+import duplicationDivergeSceneEn from './scenes/duplicationDivergeSceneEn?scene';
 import duplicationFieldSceneEn from './scenes/duplicationFieldSceneEn?scene';
 import duplicationCityParticlesSceneEn from './scenes/duplicationCityParticlesSceneEn?scene';
 import duplicationWorldSceneEn from './scenes/duplicationWorldSceneEn?scene';
@@ -12,5 +13,5 @@ import duplicationWorldSceneEn from './scenes/duplicationWorldSceneEn?scene';
 // нужен только чтобы стилл-экспортёр рендерил сцену, не трогая project.ts автора.
 export default makeProject({
   experimentalFeatures: true,
-  scenes: [duplicationWorldSceneEn, duplicationCityParticlesSceneEn, duplicationFieldSceneEn, duplicationEpigraphSceneEn, openingMergeTimelapseSceneEn, chargingHeroDemoScene, duplicationChapterOneTitleSceneEn, duplicationCitySceneEn],
+  scenes: [duplicationWorldSceneEn, duplicationCityParticlesSceneEn, duplicationFieldSceneEn, duplicationEpigraphSceneEn, openingMergeTimelapseSceneEn, chargingHeroDemoScene, duplicationChapterOneTitleSceneEn, duplicationDivergeSceneEn, duplicationCitySceneEn],
 });

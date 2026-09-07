@@ -102,6 +102,7 @@ import duplicationHateIntroScene from "./scenes/duplicationHateIntroScene?scene"
 import chargingHeroDemoScene from "./scenes/chargingHeroDemoScene?scene";
 import openingMergeTimelapseSceneEn from "./scenes/openingMergeTimelapseSceneEn?scene";
 import duplicationChapterOneTitleSceneEn from "./scenes/duplicationChapterOneTitleSceneEn?scene";
+import duplicationDivergeSceneEn from "./scenes/duplicationDivergeSceneEn?scene";
 import duplicationCitySceneEn from "./scenes/duplicationCitySceneEn?scene";
 import duplicationFieldSceneEn from "./scenes/duplicationFieldSceneEn?scene";
 import duplicationCityParticlesSceneEn from "./scenes/duplicationCityParticlesSceneEn?scene";
@@ -250,6 +251,7 @@ export default makeProject({
          openingMergeTimelapseSceneEn,
          chargingHeroDemoScene,
          duplicationChapterOneTitleSceneEn,
+         duplicationDivergeSceneEn,
 
         // АКТ 7, ПРОТОТИП (8 с, такты 1→2): код становится точками, точки
         // собираются в машину. В кадре нет ни одного меша — только частицы;
