@@ -103,6 +103,7 @@ import chargingHeroDemoScene from "./scenes/chargingHeroDemoScene?scene";
 import openingMergeTimelapseSceneEn from "./scenes/openingMergeTimelapseSceneEn?scene";
 import duplicationChapterOneTitleSceneEn from "./scenes/duplicationChapterOneTitleSceneEn?scene";
 import duplicationDivergeSceneEn from "./scenes/duplicationDivergeSceneEn?scene";
+import duplicationIncidentSceneEn from "./scenes/duplicationIncidentSceneEn?scene";
 import duplicationCitySceneEn from "./scenes/duplicationCitySceneEn?scene";
 import duplicationFieldSceneEn from "./scenes/duplicationFieldSceneEn?scene";
 import duplicationCityParticlesSceneEn from "./scenes/duplicationCityParticlesSceneEn?scene";
@@ -248,10 +249,11 @@ export default makeProject({
 
         // ОПЕНИНГ ФИНАЛЬНОГО СЮЖЕТА (~10 с, под VO): синематик-таймлапс
         // слияний настоящего кода, механика introMergeScene без строба/титула
-         openingMergeTimelapseSceneEn,
-         chargingHeroDemoScene,
-         duplicationChapterOneTitleSceneEn,
+        //  openingMergeTimelapseSceneEn,
+        //  chargingHeroDemoScene,
+        //  duplicationChapterOneTitleSceneEn,
          duplicationDivergeSceneEn,
+         duplicationIncidentSceneEn,
 
         // АКТ 7, ПРОТОТИП (8 с, такты 1→2): код становится точками, точки
         // собираются в машину. В кадре нет ни одного меша — только частицы;

@@ -10,9 +10,14 @@ const OUT_DIR = 'C:/Users/black/IdeaProjects/explainor-canvas/motion-canvas/outp
 const frames = process.argv.slice(2).map(Number).filter(n => Number.isFinite(n));
 if (frames.length === 0) { console.error('no frames'); process.exit(1); }
 
-const browser = await puppeteer.launch({headless: 'new', args: ['--no-sandbox'], protocolTimeout: 3000000});
+// Постоянный профиль: кэш модулей и моделей переживает перезапуск, и повторный
+// холодный старт с медленного сервера в WSL идёт на ревалидации, а не на заливке.
+const browser = await puppeteer.launch({
+  headless: 'new', args: ['--no-sandbox'], protocolTimeout: 3000000,
+  userDataDir: 'C:/Users/black/AppData/Local/Temp/claude/C--Users-black-IdeaProjects-explainor-canvas/10025f88-07bd-46e3-8a70-a87e46f4daa2/scratchpad/chrome-profile',
+});
 const page = await browser.newPage();
-page.on('console', m => { const t = m.text(); if (/error|fail|exception/i.test(t)) console.log('  [console]', t); });
+page.on('console', m => { const t = m.text(); if (/error|fail|exception|\[мир\]/i.test(t)) console.log('  [console]', t); });
 
 for (const f of frames) {
   const url = `http://127.0.0.1:5173/herostill.html?scene=${SCENE}&frame=${f}&fps=${FPS}&timeoutMs=2700000&grid=off`;

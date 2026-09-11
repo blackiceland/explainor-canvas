@@ -12,7 +12,8 @@ import {
 import {Box3, MeshStandardMaterial, Scene, Vector3, WebGLRenderer} from 'three';
 import {createThreeView} from '../core/three/ThreeCanvas';
 import {
-  buildChargingStage, DEPOT_POS, mountWorldCard, POST_IDLE, POST_LIVE,
+  buildChargingStage, mountGroundPool, mountWorldCard,
+  POST_IDLE, POST_LIVE,
 } from '../core/three/chargingStage';
 import {Screen} from '../core/theme';
 import {applyBackground} from '../core/utils';
@@ -451,6 +452,42 @@ export default makeScene2D(function* (view) {
     });
   }
 
+  // ── Свет на асфальте ─────────────────────────────────────────────────────
+  // Связь «эта ветка — вон та машина» держать одним расфокусом слабовато, и
+  // автор попросил её усилить. Усиливает СВЕТ, а не графика: под объектом
+  // своей ветки загорается тёплое пятно на земле — тем же тёплым, каким горит
+  // живая стойка. Никаких пунктиров и рамок: рамка выделения — это UI
+  // редактора, а площадка должна остаться местом.
+  // Улице — одно пятно под машиной. Депо — по пятну под КАЖДЫМ фургоном.
+  //
+  // ⚠️ Доля мощности живёт на АСФАЛЬТЕ, а не на стойках (автор: «хочется больше
+  // света на асфальте и не давать такой акцент на станции»). Причина не только
+  // во вкусе: стойка депо в кадре ~60 px, её светодиодная полоса — четыре, и
+  // разница долей в полтора раза там не читается вовсе. Пятно под фургоном —
+  // это метры площадки, на них разница видна сразу, и перераспределение
+  // балансировщика читается как свет, перетекающий по двору.
+  const poolStreet = mountGroundPool(world.scene3, {
+    x: carMid.x, z: carMid.z, size: 6.4,
+    peak: 0.50, lightY: 0.55, lightRange: 7, lightPeak: 5,
+  });
+  const vanPools = world.vans.map(v => {
+    const pos = world.depot.localToWorld(v.position.clone());
+    return mountGroundPool(world.sceneD, {
+      x: pos.x, z: pos.z, size: 6.6,
+      peak: 0.86, lightY: 0.5, lightRange: 6, lightPeak: 4.0,
+    });
+  });
+  const streetPool = createSignal(0);
+  // Общая яркость пола депо и то, насколько её делит доля: в такте про
+  // балансировку доля правит светом, в проходе по веткам двор освещён ровно.
+  const depotFloor = createSignal(0);
+  const depotShare = createSignal(1);
+  // ⚠️ Доля → яркость НЕ пропорционально: у ровного дележа (1/6) уже должен
+  // гореть свет, иначе такт про балансировку темнее, чем проход по веткам, —
+  // а он ровно наоборот, главный по свету. Смещённая шкала даёт ровному дележу
+  // половину яркости, а забравшему 0.42 — потолок: разница вдвое, видно сразу.
+  const shareLevel = (v: number) => Math.min(1, 0.20 + v * 1.85);
+
   const paint = (mats: MeshStandardMaterial[], hue: number, level: number) => {
     for (const m of mats) {
       m.emissive.copy(POST_IDLE).lerp(POST_LIVE, hue);
@@ -460,14 +497,14 @@ export default makeScene2D(function* (view) {
 
   const frame = (r: WebGLRenderer, s: Scene) => {
     paint(world.postMats, 0, streetLit());
-    // ×6: доля 1/6 при полном янтаре даёт ту же яркость, что ровный свет.
-    // ⚠️ Стойка депо в кадре ~60 px, её светодиодная полоса — четыре. Разница
-    // в полтора раза там не видна вовсе; чтобы «доля» читалась, контраст между
-    // стойками нужен кратный. Множитель 0.5 держит потолок в разумном: доля
-    // 0.42 даёт уровень 1.26, ровная 1/6 — ровно 0.5.
-    world.depotPosts.forEach((p, i) =>
-      paint(p.mats, depotAmber(), depotAmber() * shares[i]() * 6 * 0.5
-        + (1 - depotAmber()) * 0.5));
+    // ⚠️ Стойка меняет ЦВЕТ, а не яркость: зелёный «свободна» → тёплый «идёт
+    // сессия». Разницы в яркости почти нет (0.5 → 0.62) и доля её больше не
+    // трогает — акцент ушёл на асфальт.
+    world.depotPosts.forEach(p =>
+      paint(p.mats, depotAmber(), depotAmber() * 0.62 + (1 - depotAmber()) * 0.5));
+    poolStreet.set(streetPool());
+    const df = depotFloor(), ds = depotShare();
+    vanPools.forEach((p, i) => p.set(df * (ds * shareLevel(shares[i]()) + (1 - ds))));
     hold.mat.opacity = holdOp();
     timer.mat.opacity = timerOp();
     for (const p of vanPanels) p.mat.opacity = powerOp();
@@ -622,7 +659,8 @@ export default makeScene2D(function* (view) {
   yield* waitFor(2.2);
   yield* edit(DOC_2, 1.0);                  // функция 10..26
   yield* waitFor(0.4);
-  yield* all(depotAmber(1, 1.0, easeOutCubic), showPower(true, 1.0));
+  yield* all(depotAmber(1, 1.0, easeOutCubic), showPower(true, 1.0),
+    depotFloor(1, 1.0, easeInOutSine));
   yield* waitFor(0.6);
   // Подключается ещё один фургон — его доля растёт за счёт остальных, общий
   // бюджет площадки не меняется. Это и есть balanceLoad, показанный светом.
@@ -630,7 +668,7 @@ export default makeScene2D(function* (view) {
   yield* waitFor(0.7);
   yield* setShares([0.22, 0.156, 0.156, 0.156, 0.156, 0.156], 1.0);
   yield* waitFor(1.4);
-  yield* showPower(false, 0.7);
+  yield* all(showPower(false, 0.7), depotFloor(0, 0.7, easeInOutSine));
 
   // ── Такт 3. Улица: лимит длительности ────────────────────────────────────
   // «And the street needs one more: stop after four hours, so nobody holds the
@@ -661,11 +699,18 @@ export default makeScene2D(function* (view) {
     }
     yield* all(...anims);
   };
-  yield* only([B_PREAUTH, B_LIMIT]);
+  yield* all(only([B_PREAUTH, B_LIMIT]), streetPool(1, 0.9, easeInOutSine));
   yield* waitFor(2.6);
-  yield* all(only([B_BALANCE]), look('depot', 0.9));
+  // Двор освещается РОВНО: такт не про доли, а про то, чья это ветка.
+  depotShare(0);
+  yield* all(
+    only([B_BALANCE]),
+    look('depot', 0.9),
+    streetPool(0, 0.9, easeInOutSine),
+    depotFloor(1, 0.9, easeInOutSine),
+  );
   yield* waitFor(2.6);
-  yield* all(only([]), look('both', 1.0));
+  yield* all(only([]), look('both', 1.0), depotFloor(0, 0.9, easeInOutSine));
   yield* waitFor(1.6);
 
   // ── Такт 5. Вызывающие ───────────────────────────────────────────────────

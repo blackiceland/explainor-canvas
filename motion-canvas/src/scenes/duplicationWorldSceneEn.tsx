@@ -96,7 +96,7 @@ const SEED = 20260906;
 // то есть втрое реже нынешнего — вместо сплошной формы редкое созвездие.
 // Зерно имеет физический предел снизу: меньше точки на пиксель буфера — и
 // поверхность перестаёт быть поверхностью. Отсюда 2.2M: машине 551 тысяча.
-const N = 1_600_000;
+const N = 1_800_000;                        // 2.2M рендер не пережил по памяти
 
 // ⚠️ Доли НЕ задаются руками. Яркость поверхности из точек равна плотности на
 // м² и от выноса камеры не зависит, поэтому «объект чуть тусклее машины» — это
@@ -115,13 +115,17 @@ const PX_GLOW = 3.0;                        // полосы: точка чуть
 const PX_VAN = 2.05;                        // собранная машина: зерно различимо
 // Альфы поделены на рост бюджета: суммарный свет есть N × alpha, и при N в
 // 2.2 раза больше та же картинка требует alpha во столько же раз меньше.
-const A_TEXT = 0.0363;
-const A_GLOW = 0.0187;                       // разброс проредил плотность в восемь раз
+const A_TEXT = 0.0323;
+const A_GLOW = 0.0166;                       // разброс проредил плотность в восемь раз
 // Машина отдала пятую часть вещества, её плотность упала с 25 700 до 20 000
 // точек на м² — альфу поднимаем ровно на столько же, чтобы абсолютный уровень
 // остался тем, что выставлен замером. Колонка при этом остаётся тусклее сама
 // по себе: у неё меньше точек на метр поверхности.
 const A_VAN = 0.231;
+// ⚠️ Свет собранной машины: столько точек несут её яркость при альфе A_VAN.
+// Постоянная, а не остаток бюджета — иначе любая правка мира перекрашивала бы
+// машину. 421 тысяча — машина в последнем кадре с миром.
+const CAR_LIGHT = 421_000;
 const FLY_DIM = 1.0;
 // ⚠️ Отдельного гашения в полёте НЕТ. Вещество тускнеет само: летящие точки
 // размазаны вдоль дуг, и плотность на пиксель падает на порядок. Домножить
@@ -176,126 +180,312 @@ const SPREAD_R = 5.5;
 const SPREAD_X = 1.25;
 
 // ── Камера ─────────────────────────────────────────────────────────────────
-// Одно движение и то формальное: 1.8% наезда за восемь секунд. Это дыхание
-// кадра (тот же приём, которым заканчивается предыдущая сцена), а не наезд:
-// у движения нет ни начала, ни события. Отъезд начинается только в такте 3.
+// Сборка: 1.8% наезда за восемь секунд — дыхание кадра (тот же приём, которым
+// заканчивается предыдущая сцена), а не наезд.
+// ⚠️ Один ракурс на всю сцену: сзади в три четверти, с левого борта. Машина
+// собирается из кода в нём же и уезжает вглубь улицы, камера идёт рядом, не
+// меняя точки зрения. Уход камеры за спину автор отменил: сбоку машина
+// объёмная, дорога уходит не в центр кадра, и только сбоку видно, что крутятся
+// колёса. Облёт на пять секунд отвергнут: слишком долго для сорокасекундной сцены.
+// ⚠️ Угол меньше прежних 34°: камера обязана остаться над проезжей частью, а
+// не над тротуаром, иначе дома слева будут проходить сквозь объектив.
 const FOV = 34;
-const CAM_AZ = 34 * D2R;                    // отклонение от оси кузова: три четверти
+const CAM_AZ = 25 * D2R;                    // отклонение от оси кузова назад
 const CAM_EL = 11 * D2R;
-// ⚠️ Доля ширины кадра под машину. Больше 0.55 — колёса подходят к нижней
-// кромке, и такту 3 некуда отъезжать: кадр обязан начинаться с воздухом.
-const FILL = 0.52;
-const TGT_BACK = 2.40;                      // прицел уходит вглубь вместе с отъездом
-const TGT_UP = 0.90;                        // и поднимается: группа встаёт по центру
+// ⚠️ Доля ширины кадра под машину. Справа от неё обязана уместиться колонка
+// в два с лишним метра ростом: при 0.52 её макушка упиралась в верхнюю кромку
+// (проверено проекцией, _drivecheck.mjs).
+const FILL = 0.45;
 const TGT_DY = -0.16;                       // цель ниже центра кузова: машина встаёт по центру кадра
 const CAM_BREATH = 0.982;
+const NOSE = 1;                             // нос honda_e смотрит в +dirLen (по узлам модели)
 
-// ⚠️ Начало отъезда. Колонка стоит в трёх метрах вбок от машины, а при
-// стартовом выносе полукадр всего 3.5 м — она упёрлась бы в кромку. Камера
-// обязана отойти вместе с её появлением: это не отдельное движение, это первый
-// шаг того самого отъезда из такта 3.
-// ⚠️ Отъезд теперь настоящий: в кадр должны войти девятиметровый фонарь и
-// двенадцатиметровая остановка. Вынос растёт вчетверо с лишним, угол
-// возвышения поднимается — под камеру уходит земля, которой нет, поэтому выше
-// двадцати градусов забираться нельзя: объекты повиснут.
-// ⚠️ Возвышение НИЖЕ, а не выше. На восемнадцати градусах дальние объекты
-// уезжали в верхнюю половину кадра, нижняя оставалась пустой. На двенадцати
-// глубина почти не превращается в высоту, и горизонт заходит в кадр.
-const CAM_PULL = 3.30;                      // множитель выноса к концу такта 3
-const CAM_EL2 = 12 * D2R;
+// ── Езда ───────────────────────────────────────────────────────────────────
+// Машина разгоняется равномерно и дальше идёт ровно. Камера идёт по её пути с
+// постоянным запаздыванием: на разгоне отстаёт, на ровном ходу дистанция не
+// меняется. Взгляд — на машине.
+// ⚠️ Догон после разгона и опережение взгляда автор отверг: «камера то
+// отдаляется, то приближается». Отдалилась — и дальше ничего не делает.
+// ⚠️ Всё — функция одного сигнала времени, без накопленного состояния: сцена
+// обязана скрабиться.
+const DRIVE_V = 6.0;                        // крейсерская скорость, м/с
+const DRIVE_ACC = 3.5;                      // разгон, с
+const CAM_LAG = 0.3;                        // запаздывание камеры, с
+
+// ── Колёса ─────────────────────────────────────────────────────────────────
+// Точка колеса поворачивается вокруг своей оси на угол из пройденного пути.
+// ⚠️ На 22 км/ч колесо делает три оборота в секунду, при 30 кадрах в секунду
+// это 36° за кадр — спицы стробят и крутятся назад, как в вестернах. Лечение —
+// выдержка: каждая точка получает случайную фазу в пределах доли кадра, и
+// колесо читается чуть размытым по ходу вращения, как на настоящей камере.
+const WHEEL_MESH = /^(Llanta|TaponLlanta|TornillosLlanta|Pneumatico)/;
+const WHEEL_SHUTTER = 0.7;                  // доля кадра под размытие
+const FPS = 30;
 
 // ── МИР: таблица объектов ────────────────────────────────────────────────
-// ⚠️ Положение задаётся ОТ КАМЕРЫ, а не в мировых осях. Модель может прийти
-// повёрнутой как угодно, а решение здесь экранное: столько-то метров вбок по
-// оси кадра и столько-то вглубь. Разворот по умолчанию — лицом к машине.
+// ⚠️ Положение задаётся ОТ МАШИНЫ, а не в мировых осях: столько-то метров
+// вправо по ходу и столько-то вдоль носа. Модель может прийти повёрнутой как
+// угодно, разворот по умолчанию — лицом к машине.
 //
 // Добавить объект = добавить строку. Площадь, доля бюджета, подмножество точек
 // на машине и расписание появления считаются из неё автоматически.
 interface WorldObj {
   key: string;
-  /** Модель. Нет — значит объект строится из коробок (дом). */
+  /** Модель. Нет — объект строится процедурно (дом ряда, телефон). */
   url?: string;
-  /** ⚠️ Координаты УЛИЧНЫЕ, не экранные. along — метров вдоль улицы,
-   *  off — поперёк: 0 это середина проезжей части, минус уходит на дальний
-   *  тротуар. Так у расстановки появляется логика: фонари стоят в ряд по
-   *  бортовому камню, светофор на углу, остановка на тротуаре, дом за ним. */
-  along: number;
-  off: number;
+  right?: number;                           // метров вправо по ходу машины
+  fwd?: number;                             // метров вдоль носа машины
   yaw?: number;                             // доворот, рад
   height?: number;                          // подогнать высоту объекта, м
   pick?: RegExp;                            // какие меши брать из пачки
   skip?: RegExp;                            // какие выбросить
   density?: number;                         // плотность точек относительно машины
-  /** Дом: [ширина, высота, глубина] основного объёма и надстройки. */
-  box?: [number, number, number];
-  setback?: [number, number, number];
-  floor?: number;                           // шаг междуэтажных линий, м
-  cols?: number;                            // сколько вертикалей на фасаде
-  /** Точек на погонный метр ребра. Для домов — вместо плотности по площади. */
-  lineDensity?: number;
+  house?: HouseSpec;                        // дом ряда
+  pocketOf?: string;                        // телефон: ключ фигуры, в чьём он кармане
+  points?: number;                          // точек на объект (вместо плотности)
+  gain?: number;                            // множитель яркости точек объекта
   t0?: number;                              // начало появления, доля worldGrowth
   span?: number;                            // длительность появления, доля worldGrowth
 }
 
-// ⚠️ УЛИЦА, А НЕ РОССЫПЬ. Машина стоит у бортового камня, зарядная колонка
-// рядом с ней на тротуаре, фонари — в один ряд вдоль камня с постоянным шагом,
-// светофоры на углу выше по улице, остановка на тротуаре, люди на тротуаре,
-// дом за линией застройки. Порядок появления идёт вдоль улицы от машины.
+// ── РЯД ДОМОВ ──────────────────────────────────────────────────────────────
+// ⚠️ Плотный ряд сразу за улицей, а не одинокий дом в глубине: на ста тридцати
+// метрах дом читался далёким фоном, автор попросил застройку ближе к машине.
+// ⚠️ Высоты двух сортов. При возвышении в двенадцать градусов верхняя кромка
+// кадра на линии фасадов — девять с небольшим метров. Двухэтажный дом
+// показывает крышу, от четырёх этажей дом уходит за кромку. Три этажа
+// упираются макушкой ровно в кромку и выглядят случайной обрезкой — их нет.
+// ⚠️ Швы между домами разнесены от столбов переднего плана (мачта, фонари,
+// светофоры, стойки остановки) больше чем на метр: шов, совпавший со столбом,
+// склеивает два плана в одну линию.
+// ⚠️ Вблизи дом узнаётся по ОКНАМ. Ровная стена из точек на сорока метрах — это
+// зернистая плита; тёмные проёмы окон сразу дают масштаб.
+interface HouseSpec {
+  w: number;
+  h: number;
+  d: number;
+  floors: number;
+  /** Боковые стены −x и +x. null — стена смотрит от камеры и не строится. */
+  sides: [SideCover | null, SideCover | null];
+}
+/** Кусок боковой стены, закрытый соседом: [z0, z1] по глубине × [0, y1] по высоте. */
+interface SideCover { z0: number; z1: number; y1: number; }
+
+const ROW_F = 22;                           // линия фасадов, м вглубь от машины
+const ROW_LEFT = -33;                       // ряд шире кадра: торцов не видно
+const STOREY = 3.2;
+const PARAPET = 0.4;
+const HOUSE_D = 11;
+const WIN_W = 1.3, WIN_H = 1.6, WIN_SILL = 0.9, BAY = 2.6;
+const HOUSE_PTS = 450;                      // точек на м² стены: зерно около двух пикселей
+const HOUSE_REL = 0.14;                     // яркость стены относительно кузова машины
+const SIDE_K = 0.5;                         // бок виден под углом и копит яркость — реже
+const BAND_SHARE = 0.20;                    // доля точек на междуэтажных отметках
+const CORNICE_SHARE = 0.04;                 // и на кромке крыши
+const HOUSE_T0 = 0.60, HOUSE_STEP = 0.022, HOUSE_SPAN = 0.16;
+
+// Слева направо. Широкий дом по центру стоит за мачтой.
+const ROW: {w: number; floors: number; set: number}[] = [
+  {w: 6.0, floors: 4, set: 0.0},
+  {w: 5.0, floors: 2, set: 0.6},
+  {w: 5.5, floors: 5, set: 0.0},
+  {w: 5.5, floors: 2, set: 0.8},
+  {w: 5.0, floors: 2, set: 0.3},
+  {w: 9.5, floors: 6, set: 0.0},
+  {w: 5.5, floors: 2, set: 1.0},
+  {w: 4.8, floors: 4, set: 0.0},
+  {w: 6.2, floors: 5, set: 0.4},
+  {w: 6.0, floors: 2, set: 0.7},
+  {w: 7.0, floors: 4, set: 0.0},
+];
+
+function windowBays(w: number): {nb: number; bw: number; ww: number} {
+  const nb = Math.max(1, Math.round(w / BAY));
+  const bw = w / nb;
+  return {nb, bw, ww: Math.min(WIN_W, bw * 0.6)};
+}
+
+function windowAt(spec: HouseSpec, lx: number, ly: number): boolean {
+  const k = Math.floor(ly / STOREY);
+  if (k < 0 || k >= spec.floors) return false;
+  const fy = ly - k * STOREY;
+  if (fy < WIN_SILL || fy > WIN_SILL + WIN_H) return false;
+  const {nb, bw, ww} = windowBays(spec.w);
+  const j = Math.min(nb - 1, Math.floor((lx + spec.w / 2) / bw));
+  return Math.abs(lx - (-spec.w / 2 + (j + 0.5) * bw)) < ww / 2;
+}
+
+function frontArea(spec: HouseSpec): number {
+  const {nb, ww} = windowBays(spec.w);
+  return spec.w * spec.h - spec.floors * nb * ww * WIN_H;
+}
+
+function sideArea(spec: HouseSpec, s: 0 | 1): number {
+  const c = spec.sides[s];
+  return c ? spec.d * spec.h - Math.max(0, c.z1 - c.z0) * c.y1 : 0;
+}
+
+function houseRow(): WorldObj[] {
+  const hs: {w: number; floors: number; set: number; r0: number; h: number}[] = [];
+  let x = ROW_LEFT;
+  for (const r of ROW) { hs.push({...r, r0: x, h: r.floors * STOREY + PARAPET}); x += r.w; }
+  // Очередь появления — от центра ряда к краям.
+  const mid = (i: number) => Math.abs(hs[i].r0 + hs[i].w / 2);
+  const order = hs.map((_, i) => i).sort((a, b) => mid(a) - mid(b));
+  return hs.map((hh, i) => {
+    // Сосед закрывает боковую стену по своей высоте на общем отрезке глубины.
+    // Локальные оси дома: фасад на z = +d/2, вглубь — к минусу.
+    const cover = (nb?: typeof hh): SideCover => {
+      if (!nb) return {z0: 0, z1: 0, y1: 0};
+      const zf = HOUSE_D / 2 - (nb.set - hh.set);
+      return {z0: Math.max(-HOUSE_D / 2, zf - HOUSE_D), z1: Math.min(HOUSE_D / 2, zf), y1: Math.min(hh.h, nb.h)};
+    };
+    // Строится только та боковая стена, что смотрит к оси взгляда.
+    const spec: HouseSpec = {
+      w: hh.w, h: hh.h, d: HOUSE_D, floors: hh.floors,
+      sides: [hh.r0 > 0 ? cover(hs[i - 1]) : null, hh.r0 + hh.w < 0 ? cover(hs[i + 1]) : null],
+    };
+    const area = frontArea(spec) + (sideArea(spec, 0) + sideArea(spec, 1)) * SIDE_K;
+    return {
+      key: `house-${i}`, house: spec, points: Math.round(area * HOUSE_PTS),
+      right: hh.r0 + hh.w / 2, fwd: ROW_F + hh.set + HOUSE_D / 2,
+      t0: HOUSE_T0 + order.indexOf(i) * HOUSE_STEP, span: HOUSE_SPAN,
+    };
+  });
+}
+
+/** Точки дома ряда: фасад с окнами, этажами и кромкой крыши, видимые куски боков. */
+function sampleHouse(
+  spec: HouseSpec, cx: number, cz: number, yaw: number,
+  count: number, rnd: Rng, out: Float32Array,
+): void {
+  const {w, h, d} = spec;
+  const front = frontArea(spec);
+  const left = sideArea(spec, 0) * SIDE_K;
+  const total = front + left + sideArea(spec, 1) * SIDE_K;
+  const cs = Math.cos(yaw), sn = Math.sin(yaw);
+  const top = spec.floors * STOREY;
+  for (let k = 0; k < count; k++) {
+    let lx = 0, ly = 0, lz = 0;
+    const t = rnd() * total;
+    if (t < front) {
+      do { lx = (rnd() - 0.5) * w; ly = rnd() * h; } while (windowAt(spec, lx, ly));
+      // Этажи и кромка крыши: ровная россыпь по стене без них читается занавесом.
+      const r = rnd();
+      if (r < BAND_SHARE) ly = Math.min(top, Math.round(ly / STOREY) * STOREY) + (rnd() - 0.5) * 0.10;
+      else if (r < BAND_SHARE + CORNICE_SHARE) ly = h - rnd() * 0.08;
+      lz = d / 2;
+    } else {
+      const s = t - front < left ? 0 : 1;
+      const c = spec.sides[s]!;
+      do { lz = (rnd() - 0.5) * d; ly = rnd() * h; } while (lz > c.z0 && lz < c.z1 && ly < c.y1);
+      lx = s === 0 ? -w / 2 : w / 2;
+    }
+    const o = k * 3;
+    out[o] = cx + lx * cs - lz * sn;
+    out[o + 1] = Math.max(0, ly);
+    out[o + 2] = cz + lx * sn + lz * cs;
+  }
+}
+
+// ── ТЕЛЕФОН В КАРМАНЕ ──────────────────────────────────────────────────────
+interface Pocket { c: Vector3; t: Vector3; u: Vector3; n: Vector3; }
+const PHONE_W = 0.075, PHONE_H = 0.15, PHONE_T = 0.012;
+const POCKET_Y = 0.54;                      // линия кармана, доля роста
+const POCKET_OUT = 0.65;                    // доля телефона над карманом
+const POCKET_SIDE = 0.55;                   // сдвиг к краю силуэта
+const POCKET_TILT = 0.14;                   // рад: в кармане телефон не стоит по отвесу
+
+/** Точки телефона: только часть над карманом, нижняя скрыта в ткани. */
+function samplePhone(pk: Pocket, count: number, rnd: Rng, out: Float32Array): void {
+  const top = PHONE_H * POCKET_OUT;
+  for (let k = 0; k < count; k++) {
+    let s = (rnd() - 0.5) * PHONE_W;
+    let v = rnd() * top;
+    let w: number;
+    const r = rnd();
+    if (r < 0.45) w = 0.004 + PHONE_T;                 // лицевая сторона
+    else if (r < 0.9) w = 0.004;                       // сторона к телу
+    else {                                             // кромка
+      w = 0.004 + rnd() * PHONE_T;
+      if (rnd() < 0.4) v = top; else s = (rnd() < 0.5 ? -0.5 : 0.5) * PHONE_W;
+    }
+    const o = k * 3;
+    out[o] = pk.c.x + pk.t.x * s + pk.u.x * v + pk.n.x * w;
+    out[o + 1] = pk.c.y + pk.t.y * s + pk.u.y * v + pk.n.y * w;
+    out[o + 2] = pk.c.z + pk.t.z * s + pk.u.z * v + pk.n.z * w;
+  }
+}
+
+// ⚠️ Мир ВЫКЛЮЧЕН: сцена перестраивается под проезд по улице, и объекты,
+// расставленные вокруг стоящей машины под старую камеру, мешают. Таблица
+// оставлена — модели, лицензии и параметры пригодятся для улицы.
+const WORLD_ON = false;
+
+// ⚠️ Колонка у правого борта, чуть позади середины кузова: на кадре она встаёт
+// справа от машины и не залезает на её силуэт (проверено проекцией,
+// _drivecheck.mjs). Растёт снизу вверх сразу после сборки машины, и машина
+// трогается уже от неё.
 const WORLD: WorldObj[] = [
-  // ── у машины ──────────────────────────────────────────────────────────
   {key: 'charger', url: '/charging_station.pts.glb',
-   along: 1.6, off: -3.2, density: 0.90, t0: 0.00, span: 0.16},
+   right: 2.6, fwd: -0.9, density: 0.90, t0: 0.00, span: 1.00},
 
-  // ── фонари в ряд по камню, шаг двенадцать метров ──────────────────────
-  // Два РАЗНЫХ варианта из пачки: один и тот же столб, размноженный по сцене,
-  // читается как копипаст.
-  {key: 'lamp-a', url: '/various_low-poly_street_lights.pts.glb', pick: /^polySurface69_/,
-   along: 6.0, off: -3.6, density: 0.80, t0: 0.10, span: 0.16},
-  {key: 'lamp-b', url: '/various_low-poly_street_lights.pts.glb', pick: /^polySurface88_/,
-   along: -6.0, off: -3.6, density: 0.70, t0: 0.17, span: 0.16},
+  // ⚠️ Числа ниже — под ПРЕЖНЮЮ экранную раскладку вокруг стоящей машины; для
+  // улицы их предстоит задать заново вдоль дороги.
+  ...(!WORLD_ON ? [] : [
 
-  // ── люди на тротуаре ──────────────────────────────────────────────────
-  // В наборе 282 фигуры; берём три и подгоняем рост. На таком выносе телефон
-  // в руке не различить — работает силуэт человека, а не его поза.
-  {key: 'man-1', url: '/lowpoly_people__waldo.pts.glb', pick: /^21_person/,
-   along: 3.2, off: -4.7, height: 1.75, density: 1.00, t0: 0.24, span: 0.12},
-  {key: 'man-2', url: '/lowpoly_people__waldo.pts.glb', pick: /^134_person/,
-   along: -2.4, off: -5.0, yaw: 2.1, height: 1.72, density: 1.00, t0: 0.29, span: 0.12},
-  {key: 'man-3', url: '/lowpoly_people__waldo.pts.glb', pick: /^191_person/,
-   along: 8.6, off: -4.4, yaw: -1.2, height: 1.78, density: 1.00, t0: 0.34, span: 0.12},
-
-  // ── угол улицы ────────────────────────────────────────────────────────
+  // Пачка светофоров: в файле два объекта, транспортный и пешеходный. Берём
+  // оба — тип, повторённый дважды, читается как система, а не как один прибор.
   {key: 'light-veh', url: '/traffic_lights_street_assets_vol._02.pts.glb', pick: /^Light_/,
-   along: -11.0, off: -3.4, density: 1.00, t0: 0.40, span: 0.16},
+   right: -3.60, fwd: 2.60, density: 1.00, t0: 0.11, span: 0.14},
   {key: 'light-ped', url: '/traffic_lights_street_assets_vol._02.pts.glb', pick: /^Pedestrian_/,
-   along: -9.2, off: -5.2, yaw: 1.6, density: 0.90, t0: 0.46, span: 0.14},
+   right: -7.00, fwd: 0.80, density: 0.90, t0: 0.18, span: 0.13},
 
+  // ── люди, у каждого телефон в кармане ─────────────────────────────────
+  // ⚠️ Телефон — крошечная коробка с сильным усилением яркости, посаженная в
+  // карман на поверхности самой фигуры (см. findPocket). Позой фигура его не
+  // покажет: на таком выносе человек — силуэт в сотню пикселей. А яркая искра,
+  // торчащая из кармана, читается. Точек меньше, чем на целый телефон: из
+  // кармана торчат две трети.
+  {key: 'man-1', url: '/lowpoly_people__waldo.pts.glb', pick: /^21_person/,
+   right: 3.40, fwd: 2.10, height: 1.75, density: 1.00, t0: 0.24, span: 0.10},
+  {key: 'phone-1', pocketOf: 'man-1', points: 600, gain: 3.2, t0: 0.28, span: 0.05},
+
+  {key: 'lamp-a', url: '/various_low-poly_street_lights.pts.glb', pick: /^polySurface69_/,
+   right: 6.20, fwd: 2.60, density: 0.80, t0: 0.31, span: 0.14},
+
+  {key: 'man-2', url: '/lowpoly_people__waldo.pts.glb', pick: /^134_person/,
+   right: -2.20, fwd: 3.30, yaw: 2.1, height: 1.72, density: 1.00, t0: 0.36, span: 0.10},
+  {key: 'phone-2', pocketOf: 'man-2', points: 600, gain: 3.2, t0: 0.40, span: 0.05},
+
+  // Вторая машина.
   {key: 'ambulance', url: '/shvan_92_ambulance_-_low_poly_model.pts.glb',
    skip: /Interior|Bottom|Suspension|Runningboard/,
-   along: 17.0, off: 0.2, density: 0.30, t0: 0.52, span: 0.18},
+   right: -6.00, fwd: 6.40, yaw: 0.35, density: 0.34, t0: 0.44, span: 0.15},
+
+  {key: 'man-3', url: '/lowpoly_people__waldo.pts.glb', pick: /^191_person/,
+   right: 5.60, fwd: 4.60, yaw: -1.2, height: 1.78, density: 1.00, t0: 0.50, span: 0.10},
+  {key: 'phone-3', pocketOf: 'man-3', points: 600, gain: 3.2, t0: 0.54, span: 0.05},
 
   {key: 'cctv', url: '/lamppost_with_cctv_cameras.pts.glb',
-   along: -15.0, off: -3.8, density: 0.85, t0: 0.60, span: 0.18},
+   right: 1.00, fwd: 8.60, density: 0.85, t0: 0.56, span: 0.15},
+
+  {key: 'lamp-b', url: '/various_low-poly_street_lights.pts.glb', pick: /^polySurface88_/,
+   right: 9.00, fwd: 6.00, density: 0.70, t0: 0.63, span: 0.14},
 
   // ⚠️ У остановки 67 м² приходится на плоскость пола (два треугольника) и ещё
   // 29 — на плоские щиты рекламы. В точках это светящиеся прямоугольники без
   // текстур, а по бюджету — треть всего мира. Выбрасываем.
   {key: 'busstop', url: '/bus_station.pts.glb', skip: /Floor|Signs/,
-   along: 11.5, off: -5.6, density: 0.20, t0: 0.67, span: 0.18},
+   right: -9.50, fwd: 10.50, density: 0.20, t0: 0.69, span: 0.15},
 
-  // ── первый дом ────────────────────────────────────────────────────────
-  // ⚠️ Дом НЕ сэмплируется по стенам. Стена большая, точки на ней встают далеко
-  // друг от друга, и фасад выходит чёрным — я это уже проверял. Точки идут по
-  // РЁБРАМ: по вертикалям углов и линиям перекрытий. На ребре они стоят
-  // вплотную, и линия светится. Плотность считается на погонный метр.
-  // ⚠️ Дом стоит ДАЛЕКО и высоко: вблизи каркас из рёбер читается стеклянным
-  // кубом, а не домом. На выносе те же линии складываются в силуэт, и чем
-  // дальше — тем плотнее решётка на экране, тем убедительнее.
-  {key: 'block-a', box: [15, 20, 11], setback: [9.5, 7, 7.5], floor: 3.4, cols: 7, lineDensity: 150,
-   along: -2.0, off: -24.0, t0: 0.76, span: 0.24},
+  // Ряд домов за улицей — последним, от центра к краям.
+  ...houseRow(),
+  ] as WorldObj[]),
 ];
 
-const DUR = 24.0;
+// ⚠️ Прототип проезда: машина и колонка. Полная сцена — около сорока секунд.
+const DUR = 18.6;
 
 // ── Полёт ──────────────────────────────────────────────────────────────────
 // ⚠️ Задержка назначается по КВАНТИЛЮ расстояния цели от центра кузова, а не
@@ -317,12 +507,46 @@ const FLY_SPAN = 0.34;                      // доля сигнала на по
 // и окно схлопывалось в ноль: все точки объекта получали одну и ту же задержку,
 // объект возникал целиком, а не рос снизу. Ровно это и сломало анимацию.
 // Правило: OBJ_SPAN обязан быть заметно меньше самого короткого span в таблице.
-const OBJ_SPAN = 0.055;
+// ⚠️ Проход точки задан в СЕКУНДАХ и пересчитан в долю сигнала: сигнал теперь
+// короткий (одна колонка), а вставать точка обязана так же неспешно, как
+// раньше при четырнадцати секундах на весь мир.
+const WORLD_T = 2.6;                        // длительность сигнала worldGrowth, с
+const OBJ_SPAN = 0.77 / WORLD_T;
 const HANDOFF = 0.30;                       // доля пути до переброса
 const DROP_FROM = 0.48;                     // с этого места точка начинает опускаться
 const HOVER_MIN = 0.55;                     // метров над целью
 const HOVER_VAR = 0.85;
 const HOVER_JIT = 0.25;                     // разброс вбок: облако, а не копия объекта
+
+// ── ЗЕМЛЯ: сетка из точек ──────────────────────────────────────────────────
+// ⚠️ Одна общая земля вместо площадок под каждым объектом (площадки автор
+// отверг). Сетка растёт от машины наружу ПЕРВОЙ, объекты встают уже на неё —
+// «someone's work becomes the ground for someone else's». Ряд домов встаёт
+// на её дальний край.
+// ⚠️ Риск — Трон: ровная яркая сетка на чёрном выглядит дешёвым синтвейвом.
+// Поэтому она тише любого объекта, пунктиром из тех же точек и гаснет к горизонту.
+// ⚠️ Сетка обрезана по фасадам ряда: за домами земли не видно, а в точках без
+// окклюзии она просвечивала бы сквозь стены. Точек ровно столько, сколько
+// приходилось на этот кусок, когда сетка тянулась на полтораста метров, —
+// у машины плотность и вид прежние.
+const GRID_POINTS = WORLD_ON ? 37_000 : 0;
+const GRID_CELL = 3.0;                      // шаг сетки, м
+const GRID_F0 = -4, GRID_F1 = ROW_F;          // вдоль взгляда: чуть перед машиной и до фасадов
+const GRID_W0 = 12, GRID_WK = 0.62;         // клин обзора: полуширина = W0 + WK·(f − F0)
+const GRID_R0 = 10;                         // спад плотности точек с расстоянием
+const GRID_FADE = 175;                      // к этому радиусу сетка гаснет
+const GRID_GAIN = 0.55;
+// За зажимом размера точки линия тускнеет с расстоянием. Компенсация линейная
+// и с потолком — иначе дальняя сетка выйдет ярче ближней.
+const GRID_COMP_R = 13, GRID_COMP_MAX = 8;
+const GRID_T_END = 0.66;                    // когда волна доходит до края
+const GRID_POW = 0.55;                      // волна быстрая у машины, медленная к горизонту
+// Скорость волны прежняя: до этого радиуса она доходила за GRID_T_END, когда
+// сетка тянулась на полтораста метров. У машины земля ложится как раньше.
+const GRID_WAVE_R = 184.5;
+const GRID_HOVER_MIN = 0.22, GRID_HOVER_VAR = 0.30;
+// Объекты сдвинуты позже на эту долю: земля под ними обязана лечь РАНЬШЕ них.
+const GROUND_LEAD = GRID_POINTS > 0 ? 0.10 : 0;
 const SWIRL = 0.20;                         // закрутка вокруг оси взгляда, рад
 const BOW_NEAR = 0.93;                      // дуга выгибается К камере
 const BOW_OUT = 1.06;                       // и чуть наружу
@@ -540,74 +764,18 @@ function worldArea(mesh: Mesh): number {
   return sum;
 }
 
-/** Двенадцать рёбер коробки с основанием на y0. Отрезками, парами точек. */
-function boxEdges(w: number, h: number, d: number, y0: number, out: number[], floor = 0, cols = 0): void {
-  const x = w / 2, z = d / 2, y1 = y0 + h;
-  const c: [number, number, number][] = [
-    [-x, y0, -z], [x, y0, -z], [x, y0, z], [-x, y0, z],
-    [-x, y1, -z], [x, y1, -z], [x, y1, z], [-x, y1, z],
-  ];
-  const e = [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];
-  for (const [a, b] of e) out.push(...c[a], ...c[b]);
-  // ⚠️ Междуэтажные линии. Без них коробка читается стеклянным кубом, а не
-  // домом: у силуэта нет масштаба. Горизонтали через каждый этаж дают и
-  // масштаб, и ту самую светящуюся решётку, ради которой всё и затевалось.
-  // ⚠️ ПРОМЕЖУТОЧНЫЕ ВЕРТИКАЛИ. Четырёх углов мало: коробка читается стеклянным
-  // кубом. Дом делают частые вертикали по фасаду — простенки между окнами. Это
-  // тот же вывод, что и в городском прототипе: здание из точек это пучок
-  // вертикальных штрихов, а не силуэт.
-  for (let i = 1; i < cols; i++) {
-    const t = i / cols;
-    const px = -x + w * t, pz = -z + d * t;
-    out.push(px, y0, -z, px, y0 + h, -z);
-    out.push(px, y0, z, px, y0 + h, z);
-    out.push(-x, y0, pz, -x, y0 + h, pz);
-    out.push(x, y0, pz, x, y0 + h, pz);
-  }
-  if (floor > 0.5) {
-    for (let y = y0 + floor; y < y0 + h - 0.4; y += floor) {
-      const r: [number, number, number][] = [[-x, y, -z], [x, y, -z], [x, y, z], [-x, y, z]];
-      for (const [a, b] of [[0,1],[1,2],[2,3],[3,0]]) out.push(...r[a], ...r[b]);
-    }
-  }
-}
-
-/** Длина набора отрезков. */
-function segLength(segs: number[]): number {
-  let L = 0;
-  for (let i = 0; i + 5 < segs.length; i += 6) {
-    L += Math.hypot(segs[i + 3] - segs[i], segs[i + 4] - segs[i + 1], segs[i + 5] - segs[i + 2]);
-  }
-  return L;
-}
-
-/** Точки вдоль отрезков, поровну на погонный метр. */
-function sampleSegments(segs: number[], count: number, rnd: Rng, out: Float32Array): void {
-  const n = segs.length / 6;
-  const cum = new Float64Array(n);
-  let L = 0;
-  for (let i = 0; i < n; i++) {
-    const o = i * 6;
-    L += Math.hypot(segs[o + 3] - segs[o], segs[o + 4] - segs[o + 1], segs[o + 5] - segs[o + 2]);
-    cum[i] = L;
-  }
-  for (let k = 0; k < count; k++) {
-    const t = rnd() * L;
-    let lo = 0, hi = n - 1;
-    while (lo < hi) { const mid = (lo + hi) >> 1; if (cum[mid] < t) lo = mid + 1; else hi = mid; }
-    const o = lo * 6, u = rnd(), q = k * 3;
-    out[q] = segs[o] + (segs[o + 3] - segs[o]) * u;
-    out[q + 1] = segs[o + 1] + (segs[o + 4] - segs[o + 1]) * u;
-    out[q + 2] = segs[o + 2] + (segs[o + 5] - segs[o + 2]) * u;
-  }
-}
-
 /** Суммарная площадь поверхности объекта в мировых единицах. */
 function surfaceArea(root: Object3D, pick?: RegExp, skip?: RegExp): number {
   return collectMeshes(root, pick, skip).reduce((s, m) => s + worldArea(m), 0);
 }
 
-function sampleSurface(roots: Object3D[], count: number, rnd: Rng, out: Float32Array, pick?: RegExp, skip?: RegExp): void {
+/** Диапазон точек одного меша в выдаче сэмплера: по нему точка узнаёт свою деталь. */
+interface MeshRange { mesh: Mesh; from: number; to: number; }
+
+function sampleSurface(
+  roots: Object3D[], count: number, rnd: Rng, out: Float32Array,
+  pick?: RegExp, skip?: RegExp, ranges?: MeshRange[],
+): void {
   const meshes = roots.flatMap(r => collectMeshes(r, pick, skip));
   const areas = meshes.map(worldArea);
   const total = areas.reduce((s, a) => s + a, 0) || 1;
@@ -636,6 +804,7 @@ function sampleSurface(roots: Object3D[], count: number, rnd: Rng, out: Float32A
       const o = (written + k) * 3;
       out[o] = p.x; out[o + 1] = p.y; out[o + 2] = p.z;
     }
+    ranges?.push({mesh: meshes[mi], from: written, to: written + share});
     written += share;
   }
   if (written < count) throw new Error(`сэмплер выдал ${written} точек из ${count}`);
@@ -738,8 +907,12 @@ export default makeScene2D(function* (view) {
 
   const dirLen = alongX ? new Vector3(1, 0, 0) : new Vector3(0, 0, 1);
   const dirWid = alongX ? new Vector3(0, 0, 1) : new Vector3(1, 0, 0);
-  const flat = dirLen.clone().multiplyScalar(Math.cos(CAM_AZ))
-    .addScaledVector(dirWid, Math.sin(CAM_AZ))
+  // Левый борт — up × нос: с этой стороны середина дороги.
+  const fwdCar = dirLen.clone().multiplyScalar(NOSE);
+  const leftCar = new Vector3(0, 1, 0).cross(fwdCar);
+  // Сзади в три четверти, с левого борта.
+  const flat = fwdCar.clone().multiplyScalar(-Math.cos(CAM_AZ))
+    .addScaledVector(leftCar, Math.sin(CAM_AZ))
     .normalize();
   const camDir = new Vector3(
     flat.x * Math.cos(CAM_EL),
@@ -753,18 +926,27 @@ export default makeScene2D(function* (view) {
 
   const camera = new PerspectiveCamera(FOV, Screen.width / Screen.height, 0.1, 400);
 
-  // Одна функция на всю камеру: дыхание кадра и отъезд складываются, угол
-  // возвышения растёт вместе с выносом. Вызывается из onRender по сигналам.
-  const camDirAt = new Vector3();
+  /** Путь машины к моменту t от начала езды: равномерный разгон, потом ровный ход. */
+  function carDistance(t: number): number {
+    if (t <= 0) return 0;
+    if (t < DRIVE_ACC) return (0.5 * DRIVE_V * t * t) / DRIVE_ACC;
+    return DRIVE_V * (t - 0.5 * DRIVE_ACC);
+  }
+
+  /** Скорость машины в момент t от начала езды. */
+  function carSpeed(t: number): number {
+    if (t <= 0) return 0;
+    return t < DRIVE_ACC ? (DRIVE_V * t) / DRIVE_ACC : DRIVE_V;
+  }
+
+  // Одна функция на всю камеру: дыхание кадра на сборке и ход рядом с машиной.
+  // Вызывается из onRender по сигналам.
   const aim = new Vector3();
-  function placeCamera(breathV: number, pullV: number): void {
-    const el = CAM_EL + (CAM_EL2 - CAM_EL) * pullV;
-    camDirAt.set(flat.x * Math.cos(el), Math.sin(el), flat.z * Math.cos(el)).normalize();
-    // flat смотрит ОТ цели К камере, значит вглубь сцены — это минус flat.
-    aim.copy(target).addScaledVector(flat, -TGT_BACK * pullV);
-    aim.y += TGT_UP * pullV;
-    const len = DT * (1 + (CAM_BREATH - 1) * breathV) * (1 + (CAM_PULL - 1) * pullV);
-    camera.position.copy(aim).addScaledVector(camDirAt, len);
+  function placeCamera(breathV: number, driveT: number): void {
+    camera.position.copy(target)
+      .addScaledVector(camDir, DT * (1 + (CAM_BREATH - 1) * breathV))
+      .addScaledVector(fwdCar, carDistance(driveT - CAM_LAG));
+    aim.copy(target).addScaledVector(fwdCar, carDistance(driveT));
     camera.lookAt(aim);
     camera.updateMatrixWorld(true);
   }
@@ -817,7 +999,34 @@ export default makeScene2D(function* (view) {
 
   // ── Точки машины ─────────────────────────────────────────────────────────
   const vanPos = new Float32Array(N * 3);
-  sampleSurface([car], N, rnd, vanPos);
+  const carRanges: MeshRange[] = [];
+  sampleSurface([car], N, rnd, vanPos, undefined, undefined, carRanges);
+
+  // ── Колёса ───────────────────────────────────────────────────────────────
+  // ⚠️ Точка помнит, из какого колеса она взята: сэмплер идёт мешами подряд, и
+  // диапазон индексов каждого меша известен. Левое и правое колёса одной оси
+  // лежат на одной прямой, поэтому осей две — передняя и задняя; в модели меш
+  // колеса и так один на оба борта.
+  const wheelOfVan = new Uint8Array(N);       // 0 — кузов, 1 — передняя ось, 2 — задняя
+  const axleF = new Vector3(), axleR = new Vector3();
+  let wheelR = 0;
+  {
+    const bF = new Box3(), bR = new Box3(), bx = new Box3(), c = new Vector3();
+    let wheelPts = 0;
+    for (const rg of carRanges) {
+      if (!WHEEL_MESH.test(rg.mesh.name)) continue;
+      bx.setFromObject(rg.mesh);
+      const front = bx.getCenter(c).sub(center).dot(fwdCar) > 0;
+      (front ? bF : bR).union(bx);
+      wheelOfVan.fill(front ? 1 : 2, rg.from, rg.to);
+      wheelPts += rg.to - rg.from;
+    }
+    if (bF.isEmpty() || bR.isEmpty()) throw new Error('в модели не нашлись колёса — имена мешей поменялись');
+    bF.getCenter(axleF);
+    bR.getCenter(axleR);
+    wheelR = Math.max(bF.max.y - bF.min.y, bR.max.y - bR.min.y) / 2;
+    console.log(`[машина] колёса: R ${wheelR.toFixed(3)} м, ${wheelPts} точек`);
+  }
 
   const ndcVan = new Float32Array(N * 2);
   {
@@ -839,14 +1048,11 @@ export default makeScene2D(function* (view) {
   // бортовому камню с постоянным шагом, светофоры на углу, тротуар на дальней
   // стороне, дом за линией застройки. Раньше объекты стояли по осям КАДРА и
   // читались как россыпь без всякого смысла.
-  // ⚠️ Улица идёт ПОПЕРЁК кадра, а не в камеру. Экранная горизонталь при
-  // азимуте в тридцать четыре градуса совпадает в основном с поперечной осью
-  // кузова, поэтому продольная ось улицы — именно она. Иначе «вдоль улицы»
-  // означает «в глубину»: фонари вставали вплотную к объективу и вылетали за
-  // край кадра. Машина при этом стоит носом к колонке — так и паркуются на
-  // зарядке, а улица уходит влево-вправо.
-  const roadDir = dirWid.clone().normalize();
-  const roadNrm = dirLen.clone().normalize();
+  // ⚠️ Оси ОТ МАШИНЫ: right — вправо по ходу, fwd — вдоль носа. Улица идёт по
+  // оси машины, и всё, что встанет вдоль неё, задаётся в метрах от осевой
+  // линии и вдоль пути. Прежняя экранная раскладка была под неподвижную камеру.
+  const roadDir = leftCar.clone().negate();
+  const roadNrm = fwdCar.clone();
 
   interface Placed {
     w: WorldObj;
@@ -854,22 +1060,68 @@ export default makeScene2D(function* (view) {
     segs: number[] | null;
     area: number;
     length: number;
+    px?: number;
+    pz?: number;
+    pocket?: Pocket;
   }
-  const placed: Placed[] = WORLD.map((w, i) => {
-    const px = center.x + roadDir.x * w.along + roadNrm.x * w.off;
-    const pz = center.z + roadDir.z * w.along + roadNrm.z * w.off;
+  // ── Карман ───────────────────────────────────────────────────────────────
+  // ⚠️ Телефон торчит из кармана НА САМОЙ ФИГУРЕ, а не висит в воздухе у бедра.
+  // Карман ищется по поверхности бёдер: сторона, видимая камере в конце
+  // отъезда, чуть к краю силуэта наружу от машины — там искра не тонет в
+  // свечении фигуры. Руки на этой высоте отсекаются по радиусу от оси бёдер,
+  // иначе телефон сел бы на кисть и читался «в руке».
+  const camEnd = camPos.clone();               // ракурс на всю сцену один
+  function findPocket(host: Placed): Pocket {
+    const S = 8000;
+    const pts = new Float32Array(S * 3);
+    // Свой генератор: поиск кармана не сдвигает случайную последовательность сцены.
+    sampleSurface([host.root!], S, rng(SEED + 17), pts, host.w.pick, host.w.skip);
+    let yTop = 0;
+    for (let k = 0; k < S; k++) yTop = Math.max(yTop, pts[k * 3 + 1]);
+    const y0 = yTop * (POCKET_Y - 0.03), y1 = yTop * (POCKET_Y + 0.03);
+    let band: number[] = [];
+    for (let k = 0; k < S; k++) if (pts[k * 3 + 1] >= y0 && pts[k * 3 + 1] <= y1) band.push(k);
+    if (band.length < 40) throw new Error(`${host.w.key}: на высоте кармана нет поверхности`);
+    let cx = 0, cz = 0;
+    for (let pass = 0; ; pass++) {
+      cx = 0; cz = 0;
+      for (const k of band) { cx += pts[k * 3]; cz += pts[k * 3 + 2]; }
+      cx /= band.length; cz /= band.length;
+      if (pass === 1) break;
+      const dist = band.map(k => Math.hypot(pts[k * 3] - cx, pts[k * 3 + 2] - cz));
+      const med = [...dist].sort((a, b) => a - b)[dist.length >> 1];
+      band = band.filter((_, j) => dist[j] <= med * 1.15);
+    }
+    const toCam = new Vector3(camEnd.x - cx, 0, camEnd.z - cz).normalize();
+    const side = (host.w.right ?? 1) < 0 ? -1 : 1;
+    const score = (k: number) => {
+      const dx = pts[k * 3] - cx, dz = pts[k * 3 + 2] - cz;
+      return dx * toCam.x + dz * toCam.z + POCKET_SIDE * side * (dx * roadDir.x + dz * roadDir.z);
+    };
+    const top = [...band].sort((a, b) => score(b) - score(a))
+      .slice(0, Math.max(4, Math.round(band.length * 0.04)));
+    let qx = 0, qz = 0;
+    for (const k of top) { qx += pts[k * 3]; qz += pts[k * 3 + 2]; }
+    qx /= top.length; qz /= top.length;
+    const n = new Vector3(qx - cx, 0, qz - cz).normalize();
+    const u = new Vector3(0, 1, 0).applyAxisAngle(n, POCKET_TILT);
+    const t = new Vector3().crossVectors(u, n).normalize();
+    return {c: new Vector3(qx, yTop * POCKET_Y, qz), t, u, n};
+  }
 
-    // Дом — не модель, а рёбра коробок; ставим сразу в мировых координатах.
-    if (w.box) {
-      const raw: number[] = [];
-      boxEdges(w.box[0], w.box[1], w.box[2], 0, raw, w.floor ?? 0, w.cols ?? 0);
-      if (w.setback) boxEdges(w.setback[0], w.setback[1], w.setback[2], w.box[1], raw, w.floor ?? 0, Math.round((w.cols ?? 0) * 0.7));
-      const cs = Math.cos(w.yaw ?? 0), sn = Math.sin(w.yaw ?? 0);
-      const segs: number[] = [];
-      for (let k = 0; k < raw.length; k += 3) {
-        segs.push(px + raw[k] * cs - raw[k + 2] * sn, raw[k + 1], pz + raw[k] * sn + raw[k + 2] * cs);
-      }
-      return {w, root: null, segs, area: 0, length: segLength(segs)};
+  const placed: Placed[] = [];
+  const placeOne = (w: WorldObj, i: number): Placed => {
+    const px = center.x + roadDir.x * (w.right ?? 0) + roadNrm.x * (w.fwd ?? 0);
+    const pz = center.z + roadDir.z * (w.right ?? 0) + roadNrm.z * (w.fwd ?? 0);
+
+    // Дом ряда строится процедурно, прямо в мировых координатах.
+    if (w.house) return {w, root: null, segs: null, area: 0, length: 0, px, pz};
+
+    // Телефону нужна уже поставленная фигура: карман ищется на её поверхности.
+    if (w.pocketOf) {
+      const host = placed.find(p => p.w.key === w.pocketOf);
+      if (!host?.root) throw new Error(`${w.key}: фигура ${w.pocketOf} должна стоять в таблице выше`);
+      return {w, root: null, segs: null, area: 0, length: 0, pocket: findPocket(host)};
     }
 
     // ⚠️ КОПИЯ, а не сам загруженный объект. Один файл упомянут в таблице по
@@ -877,53 +1129,67 @@ export default makeScene2D(function* (view) {
     // означал, что каждая следующая запись двигает предыдущую: в кадре
     // оставалась последняя позиция, а остальные фигуры уезжали к чёрту на кулички.
     // clone(true) разделяет только узлы, геометрия остаётся общей — памяти не ест.
-    const root = (worldGltf[i].scene as Object3D).clone(true);
-    root.updateMatrixWorld(true);
+    const inner = (worldGltf[i].scene as Object3D).clone(true);
+    inner.updateMatrixWorld(true);
     // ⚠️ Габарит считаем по ВЗЯТЫМ мешам, а не по всей модели: у пачки из
     // восьми фонарей центр файла приходится на пустоту между вариантами, и
     // объект уехал бы на десяток метров мимо своего места.
     let pb = new Box3();
-    for (const m of collectMeshes(root, w.pick, w.skip)) pb.expandByObject(m);
+    for (const m of collectMeshes(inner, w.pick, w.skip)) pb.expandByObject(m);
     // Подгонка роста: набор людей приходит десятиметровыми фигурами.
     if (w.height) {
-      root.scale.multiplyScalar(w.height / Math.max(1e-4, pb.max.y - pb.min.y));
-      root.updateMatrixWorld(true);
+      inner.scale.multiplyScalar(w.height / Math.max(1e-4, pb.max.y - pb.min.y));
+      inner.updateMatrixWorld(true);
       pb = new Box3();
-      for (const m of collectMeshes(root, w.pick, w.skip)) pb.expandByObject(m);
+      for (const m of collectMeshes(inner, w.pick, w.skip)) pb.expandByObject(m);
     }
-    root.position.y -= pb.min.y;                       // на нулевую отметку
-    root.position.x -= (pb.min.x + pb.max.x) / 2;
-    root.position.z -= (pb.min.z + pb.max.z) / 2;
-    root.position.x += px;
-    root.position.z += pz;
-    // Вдоль улицы плюс доворот из таблицы.
-    root.rotation.y = Math.atan2(-roadDir.z, roadDir.x) + (w.yaw ?? 0);
+    // ⚠️ Модель кладётся ВНУТРЬ пустого узла, и в ноль сдвигается она, а не он.
+    // Иначе поворот идёт вокруг начала координат ФАЙЛА, а не вокруг объекта: у
+    // пачки людей каждая фигура лежит в своём углу поля в четыреста метров, и
+    // доворот отбрасывал её за кадр. У пачек фонарей и светофоров то же самое,
+    // только на десятке метров — потому и не бросалось в глаза.
+    inner.position.x -= (pb.min.x + pb.max.x) / 2;
+    inner.position.y -= pb.min.y;                      // на нулевую отметку
+    inner.position.z -= (pb.min.z + pb.max.z) / 2;
+    const root = new Object3D();
+    root.add(inner);
+    root.position.set(px, 0, pz);
+    // Лицом к машине плюс доворот из таблицы.
+    root.rotation.y = Math.atan2(-(center.z - pz), center.x - px) + (w.yaw ?? 0);
     root.updateMatrixWorld(true);
-    return {w, root, segs: null, area: surfaceArea(root, w.pick, w.skip), length: 0};
-  });
+    return {w, root, segs: null, area: surfaceArea(root, w.pick, w.skip), length: 0, px, pz};
+  };
+  WORLD.forEach((w, i) => placed.push(placeOne(w, i)));
+  // Дома ряда стоят фасадом к камере: локальная x идёт вдоль ряда.
+  const houseYaw = Math.atan2(roadDir.z, roadDir.x);
 
-  // ⚠️ Бюджет. Дома считаются НЕ по площади: у них точки идут по рёбрам, и
-  // мера там — погонный метр. Сначала снимаем их долю с общего котла, остаток
-  // делим по площадям: D — плотность точек на м² у машины.
-  const lineTotal = placed.reduce((a, p) => a + p.length * (p.w.lineDensity ?? 0), 0);
+  // ⚠️ Плотность объекта считается от СВЕТА машины, а не от остатка бюджета:
+  // яркость машины закреплена (CAR_LIGHT), и «объект чуть тусклее машины» —
+  // это доля от её плотности на м². Добавили объект — остальные не поехали.
+  // Земля, дома ряда и телефоны берут фиксированное число точек: мерить их по
+  // площади бессмысленно — плотность там задаётся расстоянием.
   const carArea = surfaceArea(car);
-  const denom = carArea + placed.reduce((a, p) => a + (p.w.density ?? 1) * p.area, 0);
-  const D = Math.max(0, N - lineTotal) / Math.max(denom, 1e-6);
+  const D = CAR_LIGHT / carArea;
   let assigned = 0;
   const parts = placed.map(p => {
-    const n = p.segs
-      ? Math.round(p.length * (p.w.lineDensity ?? 0))
+    const n = p.w.points !== undefined
+      ? p.w.points
       : Math.max(0, Math.round(D * (p.w.density ?? 1) * p.area));
     assigned += n;
-    return {...p, n};
+    // ⚠️ Яркость стены дома задаётся ОТНОШЕНИЕМ к кузову, а не числом: плотность
+    // дома выбрана под зерно, множитель досчитывается от плотности машины D.
+    const gain = p.w.house ? (HOUSE_REL * D) / HOUSE_PTS : (p.w.gain ?? 1);
+    return {...p, n, gain};
   });
+  assigned += GRID_POINTS;                            // земля
   const N_CAR = N - assigned;
-  if (N_CAR < N * 0.2) {
-    throw new Error(`миру ушло ${assigned} из ${N}: машине осталось меньше пятой части`);
+  const gridDelays = new Float32Array(GRID_POINTS);   // очередь земли — для компенсации яркости машины
+  if (N_CAR < CAR_LIGHT) {
+    throw new Error(`миру ушло ${assigned} из ${N}: машине осталось меньше её света (${CAR_LIGHT})`);
   }
   for (const p of parts) {
-    console.log(p.segs
-      ? `[мир] ${p.w.key}: ${p.length.toFixed(0)} м рёбер, ${p.n} точек`
+    console.log(p.w.points !== undefined
+      ? `[мир] ${p.w.key}: ${p.n} точек, множитель ${p.gain.toFixed(2)}`
       : `[мир] ${p.w.key}: ${p.area.toFixed(1)} м², ${p.n} точек, ${(p.n / Math.max(p.area, 1e-6)).toFixed(0)} точек/м²`);
   }
   console.log(`[мир] машина: ${carArea.toFixed(1)} м², ${N_CAR} точек, ${(N_CAR / carArea).toFixed(0)} точек/м²`);
@@ -938,13 +1204,14 @@ export default makeScene2D(function* (view) {
   const aVia = new Float32Array(N * 3);
   const aSpread = new Float32Array(N * 3);
   const aSeed = new Float32Array(N);
+  const aWheel = new Float32Array(N);        // ось колеса точки, 0 — кузов
   const aDelay = new Float32Array(N);
   const aSpan = new Float32Array(N);
   // Второй дом точки: куда она уходит с машины. У неподвижных совпадает с
   // aTarget — тогда кривая вырождается в точку и полёта не происходит вовсе.
   const aHome2 = new Float32Array(N * 3);
   const aVia2 = new Float32Array(N * 3);
-  const aSched2 = new Float32Array(N * 3);   // (delay, span, group)
+  const aSched2 = new Float32Array(N * 4);   // (delay, span, group, gain)
 
   const pxWorld = (2 * halfH) / Screen.height;   // мир на один экранный пиксель
 
@@ -957,6 +1224,7 @@ export default makeScene2D(function* (view) {
     aTarget[to] = vanPos[vo];
     aTarget[to + 1] = vanPos[vo + 1];
     aTarget[to + 2] = vanPos[vo + 2];
+    aWheel[ti] = wheelOfVan[vi];
 
     // Дуга: середина пути, отведённая к камере и закрученная вокруг оси
     // взгляда. Стечение получает вращение, но кадр не превращается в вихрь.
@@ -1013,7 +1281,7 @@ export default makeScene2D(function* (view) {
   // местом на машине, а delay=1 держит её долю пути в нуле при любом сигнале.
   aHome2.set(aTarget);
   aVia2.set(aTarget);
-  for (let i = 0; i < N; i++) { aSched2[i * 3] = 1; aSched2[i * 3 + 1] = 1; }
+  for (let i = 0; i < N; i++) { aSched2[i * 4] = 1; aSched2[i * 4 + 1] = 1; aSched2[i * 4 + 3] = 1; }
 
   {
     // ⚠️ Подмножество РАВНОМЕРНОЕ по всей поверхности машины. Взять индексы
@@ -1035,8 +1303,13 @@ export default makeScene2D(function* (view) {
       const n = part.n;
       if (n <= 0) continue;
       const pos = new Float32Array(n * 3);
-      if (part.segs) sampleSegments(part.segs, n, rnd, pos);
-      else sampleSurface([part.root!], n, rnd, pos, part.w.pick, part.w.skip);
+      if (part.w.house) {
+        sampleHouse(part.w.house, part.px!, part.pz!, houseYaw, n, rnd, pos);
+      } else if (part.pocket) {
+        samplePhone(part.pocket, n, rnd, pos);
+      } else {
+        sampleSurface([part.root!], n, rnd, pos, part.w.pick, part.w.skip);
+      }
 
       const ndcFrom = new Float32Array(n * 2);
       const ndcTo = new Float32Array(n * 2);
@@ -1068,8 +1341,8 @@ export default makeScene2D(function* (view) {
       for (let r = 0; r < n; r++) rankOf[byHeight[r]] = r;
 
       // Окно появления объекта внутри общего сигнала worldGrowth.
-      const t0 = part.w.t0 ?? 0;
-      const win = Math.max(OBJ_SPAN, part.w.span ?? 1) - OBJ_SPAN;
+      const t0 = GROUND_LEAD + (part.w.t0 ?? 0) * (1 - GROUND_LEAD);
+      const win = Math.max(OBJ_SPAN, (part.w.span ?? 1) * (1 - GROUND_LEAD)) - OBJ_SPAN;
 
       for (let r = 0; r < n; r++) {
         const i = shuf[cursor + oFrom[r]];
@@ -1086,19 +1359,84 @@ export default makeScene2D(function* (view) {
         aVia2[o + 2] = aHome2[o + 2] + (rnd() - 0.5) * 2 * HOVER_JIT;
 
         const q = rankOf[dst] / Math.max(1, n - 1);
-        aSched2[o] = Math.max(0, Math.min(1 - OBJ_SPAN, t0 + q * win + (rnd() - 0.5) * 0.04));
-        aSched2[o + 1] = OBJ_SPAN;
-        aSched2[o + 2] = 1;
+        const so = i * 4;
+        aSched2[so] = Math.max(0, Math.min(1 - OBJ_SPAN, t0 + q * win + (rnd() - 0.5) * 0.04));
+        aSched2[so + 1] = OBJ_SPAN;
+        aSched2[so + 2] = 1;
+        aSched2[so + 3] = part.gain;
       }
       cursor += n;
+    }
+
+    // ── Земля: сетка из точек ────────────────────────────────────────────
+    // Точки берутся со следующих перемешанных индексов машины. Мортон тут не
+    // нужен: переброс идёт на нулевой альфе, связь в кадре не видна.
+    {
+      const sm = (x: number) => { const c = x < 0 ? 0 : x > 1 ? 1 : x; return c * c * (3 - 2 * c); };
+      const halfW = (f: number) => GRID_W0 + GRID_WK * Math.max(0, f - GRID_F0);
+      // Все линии сетки внутри клина обзора, нарезанные по метру.
+      const pc: number[] = [];                        // side0, fwd0, side1, fwd1
+      const fFirst = Math.ceil(GRID_F0 / GRID_CELL) * GRID_CELL;
+      for (let f = fFirst; f <= GRID_F1 + 1e-6; f += GRID_CELL) {
+        const hw = halfW(f);
+        for (let sd = -hw; sd < hw; sd += 1) pc.push(sd, f, Math.min(sd + 1, hw), f);
+      }
+      const hwMax = halfW(GRID_F1);
+      for (let sd = -Math.floor(hwMax / GRID_CELL) * GRID_CELL; sd <= hwMax + 1e-6; sd += GRID_CELL) {
+        const fStart = Math.max(GRID_F0, GRID_F0 + (Math.abs(sd) - GRID_W0) / GRID_WK);
+        for (let f = fStart; f < GRID_F1; f += 1) pc.push(sd, f, sd, Math.min(f + 1, GRID_F1));
+      }
+      // Вес куска — длина с убыванием от машины: у машины пунктир плотный,
+      // к горизонту редеет. Иначе даль сливается в сплошную муаровую пелену.
+      const np = pc.length / 4;
+      const cdf = new Float64Array(np);
+      let acc = 0;
+      for (let k = 0; k < np; k++) {
+        const o = k * 4;
+        const len = Math.hypot(pc[o + 2] - pc[o], pc[o + 3] - pc[o + 1]);
+        const r = Math.hypot((pc[o] + pc[o + 2]) / 2, (pc[o + 1] + pc[o + 3]) / 2);
+        acc += len / (1 + r / GRID_R0);
+        cdf[k] = acc;
+      }
+      for (let g = 0; g < GRID_POINTS; g++) {
+        const t = rnd() * acc;
+        let lo = 0, hi = np - 1;
+        while (lo < hi) { const mid = (lo + hi) >> 1; if (cdf[mid] < t) lo = mid + 1; else hi = mid; }
+        const o = lo * 4, u = rnd();
+        const sd = pc[o] + (pc[o + 2] - pc[o]) * u;
+        const fw = pc[o + 1] + (pc[o + 3] - pc[o + 1]) * u;
+        const r = Math.hypot(sd, fw);
+        const i = shuf[cursor + g];
+        const h3 = i * 3;
+        aHome2[h3] = center.x + roadDir.x * sd + roadNrm.x * fw;
+        aHome2[h3 + 1] = 0;
+        aHome2[h3 + 2] = center.z + roadDir.z * sd + roadNrm.z * fw;
+        // Точка появляется чуть над своим местом и оседает — без бокового
+        // разброса, иначе линии сетки размажутся.
+        aVia2[h3] = aHome2[h3];
+        aVia2[h3 + 1] = GRID_HOVER_MIN + rnd() * GRID_HOVER_VAR;
+        aVia2[h3 + 2] = aHome2[h3 + 2];
+        // Волна от машины наружу: у машины быстро, к горизонту медленно.
+        const delay = Math.max(0, Math.min(1 - OBJ_SPAN,
+          GRID_T_END * Math.pow(r / GRID_WAVE_R, GRID_POW) + (rnd() - 0.5) * 0.02));
+        const fade = 1 - sm((r - GRID_FADE * 0.55) / (GRID_FADE * 0.45));
+        const so = i * 4;
+        aSched2[so] = delay;
+        aSched2[so + 1] = OBJ_SPAN;
+        aSched2[so + 2] = 1;
+        aSched2[so + 3] = GRID_GAIN * Math.min(GRID_COMP_MAX, Math.max(1, r / GRID_COMP_R)) * fade;
+        gridDelays[g] = delay;
+      }
+      cursor += GRID_POINTS;
+      gridDelays.sort();
     }
   }
 
   // Сколько точек и когда уходит с машины — по этому считается компенсация.
   const drain = parts.map(p => ({
     n: p.n,
-    t0: p.w.t0 ?? 0,
-    span: Math.max(OBJ_SPAN, p.w.span ?? 1),
+    t0: GROUND_LEAD + (p.w.t0 ?? 0) * (1 - GROUND_LEAD),
+    span: Math.max(OBJ_SPAN, (p.w.span ?? 1) * (1 - GROUND_LEAD)),
   }));
 
   // ── Облако ───────────────────────────────────────────────────────────────
@@ -1109,11 +1447,12 @@ export default makeScene2D(function* (view) {
   geo.setAttribute('aSpread', new BufferAttribute(aSpread, 3));
   geo.setAttribute('aTint', new BufferAttribute(aTint, 3, true));
   geo.setAttribute('aSeed', new BufferAttribute(aSeed, 1));
+  geo.setAttribute('aWheel', new BufferAttribute(aWheel, 1));
   geo.setAttribute('aDelay', new BufferAttribute(aDelay, 1));
   geo.setAttribute('aSpan', new BufferAttribute(aSpan, 1));
   geo.setAttribute('aHome2', new BufferAttribute(aHome2, 3));
   geo.setAttribute('aVia2', new BufferAttribute(aVia2, 3));
-  geo.setAttribute('aSched2', new BufferAttribute(aSched2, 3));
+  geo.setAttribute('aSched2', new BufferAttribute(aSched2, 4));
 
   const mat = new ShaderMaterial({
     uniforms: {
@@ -1129,6 +1468,13 @@ export default makeScene2D(function* (view) {
       uAGlow: {value: A_GLOW},
       uAVan: {value: A_VAN},
       uCarLift: {value: 1},
+      uCarShift: {value: new Vector3()},
+      uAxleF: {value: axleF},
+      uAxleR: {value: axleR},
+      uAxis: {value: leftCar},
+      uWheelR: {value: wheelR},
+      uWheelDist: {value: 0},
+      uWheelSmear: {value: 0},
       uFlyDim: {value: FLY_DIM},
       uMinPx: {value: PX_MIN},
       uMaxPx: {value: PX_MAX},
@@ -1143,14 +1489,18 @@ export default makeScene2D(function* (view) {
       attribute vec3 aSpread;
       attribute vec3 aTint;
       attribute float aSeed;
+      attribute float aWheel;
       attribute float aDelay;
       attribute float aSpan;
       attribute vec3 aHome2;
       attribute vec3 aVia2;
-      attribute vec3 aSched2;
+      attribute vec4 aSched2;
       uniform float uDissolve, uAssemble, uWorld, uDrain, uRef;
       uniform float uPxText, uPxGlow, uPxVan;
       uniform float uATxt, uAGlow, uAVan, uFlyDim, uCarLift;
+      uniform vec3 uCarShift;
+      uniform vec3 uAxleF, uAxleR, uAxis;
+      uniform float uWheelR, uWheelDist, uWheelSmear;
       uniform float uMinPx, uMaxPx, uFloor;
       uniform float uHandoff, uDropFrom;
       uniform vec3 uInk;
@@ -1176,6 +1526,19 @@ export default makeScene2D(function* (view) {
         float g = ease(clamp((uAssemble - aDelay) / aSpan, 0.0, 1.0));
         float u = 1.0 - g;
         vec3 p = u * u * loose + 2.0 * u * g * aVia + g * g * aTarget;
+        // Такт 3. Колёса крутятся: точка колеса поворачивается вокруг оси на
+        // угол из пройденного пути. Случайная фаза в пределах выдержки кадра
+        // даёт размытие по ходу — иначе спицы стробят.
+        {
+          vec3 ax = mix(uAxleF, uAxleR, step(1.5, aWheel));
+          float th = (uWheelDist - aSeed * uWheelSmear) / uWheelR;
+          vec3 q = p - ax;
+          float c = cos(th), s = sin(th);
+          vec3 rq = q * c + cross(uAxis, q) * s + uAxis * dot(uAxis, q) * (1.0 - c);
+          p = mix(p, ax + rq, step(0.5, aWheel) * g);
+        }
+        // Машина едет: собранное вещество уезжает вместе с ней.
+        p += uCarShift * g;
 
         // Такт 3, шаг 1. Точка гаснет на машине, появляется НАД своим местом и
         // опускается на него. Перелёта в кадре нет: переброс идёт на нулевой
@@ -1204,6 +1567,10 @@ export default makeScene2D(function* (view) {
         float a = mix(aD, uAVan * mix(uCarLift, 1.0, h), g);
         a *= mix(1.0, uFlyDim, 4.0 * g * (1.0 - g));
         a *= mix(1.0, vis, aSched2.z);
+        // ⚠️ Усиление яркости объекта. Дом набран редко — по-другому его на
+        // семидесяти метрах не собрать, — и без множителя он был бы чёрным.
+        // Телефону оно же даёт искру, которую видно на фигуре в семьдесят пикселей.
+        a *= mix(1.0, aSched2.w, h);
         vA = a * clamp(k * k, uFloor, 1.0);
         vTint = mix(srgbToLinear(aTint), uInk, uDrain);
         gl_PointSize = size;
@@ -1238,7 +1605,7 @@ export default makeScene2D(function* (view) {
   const dissolveCode = createSignal(0);   // код → светящиеся полосы
   const assembleCar = createSignal(0);    // вещество → машина
   const worldGrowth = createSignal(0);    // объекты мира встают вокруг машины
-  const cameraHeight = createSignal(0);   // отъезд: начат вместе с колонкой
+  const drive = createSignal(0);          // секунды с начала езды
   
   const returnToCode = createSignal(0);   // такт 5 — вне прототипа
   const breath = createSignal(0);
@@ -1274,7 +1641,13 @@ export default makeScene2D(function* (view) {
       mat.uniforms.uWorld.value = wg;
       let gone = 0;
       for (const d of drain) gone += d.n * Math.min(1, Math.max(0, (wg - d.t0) / d.span));
-      mat.uniforms.uCarLift.value = N_CAR / Math.max(1, N - gone);
+      // Земля уходит с машины по своей очереди — считаем точно, по отсортированным задержкам.
+      {
+        let lo = 0, hi = gridDelays.length;
+        while (lo < hi) { const mid = (lo + hi) >> 1; if (gridDelays[mid] < wg) lo = mid + 1; else hi = mid; }
+        gone += lo;
+      }
+      mat.uniforms.uCarLift.value = CAR_LIGHT / Math.max(1, N - gone);
       // Цвет канона стекает в крем: код уходит вместе со своей палитрой,
       // дальше в кадре только вещество.
       const t = (dis - 0.15) / 0.6;
@@ -1290,8 +1663,12 @@ export default makeScene2D(function* (view) {
       _bloom!.radius = 0.45 + 0.30 * glow;
       _bloom!.threshold = 0.62 - 0.42 * glow - 0.18 * asm;
 
-      // Дыхание кадра (1.8% за восемь секунд) и начало отъезда — одним рычагом.
-      placeCamera(breath(), cameraHeight());
+      // Езда: машина и камера — функции одного сигнала времени.
+      const dt = drive();
+      mat.uniforms.uCarShift.value.copy(fwdCar).multiplyScalar(carDistance(dt));
+      mat.uniforms.uWheelDist.value = carDistance(dt);
+      mat.uniforms.uWheelSmear.value = (carSpeed(dt) * WHEEL_SHUTTER) / FPS;
+      placeCamera(breath(), dt);
 
       _composer.render();
     },
@@ -1308,8 +1685,8 @@ export default makeScene2D(function* (view) {
   //      ⚠️ Полёт начинается ДО конца распада. На стыке в кадре одновременно
   //      стоят ещё читаемые полосы кода и уже летящие одиночные точки — именно
   //      это, а не статичное зерно, объявляет, что материал один и тот же.
-  // 7.6  ТАКТ 3, шаг 1: камера начинает отходить, машина отдаёт пятую часть
-  //      вещества, и справа от неё снизу вверх вырастает зарядная колонка
+  // 7.6  ТАКТ 3: справа от машины снизу вверх встаёт зарядная колонка
+  // 10.2 ТАКТ 4: машина трогается и уезжает вглубь улицы, камера идёт за ней
   yield* all(
     chain(breath(1, 7.6, linear), waitFor(DUR - 7.6)),
     (function* () {
@@ -1319,13 +1696,9 @@ export default makeScene2D(function* (view) {
         chain(waitFor(1.4), assembleCar(1, 4.3, linear)),
       );
       yield* waitFor(0.4);
-      // Отъезд и рост мира идут ОДНИМ движением: объект встаёт ровно тогда,
-      // когда кадр под него открылся. Камера ведёт, мир заполняет.
-      yield* all(
-        cameraHeight(1, 15.5, easeInOutSine),
-        chain(waitFor(0.5), worldGrowth(1, 14.0, linear)),
-      );
-      yield* waitFor(0.9);
+      // Колонка встаёт рядом со стоящей машиной; тронется машина уже от неё.
+      yield* worldGrowth(1, WORLD_T, linear);
+      yield* drive(DUR - 7.6 - WORLD_T, DUR - 7.6 - WORLD_T, linear);
     })(),
   );
 });

@@ -1,6 +1,7 @@
 import {createSignal, SimpleSignal} from '@motion-canvas/core';
 import {
   ACESFilmicToneMapping,
+  AdditiveBlending,
   BackSide,
   Box3,
   BoxGeometry,
@@ -17,6 +18,7 @@ import {
   PCFShadowMap,
   PerspectiveCamera,
   PlaneGeometry,
+  PointLight,
   PMREMGenerator,
   Scene,
   ShadowMaterial,
@@ -113,6 +115,13 @@ function shadowCatcher(): Mesh {
   return m;
 }
 
+/** Три источника одной сцены — наружу, чтобы сцена могла погасить день. */
+export interface StageLights {
+  key: DirectionalLight;
+  rim: DirectionalLight;
+  hemi: HemisphereLight;
+}
+
 /** Стойка депо: узел и её собственные материалы — свет каждой правится отдельно. */
 export interface DepotPost {
   node: Object3D;
@@ -128,6 +137,18 @@ export interface ChargingStage {
   vans: Object3D[];
   postMats: MeshStandardMaterial[];   // эмиссия уличной стойки
   depotPosts: DepotPost[];            // шесть стоек депо, каждая со своим светом
+  lights3: StageLights;               // свет улицы
+  lightsD: StageLights;               // свет депо
+  // Приёмники тени. ⚠️ ShadowMaterial НЕ следит за силой света: тень остаётся
+  // полной и при intensity 0. Сцена, которая гасит ключевой свет, обязана
+  // гасить и opacity приёмника — иначе под машинами ночью висит дневная тень.
+  catcher3: Mesh;
+  catcherD: Mesh;
+  // Дневные значения — чтобы сцена могла вернуться к ним по числу, а не по памяти.
+  // ⚠️ environmentIntensity выставляется ОДИН раз при первом кадре (0.9); сцена,
+  // которой нужна ночь, пишет (sceneD as any).environmentIntensity сама на каждом
+  // кадре ПЕРЕД вызовом frame().
+  DAY: {key: number; rim: number; hemi: number; env: number};
   camera: PerspectiveCamera;
   camAz: number;
   camEl: SimpleSignal<number>;
@@ -154,8 +175,10 @@ export function* buildChargingStage(): Generator<any, ChargingStage> {
 
   // ── Сцена улицы ──────────────────────────────────────────────────────────
   const scene3 = new Scene();
-  scene3.add(shadowCatcher());
-  scene3.add(new HemisphereLight(0xa8c4ff, 0x141a26, 0.22));
+  const catcher3 = shadowCatcher();
+  scene3.add(catcher3);
+  const hemi = new HemisphereLight(0xa8c4ff, 0x141a26, 0.22);
+  scene3.add(hemi);
 
   const key = new DirectionalLight(0xfff2e0, 1.25);
   key.position.set(6.5, 9.0, 5.0);
@@ -174,8 +197,10 @@ export function* buildChargingStage(): Generator<any, ChargingStage> {
 
   // ── Сцена депо (отдельная — у неё свой расфокус и своя прозрачность) ──────
   const sceneD = new Scene();
-  sceneD.add(shadowCatcher());
-  sceneD.add(new HemisphereLight(0xa8c4ff, 0x141a26, 0.22));
+  const catcherD = shadowCatcher();
+  sceneD.add(catcherD);
+  const hemiD = new HemisphereLight(0xa8c4ff, 0x141a26, 0.22);
+  sceneD.add(hemiD);
 
   const keyD = new DirectionalLight(0xfff2e0, 1.25);
   keyD.position.copy(DEPOT_POS).add(new Vector3(6, 12, 7));
@@ -310,6 +335,10 @@ export function* buildChargingStage(): Generator<any, ChargingStage> {
 
   return {
     scene3, sceneD, car, post, depot, vans, postMats, depotPosts,
+    lights3: {key, rim, hemi},
+    lightsD: {key: keyD, rim: rimD, hemi: hemiD},
+    catcher3, catcherD,
+    DAY: {key: 1.25, rim: 0.8, hemi: 0.22, env: 0.9},
     camera, camAz, camEl, camDist, tgtX, tgtY, tgtZ, lookOff, frame,
   };
 }
@@ -394,4 +423,140 @@ export function mountPostCard(
   mesh.rotation.y = post.rotation.y + Math.PI / 2;   // нормаль плоскости = лицо стойки
 
   return {mesh, mat, ctx, tex, width, height};
+}
+
+// ── Панель прибора: тело и типографика ────────────────────────────────────
+// Один набор на все приборы главы — они один слой, а не наклейки под разными
+// стилями. ⚠️ Акт 2 держит свою копию этих же функций внутри сцены (принят, не
+// трогать до миграции); значения обязаны совпадать.
+export const PANEL = {
+  ink: 'rgba(244, 238, 224, 0.95)',
+  inkDim: 'rgba(244, 238, 224, 0.46)',
+  edge: 'rgba(244, 238, 224, 0.30)',
+  glass: 'rgba(7, 9, 13, 0.60)',
+  amber: 'rgba(255, 168, 90, ',
+  hair: 4,
+} as const;
+
+export function roundRect(c: CanvasRenderingContext2D, x: number, y: number,
+                          w: number, h: number, r: number): void {
+  c.beginPath();
+  c.moveTo(x + r, y);
+  c.arcTo(x + w, y, x + w, y + h, r);
+  c.arcTo(x + w, y + h, x, y + h, r);
+  c.arcTo(x, y + h, x, y, r);
+  c.arcTo(x, y, x + w, y, r);
+  c.closePath();
+}
+
+/** Тело панели: стекло + волосяная кромка. Рисуется под содержимым. */
+export function panelBody(c: CanvasRenderingContext2D, w: number, h: number): void {
+  const H = PANEL.hair;
+  roundRect(c, H, H, w - H * 2, h - H * 2, 30);
+  c.fillStyle = PANEL.glass;
+  c.fill();
+  c.lineWidth = H;
+  c.strokeStyle = PANEL.edge;
+  c.stroke();
+}
+
+/** Разрядка прописных — подпись прибора, не бейдж. Возвращает x после текста. */
+export function capsText(c: CanvasRenderingContext2D, text: string, x: number, y: number,
+                         size: number, track: number, fill: string): number {
+  c.font = `600 ${size}px "JetBrains Mono", monospace`;
+  c.fillStyle = fill;
+  let cx = x;
+  for (const ch of text) { c.fillText(ch, cx, y); cx += size * 0.62 + track; }
+  return cx - track;
+}
+
+/** Пятно света на асфальте под объектом. */
+export interface GroundPool {
+  mesh: Mesh;
+  mat: MeshBasicMaterial;
+  light: PointLight;
+  /** Одно число 0..1 зажигает и гасит и пятно, и настоящий свет рядом. */
+  set: (v: number) => void;
+}
+
+// ⚠️ Пятно строится ПОПИКСЕЛЬНО с дизерингом. Плавный радиальный градиент на
+// тёмном асфальте распадается на кольца (полосы Маха на 8 битах); шум в
+// четверть уровня их полностью снимает и на глаз не читается.
+function poolTexture(px = 512): CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = c.height = px;
+  const ctx = c.getContext('2d')!;
+  const img = ctx.createImageData(px, px);
+  const d = img.data;
+  const r = px / 2;
+  for (let y = 0; y < px; y++) {
+    for (let x = 0; x < px; x++) {
+      const dx = (x + 0.5 - r) / r;
+      const dy = (y + 0.5 - r) / r;
+      const t = Math.min(1, Math.sqrt(dx * dx + dy * dy));
+      // Ядро почти ровное, край уходит в ноль без различимой кромки: у света
+      // на земле нет границы, есть затухание.
+      const f = Math.pow(1 - t, 2.4);
+      const a = f * 255 + (Math.random() - 0.5) * 2.4;
+      const i = (y * px + x) * 4;
+      d[i] = 255; d[i + 1] = 255; d[i + 2] = 255;
+      d[i + 3] = Math.max(0, Math.min(255, a));
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  return new CanvasTexture(c);
+}
+
+/**
+ * Свет на асфальте — тем же тёплым, что и живая стойка.
+ *
+ * ⚠️ Это НЕ рамка выделения. Плоскость лежит В плоскости земли, поэтому
+ * перспектива сжимает её вместе с площадкой, а depthTest прячет её за кузовом:
+ * свет ложится ПОД машину, а не поверх неё. Смешение аддитивное — пятно
+ * осветляет асфальт, а не закрывает его плашкой.
+ *
+ * ⚠️ Рядом обязателен настоящий PointLight. Одна плоская заливка читается
+ * наклейкой; светом она становится ровно тогда, когда тот же тёплый ловят
+ * колёса и пороги (канон: свет обязан коснуться геометрии, а не только земли).
+ */
+export function mountGroundPool(
+  scene: Scene,
+  opts: {
+    x: number; z: number; size: number;
+    peak?: number;            // яркость пятна в максимуме
+    lightY?: number;          // высота настоящего источника над землёй
+    lightRange?: number;
+    lightPeak?: number;
+    color?: Color;
+  },
+): GroundPool {
+  const color = opts.color ?? POST_LIVE;
+  const peak = opts.peak ?? 0.5;
+  const lightPeak = opts.lightPeak ?? 5;
+
+  const mat = new MeshBasicMaterial({
+    map: poolTexture(),
+    color: color.clone(),
+    transparent: true,
+    opacity: 0,
+    blending: AdditiveBlending,
+    depthWrite: false,
+  });
+  const mesh = new Mesh(new PlaneGeometry(opts.size, opts.size), mat);
+  mesh.rotation.x = -Math.PI / 2;
+  mesh.position.set(opts.x, 0.012, opts.z);   // над приёмником тени, без z-fighting
+  mesh.renderOrder = 1;
+  scene.add(mesh);
+
+  const light = new PointLight(color.clone(), 0, opts.lightRange ?? 7, 2);
+  light.position.set(opts.x, opts.lightY ?? 0.55, opts.z);
+  scene.add(light);
+
+  return {
+    mesh, mat, light,
+    set: (v: number) => {
+      mat.opacity = v * peak;
+      light.intensity = v * lightPeak;
+    },
+  };
 }
