@@ -181,46 +181,42 @@ const SPREAD_X = 1.25;
 
 // ── Камера ─────────────────────────────────────────────────────────────────
 // Сборка: 1.8% наезда за восемь секунд — дыхание кадра (тот же приём, которым
-// заканчивается предыдущая сцена), а не наезд.
-// ⚠️ Один ракурс на всю сцену: сзади в три четверти, с левого борта. Машина
-// собирается из кода в нём же и уезжает вглубь улицы, камера идёт рядом, не
-// меняя точки зрения. Уход камеры за спину автор отменил: сбоку машина
-// объёмная, дорога уходит не в центр кадра, и только сбоку видно, что крутятся
-// колёса. Облёт на пять секунд отвергнут: слишком долго для сорокасекундной сцены.
-// ⚠️ Угол меньше прежних 34°: камера обязана остаться над проезжей частью, а
-// не над тротуаром, иначе дома слева будут проходить сквозь объектив.
+// заканчивается предыдущая сцена), а не наезд. Ракурс — спереди в три четверти,
+// как в принятом прототипе.
 const FOV = 34;
-const CAM_AZ = 25 * D2R;                    // отклонение от оси кузова назад
+const CAM_AZ = 34 * D2R;                    // отклонение от оси кузова: три четверти
 const CAM_EL = 11 * D2R;
-// ⚠️ Доля ширины кадра под машину. Справа от неё обязана уместиться колонка
-// в два с лишним метра ростом: при 0.52 её макушка упиралась в верхнюю кромку
-// (проверено проекцией, _drivecheck.mjs).
-const FILL = 0.45;
+// ⚠️ Доля ширины кадра под машину. Больше 0.55 — колёса подходят к нижней
+// кромке, и кадр теряет воздух.
+const FILL = 0.52;
 const TGT_DY = -0.16;                       // цель ниже центра кузова: машина встаёт по центру кадра
 const CAM_BREATH = 0.982;
-const NOSE = 1;                             // нос honda_e смотрит в +dirLen (по узлам модели)
 
-// ── Езда ───────────────────────────────────────────────────────────────────
-// Машина разгоняется равномерно и дальше идёт ровно. Камера идёт по её пути с
-// постоянным запаздыванием: на разгоне отстаёт, на ровном ходу дистанция не
-// меняется. Взгляд — на машине.
-// ⚠️ Догон после разгона и опережение взгляда автор отверг: «камера то
-// отдаляется, то приближается». Отдалилась — и дальше ничего не делает.
+// ── Полёт камеры ───────────────────────────────────────────────────────────
+// ⚠️ Машина НИКУДА НЕ ЕДЕТ (решение автора, окончательное). Собравшись, она
+// остаётся на месте, а камера просто летит над ней вперёд, как дрон; объекты встают по сторонам пути по мере приближения. Проезд машины,
+// камеру за спиной и сбоку, крутящиеся колёса автор перебрал и отверг.
 // ⚠️ Всё — функция одного сигнала времени, без накопленного состояния: сцена
 // обязана скрабиться.
-const DRIVE_V = 6.0;                        // крейсерская скорость, м/с
-const DRIVE_ACC = 3.5;                      // разгон, с
-const CAM_LAG = 0.3;                        // запаздывание камеры, с
-
-// ── Колёса ─────────────────────────────────────────────────────────────────
-// Точка колеса поворачивается вокруг своей оси на угол из пройденного пути.
-// ⚠️ На 22 км/ч колесо делает три оборота в секунду, при 30 кадрах в секунду
-// это 36° за кадр — спицы стробят и крутятся назад, как в вестернах. Лечение —
-// выдержка: каждая точка получает случайную фазу в пределах доли кадра, и
-// колесо читается чуть размытым по ходу вращения, как на настоящей камере.
-const WHEEL_MESH = /^(Llanta|TaponLlanta|TornillosLlanta|Pneumatico)/;
-const WHEEL_SHUTTER = 0.7;                  // доля кадра под размытие
-const FPS = 30;
+// ⚠️ БЕЗ НАБОРА ВЫСОТЫ (решение автора). Камера только переносится вперёд по
+// пути: высота и направление взгляда — те же, что на сборке. Любой подъём на
+// старте, даже на метр, пока ход вперёд ещё не набран, читается как взлёт.
+// Над крышей камера проходит с запасом в три десятка сантиметров: машина из
+// точек прозрачна, вблизи крыша рассыпается крупным зерном и уходит под кадр.
+const FLY_START = 8.2;                      // с: машина собрана, под ней уже ложится земля
+const FLY_V = 5.0;                          // крейсерская скорость, м/с
+const FLY_ACC = 1.5;                        // разгон с нуля, с: рывка на старте нет
+// Горизонтальный вынос камеры сборки от центра кузова, DT·cos(CAM_EL). Нужен
+// таблице мира ДО загрузки модели; в сцене сверяется с настоящим DT.
+const CAM_BACK = 6.27;
+// Объект начинает вставать, когда до него остаётся столько метров пути: к концу
+// роста он ещё впереди и в кадре, а не уходит за боковую кромку.
+const REVEAL_AHEAD = 30;
+const REVEAL_DUR = 2.4;                     // с
+// Ближние объекты по расстоянию встали бы все разом на старте полёта — между
+// ними держится шаг по метрам.
+const STREET_FROM = 16;                     // первый объект, м за машиной
+const REVEAL_STAGGER = 0.12;                // с на метр
 
 // ── МИР: таблица объектов ────────────────────────────────────────────────
 // ⚠️ Положение задаётся ОТ МАШИНЫ, а не в мировых осях: столько-то метров
@@ -240,12 +236,15 @@ interface WorldObj {
   pick?: RegExp;                            // какие меши брать из пачки
   skip?: RegExp;                            // какие выбросить
   density?: number;                         // плотность точек относительно машины
-  house?: HouseSpec;                        // дом ряда
+  house?: HouseSpec;                        // дом (ряда или улицы)
+  street?: 'right';                         // дом улицы: фасадом к дороге
   pocketOf?: string;                        // телефон: ключ фигуры, в чьём он кармане
   points?: number;                          // точек на объект (вместо плотности)
   gain?: number;                            // множитель яркости точек объекта
-  t0?: number;                              // начало появления, доля worldGrowth
-  span?: number;                            // длительность появления, доля worldGrowth
+  at?: number;                              // начало появления, секунды сцены
+  dur?: number;                             // длительность появления, с
+  t0?: number;                              // (старая раскладка) начало, доля worldGrowth
+  span?: number;                            // (старая раскладка) длительность, доля
 }
 
 // ── РЯД ДОМОВ ──────────────────────────────────────────────────────────────
@@ -267,6 +266,9 @@ interface HouseSpec {
   floors: number;
   /** Боковые стены −x и +x. null — стена смотрит от камеры и не строится. */
   sides: [SideCover | null, SideCover | null];
+  /** Окна и этажи на боковой стене. У дома ряда бок — глухой брандмауэр, у
+   *  отдельно стоящего дома улицы торец смотрит в камеру и обязан быть фасадом. */
+  sideWin?: boolean;
 }
 /** Кусок боковой стены, закрытый соседом: [z0, z1] по глубине × [0, y1] по высоте. */
 interface SideCover { z0: number; z1: number; y1: number; }
@@ -283,6 +285,11 @@ const SIDE_K = 0.5;                         // бок виден под угло
 const BAND_SHARE = 0.20;                    // доля точек на междуэтажных отметках
 const CORNICE_SHARE = 0.04;                 // и на кромке крыши
 const HOUSE_T0 = 0.60, HOUSE_STEP = 0.022, HOUSE_SPAN = 0.16;
+// ⚠️ Дом улицы — объект, а не фон. На яркости дома ряда (0.14 от кузова) он
+// читался серой пылью рядом со светящейся машиной (кадр 15.5 с). Плотнее —
+// ради зерна на тридцати метрах, ярче — чтобы окна читались окнами.
+const STREET_PTS = 700;
+const STREET_REL = 0.32;
 
 // Слева направо. Широкий дом по центру стоит за мачтой.
 const ROW: {w: number; floors: number; set: number}[] = [
@@ -305,24 +312,30 @@ function windowBays(w: number): {nb: number; bw: number; ww: number} {
   return {nb, bw, ww: Math.min(WIN_W, bw * 0.6)};
 }
 
-function windowAt(spec: HouseSpec, lx: number, ly: number): boolean {
+/** Попадает ли точка стены шириной width в оконный проём. u — от середины стены. */
+function winAt(width: number, floors: number, u: number, ly: number): boolean {
   const k = Math.floor(ly / STOREY);
-  if (k < 0 || k >= spec.floors) return false;
+  if (k < 0 || k >= floors) return false;
   const fy = ly - k * STOREY;
   if (fy < WIN_SILL || fy > WIN_SILL + WIN_H) return false;
-  const {nb, bw, ww} = windowBays(spec.w);
-  const j = Math.min(nb - 1, Math.floor((lx + spec.w / 2) / bw));
-  return Math.abs(lx - (-spec.w / 2 + (j + 0.5) * bw)) < ww / 2;
+  const {nb, bw, ww} = windowBays(width);
+  const j = Math.min(nb - 1, Math.floor((u + width / 2) / bw));
+  return Math.abs(u - (-width / 2 + (j + 0.5) * bw)) < ww / 2;
+}
+
+function winArea(width: number, floors: number): number {
+  const {nb, ww} = windowBays(width);
+  return floors * nb * ww * WIN_H;
 }
 
 function frontArea(spec: HouseSpec): number {
-  const {nb, ww} = windowBays(spec.w);
-  return spec.w * spec.h - spec.floors * nb * ww * WIN_H;
+  return spec.w * spec.h - winArea(spec.w, spec.floors);
 }
 
 function sideArea(spec: HouseSpec, s: 0 | 1): number {
   const c = spec.sides[s];
-  return c ? spec.d * spec.h - Math.max(0, c.z1 - c.z0) * c.y1 : 0;
+  if (!c) return 0;
+  return spec.d * spec.h - Math.max(0, c.z1 - c.z0) * c.y1 - (spec.sideWin ? winArea(spec.d, spec.floors) : 0);
 }
 
 function houseRow(): WorldObj[] {
@@ -361,25 +374,32 @@ function sampleHouse(
 ): void {
   const {w, h, d} = spec;
   const front = frontArea(spec);
-  const left = sideArea(spec, 0) * SIDE_K;
-  const total = front + left + sideArea(spec, 1) * SIDE_K;
+  // Бок дома ряда виден под углом и копит яркость — его прореживаем; торец
+  // отдельного дома смотрит в камеру и набирается как фасад.
+  const sideK = spec.sideWin ? 1 : SIDE_K;
+  const left = sideArea(spec, 0) * sideK;
+  const total = front + left + sideArea(spec, 1) * sideK;
   const cs = Math.cos(yaw), sn = Math.sin(yaw);
   const top = spec.floors * STOREY;
   for (let k = 0; k < count; k++) {
     let lx = 0, ly = 0, lz = 0;
     const t = rnd() * total;
     if (t < front) {
-      do { lx = (rnd() - 0.5) * w; ly = rnd() * h; } while (windowAt(spec, lx, ly));
-      // Этажи и кромка крыши: ровная россыпь по стене без них читается занавесом.
-      const r = rnd();
-      if (r < BAND_SHARE) ly = Math.min(top, Math.round(ly / STOREY) * STOREY) + (rnd() - 0.5) * 0.10;
-      else if (r < BAND_SHARE + CORNICE_SHARE) ly = h - rnd() * 0.08;
+      do { lx = (rnd() - 0.5) * w; ly = rnd() * h; } while (winAt(w, spec.floors, lx, ly));
       lz = d / 2;
     } else {
       const s = t - front < left ? 0 : 1;
       const c = spec.sides[s]!;
-      do { lz = (rnd() - 0.5) * d; ly = rnd() * h; } while (lz > c.z0 && lz < c.z1 && ly < c.y1);
+      do { lz = (rnd() - 0.5) * d; ly = rnd() * h; }
+      while ((lz > c.z0 && lz < c.z1 && ly < c.y1) || (!!spec.sideWin && winAt(d, spec.floors, lz, ly)));
       lx = s === 0 ? -w / 2 : w / 2;
+    }
+    // Этажи и кромка крыши: ровная россыпь по стене без них читается занавесом.
+    // Глухой бок дома ряда их не получает — там брандмауэр, а не фасад.
+    if (t < front || spec.sideWin) {
+      const r = rnd();
+      if (r < BAND_SHARE) ly = Math.min(top, Math.round(ly / STOREY) * STOREY) + (rnd() - 0.5) * 0.10;
+      else if (r < BAND_SHARE + CORNICE_SHARE) ly = h - rnd() * 0.08;
     }
     const o = k * 3;
     out[o] = cx + lx * cs - lz * sn;
@@ -417,75 +437,116 @@ function samplePhone(pk: Pocket, count: number, rnd: Rng, out: Float32Array): vo
   }
 }
 
-// ⚠️ Мир ВЫКЛЮЧЕН: сцена перестраивается под проезд по улице, и объекты,
-// расставленные вокруг стоящей машины под старую камеру, мешают. Таблица
-// оставлена — модели, лицензии и параметры пригодятся для улицы.
-const WORLD_ON = false;
+// ── ЗЕМЛЯ: сетка из точек ──────────────────────────────────────────────────
+// Общая земля вместо площадок под каждым объектом (площадки автор отверг).
+// Сначала ложится под машиной волной от неё наружу — сразу после сборки, — а
+// дальше растёт впереди камеры с запасом перед объектами: земля под объектом
+// обязана лечь РАНЬШЕ него. На лету линии проходят под камерой и дают скорость.
+// ⚠️ Риск — Трон: ровная яркая сетка на чёрном выглядит дешёвым синтвейвом.
+// Поэтому она тише любого объекта, из тех же точек и гаснет к горизонту.
+const GRID_CELL = 3.0;                      // шаг, м
+const GRID_HALF = 24;                       // полуширина полосы вдоль пути, м
+const GRID_F0 = -4, GRID_F1 = 85;           // от нижней кромки стартового кадра вперёд по пути
+const GRID_PPM = 45;                        // точек на погонный метр линии
+const GRID_GAIN = 0.5;
+const GRID_START = 7.2;                     // с: машина собрана — под ней ложится земля
+const GRID_INTRO = 1.2;                     // с: волна от машины до радиуса GRID_INTRO_R
+const GRID_INTRO_R = 25;
+const GRID_POW = 0.55;                      // у машины быстро, к краю медленнее
+const GRID_AHEAD = 45;                      // дальше земля встаёт на столько впереди камеры, м
+const GRID_HOVER_MIN = 0.22, GRID_HOVER_VAR = 0.30;
+// У линии яркость на пиксель длины падает с глубиной (у поверхности — нет),
+// поэтому линии выравниваются по глубине от камеры прямо в шейдере: камера
+// летит, и статичный множитель от расстояния тут не годится. С потолком — иначе
+// за зажимом размера точки даль вышла бы ярче ближнего. К горизонту гаснут.
+const LINE_COMP_R = 13, LINE_COMP_MAX = 8;
+const LINE_FADE0 = 45, LINE_FADE1 = 95;
 
-// ⚠️ Колонка у правого борта, чуть позади середины кузова: на кадре она встаёт
-// справа от машины и не залезает на её силуэт (проверено проекцией,
-// _drivecheck.mjs). Растёт снизу вверх сразу после сборки машины, и машина
-// трогается уже от неё.
+interface GridSeg { r0: number; f0: number; r1: number; f1: number; }
+function gridSegments(): GridSeg[] {
+  const out: GridSeg[] = [];
+  for (let r = -GRID_HALF; r <= GRID_HALF + 1e-6; r += GRID_CELL) out.push({r0: r, f0: GRID_F0, r1: r, f1: GRID_F1});
+  for (let f = Math.ceil(GRID_F0 / GRID_CELL) * GRID_CELL; f <= GRID_F1 + 1e-6; f += GRID_CELL) {
+    out.push({r0: -GRID_HALF, f0: f, r1: GRID_HALF, f1: f});
+  }
+  return out;
+}
+const GRID_POINTS = Math.round(GRID_PPM * gridSegments().reduce((a, g) => a + Math.hypot(g.r1 - g.r0, g.f1 - g.f0), 0));
+
+/** Когда встаёт точка земли: волна от машины, дальше — впереди летящей камеры. */
+function gridRevealAt(right: number, fwd: number): number {
+  const wave = GRID_START + GRID_INTRO * Math.pow(Math.hypot(right, fwd) / GRID_INTRO_R, GRID_POW);
+  return Math.max(wave, FLY_START + flyTimeAt(fwd + CAM_BACK - GRID_AHEAD));
+}
+
+// ── Путь камеры: время появления по расстоянию ─────────────────────────────
+/** Путь камеры к моменту t от начала полёта: равномерный разгон, потом ровный ход. */
+function flyDistance(t: number): number {
+  if (t <= 0) return 0;
+  if (t < FLY_ACC) return (0.5 * FLY_V * t * t) / FLY_ACC;
+  return FLY_V * (t - 0.5 * FLY_ACC);
+}
+
+/** Обратная к flyDistance: когда камера пролетит путь s. */
+function flyTimeAt(s: number): number {
+  if (s <= 0) return 0;
+  const sAcc = 0.5 * FLY_V * FLY_ACC;
+  return s < sAcc ? Math.sqrt((2 * s * FLY_ACC) / FLY_V) : FLY_ACC + (s - sAcc) / FLY_V;
+}
+
+/** Секунда сцены, когда объект в fwd метрах за машиной начинает вставать. */
+function revealAt(fwd: number): number {
+  return FLY_START + Math.max(flyTimeAt(fwd + CAM_BACK - REVEAL_AHEAD), Math.max(0, fwd - STREET_FROM) * REVEAL_STAGGER);
+}
+
+// ── МИР: столбы и люди вдоль пути ──────────────────────────────────────────
+// Путь камеры идёт над машиной дальше вперёд, объекты стоят по обе стороны:
+// right — вбок по кадру от линии полёта, fwd — метров вперёд от центра кузова.
+// Столбы держат ритм улицы, люди ближе к линии полёта, у каждого телефон в
+// кармане. Разворот по умолчанию — лицом к машине, то есть к подлетающей камере.
+// ⚠️ Первые объекты стоят сразу за машиной и встают, пока камера ещё
+// поднимается: мир начинается за машиной, а не где-то впереди.
+function onStreet(o: WorldObj & {fwd: number}): WorldObj {
+  return {...o, at: revealAt(o.fwd), dur: REVEAL_DUR};
+}
+
+/** Человек и телефон в кармане: телефон проявляется, когда фигура уже стоит. */
+function person(key: string, id: string, fwd: number, right: number, height: number, yaw: number): WorldObj[] {
+  const at = revealAt(fwd);
+  return [
+    {key, url: '/lowpoly_people__waldo.pts.glb', pick: new RegExp(`^${id}_person`),
+     right, fwd, yaw, height, density: 1.0, at, dur: REVEAL_DUR},
+    {key: `${key}-phone`, pocketOf: key, points: 600, gain: 3.2, at: at + REVEAL_DUR * 0.7, dur: 0.9},
+  ];
+}
+
+const LAMPS = '/various_low-poly_street_lights.pts.glb';
+const LIGHTS = '/traffic_lights_street_assets_vol._02.pts.glb';
+
 const WORLD: WorldObj[] = [
+  // Колонка справа от машины, как в принятом прототипе; встаёт снизу вверх
+  // ОДНОВРЕМЕННО с машиной — пока на кузов садятся точки.
   {key: 'charger', url: '/charging_station.pts.glb',
-   right: 2.6, fwd: -0.9, density: 0.90, t0: 0.00, span: 1.00},
-
-  // ⚠️ Числа ниже — под ПРЕЖНЮЮ экранную раскладку вокруг стоящей машины; для
-  // улицы их предстоит задать заново вдоль дороги.
-  ...(!WORLD_ON ? [] : [
-
-  // Пачка светофоров: в файле два объекта, транспортный и пешеходный. Берём
-  // оба — тип, повторённый дважды, читается как система, а не как один прибор.
-  {key: 'light-veh', url: '/traffic_lights_street_assets_vol._02.pts.glb', pick: /^Light_/,
-   right: -3.60, fwd: 2.60, density: 1.00, t0: 0.11, span: 0.14},
-  {key: 'light-ped', url: '/traffic_lights_street_assets_vol._02.pts.glb', pick: /^Pedestrian_/,
-   right: -7.00, fwd: 0.80, density: 0.90, t0: 0.18, span: 0.13},
-
-  // ── люди, у каждого телефон в кармане ─────────────────────────────────
-  // ⚠️ Телефон — крошечная коробка с сильным усилением яркости, посаженная в
-  // карман на поверхности самой фигуры (см. findPocket). Позой фигура его не
-  // покажет: на таком выносе человек — силуэт в сотню пикселей. А яркая искра,
-  // торчащая из кармана, читается. Точек меньше, чем на целый телефон: из
-  // кармана торчат две трети.
-  {key: 'man-1', url: '/lowpoly_people__waldo.pts.glb', pick: /^21_person/,
-   right: 3.40, fwd: 2.10, height: 1.75, density: 1.00, t0: 0.24, span: 0.10},
-  {key: 'phone-1', pocketOf: 'man-1', points: 600, gain: 3.2, t0: 0.28, span: 0.05},
-
-  {key: 'lamp-a', url: '/various_low-poly_street_lights.pts.glb', pick: /^polySurface69_/,
-   right: 6.20, fwd: 2.60, density: 0.80, t0: 0.31, span: 0.14},
-
-  {key: 'man-2', url: '/lowpoly_people__waldo.pts.glb', pick: /^134_person/,
-   right: -2.20, fwd: 3.30, yaw: 2.1, height: 1.72, density: 1.00, t0: 0.36, span: 0.10},
-  {key: 'phone-2', pocketOf: 'man-2', points: 600, gain: 3.2, t0: 0.40, span: 0.05},
-
-  // Вторая машина.
-  {key: 'ambulance', url: '/shvan_92_ambulance_-_low_poly_model.pts.glb',
-   skip: /Interior|Bottom|Suspension|Runningboard/,
-   right: -6.00, fwd: 6.40, yaw: 0.35, density: 0.34, t0: 0.44, span: 0.15},
-
-  {key: 'man-3', url: '/lowpoly_people__waldo.pts.glb', pick: /^191_person/,
-   right: 5.60, fwd: 4.60, yaw: -1.2, height: 1.78, density: 1.00, t0: 0.50, span: 0.10},
-  {key: 'phone-3', pocketOf: 'man-3', points: 600, gain: 3.2, t0: 0.54, span: 0.05},
-
-  {key: 'cctv', url: '/lamppost_with_cctv_cameras.pts.glb',
-   right: 1.00, fwd: 8.60, density: 0.85, t0: 0.56, span: 0.15},
-
-  {key: 'lamp-b', url: '/various_low-poly_street_lights.pts.glb', pick: /^polySurface88_/,
-   right: 9.00, fwd: 6.00, density: 0.70, t0: 0.63, span: 0.14},
-
-  // ⚠️ У остановки 67 м² приходится на плоскость пола (два треугольника) и ещё
-  // 29 — на плоские щиты рекламы. В точках это светящиеся прямоугольники без
-  // текстур, а по бюджету — треть всего мира. Выбрасываем.
-  {key: 'busstop', url: '/bus_station.pts.glb', skip: /Floor|Signs/,
-   right: -9.50, fwd: 10.50, density: 0.20, t0: 0.69, span: 0.15},
-
-  // Ряд домов за улицей — последним, от центра к краям.
-  ...houseRow(),
-  ] as WorldObj[]),
+   right: 2.35, fwd: 0.30, density: 0.90, at: 4.3, dur: 2.9},
+  onStreet({key: 'lamp-1', url: LAMPS, pick: /^polySurface69_/, right: 5.5, fwd: 16, density: 0.8}),
+  ...person('man-1', '21', 19, 4.3, 1.75, 0.5),
+  onStreet({key: 'lamp-2', url: LAMPS, pick: /^polySurface88_/, right: -5.5, fwd: 23, density: 0.7}),
+  ...person('man-2', '134', 27, -4.5, 1.72, -0.6),
+  // Пачка светофоров: транспортный справа, пешеходный напротив — перекрёсток.
+  onStreet({key: 'light-veh', url: LIGHTS, pick: /^Light_/, right: 5.2, fwd: 32, density: 1.0}),
+  onStreet({key: 'light-ped', url: LIGHTS, pick: /^Pedestrian_/, right: -5.0, fwd: 33, density: 0.9}),
+  ...person('man-3', '191', 36, 4.4, 1.78, 0.9),
+  onStreet({key: 'cctv', url: '/lamppost_with_cctv_cameras.pts.glb', right: -6.0, fwd: 42, density: 0.85}),
+  onStreet({key: 'lamp-3', url: LAMPS, pick: /^polySurface69_/, right: 5.5, fwd: 47, density: 0.8}),
+  ...person('man-4', '71', 50, -4.3, 1.70, -0.3),
+  onStreet({key: 'lamp-4', url: LAMPS, pick: /^polySurface88_/, right: -5.5, fwd: 55, density: 0.7}),
+  ...person('man-5', '264', 60, 4.4, 1.80, 0.2),
+  onStreet({key: 'lamp-5', url: LAMPS, pick: /^polySurface69_/, right: 5.5, fwd: 64, density: 0.8}),
 ];
 
-// ⚠️ Прототип проезда: машина и колонка. Полная сцена — около сорока секунд.
-const DUR = 18.6;
+// ⚠️ Прототип полёта: машина с колонкой, земля, затем столбы и люди. Полная сцена — около сорока
+// секунд.
+const DUR = 20.0;
 
 // ── Полёт ──────────────────────────────────────────────────────────────────
 // ⚠️ Задержка назначается по КВАНТИЛЮ расстояния цели от центра кузова, а не
@@ -507,46 +568,32 @@ const FLY_SPAN = 0.34;                      // доля сигнала на по
 // и окно схлопывалось в ноль: все точки объекта получали одну и ту же задержку,
 // объект возникал целиком, а не рос снизу. Ровно это и сломало анимацию.
 // Правило: OBJ_SPAN обязан быть заметно меньше самого короткого span в таблице.
-// ⚠️ Проход точки задан в СЕКУНДАХ и пересчитан в долю сигнала: сигнал теперь
-// короткий (одна колонка), а вставать точка обязана так же неспешно, как
-// раньше при четырнадцати секундах на весь мир.
-const WORLD_T = 2.6;                        // длительность сигнала worldGrowth, с
+// ⚠️ Часы мира — один сигнал worldGrowth, а окна появления в таблице заданы в
+// СЕКУНДАХ сцены: объекты встают по ходу полёта. Проход одной точки тоже в
+// секундах, пересчитан в долю сигнала.
+const WORLD_START = Math.min(GRID_START, ...WORLD.map(w => w.at ?? FLY_START));
+const WORLD_T = Math.max(gridRevealAt(GRID_HALF, GRID_F1) + 0.77, ...WORLD.map(w => (w.at ?? 0) + (w.dur ?? 0))) - WORLD_START;
+if (WORLD_START + WORLD_T > DUR) {
+  throw new Error(`мир не успевает встать до конца сцены: ${(WORLD_START + WORLD_T).toFixed(1)} с > ${DUR} с`);
+}
 const OBJ_SPAN = 0.77 / WORLD_T;
+
+/** Секунды сцены → доля сигнала worldGrowth. */
+function worldFrac(sec: number): number {
+  return (sec - WORLD_START) / WORLD_T;
+}
+
+/** Окно появления объекта в долях сигнала: секунды из таблицы или старые доли. */
+function schedOf(w: WorldObj): {t0: number; span: number} {
+  if (w.at !== undefined) return {t0: worldFrac(w.at), span: (w.dur ?? 1) / WORLD_T};
+  return {t0: w.t0 ?? 0, span: w.span ?? 1};
+}
 const HANDOFF = 0.30;                       // доля пути до переброса
 const DROP_FROM = 0.48;                     // с этого места точка начинает опускаться
 const HOVER_MIN = 0.55;                     // метров над целью
 const HOVER_VAR = 0.85;
 const HOVER_JIT = 0.25;                     // разброс вбок: облако, а не копия объекта
 
-// ── ЗЕМЛЯ: сетка из точек ──────────────────────────────────────────────────
-// ⚠️ Одна общая земля вместо площадок под каждым объектом (площадки автор
-// отверг). Сетка растёт от машины наружу ПЕРВОЙ, объекты встают уже на неё —
-// «someone's work becomes the ground for someone else's». Ряд домов встаёт
-// на её дальний край.
-// ⚠️ Риск — Трон: ровная яркая сетка на чёрном выглядит дешёвым синтвейвом.
-// Поэтому она тише любого объекта, пунктиром из тех же точек и гаснет к горизонту.
-// ⚠️ Сетка обрезана по фасадам ряда: за домами земли не видно, а в точках без
-// окклюзии она просвечивала бы сквозь стены. Точек ровно столько, сколько
-// приходилось на этот кусок, когда сетка тянулась на полтораста метров, —
-// у машины плотность и вид прежние.
-const GRID_POINTS = WORLD_ON ? 37_000 : 0;
-const GRID_CELL = 3.0;                      // шаг сетки, м
-const GRID_F0 = -4, GRID_F1 = ROW_F;          // вдоль взгляда: чуть перед машиной и до фасадов
-const GRID_W0 = 12, GRID_WK = 0.62;         // клин обзора: полуширина = W0 + WK·(f − F0)
-const GRID_R0 = 10;                         // спад плотности точек с расстоянием
-const GRID_FADE = 175;                      // к этому радиусу сетка гаснет
-const GRID_GAIN = 0.55;
-// За зажимом размера точки линия тускнеет с расстоянием. Компенсация линейная
-// и с потолком — иначе дальняя сетка выйдет ярче ближней.
-const GRID_COMP_R = 13, GRID_COMP_MAX = 8;
-const GRID_T_END = 0.66;                    // когда волна доходит до края
-const GRID_POW = 0.55;                      // волна быстрая у машины, медленная к горизонту
-// Скорость волны прежняя: до этого радиуса она доходила за GRID_T_END, когда
-// сетка тянулась на полтораста метров. У машины земля ложится как раньше.
-const GRID_WAVE_R = 184.5;
-const GRID_HOVER_MIN = 0.22, GRID_HOVER_VAR = 0.30;
-// Объекты сдвинуты позже на эту долю: земля под ними обязана лечь РАНЬШЕ них.
-const GROUND_LEAD = GRID_POINTS > 0 ? 0.10 : 0;
 const SWIRL = 0.20;                         // закрутка вокруг оси взгляда, рад
 const BOW_NEAR = 0.93;                      // дуга выгибается К камере
 const BOW_OUT = 1.06;                       // и чуть наружу
@@ -907,12 +954,8 @@ export default makeScene2D(function* (view) {
 
   const dirLen = alongX ? new Vector3(1, 0, 0) : new Vector3(0, 0, 1);
   const dirWid = alongX ? new Vector3(0, 0, 1) : new Vector3(1, 0, 0);
-  // Левый борт — up × нос: с этой стороны середина дороги.
-  const fwdCar = dirLen.clone().multiplyScalar(NOSE);
-  const leftCar = new Vector3(0, 1, 0).cross(fwdCar);
-  // Сзади в три четверти, с левого борта.
-  const flat = fwdCar.clone().multiplyScalar(-Math.cos(CAM_AZ))
-    .addScaledVector(leftCar, Math.sin(CAM_AZ))
+  const flat = dirLen.clone().multiplyScalar(Math.cos(CAM_AZ))
+    .addScaledVector(dirWid, Math.sin(CAM_AZ))
     .normalize();
   const camDir = new Vector3(
     flat.x * Math.cos(CAM_EL),
@@ -926,27 +969,21 @@ export default makeScene2D(function* (view) {
 
   const camera = new PerspectiveCamera(FOV, Screen.width / Screen.height, 0.1, 400);
 
-  /** Путь машины к моменту t от начала езды: равномерный разгон, потом ровный ход. */
-  function carDistance(t: number): number {
-    if (t <= 0) return 0;
-    if (t < DRIVE_ACC) return (0.5 * DRIVE_V * t * t) / DRIVE_ACC;
-    return DRIVE_V * (t - 0.5 * DRIVE_ACC);
+  // Направление полёта: по горизонтали от камеры сборки через машину вперёд.
+  const pathDir = new Vector3(-flat.x, 0, -flat.z).normalize();
+  if (Math.abs(DT * Math.cos(CAM_EL) - CAM_BACK) > 0.15) {
+    throw new Error(`CAM_BACK=${CAM_BACK} разошёлся с выносом камеры ${(DT * Math.cos(CAM_EL)).toFixed(2)} — поправь константу`);
   }
 
-  /** Скорость машины в момент t от начала езды. */
-  function carSpeed(t: number): number {
-    if (t <= 0) return 0;
-    return t < DRIVE_ACC ? (DRIVE_V * t) / DRIVE_ACC : DRIVE_V;
-  }
-
-  // Одна функция на всю камеру: дыхание кадра на сборке и ход рядом с машиной.
-  // Вызывается из onRender по сигналам.
+  // Одна функция на всю камеру: дыхание кадра на сборке и полёт над машиной.
+  // Вызывается из onRender по сигналам. Камера только переносится вперёд по
+  // пути, направление взгляда не меняется.
   const aim = new Vector3();
-  function placeCamera(breathV: number, driveT: number): void {
+  function placeCamera(breathV: number, flyT: number): void {
     camera.position.copy(target)
       .addScaledVector(camDir, DT * (1 + (CAM_BREATH - 1) * breathV))
-      .addScaledVector(fwdCar, carDistance(driveT - CAM_LAG));
-    aim.copy(target).addScaledVector(fwdCar, carDistance(driveT));
+      .addScaledVector(pathDir, flyDistance(flyT));
+    aim.copy(camera.position).addScaledVector(camDir, -DT);
     camera.lookAt(aim);
     camera.updateMatrixWorld(true);
   }
@@ -999,34 +1036,7 @@ export default makeScene2D(function* (view) {
 
   // ── Точки машины ─────────────────────────────────────────────────────────
   const vanPos = new Float32Array(N * 3);
-  const carRanges: MeshRange[] = [];
-  sampleSurface([car], N, rnd, vanPos, undefined, undefined, carRanges);
-
-  // ── Колёса ───────────────────────────────────────────────────────────────
-  // ⚠️ Точка помнит, из какого колеса она взята: сэмплер идёт мешами подряд, и
-  // диапазон индексов каждого меша известен. Левое и правое колёса одной оси
-  // лежат на одной прямой, поэтому осей две — передняя и задняя; в модели меш
-  // колеса и так один на оба борта.
-  const wheelOfVan = new Uint8Array(N);       // 0 — кузов, 1 — передняя ось, 2 — задняя
-  const axleF = new Vector3(), axleR = new Vector3();
-  let wheelR = 0;
-  {
-    const bF = new Box3(), bR = new Box3(), bx = new Box3(), c = new Vector3();
-    let wheelPts = 0;
-    for (const rg of carRanges) {
-      if (!WHEEL_MESH.test(rg.mesh.name)) continue;
-      bx.setFromObject(rg.mesh);
-      const front = bx.getCenter(c).sub(center).dot(fwdCar) > 0;
-      (front ? bF : bR).union(bx);
-      wheelOfVan.fill(front ? 1 : 2, rg.from, rg.to);
-      wheelPts += rg.to - rg.from;
-    }
-    if (bF.isEmpty() || bR.isEmpty()) throw new Error('в модели не нашлись колёса — имена мешей поменялись');
-    bF.getCenter(axleF);
-    bR.getCenter(axleR);
-    wheelR = Math.max(bF.max.y - bF.min.y, bR.max.y - bR.min.y) / 2;
-    console.log(`[машина] колёса: R ${wheelR.toFixed(3)} м, ${wheelPts} точек`);
-  }
+  sampleSurface([car], N, rnd, vanPos);
 
   const ndcVan = new Float32Array(N * 2);
   {
@@ -1042,17 +1052,11 @@ export default makeScene2D(function* (view) {
     }
   }
 
-  // ── Мир: улица ──────────────────────────────────────────────────────────
-  // ⚠️ Оси УЛИЧНЫЕ. Продольная — ось кузова машины: она припаркована вдоль
-  // проезжей части. Отсюда у расстановки берётся логика: фонари в ряд по
-  // бортовому камню с постоянным шагом, светофоры на углу, тротуар на дальней
-  // стороне, дом за линией застройки. Раньше объекты стояли по осям КАДРА и
-  // читались как россыпь без всякого смысла.
-  // ⚠️ Оси ОТ МАШИНЫ: right — вправо по ходу, fwd — вдоль носа. Улица идёт по
-  // оси машины, и всё, что встанет вдоль неё, задаётся в метрах от осевой
-  // линии и вдоль пути. Прежняя экранная раскладка была под неподвижную камеру.
-  const roadDir = leftCar.clone().negate();
-  const roadNrm = fwdCar.clone();
+  // ── Мир: вдоль пути камеры ────────────────────────────────────────────
+  // ⚠️ Оси ПУТИ: right — вбок по кадру сборки, fwd — вдоль полёта от центра
+  // кузова. Объекты встают по сторонам линии, над которой летит камера.
+  const roadDir = right.clone().setY(0).normalize();
+  const roadNrm = pathDir.clone();
 
   interface Placed {
     w: WorldObj;
@@ -1070,7 +1074,7 @@ export default makeScene2D(function* (view) {
   // отъезда, чуть к краю силуэта наружу от машины — там искра не тонет в
   // свечении фигуры. Руки на этой высоте отсекаются по радиусу от оси бёдер,
   // иначе телефон сел бы на кисть и читался «в руке».
-  const camEnd = camPos.clone();               // ракурс на всю сцену один
+  const camEnd = camPos.clone();               // карман смотрит на камеру, подлетающую сзади по пути
   function findPocket(host: Placed): Pocket {
     const S = 8000;
     const pts = new Float32Array(S * 3);
@@ -1162,6 +1166,8 @@ export default makeScene2D(function* (view) {
   WORLD.forEach((w, i) => placed.push(placeOne(w, i)));
   // Дома ряда стоят фасадом к камере: локальная x идёт вдоль ряда.
   const houseYaw = Math.atan2(roadDir.z, roadDir.x);
+  // Дом улицы справа: фасад к осевой, локальная +x — назад по ходу, к камере.
+  const streetYawRight = Math.atan2(-roadNrm.z, -roadNrm.x);
 
   // ⚠️ Плотность объекта считается от СВЕТА машины, а не от остатка бюджета:
   // яркость машины закреплена (CAR_LIGHT), и «объект чуть тусклее машины» —
@@ -1178,12 +1184,13 @@ export default makeScene2D(function* (view) {
     assigned += n;
     // ⚠️ Яркость стены дома задаётся ОТНОШЕНИЕМ к кузову, а не числом: плотность
     // дома выбрана под зерно, множитель досчитывается от плотности машины D.
-    const gain = p.w.house ? (HOUSE_REL * D) / HOUSE_PTS : (p.w.gain ?? 1);
+    const gain = !p.w.house ? (p.w.gain ?? 1)
+      : p.w.street ? (STREET_REL * D) / STREET_PTS : (HOUSE_REL * D) / HOUSE_PTS;
     return {...p, n, gain};
   });
   assigned += GRID_POINTS;                            // земля
   const N_CAR = N - assigned;
-  const gridDelays = new Float32Array(GRID_POINTS);   // очередь земли — для компенсации яркости машины
+  const groundDelays = new Float32Array(GRID_POINTS);   // очередь земли — для компенсации яркости машины
   if (N_CAR < CAR_LIGHT) {
     throw new Error(`миру ушло ${assigned} из ${N}: машине осталось меньше её света (${CAR_LIGHT})`);
   }
@@ -1204,7 +1211,7 @@ export default makeScene2D(function* (view) {
   const aVia = new Float32Array(N * 3);
   const aSpread = new Float32Array(N * 3);
   const aSeed = new Float32Array(N);
-  const aWheel = new Float32Array(N);        // ось колеса точки, 0 — кузов
+  const aKind = new Float32Array(N);         // 1 — линия сетки (яркость по глубине), 0 — остальное
   const aDelay = new Float32Array(N);
   const aSpan = new Float32Array(N);
   // Второй дом точки: куда она уходит с машины. У неподвижных совпадает с
@@ -1224,7 +1231,6 @@ export default makeScene2D(function* (view) {
     aTarget[to] = vanPos[vo];
     aTarget[to + 1] = vanPos[vo + 1];
     aTarget[to + 2] = vanPos[vo + 2];
-    aWheel[ti] = wheelOfVan[vi];
 
     // Дуга: середина пути, отведённая к камере и закрученная вокруг оси
     // взгляда. Стечение получает вращение, но кадр не превращается в вихрь.
@@ -1304,7 +1310,7 @@ export default makeScene2D(function* (view) {
       if (n <= 0) continue;
       const pos = new Float32Array(n * 3);
       if (part.w.house) {
-        sampleHouse(part.w.house, part.px!, part.pz!, houseYaw, n, rnd, pos);
+        sampleHouse(part.w.house, part.px!, part.pz!, part.w.street === 'right' ? streetYawRight : houseYaw, n, rnd, pos);
       } else if (part.pocket) {
         samplePhone(part.pocket, n, rnd, pos);
       } else {
@@ -1341,8 +1347,8 @@ export default makeScene2D(function* (view) {
       for (let r = 0; r < n; r++) rankOf[byHeight[r]] = r;
 
       // Окно появления объекта внутри общего сигнала worldGrowth.
-      const t0 = GROUND_LEAD + (part.w.t0 ?? 0) * (1 - GROUND_LEAD);
-      const win = Math.max(OBJ_SPAN, (part.w.span ?? 1) * (1 - GROUND_LEAD)) - OBJ_SPAN;
+      const {t0, span: sp} = schedOf(part.w);
+      const win = Math.max(OBJ_SPAN, sp) - OBJ_SPAN;
 
       for (let r = 0; r < n; r++) {
         const i = shuf[cursor + oFrom[r]];
@@ -1372,71 +1378,50 @@ export default makeScene2D(function* (view) {
     // Точки берутся со следующих перемешанных индексов машины. Мортон тут не
     // нужен: переброс идёт на нулевой альфе, связь в кадре не видна.
     {
-      const sm = (x: number) => { const c = x < 0 ? 0 : x > 1 ? 1 : x; return c * c * (3 - 2 * c); };
-      const halfW = (f: number) => GRID_W0 + GRID_WK * Math.max(0, f - GRID_F0);
-      // Все линии сетки внутри клина обзора, нарезанные по метру.
-      const pc: number[] = [];                        // side0, fwd0, side1, fwd1
-      const fFirst = Math.ceil(GRID_F0 / GRID_CELL) * GRID_CELL;
-      for (let f = fFirst; f <= GRID_F1 + 1e-6; f += GRID_CELL) {
-        const hw = halfW(f);
-        for (let sd = -hw; sd < hw; sd += 1) pc.push(sd, f, Math.min(sd + 1, hw), f);
-      }
-      const hwMax = halfW(GRID_F1);
-      for (let sd = -Math.floor(hwMax / GRID_CELL) * GRID_CELL; sd <= hwMax + 1e-6; sd += GRID_CELL) {
-        const fStart = Math.max(GRID_F0, GRID_F0 + (Math.abs(sd) - GRID_W0) / GRID_WK);
-        for (let f = fStart; f < GRID_F1; f += 1) pc.push(sd, f, sd, Math.min(f + 1, GRID_F1));
-      }
-      // Вес куска — длина с убыванием от машины: у машины пунктир плотный,
-      // к горизонту редеет. Иначе даль сливается в сплошную муаровую пелену.
-      const np = pc.length / 4;
-      const cdf = new Float64Array(np);
+      const segs = gridSegments();
+      const cdf = new Float64Array(segs.length);
       let acc = 0;
-      for (let k = 0; k < np; k++) {
-        const o = k * 4;
-        const len = Math.hypot(pc[o + 2] - pc[o], pc[o + 3] - pc[o + 1]);
-        const r = Math.hypot((pc[o] + pc[o + 2]) / 2, (pc[o + 1] + pc[o + 3]) / 2);
-        acc += len / (1 + r / GRID_R0);
+      for (let k = 0; k < segs.length; k++) {
+        acc += Math.hypot(segs[k].r1 - segs[k].r0, segs[k].f1 - segs[k].f0);
         cdf[k] = acc;
       }
       for (let g = 0; g < GRID_POINTS; g++) {
         const t = rnd() * acc;
-        let lo = 0, hi = np - 1;
+        let lo = 0, hi = segs.length - 1;
         while (lo < hi) { const mid = (lo + hi) >> 1; if (cdf[mid] < t) lo = mid + 1; else hi = mid; }
-        const o = lo * 4, u = rnd();
-        const sd = pc[o] + (pc[o + 2] - pc[o]) * u;
-        const fw = pc[o + 1] + (pc[o + 3] - pc[o + 1]) * u;
-        const r = Math.hypot(sd, fw);
+        const sg = segs[lo], u = rnd();
+        const rt = sg.r0 + (sg.r1 - sg.r0) * u;
+        const fw = sg.f0 + (sg.f1 - sg.f0) * u;
         const i = shuf[cursor + g];
         const h3 = i * 3;
-        aHome2[h3] = center.x + roadDir.x * sd + roadNrm.x * fw;
+        aHome2[h3] = center.x + roadDir.x * rt + roadNrm.x * fw;
         aHome2[h3 + 1] = 0;
-        aHome2[h3 + 2] = center.z + roadDir.z * sd + roadNrm.z * fw;
+        aHome2[h3 + 2] = center.z + roadDir.z * rt + roadNrm.z * fw;
         // Точка появляется чуть над своим местом и оседает — без бокового
-        // разброса, иначе линии сетки размажутся.
+        // разброса, иначе линии размажутся.
         aVia2[h3] = aHome2[h3];
         aVia2[h3 + 1] = GRID_HOVER_MIN + rnd() * GRID_HOVER_VAR;
         aVia2[h3 + 2] = aHome2[h3 + 2];
-        // Волна от машины наружу: у машины быстро, к горизонту медленно.
         const delay = Math.max(0, Math.min(1 - OBJ_SPAN,
-          GRID_T_END * Math.pow(r / GRID_WAVE_R, GRID_POW) + (rnd() - 0.5) * 0.02));
-        const fade = 1 - sm((r - GRID_FADE * 0.55) / (GRID_FADE * 0.45));
+          worldFrac(gridRevealAt(rt, fw)) + (rnd() - 0.5) * (0.12 / WORLD_T)));
         const so = i * 4;
         aSched2[so] = delay;
         aSched2[so + 1] = OBJ_SPAN;
         aSched2[so + 2] = 1;
-        aSched2[so + 3] = GRID_GAIN * Math.min(GRID_COMP_MAX, Math.max(1, r / GRID_COMP_R)) * fade;
-        gridDelays[g] = delay;
+        aSched2[so + 3] = GRID_GAIN;
+        aKind[i] = 1;                                 // линия: яркость по глубине в шейдере
+        groundDelays[g] = delay;
       }
       cursor += GRID_POINTS;
-      gridDelays.sort();
+      groundDelays.sort();
     }
   }
 
   // Сколько точек и когда уходит с машины — по этому считается компенсация.
   const drain = parts.map(p => ({
     n: p.n,
-    t0: GROUND_LEAD + (p.w.t0 ?? 0) * (1 - GROUND_LEAD),
-    span: Math.max(OBJ_SPAN, (p.w.span ?? 1) * (1 - GROUND_LEAD)),
+    t0: schedOf(p.w).t0,
+    span: Math.max(OBJ_SPAN, schedOf(p.w).span),
   }));
 
   // ── Облако ───────────────────────────────────────────────────────────────
@@ -1447,7 +1432,7 @@ export default makeScene2D(function* (view) {
   geo.setAttribute('aSpread', new BufferAttribute(aSpread, 3));
   geo.setAttribute('aTint', new BufferAttribute(aTint, 3, true));
   geo.setAttribute('aSeed', new BufferAttribute(aSeed, 1));
-  geo.setAttribute('aWheel', new BufferAttribute(aWheel, 1));
+  geo.setAttribute('aKind', new BufferAttribute(aKind, 1));
   geo.setAttribute('aDelay', new BufferAttribute(aDelay, 1));
   geo.setAttribute('aSpan', new BufferAttribute(aSpan, 1));
   geo.setAttribute('aHome2', new BufferAttribute(aHome2, 3));
@@ -1468,13 +1453,10 @@ export default makeScene2D(function* (view) {
       uAGlow: {value: A_GLOW},
       uAVan: {value: A_VAN},
       uCarLift: {value: 1},
-      uCarShift: {value: new Vector3()},
-      uAxleF: {value: axleF},
-      uAxleR: {value: axleR},
-      uAxis: {value: leftCar},
-      uWheelR: {value: wheelR},
-      uWheelDist: {value: 0},
-      uWheelSmear: {value: 0},
+      uLineCompR: {value: LINE_COMP_R},
+      uLineCompMax: {value: LINE_COMP_MAX},
+      uLineFade0: {value: LINE_FADE0},
+      uLineFade1: {value: LINE_FADE1},
       uFlyDim: {value: FLY_DIM},
       uMinPx: {value: PX_MIN},
       uMaxPx: {value: PX_MAX},
@@ -1489,7 +1471,7 @@ export default makeScene2D(function* (view) {
       attribute vec3 aSpread;
       attribute vec3 aTint;
       attribute float aSeed;
-      attribute float aWheel;
+      attribute float aKind;
       attribute float aDelay;
       attribute float aSpan;
       attribute vec3 aHome2;
@@ -1498,9 +1480,7 @@ export default makeScene2D(function* (view) {
       uniform float uDissolve, uAssemble, uWorld, uDrain, uRef;
       uniform float uPxText, uPxGlow, uPxVan;
       uniform float uATxt, uAGlow, uAVan, uFlyDim, uCarLift;
-      uniform vec3 uCarShift;
-      uniform vec3 uAxleF, uAxleR, uAxis;
-      uniform float uWheelR, uWheelDist, uWheelSmear;
+      uniform float uLineCompR, uLineCompMax, uLineFade0, uLineFade1;
       uniform float uMinPx, uMaxPx, uFloor;
       uniform float uHandoff, uDropFrom;
       uniform vec3 uInk;
@@ -1526,19 +1506,6 @@ export default makeScene2D(function* (view) {
         float g = ease(clamp((uAssemble - aDelay) / aSpan, 0.0, 1.0));
         float u = 1.0 - g;
         vec3 p = u * u * loose + 2.0 * u * g * aVia + g * g * aTarget;
-        // Такт 3. Колёса крутятся: точка колеса поворачивается вокруг оси на
-        // угол из пройденного пути. Случайная фаза в пределах выдержки кадра
-        // даёт размытие по ходу — иначе спицы стробят.
-        {
-          vec3 ax = mix(uAxleF, uAxleR, step(1.5, aWheel));
-          float th = (uWheelDist - aSeed * uWheelSmear) / uWheelR;
-          vec3 q = p - ax;
-          float c = cos(th), s = sin(th);
-          vec3 rq = q * c + cross(uAxis, q) * s + uAxis * dot(uAxis, q) * (1.0 - c);
-          p = mix(p, ax + rq, step(0.5, aWheel) * g);
-        }
-        // Машина едет: собранное вещество уезжает вместе с ней.
-        p += uCarShift * g;
 
         // Такт 3, шаг 1. Точка гаснет на машине, появляется НАД своим местом и
         // опускается на него. Перелёта в кадре нет: переброс идёт на нулевой
@@ -1557,20 +1524,27 @@ export default makeScene2D(function* (view) {
 
         // Перспективный размер с зажимом и компенсацией альфой: суммарная
         // яркость формы не зависит от того, где точка оказалась по глубине.
-        float px = mix(pxD, uPxVan, g);
+        // Точка, уже перешедшая на объект, живёт по его правилам, как бы далеко ни
+        // была её собственная сборка: колонка встаёт, пока машина ещё собирается.
+        float px = mix(mix(pxD, uPxVan, g), uPxVan, sw);
         float want = px * uRef / max(-mv.z, 0.001);
         float size = clamp(want, uMinPx, uMaxPx);
         float k = want / size;
 
         // Пока точка на машине — её яркость правится на убыль вещества; встав
         // на свой объект, она переходит на собственную плотность объекта.
-        float a = mix(aD, uAVan * mix(uCarLift, 1.0, h), g);
+        float a = mix(mix(aD, uAVan * uCarLift, g), uAVan, sw);
         a *= mix(1.0, uFlyDim, 4.0 * g * (1.0 - g));
         a *= mix(1.0, vis, aSched2.z);
         // ⚠️ Усиление яркости объекта. Дом набран редко — по-другому его на
         // семидесяти метрах не собрать, — и без множителя он был бы чёрным.
         // Телефону оно же даёт искру, которую видно на фигуре в семьдесят пикселей.
         a *= mix(1.0, aSched2.w, h);
+        // Линии сетки: выравнивание по глубине от камеры и гашение к горизонту.
+        float depth = -mv.z;
+        float line = step(0.5, aKind) * sw;
+        a *= mix(1.0, clamp(depth / uLineCompR, 1.0, uLineCompMax)
+          * (1.0 - smoothstep(uLineFade0, uLineFade1, depth)), line);
         vA = a * clamp(k * k, uFloor, 1.0);
         vTint = mix(srgbToLinear(aTint), uInk, uDrain);
         gl_PointSize = size;
@@ -1604,8 +1578,8 @@ export default makeScene2D(function* (view) {
   // ── Сигналы ──────────────────────────────────────────────────────────────
   const dissolveCode = createSignal(0);   // код → светящиеся полосы
   const assembleCar = createSignal(0);    // вещество → машина
-  const worldGrowth = createSignal(0);    // объекты мира встают вокруг машины
-  const drive = createSignal(0);          // секунды с начала езды
+  const worldGrowth = createSignal(0);    // часы мира: объекты встают по ходу полёта
+  const fly = createSignal(0);            // секунды с начала полёта камеры
   
   const returnToCode = createSignal(0);   // такт 5 — вне прототипа
   const breath = createSignal(0);
@@ -1643,8 +1617,8 @@ export default makeScene2D(function* (view) {
       for (const d of drain) gone += d.n * Math.min(1, Math.max(0, (wg - d.t0) / d.span));
       // Земля уходит с машины по своей очереди — считаем точно, по отсортированным задержкам.
       {
-        let lo = 0, hi = gridDelays.length;
-        while (lo < hi) { const mid = (lo + hi) >> 1; if (gridDelays[mid] < wg) lo = mid + 1; else hi = mid; }
+        let lo = 0, hi = groundDelays.length;
+        while (lo < hi) { const mid = (lo + hi) >> 1; if (groundDelays[mid] < wg) lo = mid + 1; else hi = mid; }
         gone += lo;
       }
       mat.uniforms.uCarLift.value = CAR_LIGHT / Math.max(1, N - gone);
@@ -1663,12 +1637,8 @@ export default makeScene2D(function* (view) {
       _bloom!.radius = 0.45 + 0.30 * glow;
       _bloom!.threshold = 0.62 - 0.42 * glow - 0.18 * asm;
 
-      // Езда: машина и камера — функции одного сигнала времени.
-      const dt = drive();
-      mat.uniforms.uCarShift.value.copy(fwdCar).multiplyScalar(carDistance(dt));
-      mat.uniforms.uWheelDist.value = carDistance(dt);
-      mat.uniforms.uWheelSmear.value = (carSpeed(dt) * WHEEL_SHUTTER) / FPS;
-      placeCamera(breath(), dt);
+      // Дыхание кадра на сборке и полёт камеры — функции сигналов времени.
+      placeCamera(breath(), fly());
 
       _composer.render();
     },
@@ -1685,20 +1655,21 @@ export default makeScene2D(function* (view) {
   //      ⚠️ Полёт начинается ДО конца распада. На стыке в кадре одновременно
   //      стоят ещё читаемые полосы кода и уже летящие одиночные точки — именно
   //      это, а не статичное зерно, объявляет, что материал один и тот же.
-  // 7.6  ТАКТ 3: справа от машины снизу вверх встаёт зарядная колонка
-  // 10.2 ТАКТ 4: машина трогается и уезжает вглубь улицы, камера идёт за ней
+  //      Одновременно с машиной справа снизу вверх встаёт зарядная колонка.
+  // 7.2  под машиной волной ложится земля-сетка
+  // 8.2  ТАКТ 3: камера летит над машиной вперёд; земля растёт впереди, по
+  //      сторонам пути встают столбы и люди
   yield* all(
     chain(breath(1, 7.6, linear), waitFor(DUR - 7.6)),
+    // Часы мира идут отдельно от тактов: окна появления в таблице — в секундах сцены.
+    chain(waitFor(WORLD_START), worldGrowth(1, WORLD_T, linear), waitFor(DUR - WORLD_START - WORLD_T)),
+    chain(waitFor(FLY_START), fly(DUR - FLY_START, DUR - FLY_START, linear)),
     (function* () {
       yield* waitFor(1.5);
       yield* all(
         dissolveCode(1, 1.9, easeInOutSine),
         chain(waitFor(1.4), assembleCar(1, 4.3, linear)),
       );
-      yield* waitFor(0.4);
-      // Колонка встаёт рядом со стоящей машиной; тронется машина уже от неё.
-      yield* worldGrowth(1, WORLD_T, linear);
-      yield* drive(DUR - 7.6 - WORLD_T, DUR - 7.6 - WORLD_T, linear);
     })(),
   );
 });

@@ -30,8 +30,10 @@ import {
 // одно поле. «Someone decides the four-hour limit should apply everywhere. One
 // boolean. It looks like consistency.» Депо ночью: в 23:00 фургоны подключены,
 // в 03:00 останавливаются, в 06:30 водитель находит фургон на 41 проценте.
-// Тишина, кадр держится. «The bug is one boolean. But it was born the day we
-// decided two trajectories were one — because their snapshot matched.»
+// Тишина, кадр гаснет в чёрное. Вывод («The bug is one boolean. But it was
+// born the day we decided two trajectories were one — because their snapshot
+// matched…») звучит уже в СЛЕДУЮЩЕЙ сцене — отступлении от сюжета «снимок
+// против траектории» (решение автора 13.09.2026).
 //
 // ⚠️ Наше отличие от PDF — в нашу пользу. В сюжете депо держит СВОЙ набор опций
 // (SessionOptions.depot()) и правят его. У нас факторок нет: обёртка депо просто
@@ -42,13 +44,18 @@ import {
 // ── Режиссура ──────────────────────────────────────────────────────────────
 // Сцена открывается РОВНО последним кадром акта 2 (класс сверху, обе обёртки,
 // голова функции приглушена, обе половины мира в резкости) — стык невидим.
-// Такт 1 — три целевые СТРОКИ одновременно под полоской: дефолт в классе,
-//   `= true` в публичной обёртке, `val options = SessionOptions(` у депо — то
-//   место, где третьего поля нет. Полоска — канон проекта (STRIPE_COLOR из
-//   codeWithActionsSceneRu / fiveFacesSafety): роуз 0.18, на всю ширину блока,
-//   высота 1.15 строки, углы ОСТРЫЕ (автор). ⚠️ Блок кода не хайлайтится
-//   никогда — только строка (автор). Остальной код не гасится. Мир отвечает
-//   теми же пятнами на асфальте, что и в акте 2. Это фитиль, а не иллюстрация.
+// Такт 1 — фитиль ЗА ГОЛОСОМ, три места по очереди (автор, 22.09: «поймёт ли
+//   зритель, не зная котлина»). «off by default» — полоска на строке дефолта в
+//   классе. «turn it on for public charging» — полоска на `enforceTimeLimit =
+//   true` улицы + свет под машиной. «The depot just inherits the default» — НЕ
+//   полоска (отсутствие строки подсветить нельзя, полоска на `val options =
+//   SessionOptions(` стояла на строке, которая ничего не говорит), а СРАВНЕНИЕ:
+//   шапка гаснет, яркими остаются строка дефолта и два блока SessionOptions(…)
+//   — у улицы три поля, у депо два; короткий блок и есть улика, читается без
+//   единого слова про котлин. Свет под фургонами в этот же момент.
+//   Полоска — канон проекта (STRIPE_COLOR): роуз 0.18, по длине строки, высота
+//   1.15 строки, углы ОСТРЫЕ (автор). ⚠️ Блок кода не хайлайтится никогда —
+//   только строка (автор); блоки здесь выделены ГАШЕНИЕМ остального, не полоской.
 // Такт 2 — правка. Один токен: `false` стирается, печатается `true`. Никакого
 //   комментария в коде: «One boolean» в озвучке должно совпасть ровно с одним
 //   меняющимся словом на экране.
@@ -61,7 +68,9 @@ import {
 // Такт 4 — рассвет и число. Свет чуть поднимается, над одним фургоном
 //   появляется 41 %. Это не счётчик и не дашборд: число появляется один раз,
 //   как то, что увидел водитель.
-// Такт 5 — тишина и вывод. Кадр держится, ничего не движется.
+// Такт 5 — тишина и затемнение. Кадр держится и гаснет в чёрное; сцена
+//   кончается здесь, акт 4 («Удобный вывод») — отдельная сцена после
+//   отступления.
 //
 // ⚠️ Камера едет ОДИН раз за сцену, и у переезда есть причина: история уходит
 // из кода во двор. Всё остальное время вид стоит ([[feedback_lock_the_camera]]).
@@ -123,16 +132,24 @@ const FN_3 = `fun startSession(cmd: StartSession) {
 // Правка акта: ОДНО поле. Ни комментария, ни второй строки — «one boolean».
 // Хвостовая запятая после смены уходит (автор): в кадре остаётся чистое `= true`.
 const OPTIONS_FLIPPED = OPTIONS.replace('= false,', '= true');
+// Промежуточное состояние правки: значение стёрто, после «=» пусто. Правка
+// идёт в два морфа с паузой между ними — иначе false→true занимает десятую
+// долю секунды, и зритель её не видит (автор: «зритель может не заметить»).
+const OPTIONS_HOLE = OPTIONS.replace('= false,', '=');
 
 const doc = (...parts: string[]) => parts.join('\n\n');
 const DOC_5 = doc(OPTIONS, W_FLEET_1, W_PUBLIC_1, FN_3);          // 51 строка, как в акте 2
 const DOC_6 = doc(OPTIONS_FLIPPED, W_FLEET_1, W_PUBLIC_1, FN_3);  // то же, дефолт true
+const DOC_5H = doc(OPTIONS_HOLE, W_FLEET_1, W_PUBLIC_1, FN_3);    // между ними: «= » без значения
 
 // Индексы в DOC_5 (проверены скриптом): класс 0..4, обёртка депо 6..15,
 // обёртка улицы 17..27, функция 29..50.
 const L_DEFAULT = 3;                     // val enforceTimeLimit: Boolean = false,
-const L_DEPOT_OPTS = 9;                  // val options = SessionOptions(  — у депо
 const L_PUBLIC_ON = 23;                  // enforceTimeLimit = true,
+// Блоки `val options = SessionOptions(` … `)` — для сравнения в такте 1:
+// у депо два поля (9..12), у улицы три (20..24).
+const DEPOT_OPTS_BLOCK = [9, 10, 11, 12];
+const PUBLIC_OPTS_BLOCK = [20, 21, 22, 23, 24];
 const FN: [number, number] = [29, 50];
 
 const CODE_TYPES = [
@@ -431,15 +448,15 @@ export default makeScene2D(function* (view) {
     plateLayer.add(r);
     return r;
   };
-  const stripes = [stripe(L_DEFAULT), stripe(L_PUBLIC_ON), stripe(L_DEPOT_OPTS)];
-  // Гашение шапки (класс + обёртки, 0..27) вокруг одной строки. Функция ниже
-  // и так «выключена». Яркость — на контейнере строки, и только на нём.
+  const stripes = [stripe(L_DEFAULT), stripe(L_PUBLIC_ON)];
+  // Гашение шапки (класс + обёртки, 0..27) вокруг НЕСКОЛЬКИХ строк. Функция
+  // ниже и так «выключена». Яркость — на контейнере строки, и только на нём.
   const HEAD_LAST = 27;
   const DIM = 0.3;
-  function* spot(keep: number | null, dur: number): ThreadGenerator {
+  function* spot(keep: number[] | null, dur: number): ThreadGenerator {
     const anims: ThreadGenerator[] = [];
     for (let i = 0; i <= HEAD_LAST; i++) {
-      anims.push(code.getLine(i)!.setOpacity(keep === null || i === keep ? 1 : DIM, dur));
+      anims.push(code.getLine(i)!.setOpacity(keep === null || keep.includes(i) ? 1 : DIM, dur));
     }
     yield* all(...anims);
   }
@@ -448,51 +465,90 @@ export default makeScene2D(function* (view) {
   // Правка: ОДИН токен. `false` стирается обратной печатью, `true` печатается.
   // Замена обязана анимироваться, а не подменяться кадром; окно Manticore равно
   // кадру, поэтому морф ничего не скроллит.
-  function* flip(): ThreadGenerator {
-    yield* code.morphTo(DOC_6, {
-      addStyle: 'typewriter', charDelay: 0.013, lineDelay: 0.04,
+  // ⚠️ Медленно, в два шага: «false» стирается по букве (0.06 с/знак), после
+  // «=» остаётся пусто, потом «true» печатается по букве (0.08 с/знак). Одним
+  // морфом с 0.011/0.013 вся правка занимала ~0.1 с — незаметно.
+  function* flipErase(): ThreadGenerator {
+    yield* code.morphTo(DOC_5H, {
+      addStyle: 'typewriter', charDelay: 0.08, lineDelay: 0.04,
       moveDuration: 0.6, removeDuration: 0.3, scrollStrategy: 'block',
       lineOrder: 'sequential', blockOrder: 'sequential',
       tokenSlideDuration: 0.4,
-      flashRemovedErase: 'reverseType', flashRemovedEraseCharDelay: 0.011,
+      flashRemovedErase: 'reverseType', flashRemovedEraseCharDelay: 0.06,
       flashRemovedColor: 'rgba(244,241,235,0.32)',
       recolorLine: paintCanonMethodCallsLine,
     });
   }
+  function* flipType(): ThreadGenerator {
+    yield* code.morphTo(DOC_6, {
+      addStyle: 'typewriter', charDelay: 0.08, lineDelay: 0.04,
+      moveDuration: 0.6, removeDuration: 0.3, scrollStrategy: 'block',
+      lineOrder: 'sequential', blockOrder: 'sequential',
+      tokenSlideDuration: 0.4,
+      recolorLine: paintCanonMethodCallsLine,
+    });
+  }
+
+  // Затемнение в конце сцены: чёрный слой поверх всего (последний ребёнок
+  // stage — выше кода и обоих 3D-видов).
+  const fadeOut = new Rect({
+    width: Screen.width, height: Screen.height, fill: '#000000', opacity: 0,
+  });
+  stage.add(fadeOut);
 
   const showSoc = (on: boolean, dur: number) =>
     all(socOp(on ? 1 : 0, dur, easeInOutSine), socBlur(on ? 0 : 14, dur, easeInOutSine));
 
   // ═══ ТАЙМЛАЙН ═══════════════════════════════════════════════════════════
 
-  // Такт 1. Фитиль. Три маркера и оба света на асфальте — ОДНИМ жестом.
-  // «The time limit is off by default, so we explicitly turn it on for public
-  //  charging. The depot just inherits the default.»
+  // Такт 1. Фитиль — за голосом, три места по очереди.
+  // «The time limit is off by default,» — строка дефолта в классе.
   yield* waitFor(1.0);
+  yield* stripes[0].opacity(1, MARK_IN, easeInOutSine);
+  yield* waitFor(1.4);
+  // «so we explicitly turn it on for public charging.» — `= true` улицы + свет
+  // под машиной.
   yield* all(
-    marks(1),
+    stripes[1].opacity(1, MARK_IN, easeInOutSine),
     streetPool(1, 0.8, easeInOutSine),
+  );
+  yield* waitFor(2.2);
+  // «The depot just inherits the default.» — сравнение: шапка гаснет, яркими
+  // остаются дефолт и оба блока настроек; у депо на строку меньше. Свет под
+  // фургонами.
+  yield* all(
+    spot([L_DEFAULT, ...DEPOT_OPTS_BLOCK, ...PUBLIC_OPTS_BLOCK], 0.8),
     ...pools.map(p => p(1, 0.8, easeInOutSine)),
   );
-  yield* waitFor(6.0);
+  yield* waitFor(3.0);
 
   // Такт 2. Правка — ОТДЕЛЬНО, и не полоской, а гашением остального кода
-  // (автор: «булеан лучше понижением опасити другого кода»). Полоски были
-  // хвостом озвучки акта 2 — все три уходят вместе со светом на асфальте, и в
-  // шапке остаётся яркой одна строка: дефолт в классе.
+  // (автор: «булеан лучше понижением опасити другого кода»). Обе полоски
+  // уходят вместе со светом на асфальте, гашение сужается с двух блоков, и в
+  // шапке остаются яркими ДВЕ строки: дефолт в классе и `= true` публичной
+  // зарядки. Правка ложится буквально: было false/true, стало true/true — вот
+  // «порядок», который видел тот, кто правил. Блок депо между ними погашен, и
+  // дырка на месте третьего поля — то, чего он не увидел, — остаётся на экране.
   // «Someone decides the four-hour limit should apply everywhere.»
   yield* all(
     marks(0),
     streetPool(0, 0.8, easeInOutSine),
     ...pools.map(p => p(0, 0.8, easeInOutSine)),
-    spot(L_DEFAULT, 0.8),
+    spot([L_DEFAULT, L_PUBLIC_ON], 0.8),
   );
-  yield* waitFor(2.8);
-  // «One boolean.»
-  yield* flip();
+  yield* waitFor(2.4);
+  // Полоска возвращается на строку дефолта — «сюда» — за полсекунды до правки:
+  // глаз уже на строке, когда меняется слово (автор: нужна подсветка, зритель
+  // может не заметить). Та же полоска, что стояла здесь в такте 1.
+  yield* stripes[0].opacity(1, MARK_IN, easeInOutSine);
+  yield* waitFor(0.4);
+  // «One boolean.» — false стирается, пауза с пустым значением, печатается true.
+  yield* flipErase();
+  yield* waitFor(0.35);
+  yield* flipType();
   // «It looks like consistency.»
-  yield* waitFor(2.6);
-  yield* spot(null, 0.8);
+  yield* waitFor(2.4);
+  yield* all(spot(null, 0.8), stripes[0].opacity(0, 0.8, easeInOutSine));
   yield* waitFor(1.5);
 
   // Такт 3. Ночь. Код и улица уходят, камера один раз едет ко двору, свет
@@ -554,12 +610,9 @@ export default makeScene2D(function* (view) {
   yield* showSoc(true, 0.9);
   yield* waitFor(4.5);
 
-  // Такт 5. Тишина. Потом вывод — кадр не движется.
-  // «The bug is one boolean. But it was born the day we decided two trajectories
-  //  were one — because their snapshot matched. The duplication disappeared. The
-  //  reasons to change did not.»
-  yield* waitFor(3.0);
-  yield* waitFor(12.0);
-  yield* waitFor(1.5);
-  yield* stage.opacity(0, 1.5, easeInOutCubic);
+  // Такт 5. Тишина — и затемнение. Число увидено, кадр держится две секунды и
+  // гаснет в чёрное. Вывод главы здесь НЕ звучит: он уходит в следующую сцену
+  // (отступление «снимок против траектории»), акт 4 — своя сцена после неё.
+  yield* waitFor(2.0);
+  yield* fadeOut.opacity(1, 2.0, easeInOutCubic);
 });

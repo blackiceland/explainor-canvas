@@ -104,6 +104,8 @@ import openingMergeTimelapseSceneEn from "./scenes/openingMergeTimelapseSceneEn?
 import duplicationChapterOneTitleSceneEn from "./scenes/duplicationChapterOneTitleSceneEn?scene";
 import duplicationDivergeSceneEn from "./scenes/duplicationDivergeSceneEn?scene";
 import duplicationIncidentSceneEn from "./scenes/duplicationIncidentSceneEn?scene";
+import duplicationTradeoffSketchSceneEn from "./scenes/duplicationTradeoffSketchSceneEn?scene";
+import duplicationStreetPovSceneEn from "./scenes/duplicationStreetPovSceneEn?scene";
 import duplicationCitySceneEn from "./scenes/duplicationCitySceneEn?scene";
 import duplicationFieldSceneEn from "./scenes/duplicationFieldSceneEn?scene";
 import duplicationCityParticlesSceneEn from "./scenes/duplicationCityParticlesSceneEn?scene";
@@ -252,8 +254,14 @@ export default makeProject({
         //  openingMergeTimelapseSceneEn,
         //  chargingHeroDemoScene,
         //  duplicationChapterOneTitleSceneEn,
-         duplicationDivergeSceneEn,
-         duplicationIncidentSceneEn,
+        // duplicationDivergeSceneEn,
+        // duplicationIncidentSceneEn,
+         duplicationTradeoffSketchSceneEn,
+
+        // ГЛАВА 2, ОТКРЫТИЕ (~11 с): от первого лица под дождём. Телефон в руке,
+        // «Available» → тап по «Start charging» → «Connector unavailable»,
+        // фокус уходит на мёртвую стойку.
+         duplicationStreetPovSceneEn,
 
         // АКТ 7, ПРОТОТИП (8 с, такты 1→2): код становится точками, точки
         // собираются в машину. В кадре нет ни одного меша — только частицы;
