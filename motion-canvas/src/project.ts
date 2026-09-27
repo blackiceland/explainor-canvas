@@ -104,6 +104,7 @@ import openingMergeTimelapseSceneEn from "./scenes/openingMergeTimelapseSceneEn?
 import duplicationChapterOneTitleSceneEn from "./scenes/duplicationChapterOneTitleSceneEn?scene";
 import duplicationDivergeSceneEn from "./scenes/duplicationDivergeSceneEn?scene";
 import duplicationIncidentSceneEn from "./scenes/duplicationIncidentSceneEn?scene";
+import duplicationIdenticalLogicSceneEn from "./scenes/duplicationIdenticalLogicSceneEn?scene";
 import duplicationTradeoffSketchSceneEn from "./scenes/duplicationTradeoffSketchSceneEn?scene";
 import duplicationStreetPovSceneEn from "./scenes/duplicationStreetPovSceneEn?scene";
 import duplicationCitySceneEn from "./scenes/duplicationCitySceneEn?scene";
@@ -114,10 +115,17 @@ import introMergeScene from "./scenes/introMergeScene?scene";
 import chapter1IntroScene from "./scenes/chapter1IntroScene?scene";
 import duplicationBestChoiceTitleSceneEn from "./scenes/duplicationBestChoiceTitleSceneEn?scene";
 import dryConditionsScene from "./scenes/dryConditionsScene?scene";
+import goodCodeOpeningSceneEn from "./scenes/goodCodeOpeningSceneEn?scene";
+import goodCodeFacesSceneEn from "./scenes/goodCodeFacesSceneEn?scene";
 
 export default makeProject({
     experimentalFeatures: true,
     scenes: [
+        // GOOD CODE, BUT I HATE IT · ОТКРЫТИЕ (16 с): кабинет с цветами, проезд
+        // от букета к лицу, за плечо и в экран с кодом.
+        // goodCodeOpeningSceneEn,
+        // GOOD CODE, BUT I HATE IT · ТРИ ЛИЦА (8.4 с): камера = монитор, склейки на щелчках.
+        // goodCodeFacesSceneEn,
 
         // I — YOUR NULL MEANS TOO MUCH
          // duplicationHateIntroScene,
@@ -256,12 +264,15 @@ export default makeProject({
         //  duplicationChapterOneTitleSceneEn,
         // duplicationDivergeSceneEn,
         // duplicationIncidentSceneEn,
-         duplicationTradeoffSketchSceneEn,
+        // ВСТУПЛЕНИЕ К КОЛБАМ (~28 с): «Identical code doesn't mean identical logic» —
+        // пары-близнецы в коде (DTO/сущность, статусы), слияние в shared.Status.
+         duplicationIdenticalLogicSceneEn,
+        // duplicationTradeoffSketchSceneEn,
 
         // ГЛАВА 2, ОТКРЫТИЕ (~11 с): от первого лица под дождём. Телефон в руке,
         // «Available» → тап по «Start charging» → «Connector unavailable»,
         // фокус уходит на мёртвую стойку.
-         duplicationStreetPovSceneEn,
+        // duplicationStreetPovSceneEn,
 
         // АКТ 7, ПРОТОТИП (8 с, такты 1→2): код становится точками, точки
         // собираются в машину. В кадре нет ни одного меша — только частицы;

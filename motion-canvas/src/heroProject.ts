@@ -6,15 +6,18 @@ import duplicationCitySceneEn from './scenes/duplicationCitySceneEn?scene';
 import duplicationChapterOneTitleSceneEn from './scenes/duplicationChapterOneTitleSceneEn?scene';
 import duplicationDivergeSceneEn from './scenes/duplicationDivergeSceneEn?scene';
 import duplicationIncidentSceneEn from './scenes/duplicationIncidentSceneEn?scene';
+import duplicationIdenticalLogicSceneEn from './scenes/duplicationIdenticalLogicSceneEn?scene';
 import duplicationTradeoffSketchSceneEn from './scenes/duplicationTradeoffSketchSceneEn?scene';
 import duplicationStreetPovSceneEn from './scenes/duplicationStreetPovSceneEn?scene';
 import duplicationFieldSceneEn from './scenes/duplicationFieldSceneEn?scene';
 import duplicationCityParticlesSceneEn from './scenes/duplicationCityParticlesSceneEn?scene';
 import duplicationWorldSceneEn from './scenes/duplicationWorldSceneEn?scene';
+import goodCodeOpeningSceneEn from './scenes/goodCodeOpeningSceneEn?scene';
+import goodCodeFacesSceneEn from './scenes/goodCodeFacesSceneEn?scene';
 
 // Разовый харнесс для превью операторской демки. НЕ часть пайплайна видео —
 // нужен только чтобы стилл-экспортёр рендерил сцену, не трогая project.ts автора.
 export default makeProject({
   experimentalFeatures: true,
-  scenes: [duplicationWorldSceneEn, duplicationCityParticlesSceneEn, duplicationFieldSceneEn, duplicationEpigraphSceneEn, openingMergeTimelapseSceneEn, chargingHeroDemoScene, duplicationChapterOneTitleSceneEn, duplicationDivergeSceneEn, duplicationIncidentSceneEn, duplicationTradeoffSketchSceneEn, duplicationStreetPovSceneEn, duplicationCitySceneEn],
+  scenes: [goodCodeFacesSceneEn, goodCodeOpeningSceneEn, duplicationWorldSceneEn, duplicationCityParticlesSceneEn, duplicationFieldSceneEn, duplicationEpigraphSceneEn, openingMergeTimelapseSceneEn, chargingHeroDemoScene, duplicationChapterOneTitleSceneEn, duplicationDivergeSceneEn, duplicationIncidentSceneEn, duplicationIdenticalLogicSceneEn, duplicationTradeoffSketchSceneEn, duplicationStreetPovSceneEn, duplicationCitySceneEn],
 });
