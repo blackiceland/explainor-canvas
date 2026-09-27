@@ -74,7 +74,7 @@ export interface PersonPose {
    *  x — середина кончиков по ширине для левой и правой руки (домашний ряд);
    *  spread — от кончика указательного до кончика мизинца (F…A — три клавиши);
    *  z, spread, turn — можно по рукам (левая, правая): руки лежат не симметрично.
-   *  turn — насколько пальцы смотрят к середине (по умолчанию HAND_IN). */
+   *  turn — отклонение кисти от линии предплечья к мизинцу, рад (по умолчанию 3°). */
   keys?: {y: number; z: number | [number, number]; x?: [number, number]; spread?: number | [number, number]; turn?: [number, number]};
   /** Своя ориентация кисти (левая, правая). Без неё — «на клавишах»: пальцы
    *  вперёд, ладонью вниз. Нужна, чтобы держать стакан. */
@@ -87,7 +87,7 @@ export interface HandAim {
   /** Куда смотрит тыльная сторона кисти, мир. */
   back: Vector3;
   /** Обхват цилиндра этого радиуса, м: пальцы гнутся по его окружности. */
-  wrap?: number;
+  wrap?: number | number[];
 }
 
 export interface Person {
@@ -96,6 +96,10 @@ export interface Person {
   /** Кадр головы после setPose, мир: начало — середина глаз, оси — как у головы
    *  в покое (вперёд +Z, вверх +Y, его левая рука +X). К нему крепятся очки и наушники. */
   headFrame: () => Matrix4;
+  /** Плечо, локоть, запястье руки после setPose, мир. 0 — левая, 1 — правая. */
+  armPoints: (hand: 0 | 1) => [Vector3, Vector3, Vector3];
+  /** Основания пальцев 1…4 (указательный…мизинец) после setPose, мир. */
+  fingerBases: (hand: 0 | 1) => Vector3[];
   /** Кадр кисти после setPose, мир: начало — кость кисти (запястье), +Z — к пальцам,
    *  +Y — тыльная сторона, +X = Y × Z. 0 — левая рука, 1 — правая. */
   handFrame: (hand: 0 | 1) => Matrix4;
@@ -130,9 +134,15 @@ const CURL: Record<number, [number, number, number]> = {
   1: [9, 24, 14], 2: [8, 25, 15], 3: [10, 26, 16], 4: [12, 28, 17],
 };
 const HAND_PITCH = 0.05;              // кисть почти ровная: тыльная сторона чуть вниз к пальцам
-// Кисти буквой V: запястья шире, пальцы сходятся к середине (иначе на компактной
-// клавиатуре ладони смыкались краями — пальцы при этом на F и J).
-const HAND_IN = 0.28;
+// Кисть продолжает линию предплечья: букву V дают сходящиеся предплечья, а кисть
+// лишь чуть отклонена к мизинцу, рад. ⚠️ Кисть, повёрнутая на постоянный угол без
+// оглядки на предплечье, давала излом на запястье (автор: «что-то не так с
+// предплечьем»): при сходящихся на 30° предплечьях кисть загибалась наружу.
+const HAND_DEV = 3 * Math.PI / 180;
+// Локти чуть в стороны, но не «пингвином»: сильнее — предплечья сходятся круче.
+const ELBOW_OUT = 0.12;
+// Доля поворота ладони, которую берёт предплечье (лучевая кость вокруг локтевой).
+const PRONATE = 0.65;
 const DISTAL = 0.85;                  // кончик: последняя фаланга, продолженная на эту долю средней
 const TAP = 14;
 const FINGER_HALF = 0.008;
@@ -540,7 +550,7 @@ export function* loadPerson(spec: PersonSpec): Generator<any, Person> {
       const d = Math.min(toT.length(), (L1 + L2) * 0.995);
       const dir = toT.normalize();
       const cosA = Math.min(1, Math.max(-1, (L1 * L1 + d * d - L2 * L2) / (2 * L1 * d)));
-      const pole = new Vector3(0.22 * side, -0.9, -0.35);
+      const pole = new Vector3(ELBOW_OUT * side, -0.9, -0.35);
       const perp = pole.sub(dir.clone().multiplyScalar(pole.dot(dir))).normalize();
       const E = S.clone().addScaledVector(dir, Math.cos(Math.acos(cosA)) * L1).addScaledVector(perp, Math.sin(Math.acos(cosA)) * L1);
       aim(a.up, a.fore, E.clone().sub(S));
@@ -549,23 +559,41 @@ export function* loadPerson(spec: PersonSpec): Generator<any, Person> {
       // кисть: пальцы вперёд и чуть вниз к клавишам, ладонью вниз
       const [thumb, index, middle, , pinky] = a.fingers;
       const own = p.handAim?.[side > 0 ? 0 : 1] ?? null;
-      const turn = p.keys?.turn?.[side > 0 ? 0 : 1] ?? HAND_IN;
-      aim(a.hand, middle[0], own ? own.fingers : new Vector3(-turn * side, -HAND_PITCH, 1));
-      const along = worldPos(middle[0]).sub(worldPos(a.hand)).normalize();
-      const across = worldPos(index[0]).sub(worldPos(pinky[0])).normalize();
-      // тыльная сторона кисти: у левой руки cross(across, along), у правой — наоборот
-      const back = new Vector3().crossVectors(across, along).multiplyScalar(side);
+      // направление кисти: по предплечью в плане, с лёгким отклонением к мизинцу
+      const dev = p.keys?.turn?.[side > 0 ? 0 : 1] ?? HAND_DEV;
+      const fore = worldPos(a.hand).sub(worldPos(a.fore));
+      const yaw = Math.atan2(fore.x, fore.z) + dev * side;
+      const handDir = own ? own.fingers : new Vector3(Math.sin(yaw), -HAND_PITCH, Math.cos(yaw));
       const wantBack = own ? own.back : Y;
-      const up = wantBack.clone().sub(along.clone().multiplyScalar(along.dot(wantBack))).normalize();
-      const backP = back.sub(along.clone().multiplyScalar(along.dot(back))).normalize();
-      const roll = Math.atan2(new Vector3().crossVectors(backP, up).dot(along), backP.dot(up));
-      rotateWorld(a.hand, new Quaternion().setFromAxisAngle(along, roll));
+      // сколько повернуть кисть вокруг её оси, чтобы тыл смотрел куда надо
+      const rollNeeded = () => {
+        const along = worldPos(middle[0]).sub(worldPos(a.hand)).normalize();
+        const across = worldPos(index[0]).sub(worldPos(pinky[0])).normalize();
+        // тыльная сторона кисти: у левой руки cross(across, along), у правой — наоборот
+        const back = new Vector3().crossVectors(across, along).multiplyScalar(side);
+        const up = wantBack.clone().sub(along.clone().multiplyScalar(along.dot(wantBack))).normalize();
+        const backP = back.sub(along.clone().multiplyScalar(along.dot(back))).normalize();
+        return {along, roll: Math.atan2(new Vector3().crossVectors(backP, up).dot(along), backP.dot(up))};
+      };
+      aim(a.hand, middle[0], handDir);
+      // ⚠️ Поворот ладони делит предплечье: костей скручивания у модели нет, и весь
+      // поворот на одной кисти пережимал запястье «фантиком» (автор: «что-то не так
+      // с предплечьем»). Предплечье берёт PRONATE, кисть — остаток.
+      const r0 = rollNeeded();
+      rotateWorld(a.fore, new Quaternion().setFromAxisAngle(fore.clone().normalize(), r0.roll * PRONATE));
+      aim(a.hand, middle[0], handDir);
+      const r1 = rollNeeded();
+      rotateWorld(a.hand, new Quaternion().setFromAxisAngle(r1.along, r1.roll));
+      const along = r1.along;
       // пальцы согнуты над клавишами; ось сгиба — поперёк кисти
       const bendAxis = worldPos(index[0]).sub(worldPos(pinky[0])).normalize().multiplyScalar(-side);
       a.fingers.forEach((chain, f) => {
         if (f === 0) return;
         const tap = p.taps?.[side > 0 ? 0 : 1]?.[f] ?? 0;
-        const c = own?.wrap ? wrapCurl(chain, own.wrap) : CURL[f];
+        // радиус обхвата — у каждого пальца свой: стакан сужается книзу, и общий
+        // радиус вдавливал верхний палец в стенку (автор)
+        const R = Array.isArray(own?.wrap) ? own!.wrap[f - 1] : own?.wrap;
+        const c = R ? wrapCurl(chain, R) : CURL[f];
         chain.forEach((seg, j) => rotateWorld(seg, new Quaternion().setFromAxisAngle(bendAxis, (c[j] + (j === 0 ? tap * TAP : tap * 6)) * D2R)));
       });
       // пальцы по клавишам: раздвинуть так, чтобы от указательного до мизинца было
@@ -622,5 +650,13 @@ export function* loadPerson(spec: PersonSpec): Generator<any, Person> {
     const across = new Vector3().crossVectors(back, along).normalize();
     return new Matrix4().makeBasis(across, back, along).setPosition(w);
   };
-  return {root, setPose, headFrame, handFrame, skin: body};
+  const armPoints = (hand: 0 | 1): [Vector3, Vector3, Vector3] => {
+    const a = arms.find(x => (Math.sign(worldPos(x.up).x) > 0) === (hand === 0))!;
+    return [worldPos(a.up), worldPos(a.fore), worldPos(a.hand)];
+  };
+  const fingerBases = (hand: 0 | 1) => {
+    const a = arms.find(x => (Math.sign(worldPos(x.up).x) > 0) === (hand === 0))!;
+    return [1, 2, 3, 4].map(f => worldPos(a.fingers[f][0]));
+  };
+  return {root, setPose, headFrame, handFrame, armPoints, fingerBases, skin: body};
 }

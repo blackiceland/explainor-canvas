@@ -7,14 +7,26 @@ import {applyBackground} from '../core/utils';
 import {mountFlasks} from '../core/flasks';
 
 // ── DON'T FIGHT DUPLICATION · вступление к колбам: одинаковый код ≠ одна логика
-// Стоит между затемнением акта 3 и колбами. Озвучка (темп автора ~3.3 сл/с;
-// такты переставить по записи):
-//   Identical code doesn't mean identical logic. A request DTO and a database
-//   entity can have the same fields, but one is a contract with your clients
-//   and the other is a detail of storage. Order and payment statuses can share
-//   their values until payments need refunds. What decides is not the text but
-//   why it changes. Copies that change for different reasons are separate
-//   pieces of logic, and once merged, they can no longer evolve independently.
+// Стоит между затемнением акта 3 и колбами и продолжается колбами (сцены
+// объединены 26.09). Голос читает цитату, пока она стоит в кадре, и дальше идёт
+// по парам (27.09, автор: «полная фраза, с розовой цитатой»). Озвучка — ход
+// мысли, а не перечень пар (такты стоят по оценке темпа автора ~3.3 сл/с —
+// переставить по записи):
+//   Identical code doesn't mean identical logic. An API request and a database
+//   entity share every field, yet only the request faces clients. Once payments
+//   need refunds, the two status lists stop meaning the same thing. Even one
+//   limit can have two owners, a regulator and our finance team. The code
+//   matched, but it would never change for the same reasons.
+// ⚠️ Не «so one class for both feels obvious»: сразу после цитаты это защищает
+// слияние, а опровергнуть его у DTO нечем — пара не меняется (автор: «вводим
+// зрителя в заблуждение, начинаем путать»).
+//
+// ── Пятая версия (27.09): три пары ──────────────────────────────────────────
+// Пара таймаутов убрана: она повторяла механизм лимитов (значение меняет его
+// хозяин), а четыре пары за 23 с давали ~4 с на пару — голос успевал только
+// перечислить («робот», «быстро всё происходит»). Трём парам достаётся в
+// полтора раза больше времени. Зум-аут с колбами среди кода пробовали — автор:
+// «нет, как было, но без одной пары: не зум-аут, а сдвиг».
 //
 // ── Четвёртая версия (автор 26.09): ПО РЕФЕРЕНСУ nullMeansChapter2En ─────────
 // Правка автора: «движения в референсе выглядят хорошо; код без рамок и лишних
@@ -24,14 +36,14 @@ import {mountFlasks} from '../core/flasks';
 // съезд коробок, крен, дыхание, отъезды масштабом. Остаётся грамматика
 // референса:
 //   • камера ТОЛЬКО ЕДЕТ и не зумит; один масштаб на всю сцену; каждый проезд —
-//     одна easeInOutCubic на 4 с, без пауз и посадок;
+//     одна easeInOutCubic, без пауз и посадок;
 //   • код в мире УЖЕ СТОИТ, резкий, за кромкой кадра: мы к нему приезжаем, а не
 //     зажигаем его;
 //   • сетка — шёпот (0.055, шаг 180), живёт в мире, приходит, когда камера
 //     трогается от цитаты, и на проезде даёт параллакс;
 //   • цитата — канон вопроса главы NULL («Why is it missing?»): моно 60,
 //     SOFT_PINK, в центре, приходит через фокус.
-// Маршрут по карте — четыре пары, четыре разных движения, потом общий план:
+// Маршрут по карте — три пары, три разных движения, потом сдвиг к колбам:
 //   1. ВПРАВО от цитаты к паре DTO / сущность (данные);
 //   2. ПО ДИАГОНАЛИ вправо-вниз к паре статусов (перечисления); в PaymentStatus
 //      допечатывается REFUNDED;
@@ -39,26 +51,16 @@ import {mountFlasks} from '../core/flasks';
 //      снижает лимит платежей — в PaymentPolicy 10_000 → 5_000, RefundPolicy не тронут.
 //      Не наоборот: регуляторные пороги обычно про платежи, а лимит возвратов —
 //      внутренняя политика финансов (правка 27.09, «эффект дядюшки Боба»);
-//   4. ПО ДИАГОНАЛИ вниз-влево к паре таймаутов (константа: одно число, два договора);
-//      партнёр меняет договор — в PartnerApiConfig readTimeout 30 → 60, база не тронута;
 // ⚠️ Первая пара (DTO) не меняется: она — посылка «код одинаковый». Дальше каждая
-// пара расходится по-своему: статусы — новой строкой, лимиты и таймауты — значением
+// пара расходится по-своему: статусы — новой строкой, лимиты — значением
 // (автор: «раз в enum что-то происходит, пусть и там поменяется значение»).
 // Правка — после того, как камера встала, не на ходу; без подсветок: старое
 // значение стирается обратной печатью, новое печатается (как флип в акте 3).
-// ⚠️ Озвучка обязана назвать и эти правки, как «until payments need refunds» у
-// статусов, — иначе картинка меняется, а голос молчит.
-//   5. кадр стоит на последней паре до конца озвучки, потом камера уходит ВПРАВО
-//      в пустую сетку, сетка гаснет — и на чистом графите начинаются колбы.
-//      (Общий план с отъездом был — автор: «зум-аут не нужен».)
+//   4. кадр стоит на лимитах, пока звучит вывод, потом камера сдвигается ВПРАВО
+//      к колбам: они стоят в мире и въезжают в кадр, как код; сетка гаснет на
+//      ходу, и колбы идут на чистом графите.
 // Лейблов над блоками нет (автор убрал): что это за код, называет озвучка.
 // shared.Status убран (автор: «не понимаю, зачем shared»).
-//
-// ⚠️ Озвучка пятой версии (две фразы добавлены под новые пары):
-//   … until payments need refunds. The same limit can guard payments and
-//   refunds, while finance sets one and the regulator sets the other. The same
-//   thirty-second timeout can be a partner's contract in one place and a
-//   database setting in another. What decides …
 
 // ⚠️ Код — не игрушечный (автор: «мы делаем видео для инженеров; не полотна, но
 // и не однострочные куски»). Каждая пара — 8–11 строк настоящего кода. Тела в
@@ -129,44 +131,25 @@ class RefundPolicy {
         require(amount <= Money(10_000))
     }
 }`;
-const T_PARTNER = `package partners
-
-object PartnerApiConfig {
-    val connectTimeout = 5.seconds
-    val readTimeout = 30.seconds
-    val retries = 3
-    val backoff = 200.milliseconds
-}`;
-const T_DB = `package storage
-
-object DatabaseConfig {
-    val connectTimeout = 5.seconds
-    val readTimeout = 30.seconds
-    val retries = 3
-    val backoff = 200.milliseconds
-}`;
-// Правки значений — выводятся из исходного текста, чтобы двойник не разошёлся с ним
-// ни в чём, кроме правки. HOLE — промежуточное состояние: значение стёрто.
+// Правка значения — выводится из исходного текста, чтобы двойник не разошёлся с
+// ним ни в чём, кроме правки. HOLE — промежуточное состояние: значение стёрто.
 const LIMIT_PAY_HOLE = LIMIT_PAY.replace('Money(10_000)', 'Money()');
 const LIMIT_PAY_NEW = LIMIT_PAY.replace('Money(10_000)', 'Money(5_000)');
-const T_PARTNER_HOLE = T_PARTNER.replace('readTimeout = 30.seconds', 'readTimeout = .seconds');
-const T_PARTNER_NEW = T_PARTNER.replace('readTimeout = 30.seconds', 'readTimeout = 60.seconds');
 
 const TYPES = [
   'SessionRequest', 'SessionEntity', 'OrderStatus', 'PaymentStatus', 'String', 'Int', 'Boolean',
-  'Instant', 'Money', 'PaymentPolicy', 'RefundPolicy', 'PartnerApiConfig', 'DatabaseConfig',
+  'Instant', 'Money', 'PaymentPolicy', 'RefundPolicy',
 ];
 const RULES = [
   ...buildCanonRules({
     types: TYPES,
     methods: ['check'],
     vars: [
-      'stationId', 'connectorId', 'maxPowerKw', 'tariffId', 'requestedAt', 'done', 'amount',
-      'connectTimeout', 'readTimeout', 'retries', 'backoff', 'seconds', 'milliseconds', 'name',
-      'api', 'sessions', 'storage', 'orders', 'payments', 'refunds', 'partners',
+      'stationId', 'connectorId', 'maxPowerKw', 'tariffId', 'requestedAt', 'done', 'amount', 'name',
+      'api', 'sessions', 'storage', 'orders', 'payments', 'refunds',
     ],
   }),
-  {match: /^(data|enum|object|class|fun)$/, color: Canon.keyword},
+  {match: /^(data|enum|class|fun)$/, color: Canon.keyword},
   // число с разделителем (10_000) токенайзер режет на куски — красим целиком
   {match: /^_?[0-9][0-9_]*$|^_[0-9_]+$/, color: Canon.number},
 ];
@@ -191,19 +174,21 @@ const GRID_IN = 2.4;
 
 // ── карта ──
 // Сетка 2×2, шаг как в первой версии (автор: «по диагонали слишком далеко»).
-// Маршрут: вправо, диагональ вниз-вправо, вверх, диагональ вниз-влево.
+// Маршрут: вправо, диагональ вниз-вправо, вверх, вправо к колбам. Нижняя левая
+// клетка пустая — там стояли таймауты; камера туда не заезжает.
 // ⚠️ Чтобы на переезде не мелькал код чужой пары (на диагонали камера проходит
-// центр сетки, мимо третьей пары), в мире видны только ДВЕ пары: откуда едем и
+// центр сетки, мимо лимитов), в мире видны только ДВЕ пары: откуда едем и
 // куда. Цель включается, пока она ещё за кромкой; покинутая выключается, когда
 // уже за кромкой — поэтому ни появления, ни исчезновения в кадре не видно.
+// Колбы от этого не зависят: до сдвига они ни в один кадр не попадают.
 const P_ASK = {x: 0, y: 0};
 const COL = 1920, ROW = 1080;
 const P_DTO = {x: 1920, y: 0};                  // вправо
 const P_ENUM = {x: 1920 + COL, y: ROW};         // по диагонали вправо-вниз
 const P_LIMIT = {x: 1920 + COL, y: 0};          // вверх
-const P_TIME = {x: 1920, y: ROW};               // по диагонали вниз-влево
-const P_OUT = {x: 1920 + 2 * COL, y: ROW};      // уход вправо — к колбам (центр колб)
+const P_OUT = {x: 1920 + 2 * COL, y: 0};        // сдвиг вправо — к колбам (центр колб)
 const PAN_T = 1.7;                              // каждый проезд — одним движением
+const OUT_T = 2.7;                              // сдвиг к колбам — медленнее: смена части
 
 
 export default makeScene2D(function* (view) {
@@ -252,8 +237,7 @@ export default makeScene2D(function* (view) {
   };
   // пара — одна нода мира; верхние кромки блоков совпадают, пара по центру точки
   // ⚠️ Лейблов над блоками нет (автор убрал их) — что это за код, обязана
-  // назвать озвучка: request DTO / database entity, order / payment status,
-  // payment / refund limit, partner API / database timeouts.
+  // назвать озвучка: API request / database entity, статусы, лимит платежей.
   const pair = (a: string, b: string, c: {x: number; y: number}) => {
     const g = new Node({opacity: 0});
     world.add(g);
@@ -268,7 +252,6 @@ export default makeScene2D(function* (view) {
   const dto = pair(API, STORAGE, P_DTO);
   const st = pair(ORDERS, PAYMENTS, {x: P_ENUM.x, y: P_ENUM.y - 0.5 * LH});
   const lim = pair(LIMIT_PAY, LIMIT_REFUND, P_LIMIT);
-  const tmo = pair(T_PARTNER, T_DB, P_TIME);
   dto.g.opacity(1);                // DTO видна сразу: к ней едем от цитаты
   // ⚠️ Колбы СТОЯТ в мире резкими, как код: камера к ним приезжает (автор:
   // «колбы должны в кадр въехать, как и код, ты лениво сделал»). Первая версия
@@ -317,13 +300,16 @@ export default makeScene2D(function* (view) {
   }
 
   // ═══ ДО КОЛБ — 23 с (автор: «23 секунды максимум, ускорь движение») ═══════
-  // Время сцены (такт + VO 0.5):
-  //   0.2–3.5  цитата (автор: «чуть дольше розовую фразу» — было до 2.0)
-  //   3.5–5.2  → DTO,       стоим 2.3
-  //   7.5–9.2  → статусы,   REFUNDED печатается ~1.3 с, читаем ~1.2
-  //  11.7–13.4 → лимиты,    5_000 вместо 10_000 ~1.1 с, читаем ~1.2
-  //  15.9–17.6 → таймауты,  60 вместо 30 ~1.0 с, читаем ~1.4
-  //  20.3–23.0 → колбы (путь вдвое длиннее — 2.7 с); к 23.0 колбы в кадре
+  // Время сцены (такт + VO 0.5); озвучка — по оценке темпа автора (~3.3 сл/с):
+  //   0.2–3.5   цитата (автор: «чуть дольше розовую фразу»)     «Identical code …»  ~0.5–2.6
+  //   3.5–5.2   → DTO,      стоим 3.8   «An API request … faces clients»          ~4.2–9.0
+  //   9.0–10.7  → статусы,  стоим 3.2   «Once payments need refunds, …»           ~9.5–13.4
+  //             REFUNDED печатается сразу после посадки, на «refunds» (~1.3 с)
+  //  13.9–15.6  → лимиты,   стоим 4.7   «Even one limit can have two owners, …»   ~14.2–18.3
+  //             5_000 вместо 10_000 сразу после посадки (~1.1 с)
+  //             вывод звучит на лимитах  «The code matched, but …»                ~18.3–21.9
+  //  20.3–23.0  → колбы (2.7 с); к 23.0 колбы в кадре
+  // Было при четырёх парах: стоянки по 2.3–2.7 с — «быстро всё происходит».
   yield* at(-0.3);
   yield* all(ask.opacity(1, 1.0, easeOutCubic), askBlur.value(0, 1.0, easeInOutSine));
 
@@ -332,7 +318,7 @@ export default makeScene2D(function* (view) {
   yield* all(look(P_DTO, PAN_T), grid.opacity(1, GRID_IN, easeInOutSine));
 
   // по диагонали к статусам; там допечатывается REFUNDED
-  yield* at(7.0);
+  yield* at(8.5);
   yield* travel(dto, st, P_ENUM);
   yield* st.b.morphTo(PAYMENTS_R, {
     addStyle: 'typewriter', charDelay: 0.04, lineDelay: 0.03,
@@ -345,25 +331,18 @@ export default makeScene2D(function* (view) {
   paintCanonMethodCalls(st.b);
 
   // вверх к лимитам; регулятор снижает лимит платежей, возвраты не тронуты
-  yield* at(11.2);
+  yield* at(13.4);
   yield* travel(st, lim, P_LIMIT);
   yield* waitFor(0.2);
   yield* retype(lim.a, LIMIT_PAY_HOLE, LIMIT_PAY_NEW);
-
-  // по диагонали вниз-влево к таймаутам; партнёр меняет договор
-  yield* at(15.4);
-  yield* travel(lim, tmo, P_TIME);
-  yield* waitFor(0.2);
-  yield* retype(tmo.a, T_PARTNER_HOLE, T_PARTNER_NEW);
 
   // вправо — к колбам: они уже стоят и въезжают в кадр, сетка гаснет на ходу.
   // ⚠️ Таймлайн колб (core/flasks.ts) стартует за 0.5 с до приезда: у него свой
   // вход озвучки 0.5 с, и его первое слово ложится ровно на приезд камеры (23.0).
   // Дальше колбы идут в своём прежнем темпе.
-  const OUT_T = 2.7;
   yield* at(19.8);
   yield* all(
-    travel(tmo, null, P_OUT, OUT_T),
+    travel(lim, null, P_OUT, OUT_T),
     grid.opacity(0, OUT_T, easeInOutSine),
     chain(waitFor(OUT_T - 0.5), runFlasks()),
   );

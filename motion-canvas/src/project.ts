@@ -107,6 +107,8 @@ import duplicationIncidentSceneEn from "./scenes/duplicationIncidentSceneEn?scen
 import duplicationIdenticalLogicSceneEn from "./scenes/duplicationIdenticalLogicSceneEn?scene";
 import duplicationTradeoffSketchSceneEn from "./scenes/duplicationTradeoffSketchSceneEn?scene";
 import duplicationStreetPovSceneEn from "./scenes/duplicationStreetPovSceneEn?scene";
+import duplicationChapterTwoTitleSceneEn from "./scenes/duplicationChapterTwoTitleSceneEn?scene";
+import duplicationFalseIndependenceSceneEn from "./scenes/duplicationFalseIndependenceSceneEn?scene";
 import duplicationCitySceneEn from "./scenes/duplicationCitySceneEn?scene";
 import duplicationFieldSceneEn from "./scenes/duplicationFieldSceneEn?scene";
 import duplicationCityParticlesSceneEn from "./scenes/duplicationCityParticlesSceneEn?scene";
@@ -117,10 +119,14 @@ import duplicationBestChoiceTitleSceneEn from "./scenes/duplicationBestChoiceTit
 import dryConditionsScene from "./scenes/dryConditionsScene?scene";
 import goodCodeOpeningSceneEn from "./scenes/goodCodeOpeningSceneEn?scene";
 import goodCodeFacesSceneEn from "./scenes/goodCodeFacesSceneEn?scene";
+import goodCodeIntroSceneEn from "./scenes/goodCodeIntroSceneEn?scene";
 
 export default makeProject({
     experimentalFeatures: true,
     scenes: [
+        // GOOD CODE, BUT I HATE IT · ИНТРО (~17 с): цветы → лицо → стол → склейки →
+        // экран, полоски на пяти шагах → «Except one» (дом, гараж).
+         goodCodeIntroSceneEn,
         // GOOD CODE, BUT I HATE IT · ОТКРЫТИЕ (16 с): кабинет с цветами, проезд
         // от букета к лицу, за плечо и в экран с кодом.
         // goodCodeOpeningSceneEn,
@@ -269,10 +275,18 @@ export default makeProject({
          duplicationIdenticalLogicSceneEn,
         // duplicationTradeoffSketchSceneEn,
 
+        // ГЛАВА 2, КАРТОЧКА: CHAPTER 2 / SYNC COST — дословно как вторая колба.
+        duplicationChapterTwoTitleSceneEn,
+
         // ГЛАВА 2, ОТКРЫТИЕ (~11 с): от первого лица под дождём. Телефон в руке,
         // «Available» → тап по «Start charging» → «Connector unavailable»,
         // фокус уходит на мёртвую стойку.
         // duplicationStreetPovSceneEn,
+
+        // ГЛАВА 2, ЛОЖНАЯ НЕЗАВИСИМОСТЬ (черновик ~32 с, без озвучки): API
+        // приложения и обработчик команды отвечают на один вопрос по-разному;
+        // OUT_OF_ORDER → «Available» и «Connector unavailable» разом.
+        duplicationFalseIndependenceSceneEn,
 
         // АКТ 7, ПРОТОТИП (8 с, такты 1→2): код становится точками, точки
         // собираются в машину. В кадре нет ни одного меша — только частицы;

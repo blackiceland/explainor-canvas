@@ -184,10 +184,13 @@ function innerHalfWidth(y: number): number {
 /**
  * Строит три колбы в stage (центр колб) и возвращает их таймлайн. standing —
  * колбы УЖЕ стоят в мире, резкие (камера к ним приезжает, как к коду в
- * duplicationIdenticalLogicSceneEn); иначе проявляются через фокус.
+ * duplicationIdenticalLogicSceneEn); иначе проявляются через фокус. noExit —
+ * колбы в конце не уходят сами: их уводит сцена вместе со всей картой (в
+ * duplicationIdenticalLogicSceneEn колбы стоят среди кода, и уйти одним колбам
+ * значило бы оставить код вокруг пустого центра).
  * ⚠️ Строить внутри генератора сцены: здесь есть spawn часов волны.
  */
-export function mountFlasks(stage: Node, opts: {standing?: boolean} = {}): () => ThreadGenerator {
+export function mountFlasks(stage: Node, opts: {standing?: boolean; noExit?: boolean} = {}): () => ThreadGenerator {
   // ═══ A · ТРИ СОСУДА ═════════════════════════════════════════════════════
   const V_GAP = 430;
   const V_Y = -40;
@@ -302,6 +305,7 @@ export function mountFlasks(stage: Node, opts: {standing?: boolean} = {}): () =>
   //  cost of being wrong.» — кадр стоит; после конца фразы секунда тишины и
   //  уход.
   yield* at(34.4);
+  if (opts.noExit) return;
   yield* all(
     flasks.opacity(0, 1.0, easeInOutCubic),
     ...flaskItems.map(f => f.fb.value(8, 1.0, easeInOutCubic)),

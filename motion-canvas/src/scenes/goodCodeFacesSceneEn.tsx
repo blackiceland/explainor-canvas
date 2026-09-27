@@ -4,7 +4,9 @@ import {buildFaces, FACES_DURATION, facesTimeline} from '../core/three/goodCodeF
 import {Screen} from '../core/theme';
 
 // ── GOOD CODE, BUT I HATE IT · шесть лиц (8.6 с) ────────────────────────────
-// Камера на месте монитора: программист читает код — смотрит почти в объектив.
+// Кадр пополам: слева лицо (камера на месте монитора), справа его стол сбоку —
+// клавиатура, руки, экран с кодом. У каждого свой обработчик, тема и редактор,
+// пять шагов — на одних и тех же строках (автор, 27.09).
 // Щелчок клавиши — склейка на следующего; планы короче и короче: 2.4 → 1.8 →
 // 1.3 → 0.9 → 0.6 → 0.4 с, щелчки учащаются. После последнего — 1.2 с черноты.
 //
@@ -29,7 +31,7 @@ export default makeScene2D(function* (view) {
   (frame as any).draw = function (context: CanvasRenderingContext2D) {
     const m = context.getTransform();
     const k = Math.max(1, Math.hypot(m.a, m.b));
-    const img = shot.render(facesTimeline(clock()), Math.round(Screen.width * k), Math.round(Screen.height * k));
+    const img = shot.renderSplit(facesTimeline(clock()), Math.round(Screen.width * k), Math.round(Screen.height * k));
     context.drawImage(img, -Screen.width / 2, -Screen.height / 2, Screen.width, Screen.height);
   };
   view.add(frame);

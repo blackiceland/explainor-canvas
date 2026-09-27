@@ -14,10 +14,13 @@ import duplicationCityParticlesSceneEn from './scenes/duplicationCityParticlesSc
 import duplicationWorldSceneEn from './scenes/duplicationWorldSceneEn?scene';
 import goodCodeOpeningSceneEn from './scenes/goodCodeOpeningSceneEn?scene';
 import goodCodeFacesSceneEn from './scenes/goodCodeFacesSceneEn?scene';
+import goodCodeIntroSceneEn from './scenes/goodCodeIntroSceneEn?scene';
+import duplicationChapterTwoTitleSceneEn from './scenes/duplicationChapterTwoTitleSceneEn?scene';
+import duplicationFalseIndependenceSceneEn from './scenes/duplicationFalseIndependenceSceneEn?scene';
 
 // Разовый харнесс для превью операторской демки. НЕ часть пайплайна видео —
 // нужен только чтобы стилл-экспортёр рендерил сцену, не трогая project.ts автора.
 export default makeProject({
   experimentalFeatures: true,
-  scenes: [goodCodeFacesSceneEn, goodCodeOpeningSceneEn, duplicationWorldSceneEn, duplicationCityParticlesSceneEn, duplicationFieldSceneEn, duplicationEpigraphSceneEn, openingMergeTimelapseSceneEn, chargingHeroDemoScene, duplicationChapterOneTitleSceneEn, duplicationDivergeSceneEn, duplicationIncidentSceneEn, duplicationIdenticalLogicSceneEn, duplicationTradeoffSketchSceneEn, duplicationStreetPovSceneEn, duplicationCitySceneEn],
+  scenes: [goodCodeIntroSceneEn, goodCodeFacesSceneEn, goodCodeOpeningSceneEn, duplicationWorldSceneEn, duplicationCityParticlesSceneEn, duplicationFieldSceneEn, duplicationEpigraphSceneEn, openingMergeTimelapseSceneEn, chargingHeroDemoScene, duplicationChapterOneTitleSceneEn, duplicationDivergeSceneEn, duplicationIncidentSceneEn, duplicationIdenticalLogicSceneEn, duplicationTradeoffSketchSceneEn, duplicationChapterTwoTitleSceneEn, duplicationStreetPovSceneEn, duplicationFalseIndependenceSceneEn, duplicationCitySceneEn],
 });

@@ -84,7 +84,9 @@ export const EYE = new Vector3(0, 1.2, 0);
 export const DESK = {x0: -0.85, x1: 0.85, z0: 0.3, z1: 1.05, y: 0.74, t: 0.035};
 // Клавиатура TKL (keyboard.ts): граница G/H — ровно перед человеком, поэтому
 // сама клавиатура сдвинута вправо от него (справа стрелки и Home/End).
-const KB_X = keyboardXForGH(0), KB_Z = 0.439;
+// Ближний край клавиатуры в 2 см от края стола: иначе руки тянутся, локоть раскрыт
+// на ~125° (автор: «что-то не так с предплечьем»); так локти у тела, ~105°.
+const KB_X = keyboardXForGH(0), KB_Z = 0.389;
 export const KEYS = {x: KB_X, z: KB_Z, w: KEYBOARD_SIZE.w, d: KEYBOARD_SIZE.d};
 /** Клавиша в мире (центр). */
 export const keyAt = (label: string) => keyCenter(label, KB_X, KB_Z);
@@ -99,7 +101,7 @@ export const HOME_X: [number, number] = [
 /** От кончика указательного до кончика мизинца на домашнем ряду: F…A — три клавиши. */
 export const HOME_SPREAD = 3 * KEY_U;
 /** Запястья при наборе: пальцы на домашнем ряду ASDF / JKL;. */
-export const WRIST_TYPING: [Vector3, Vector3] = [new Vector3(0.065, 0.808, 0.3), new Vector3(-0.065, 0.808, 0.3)];
+export const WRIST_TYPING: [Vector3, Vector3] = [new Vector3(0.065, 0.808, 0.25), new Vector3(-0.065, 0.808, 0.25)];
 export const KEY_TOP = DESK.y + 0.024;              // верх клавиш
 export const SCREEN = {w: 0.597, h: 0.336, y: 1.13, z: 0.64};
 const FRONT_Z = 1.15, BACK_Z = -2.4, SIDE_X = 2.1, CEIL = 2.7;
@@ -679,7 +681,7 @@ export function buildNightStudy(scene: Scene, models: StudyModels, rnd: () => nu
   // мышь
   const mouse = new Mesh(new SphereGeometry(0.03, 24, 16), new MeshStandardMaterial({color: '#232427', roughness: 0.4}));
   mouse.scale.set(1, 0.42, 1.75);
-  mouse.position.set(-0.3, DESK.y + 0.008, 0.44);    // под правую руку (он смотрит в +Z, правая — −X), правее стрелок
+  mouse.position.set(-0.3, DESK.y + 0.008, 0.4);    // под правую руку (он смотрит в +Z, правая — −X), правее стрелок
   scene.add(mouse);
   // кружка: керамика, внутри темно
   const mugPts = [new Vector2(0, 0), new Vector2(0.038, 0), new Vector2(0.04, 0.004), new Vector2(0.04, 0.095), new Vector2(0.036, 0.095), new Vector2(0.036, 0.008), new Vector2(0, 0.008)];

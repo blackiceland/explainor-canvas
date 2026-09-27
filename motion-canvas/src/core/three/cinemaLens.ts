@@ -122,6 +122,9 @@ export interface CinemaLensSettings {
 export class CinemaLens {
   private rt: WebGLRenderTarget | null = null;
   private half: WebGLRenderTarget | null = null;
+  // ⚠️ В одном кадре бывают снимки разного размера (лицо W, стол W/2): без кэша
+  // буферы пересоздавались бы на каждом снимке.
+  private readonly cache = new Map<string, {rt: WebGLRenderTarget; half: WebGLRenderTarget}>();
   private readonly gather: ShaderMaterial;
   private readonly finish: ShaderMaterial;
   private readonly quad = new Mesh(QUAD);
@@ -142,13 +145,26 @@ export class CinemaLens {
   }
 
   private targets(W: number, H: number) {
-    if (this.rt && this.rt.width === W && this.rt.height === H) return;
-    this.rt?.dispose();
-    this.half?.dispose();
-    const depthTexture = new DepthTexture(W, H, UnsignedIntType);
-    depthTexture.minFilter = depthTexture.magFilter = NearestFilter;
-    this.rt = new WebGLRenderTarget(W, H, {type: HalfFloatType, format: RGBAFormat, depthTexture, samples: 4, minFilter: LinearFilter, magFilter: LinearFilter});
-    this.half = new WebGLRenderTarget(Math.ceil(W / 2), Math.ceil(H / 2), {type: HalfFloatType, format: RGBAFormat, minFilter: LinearFilter, magFilter: LinearFilter});
+    const key = W + 'x' + H;
+    let t = this.cache.get(key);
+    if (t) {
+      this.cache.delete(key);                    // свежий — в конец очереди
+    } else {
+      const depthTexture = new DepthTexture(W, H, UnsignedIntType);
+      depthTexture.minFilter = depthTexture.magFilter = NearestFilter;
+      t = {
+        rt: new WebGLRenderTarget(W, H, {type: HalfFloatType, format: RGBAFormat, depthTexture, samples: 4, minFilter: LinearFilter, magFilter: LinearFilter}),
+        half: new WebGLRenderTarget(Math.ceil(W / 2), Math.ceil(H / 2), {type: HalfFloatType, format: RGBAFormat, minFilter: LinearFilter, magFilter: LinearFilter}),
+      };
+      if (this.cache.size >= 4) {
+        const [oldKey, old] = this.cache.entries().next().value!;
+        old.rt.dispose(); old.half.dispose();
+        this.cache.delete(oldKey);
+      }
+    }
+    this.cache.set(key, t);
+    this.rt = t.rt;
+    this.half = t.half;
   }
 
   /** Снять сцену и отдать готовый кадр (холст рендерера). */
