@@ -16,6 +16,7 @@ import {
   MeshPhysicalMaterial,
   MeshStandardMaterial,
   Object3D,
+  Path,
   PerspectiveCamera,
   PlaneGeometry,
   PointLight,
@@ -23,6 +24,8 @@ import {
   RectAreaLight,
   RepeatWrapping,
   Scene,
+  Shape,
+  ShapeGeometry,
   SphereGeometry,
   SpotLight,
   SRGBColorSpace,
@@ -100,6 +103,16 @@ export const HOME_X: [number, number] = [
 ];
 /** От кончика указательного до кончика мизинца на домашнем ряду: F…A — три клавиши. */
 export const HOME_SPREAD = 3 * KEY_U;
+/** Клавиши кабинета при клавиатуре на глубине kbZ: где клавиша, домашний ряд, середины рук. */
+export function studyKeysAt(kbZ: number) {
+  const at = (label: string) => keyCenter(label, KB_X, kbZ);
+  return {
+    keyAt: at,
+    homeZ: at('F').z - 0.003,
+    homeX: [['A', 'S', 'D', 'F'].reduce((a, l) => a + at(l).x, 0) / 4, ['J', 'K', 'L', ';'].reduce((a, l) => a + at(l).x, 0) / 4] as [number, number],
+    spread: HOME_SPREAD,
+  };
+}
 /** Запястья при наборе: пальцы на домашнем ряду ASDF / JKL;. */
 export const WRIST_TYPING: [Vector3, Vector3] = [new Vector3(0.065, 0.808, 0.25), new Vector3(-0.065, 0.808, 0.25)];
 export const KEY_TOP = DESK.y + 0.024;              // верх клавиш
@@ -547,7 +560,11 @@ export interface StudySet {
   drawScreen: (draw: (g: CanvasRenderingContext2D, W: number, H: number) => void) => void;
 }
 
-export function buildNightStudy(scene: Scene, models: StudyModels, rnd: () => number): StudySet {
+/** vase — где стоит ваза с барвинком (интро переставляет её под свой кадр);
+ *  exterior — стена дома снаружи вокруг окна (интро влетает в окно);
+ *  keyboardZ — глубина клавиатуры; deskFront — передний край стола (в интро стол
+ *  глубже к нему: предплечья и запястья лежат на столешнице). */
+export function buildNightStudy(scene: Scene, models: StudyModels, rnd: () => number, opts: {vase?: Vector3; exterior?: boolean; keyboardZ?: number; deskFront?: number} = {}): StudySet {
   const {anthurium, vase, syngonium, succulent, armchair, periwinkle} = models;
   // ── комната ──
   const plaster = plasterTex(rnd);
@@ -621,11 +638,12 @@ export function buildNightStudy(scene: Scene, models: StudyModels, rnd: () => nu
   // ── стол ──
   const walnut = walnutTex(rnd);
   const deskMat = new MeshPhysicalMaterial({map: walnut, roughness: 0.42, clearcoat: 0.35, clearcoatRoughness: 0.35});
-  const top = new Mesh(new RoundedBoxGeometry(DESK.x1 - DESK.x0, DESK.t, DESK.z1 - DESK.z0, 3, 0.004), deskMat);
-  top.position.set((DESK.x0 + DESK.x1) / 2, DESK.y - DESK.t / 2, (DESK.z0 + DESK.z1) / 2);
+  const z0 = opts.deskFront ?? DESK.z0;
+  const top = new Mesh(new RoundedBoxGeometry(DESK.x1 - DESK.x0, DESK.t, DESK.z1 - z0, 3, 0.004), deskMat);
+  top.position.set((DESK.x0 + DESK.x1) / 2, DESK.y - DESK.t / 2, (z0 + DESK.z1) / 2);
   scene.add(top);
   const steel = new MeshStandardMaterial({color: '#1d1e21', roughness: 0.35, metalness: 0.8});
-  for (const x of [DESK.x0 + 0.05, DESK.x1 - 0.05]) for (const z of [DESK.z0 + 0.05, DESK.z1 - 0.05]) {
+  for (const x of [DESK.x0 + 0.05, DESK.x1 - 0.05]) for (const z of [z0 + 0.05, DESK.z1 - 0.05]) {
     box(0.04, DESK.y - DESK.t, 0.04, steel, new Vector3(x, (DESK.y - DESK.t) / 2, z));
   }
 
@@ -677,11 +695,12 @@ export function buildNightStudy(scene: Scene, models: StudyModels, rnd: () => nu
   scene.add(screenLight);
 
   // ── клавиатура: раскладка ANSI, буквы на колпачках (крупный план «его глазами») ──
-  scene.add(buildKeyboard(KEYS.x, KEYS.z, KEY_TOP, KEYBOARDS.graphite).group);
+  const kbZ = opts.keyboardZ ?? KEYS.z;
+  scene.add(buildKeyboard(KEYS.x, kbZ, KEY_TOP, KEYBOARDS.graphite).group);
   // мышь
   const mouse = new Mesh(new SphereGeometry(0.03, 24, 16), new MeshStandardMaterial({color: '#232427', roughness: 0.4}));
   mouse.scale.set(1, 0.42, 1.75);
-  mouse.position.set(-0.3, DESK.y + 0.008, 0.4);    // под правую руку (он смотрит в +Z, правая — −X), правее стрелок
+  mouse.position.set(-0.3, DESK.y + 0.008, 0.4 + (kbZ - KEYS.z));    // под правую руку (он смотрит в +Z, правая — −X), правее стрелок
   scene.add(mouse);
   // кружка: керамика, внутри темно
   const mugPts = [new Vector2(0, 0), new Vector2(0.038, 0), new Vector2(0.04, 0.004), new Vector2(0.04, 0.095), new Vector2(0.036, 0.095), new Vector2(0.036, 0.008), new Vector2(0, 0.008)];
@@ -690,8 +709,9 @@ export function buildNightStudy(scene: Scene, models: StudyModels, rnd: () => nu
   scene.add(mug);
 
   // ── цветы на столе: барвинок в керамической вазе ──
-  place(vase, VASE, 0.4, VASE_S);
-  const flowers = place(bouquet(periwinkle, rnd), VASE.clone().add(new Vector3(0, 0.31 * VASE_S * 0.55, 0)), 0.3, 1);
+  const vaseAt = opts.vase ?? VASE;
+  place(vase, vaseAt, 0.4, VASE_S);
+  const flowers = place(bouquet(periwinkle, rnd), vaseAt.clone().add(new Vector3(0, 0.31 * VASE_S * 0.55, 0)), 0.3, 1);
   scene.add(vase, flowers);
 
   // ── за спиной: полка с книгами и гирляндой, торшер, кресло, фикус ──
@@ -699,27 +719,42 @@ export function buildNightStudy(scene: Scene, models: StudyModels, rnd: () => nu
   const SH = {x0: 0.35, x1: 1.55, z: BACK_Z + 0.16};
   const shelfYs = [0.95, 1.35, 1.75];
   for (const y of shelfYs) box(SH.x1 - SH.x0, 0.025, 0.28, shelfMat, new Vector3((SH.x0 + SH.x1) / 2, y, SH.z));
+  // на полках — антуриум и суккулент; ставим до книг, чтобы книги их обходили
+  place(anthurium, new Vector3(1.3, shelfYs[2] + 0.0125, SH.z), 0.8, 0.5);
+  place(succulent, new Vector3(0.52, shelfYs[1] + 0.0125, SH.z), 0.3, 0.8);
+  const plantBoxes = [anthurium, succulent].map(o => { o.updateMatrixWorld(true); return new Box3().setFromObject(o).expandByScalar(0.01); });
   const books: Matrix4[] = [], colors: Color[] = [];
   const PAL = ['#6b2f2a', '#2f4a5e', '#8a7a5c', '#3d3d3d', '#5c4a3a', '#2c3b2e', '#9a8f80', '#4a2f45', '#b3a58c'];
+  // ⚠️ Раньше цветы стояли внутри ряда книг (листья насквозь через корешки), а
+  // наклонённая книга вращалась вокруг середины и врезалась в соседку и в полку:
+  // на проезде эти пересечения мерцали (автор: «у книг текстуры просвечивают и
+  // мерцают»). Теперь книга, задевающая цветок, не ставится (на её месте — просвет),
+  // а наклонённая опирается на нижний правый угол и ложится в свой зазор 5 см.
+  // Случайные числа тянутся в том же порядке — остальные книги те же, что были.
   for (const y0 of shelfYs) {
     let x = SH.x0 + 0.03;
     while (x < SH.x1 - 0.04) {
       const w = 0.018 + rnd() * 0.03, h = 0.17 + rnd() * 0.13;
       if (rnd() < 0.1) { x += 0.06 + rnd() * 0.12; continue; }
-      const tilt = rnd() < 0.06 ? 0.25 : 0;
-      books.push(new Matrix4().compose(new Vector3(x + w / 2, y0 + 0.0125 + h / 2, SH.z + 0.01), new Quaternion().setFromAxisAngle(new Vector3(0, 0, 1), tilt), new Vector3(w, h, 0.2)));
-      colors.push(new Color(PAL[Math.floor(rnd() * PAL.length)]));
+      const tilt = rnd() < 0.06 ? Math.min(0.25, Math.asin(0.046 / h)) : 0;
+      const color = new Color(PAL[Math.floor(rnd() * PAL.length)]);
+      const bottom = y0 + 0.0125;
+      const hit = plantBoxes.some(b => b.intersectsBox(new Box3(new Vector3(x, bottom, SH.z - 0.09), new Vector3(x + w + (tilt ? 0.05 : 0), bottom + h, SH.z + 0.11))));
+      if (!hit) {
+        // опора — нижний правый угол: верх уходит вправо, в зазор
+        const c = tilt
+          ? new Vector3(x + w - (w / 2) * Math.cos(tilt) + (h / 2) * Math.sin(tilt), bottom + (w / 2) * Math.sin(tilt) + (h / 2) * Math.cos(tilt), SH.z + 0.01)
+          : new Vector3(x + w / 2, bottom + h / 2, SH.z + 0.01);
+        books.push(new Matrix4().compose(c, new Quaternion().setFromAxisAngle(new Vector3(0, 0, 1), -tilt), new Vector3(w, h, 0.2)));
+        colors.push(color);
+      }
       x += w + 0.002 + (tilt ? 0.05 : 0);
     }
   }
   const bookMesh = new InstancedMesh(new BoxGeometry(1, 1, 1), new MeshStandardMaterial({roughness: 0.8}), books.length);
   books.forEach((m, i) => { bookMesh.setMatrixAt(i, m); bookMesh.setColorAt(i, colors[i]); });
   scene.add(bookMesh);
-  // на верхней полке — антуриум и суккулент
-  place(anthurium, new Vector3(1.3, shelfYs[2] + 0.0125, SH.z), 0.8, 0.5);
-  scene.add(anthurium);
-  place(succulent, new Vector3(0.52, shelfYs[1] + 0.0125, SH.z), 0.3, 0.8);
-  scene.add(succulent);
+  scene.add(anthurium, succulent);
   // гирлянда: провисает дугами вдоль полок, лампочки — тёплые яркие точки
   const bulbGeo = new SphereGeometry(0.0045, 8, 6);
   const bulbs: Vector3[] = [];
@@ -785,8 +820,42 @@ export function buildNightStudy(scene: Scene, models: StudyModels, rnd: () => nu
   night.lookAt(wcx, wcy, 0);
   scene.add(night);
   scene.add(new HemisphereLight(0x2a3040, 0x0b0907, 0.12));
+  if (opts.exterior) buildFacade(scene, box, wallWarm);
 
   return {updateScreen, drawScreen};
+}
+
+/** Наружная плоскость стены: окно утоплено в неё на 7 см. */
+export const FACADE_Z = FRONT_Z + 0.27;
+/** Окно кабинета (проём), м. */
+export const STUDY_WINDOW = WIN;
+
+// Стена дома снаружи: штукатурка с проёмом окна, наружные откосы и каменный отлив.
+// Изнутри комнаты её не видно (стена одной стороной смотрит наружу).
+function buildFacade(scene: Scene, box: (w: number, h: number, d: number, mat: Material, p: Vector3) => Mesh, reveal: Material) {
+  // своя случайность: у комнаты не должен сдвинуться ни один случайный выбор
+  const tex = plasterTex(mulberry32(4242));
+  tex.repeat.set(1 / 1.4, 1 / 1.4);                  // UV формы — в метрах: пятно штукатурки ~1.4 м
+  const mat = new MeshStandardMaterial({color: '#5b554e', roughness: 0.95, roughnessMap: tex, bumpMap: tex, bumpScale: 1.4});
+  const shape = new Shape();
+  shape.moveTo(-7, -1); shape.lineTo(7, -1); shape.lineTo(7, 8); shape.lineTo(-7, 8); shape.lineTo(-7, -1);
+  const hole = new Path();
+  hole.moveTo(WIN.x0, WIN.y0); hole.lineTo(WIN.x0, WIN.y1); hole.lineTo(WIN.x1, WIN.y1); hole.lineTo(WIN.x1, WIN.y0); hole.lineTo(WIN.x0, WIN.y0);
+  shape.holes.push(hole);
+  const wall = new Mesh(new ShapeGeometry(shape), mat);
+  wall.position.z = FACADE_Z;
+  scene.add(wall);
+  // наружные откосы: от рамы до плоскости стены
+  const d = FACADE_Z - (FRONT_Z + 0.2), zc = FRONT_Z + 0.2 + d / 2;
+  const ww = WIN.x1 - WIN.x0, wh = WIN.y1 - WIN.y0, wcx = (WIN.x0 + WIN.x1) / 2, wcy = (WIN.y0 + WIN.y1) / 2;
+  box(0.05, wh, d, reveal, new Vector3(WIN.x0 - 0.025, wcy, zc));
+  box(0.05, wh, d, reveal, new Vector3(WIN.x1 + 0.025, wcy, zc));
+  box(ww + 0.1, 0.05, d, reveal, new Vector3(wcx, WIN.y1 + 0.025, zc));
+  // низ проёма — на всю толщину стены: иначе снаружи под рамой видна щель
+  box(ww + 0.1, 0.05, FACADE_Z - FRONT_Z, reveal, new Vector3(wcx, WIN.y0 - 0.025, (FRONT_Z + FACADE_Z) / 2));
+  // каменный отлив под окном — чуть выступает из стены
+  const stone = new MeshStandardMaterial({color: '#7a746c', roughness: 0.8, roughnessMap: tex, bumpMap: tex, bumpScale: 0.6});
+  box(ww + 0.2, 0.045, 0.17, stone, new Vector3(wcx, WIN.y0 - 0.02, FACADE_Z + 0.07));
 }
 
 export function* buildOpening(opts: OpeningOptions): Generator<any, OpeningShot> {

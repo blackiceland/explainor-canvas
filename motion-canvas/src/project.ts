@@ -272,11 +272,11 @@ export default makeProject({
         // duplicationIncidentSceneEn,
         // ВСТУПЛЕНИЕ К КОЛБАМ (~28 с): «Identical code doesn't mean identical logic» —
         // пары-близнецы в коде (DTO/сущность, статусы), слияние в shared.Status.
-         duplicationIdenticalLogicSceneEn,
+        // duplicationIdenticalLogicSceneEn,
         // duplicationTradeoffSketchSceneEn,
 
         // ГЛАВА 2, КАРТОЧКА: CHAPTER 2 / SYNC COST — дословно как вторая колба.
-        duplicationChapterTwoTitleSceneEn,
+        // duplicationChapterTwoTitleSceneEn,
 
         // ГЛАВА 2, ОТКРЫТИЕ (~11 с): от первого лица под дождём. Телефон в руке,
         // «Available» → тап по «Start charging» → «Connector unavailable»,
@@ -286,7 +286,7 @@ export default makeProject({
         // ГЛАВА 2, ЛОЖНАЯ НЕЗАВИСИМОСТЬ (черновик ~32 с, без озвучки): API
         // приложения и обработчик команды отвечают на один вопрос по-разному;
         // OUT_OF_ORDER → «Available» и «Connector unavailable» разом.
-        duplicationFalseIndependenceSceneEn,
+        // duplicationFalseIndependenceSceneEn,
 
         // АКТ 7, ПРОТОТИП (8 с, такты 1→2): код становится точками, точки
         // собираются в машину. В кадре нет ни одного меша — только частицы;

@@ -22,13 +22,13 @@ import {
   Vector3,
 } from 'three';
 import {RoundedBoxGeometry} from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
-import {attach, cupRadius, fitGlasses, glasses, headphones, headPoints, softReflection, takeawayCup} from './accessories';
+import {attach, cupRadius, drawSoftReflection, fitGlasses, glasses, headphones, headPoints, softReflection, takeawayCup} from './accessories';
 import {CinemaLens} from './cinemaLens';
 import {buildDesk, Desk, DeskSpec} from './desk';
 import {drawIde, HANDLERS, IdeChrome, IDE_THEMES} from './ide';
 import {
-  bouquet, buildNightStudy, canvasTex, EYE, fabricTex, KEY_TOP, KEYS, loadStudyModels, mulberry32,
-  place, plasterTex, renderer, SCREEN, smooth, StudyModels, TYPE_TOTAL, walnutTex, wob, WRIST_TYPING, HOME_X, HOME_SPREAD, HOME_Z, keyAt,
+  bouquet, buildNightStudy, canvasTex, DESK, EYE, fabricTex, KEY_TOP, KEYS, loadStudyModels, mulberry32,
+  place, plasterTex, renderer, SCREEN, smooth, StudyModels, studyKeysAt, TYPE_TOTAL, walnutTex, wob, WRIST_TYPING, HOME_X, HOME_SPREAD, HOME_Z, keyAt,
 } from './goodCodeOpening';
 import {KEY_U, KEYBOARDS} from './keyboard';
 import {HandAim, loadPerson, Person, PersonPose, PersonSpec} from './rocketboxPerson';
@@ -84,6 +84,10 @@ interface Beat {
   ide: {h: keyof typeof HANDLERS; theme: keyof typeof IDE_THEMES; chrome: IdeChrome};
   /** Откинулся в кресле: глаза дальше и ниже, руки не на клавиатуре. */
   recline?: boolean;
+  /** Сидит дальше от стола, м: руки тянутся к клавишам прямее. */
+  sitBack?: number;
+  /** Сиденье выше, м: локти над столешницей, предплечья ложатся на стол сверху. */
+  sitUp?: number;
   /** Что на нём: очки, наушники, стаканчик кофе в левой руке у плеча. */
   props?: {glasses?: boolean; headphones?: boolean; coffee?: boolean};
   /** Свой угол объектива: откинувшегося надо показать с креслом, иначе поза не читается. */
@@ -101,6 +105,11 @@ const BEATS: Beat[] = [
   // 1 · ночь, кабинет с цветами: читает спокойно, один перевод взгляда, моргнул, щелчок
   {dur: 2.4, set: 0, fix: [{t: 0, x: -0.02, y: 0.02}, {t: 1.3, x: 0.04, y: 0.015}],   // одно движение глаз за план
     blinks: [1.2], lean: 8, head: [3, 0, 0], taps: [[0.8, 1, 2], [1.55, 1, 2], [2.4, 1, 2]], hands: 'arrows',
+    // ⚠️ сбоку, средним планом, руки «как цапля» (автор): локти у корпуса ~105°. Сидит
+    // дальше — руки тянутся к клавишам прямее
+    sitBack: 0.09,
+    // запястья на столе: сиденье выше — локти над столешницей, предплечья не режут её край
+    sitUp: 0.05,
     ide: {h: 'lamp', theme: 'canon', chrome: 'jetbrains'}},
   // 2 · день, опенспейс: быстро набирает
   {dur: 1.8, set: 1, fix: [{t: 0, x: 0.05, y: -0.01}, {t: 0.9, x: 0.0, y: -0.012}],
@@ -162,7 +171,9 @@ const PALM = 0.046;                                // от кости кисти
 const PALM_T = 0.012;                              // от кости кисти до кожи ладони
 export const FACE_STARTS = BEATS.reduce<number[]>((a, b, i) => [...a, i ? a[i - 1] + BEATS[i - 1].dur : 0], []);
 export const FACES_DURATION = BEATS.reduce((s, b) => s + b.dur, 0) + PAUSE;
-const EYES_AT = (b: Beat) => (b.recline ? new Vector3(0.03, 1.07, -0.26) : EYE.clone());
+const EYES_AT = (b: Beat) => (b.recline ? new Vector3(0.03, 1.07, -0.26) : EYE.clone().set(EYE.x, EYE.y + (b.sitUp ?? 0), EYE.z - (b.sitBack ?? 0)));
+/** Где глаза человека плана (с учётом того, как он сидит). */
+export const eyesOf = (shot: number) => EYES_AT(BEATS[shot]);
 
 export interface FaceState {
   t: number;
@@ -644,6 +655,13 @@ export interface FacesOptions {
   /** Свет экрана кабинета (доля от проезда). Лицо в лоб из объектива плоское —
    *  0.45; в интро первый снят сбоку, как в утверждённом проезде — 1. */
   studyScreenK?: number;
+  /** Где в кабинете первого стоит ваза с барвинком (интро ставит под свой кадр). */
+  studyVase?: Vector3;
+  /** Стена дома снаружи вокруг окна кабинета (интро влетает в окно). */
+  studyExterior?: boolean;
+  /** Кабинет первого: стол глубже к нему, запястья лежат на столешнице, кисть
+   *  поднята к клавишам (автор: «руки должны кистями лежать на столе»). */
+  studyRest?: {keyboardZ: number; deskFront: number; handPitch: number; curl?: [number, number, number, number]; thumb?: [number, number, number]};
 }
 
 export interface FacesShot {
@@ -684,7 +702,7 @@ export function* buildFaces(opts: FacesOptions): Generator<any, FacesShot> {
   }));
   const scenes = BEATS.map(() => new Scene());
   // первая комната — та же, что в проезде; экран за камерой, но светит
-  const study = buildNightStudy(scenes[0], models, mulberry32(20260926));
+  const study = buildNightStudy(scenes[0], models, mulberry32(20260926), {vase: opts.studyVase, exterior: opts.studyExterior, keyboardZ: opts.studyRest?.keyboardZ, deskFront: opts.studyRest?.deskFront});
   study.updateScreen(TYPE_TOTAL, true);
   // на экране — обработчик лампы из 1.1: его он и открыл первым
   let lampLine = -1;
@@ -725,7 +743,9 @@ export function* buildFaces(opts: FacesOptions): Generator<any, FacesShot> {
   kitchenFront(scenes[2], copy(), mulberry32(22), false);
   kitchenFront(scenes[4], copy(), mulberry32(22), true);
   const studyKeys: KeyPlace = {top: KEY_TOP, homeZ: HOME_Z, homeX: HOME_X, spread: HOME_SPREAD, keyAt};
-  const keyPlace = (set: number): KeyPlace => desks[set] ? {...desks[set], top: desks[set].keyTop} : studyKeys;
+  // у первого клавиатура может стоять глубже (studyRest) — свои клавиши
+  const study0Keys: KeyPlace = opts.studyRest ? {top: KEY_TOP, ...studyKeysAt(opts.studyRest.keyboardZ)} : studyKeys;
+  const keyPlace = (set: number): KeyPlace => desks[set] ? {...desks[set], top: desks[set].keyTop} : set === 0 ? study0Keys : studyKeys;
   // экраны: у каждого свой обработчик, тема и редактор; прокручены к handle()
   const drawShotScreen = (i: number, fx: {stripes?: number[]; stripeK?: number; defocus?: number} = {}) => {
     const b = BEATS[i];
@@ -789,9 +809,13 @@ export function* buildFaces(opts: FacesOptions): Generator<any, FacesShot> {
   camera.lookAt(aimAt(EYE));
   camera.updateMatrixWorld(true);
   let lens: CinemaLens | null = null;
-  const EXPOSURE = [1.0, 0.8, 1.0, 1.0, 0.85, 1.15];
-  // половинка со столом — своя поправка экспозиции (кухня вечером: стол ярче лица)
-  const POV_EXPOSURE: Record<number, number> = {2: 0.78};
+  // ⚠️ Дневной офис (план 1) среди ночных планов слепил: средняя яркость половин
+  // 122/165 против 15–55 у остальных (автор: «слишком яркий, бьёт глаза»). Экспозиция
+  // 0.8 → 0.18 оказалось темно (автор: «слишком затемнил»): 0.3, стол ×0.85.
+  const EXPOSURE = [1.0, 0.3, 1.0, 1.0, 0.85, 1.15];
+  // половинка со столом — своя поправка экспозиции (кухня вечером: стол ярче лица;
+  // утренняя кухня с кофе: стол 130 → 99 — как у офиса, 98, иначе он один слепит в коллаже)
+  const POV_EXPOSURE: Record<number, number> = {1: 0.85, 2: 0.78, 4: 0.53};
   // шейдеры всех трёх комнат — заранее: иначе на каждой склейке кадр ждёт ~2 с
   const r0 = renderer();
   for (const s of scenes) r0.compile(s, camera);
@@ -812,6 +836,9 @@ export function* buildFaces(opts: FacesOptions): Generator<any, FacesShot> {
       // откинувшись — руки на коленях, не на клавиатуре
       ? [new Vector3(RECLINE_X + ARMREST.dx, ARMREST.top + 0.03, ARMREST.z + ARMREST.len / 2 - 0.05), new Vector3(RECLINE_X - ARMREST.dx, ARMREST.top + 0.03, ARMREST.z + ARMREST.len / 2 - 0.05)]
       : [WRIST_TYPING[0].clone().setY(K.top + 0.044), WRIST_TYPING[1].clone().setY(K.top + 0.044)];
+    // запястья на столе: кисть поднята к клавишам, запястье ищет подгонка кончиков
+    const rest = b.set === 0 && !b.recline ? opts.studyRest : undefined;
+    if (rest) for (const w of wrist) w.set(w.x, DESK.y + 0.02, w.z + (rest.keyboardZ - KEYS.z));
     let handAim: [HandAim | null, HandAim | null] = [null, null];
     if (b.recline) {
       // ⚠️ Раньше руки тянулись к «коленям», которых у стоячей модели нет: локти
@@ -845,6 +872,7 @@ export function* buildFaces(opts: FacesOptions): Generator<any, FacesShot> {
       lean: b.lean, head, gazeAt: s.gaze, blink: s.blink, breath: s.breath, taps: s.taps,
       wrist, handAim,
       keys: b.recline ? undefined : keysFor(b, K, desk),
+      handPitch: rest?.handPitch, curl: rest?.curl, thumb: rest?.thumb,
     });
     if (P.head) attach(P.head, people[s.shot].headFrame());
     // он листает код стрелкой: каретка на экране опускается с каждым ↓
@@ -855,7 +883,8 @@ export function* buildFaces(opts: FacesOptions): Generator<any, FacesShot> {
         const f = people[s.shot].handFrame(h);
         const m = new Vector3().setFromMatrixPosition(f).addScaledVector(new Vector3().setFromMatrixColumn(f, 2), HAND_MID);
         handShadow[b.set][h].visible = true;
-        handShadow[b.set][h].position.set(m.x, K.top + 0.0008, m.z + 0.004);
+        // запястья на столе — тень на столешнице (клавиатура её закрывает сама)
+        handShadow[b.set][h].position.set(m.x, (rest ? DESK.y : K.top) + 0.0008, m.z + 0.004);
       }
     }
     if (P.cup) {
@@ -978,6 +1007,11 @@ export function* buildFaces(opts: FacesOptions): Generator<any, FacesShot> {
   const drawScreen = (shot: number, draw: (g: CanvasRenderingContext2D, W: number, H: number) => void) => {
     const set = BEATS[shot].set;
     if (desks[set]) desks[set].drawScreen(draw); else (set === 0 ? study : dark).drawScreen(draw);
+    // в очках отражается его экран: сменился экран — сменилось и отражение
+    if (BEATS[shot].props?.glasses && reflect && screenTex) {
+      drawSoftReflection(reflect.image as HTMLCanvasElement, screenTex.image);
+      reflect.needsUpdate = true;
+    }
   };
   return {render, renderPov, renderSplit, pose: (s: FaceState) => { if (s.shot >= 0) pose(s); }, deskView, screenCenter, screenFx, drawScreen, scenes, models, people,
     setStudyScreenK: (k: number) => { for (const [l, base] of studyScreens) l.intensity = base * k; }};

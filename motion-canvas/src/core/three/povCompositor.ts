@@ -58,12 +58,53 @@ export class PovCompositor {
     g.putImageData(img, 0, 0);
   }
 
+  private graphiteCanvas: HTMLCanvasElement | null = null;
+  /** Графит applyBackground с горизонтальной прозрачностью: плотный слева
+   *  (до 0.40W), долго тает к 0.90W (smootherstep — пологие концы, края
+   *  перехода не читаются). Строится один раз.
+   *  ⚠️ Автор: «переход должен быть более плавный» — первая проба таяла за
+   *  0.50W → 0.66W (~300 px) и читалась полосой. На правом крае кода (~950 px)
+   *  графит всё ещё ~95 %: код читается на чистом фоне. */
+  private graphite(): HTMLCanvasElement {
+    if (this.graphiteCanvas) return this.graphiteCanvas;
+    const {width: W, height: H} = this;
+    const c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    const g = c.getContext('2d')!;
+    const v = g.createLinearGradient(0, 0, 0, H);
+    v.addColorStop(0, '#0B0C10');
+    v.addColorStop(1, '#12141A');
+    g.fillStyle = v;
+    g.fillRect(0, 0, W, H);
+    // тёплое пятно applyBackground: центр (0.62W, 0.38H), радиус 0.95W
+    const sx = W * 0.62, sy = H * 0.38;
+    const spot = g.createRadialGradient(sx, sy, 0, sx, sy, W * 0.95);
+    spot.addColorStop(0, 'rgba(246,231,212,0.045)');
+    spot.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = spot;
+    g.fillRect(0, 0, W, H);
+    // горизонтальная маска: smootherstep от 0.40W (1) к 0.90W (0)
+    g.globalCompositeOperation = 'destination-in';
+    const x0 = W * 0.40, x1 = W * 0.90;
+    const m = g.createLinearGradient(x0, 0, x1, 0);
+    for (let i = 0; i <= 32; i++) {
+      const u = i / 32;
+      const a = 1 - u * u * u * (u * (u * 6 - 15) + 10);
+      m.addColorStop(u, `rgba(0,0,0,${a.toFixed(4)})`);
+    }
+    g.fillStyle = m;
+    g.fillRect(0, 0, W, H);
+    g.globalCompositeOperation = 'source-over';
+    this.graphiteCanvas = c;
+    return c;
+  }
+
   coc(lens: PovLens, d: number): number {
     return lens.K * Math.abs(1 / Math.max(d, 0.05) - 1 / lens.focus);
   }
 
   render(renderer: WebGLRenderer, camera: PerspectiveCamera, layers: PovLayer[], lens: PovLens,
-    opts: {time: number; grain?: number; vignette?: number; exposure?: number[]}): HTMLCanvasElement {
+    opts: {time: number; grain?: number; vignette?: number; exposure?: number[]; shade?: number}): HTMLCanvasElement {
     const {width: W, height: H, ctx, lctx, s} = this;
     renderer.setSize(W, H, false);
     camera.aspect = W / H;
@@ -73,7 +114,20 @@ export class PovCompositor {
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, W, H);
     const view = new Vector3();
+    // Графит слева — под код, когда телефон уходит вправо (duplicationStreetPovSceneEn).
+    // Автор: «код на нашем графите с плавным переходом в картинку справа». Это
+    // РОВНО applyBackground всех код-сцен ролика (вертикаль #0B0C10 → #12141A +
+    // еле тёплое пятно света), плотный до правого края кода и тающий к
+    // телефону. Кладётся ПОД последний слой (рука с телефоном) — рука его не
+    // получает. Зерно ложится поверх и дизерит переход: полос нет.
+    const shade = opts.shade ?? 0;
+    const drawShade = () => {
+      ctx.globalAlpha = Math.min(1, shade);
+      ctx.drawImage(this.graphite(), 0, 0);
+      ctx.globalAlpha = 1;
+    };
     layers.forEach((L, li) => {
+      if (shade > 0 && li === layers.length - 1) drawShade();
       renderer.setClearColor(0x000000, 0);
       renderer.clear();
       if (opts.exposure) renderer.toneMappingExposure = opts.exposure[li] ?? 1;
@@ -114,8 +168,8 @@ export class PovCompositor {
         ctx.globalCompositeOperation = 'source-over';
       }
     });
-    // виньетка — мягко, только углы
-    const vig = opts.vignette ?? 0.35;
+    // виньетка — мягко, только углы; под графитом слабее — там канон applyBackground
+    const vig = (opts.vignette ?? 0.35) * (1 - 0.6 * Math.min(1, shade));
     if (vig > 0) {
       const gr = ctx.createRadialGradient(W / 2, H / 2, H * 0.45, W / 2, H / 2, Math.hypot(W, H) * 0.56);
       gr.addColorStop(0, 'rgba(0,0,0,0)');

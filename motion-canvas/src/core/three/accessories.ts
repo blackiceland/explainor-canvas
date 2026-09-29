@@ -139,6 +139,14 @@ export function fitGlasses(pts: Vector3[]): GlassesFit {
 export function softReflection(src: HTMLCanvasElement | HTMLImageElement): CanvasTexture {
   const c = document.createElement('canvas');
   c.width = 256; c.height = 160;
+  drawSoftReflection(c, src);
+  const t = new CanvasTexture(c);
+  t.colorSpace = SRGBColorSpace;
+  return t;
+}
+
+/** Перерисовать отражение (экран сменился): после — texture.needsUpdate. */
+export function drawSoftReflection(c: HTMLCanvasElement, src: HTMLCanvasElement | HTMLImageElement): void {
   const g = c.getContext('2d')!;
   g.fillStyle = '#000'; g.fillRect(0, 0, c.width, c.height);
   g.save();
@@ -152,9 +160,6 @@ export function softReflection(src: HTMLCanvasElement | HTMLImageElement): Canva
   mask.addColorStop(0, 'rgba(0,0,0,0)');
   mask.addColorStop(1, 'rgba(0,0,0,1)');
   g.fillStyle = mask; g.fillRect(0, 0, c.width, c.height);
-  const t = new CanvasTexture(c);
-  t.colorSpace = SRGBColorSpace;
-  return t;
 }
 
 export interface GlassesOptions {

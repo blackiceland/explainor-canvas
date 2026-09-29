@@ -79,6 +79,15 @@ export interface PersonPose {
   /** Своя ориентация кисти (левая, правая). Без неё — «на клавишах»: пальцы
    *  вперёд, ладонью вниз. Нужна, чтобы держать стакан. */
   handAim?: [HandAim | null, HandAim | null];
+  /** Наклон кисти к пальцам, рад (+ — вниз). По умолчанию почти ровная (HAND_PITCH);
+   *  запястья на столе — кисть поднята к клавишам (отрицательный). */
+  handPitch?: number;
+  /** Множитель сгиба пальцев над клавишами (по умолчанию 1); можно по пальцам —
+   *  указательный … мизинец: у поднятой кисти короткий мизинец иначе уходит в клавиши. */
+  curl?: number | [number, number, number, number];
+  /** Сгиб большого пальца по суставам, ° (по умолчанию — под ладонь). Запястье на
+   *  столе: большой палец поверх пробела, иначе он уходит в столешницу. */
+  thumb?: [number, number, number];
 }
 
 export interface HandAim {
@@ -563,7 +572,7 @@ export function* loadPerson(spec: PersonSpec): Generator<any, Person> {
       const dev = p.keys?.turn?.[side > 0 ? 0 : 1] ?? HAND_DEV;
       const fore = worldPos(a.hand).sub(worldPos(a.fore));
       const yaw = Math.atan2(fore.x, fore.z) + dev * side;
-      const handDir = own ? own.fingers : new Vector3(Math.sin(yaw), -HAND_PITCH, Math.cos(yaw));
+      const handDir = own ? own.fingers : new Vector3(Math.sin(yaw), -(p.handPitch ?? HAND_PITCH), Math.cos(yaw));
       const wantBack = own ? own.back : Y;
       // сколько повернуть кисть вокруг её оси, чтобы тыл смотрел куда надо
       const rollNeeded = () => {
@@ -593,7 +602,7 @@ export function* loadPerson(spec: PersonSpec): Generator<any, Person> {
         // радиус обхвата — у каждого пальца свой: стакан сужается книзу, и общий
         // радиус вдавливал верхний палец в стенку (автор)
         const R = Array.isArray(own?.wrap) ? own!.wrap[f - 1] : own?.wrap;
-        const c = R ? wrapCurl(chain, R) : CURL[f];
+        const c = R ? wrapCurl(chain, R) : CURL[f].map(v => v * (Array.isArray(p.curl) ? p.curl[f - 1] : p.curl ?? 1));
         chain.forEach((seg, j) => rotateWorld(seg, new Quaternion().setFromAxisAngle(bendAxis, (c[j] + (j === 0 ? tap * TAP : tap * 6)) * D2R)));
       });
       // пальцы по клавишам: раздвинуть так, чтобы от указательного до мизинца было
@@ -618,7 +627,7 @@ export function* loadPerson(spec: PersonSpec): Generator<any, Person> {
         }
       }
       // большой палец — к указательному, под ладонь
-      thumb.forEach((seg, j) => rotateWorld(seg, new Quaternion().setFromAxisAngle(bendAxis, (own?.wrap ? [16, 26, 18] : [8, 14, 10])[j] * D2R)));
+      thumb.forEach((seg, j) => rotateWorld(seg, new Quaternion().setFromAxisAngle(bendAxis, (own?.wrap ? [16, 26, 18] : p.thumb ?? [8, 14, 10])[j] * D2R)));
     }
   }
 

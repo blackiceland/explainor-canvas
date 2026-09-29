@@ -1,431 +1,263 @@
-import {blur, makeScene2D, Node, Rect} from '@motion-canvas/2d';
-import {
-  all,
-  createSignal,
-  easeInOutCubic,
-  easeInOutSine,
-  easeOutCubic,
-  linear,
-  spawn,
-  ThreadGenerator,
-  useTime,
-  waitFor,
-} from '@motion-canvas/core';
-import {Box3, MeshStandardMaterial, Scene, Vector3, WebGLRenderer} from 'three';
-import {createThreeView} from '../core/three/ThreeCanvas';
-import {buildChargingStage, D2R, mountWorldCard, PANEL, panelBody, POST_IDLE, roundRect} from '../core/three/chargingStage';
+import {blur, Circle, Line, makeScene2D, Node, Rect, Txt} from '@motion-canvas/2d';
+import {all, easeInOutSine, easeOutCubic, ThreadGenerator, useTime, waitFor} from '@motion-canvas/core';
+import {Manticore} from '../core/code/components/Manticore';
+import {buildCanonRules, Canon, CanonCodeTheme, paintCanonMethodCalls, paintCanonParams} from '../core/code/model/paletteCanon';
 import {Screen} from '../core/theme';
 import {applyBackground} from '../core/utils';
-import {Manticore} from '../core/code/components/Manticore';
-import {
-  buildCanonRules, Canon, CanonCodeTheme, paintCanonMethodCalls,
-  paintCanonMethodCallsLine,
-} from '../core/code/model/paletteCanon';
 
 // ── DON'T FIGHT DUPLICATION · глава 2 (SYNC COST): ложная независимость ─────
 // Сюжет: Dont_Fight_Duplication_final.pdf, акт 5. Идёт сразу после POV под
-// дождём (duplicationStreetPovSceneEn) и объясняет его: почему приложение
-// сказало «Available», а нажатие кончилось «Connector unavailable».
+// дождём и объясняет его: почему приложение сказало «Available», а нажатие
+// кончилось «Connector unavailable». Правило «можно ли начать зарядку на этом
+// разъёме» живёт в двух местах: в запросе экрана станции (`status !=
+// CHARGING`) и в обработчике команды (`in AVAILABLE, FINISHING`).
 //
-// Правило «можно ли начать зарядку на этом разъёме» живёт в ДВУХ местах, и
-// ничего здесь не выглядит дублированным: API приложения считает флаг
-// (`status != CHARGING`), обработчик команды проверяет список (`in AVAILABLE,
-// FINISHING`). На трёх статусах это одно и то же множество. Их держали порознь,
-// как учила вставка с парами, — и зря: они отвечают на ОДИН вопрос.
-// Ломается разъём, в enum добавляют OUT_OF_ORDER, больше ничего не меняют.
-// Обработчик новый статус отвергает (его нет в списке), приложение пропускает
-// (он не CHARGING) — и система говорит две вещи сразу.
-//
-// ⚠️ ЧЕРНОВИК ДЛЯ ПРОСМОТРА (27.09, автор: «сцену сначала собери, я должен
-// понять, как она будет выглядеть»). Озвучки нет, такты стоят на глаз и
-// переставляются по записи. Исправление (одно решение canStart — акт 6) —
-// следующая сцена, она продолжит этот кадр.
-//
-// ── Режиссура ──────────────────────────────────────────────────────────────
-// Язык актов 1–3: код слева одним документом, мир справа отвечает на строки
-// ПРАВДИВЫМИ состояниями ([[feedback_world_state_chain]]), вид не двигается.
-//   • Мир — та же улица: стойка и Honda e (chargingStage), только ближе; депо в
-//     главе 2 ни при чём, его вьюпорта нет.
-//   • Три файла стоят напротив своих объектов: API приложения сверху — напротив
-//     карточки приложения над машиной; enum статусов снизу — напротив стойки.
-//   • Карточка приложения — тот же экран, что был в POV («Mill Street»,
-//     «● Available», зелёная «Start charging», лист «Connector unavailable»),
-//     собранный на панели мира: тёмное стекло + волосяная кромка, плоскость
-//     −31° — как все приборы главы 1, не билборд.
-//   • Стойка отвечает индикатором: зелёный «свободна» → тёмная «сломана».
-//     Сначала ломается мир, потом код догоняет его новой строкой.
-//   • Выделение — канон: полоска роуз 0.18 на строке и гашение остального.
+// ── Четвёртая версия (28.09), ЧАСТЬ 1: запрос экрана = экран из POV ─────────
+// Автор: «сначала надо показать только код слева; его имеет смысл
+// визуализировать, чтобы зритель понял, что происходит» — и «да» на мой ответ:
+// визуализация уже есть, это экран из POV. Каждое поле запроса — кусок экрана.
+//   • Слева один код запроса. Справа карточка экрана приложения — тот же экран,
+//     что был в руке под дождём (раскладка в миллиметрах из chargeAppUi,
+//     цвета и шрифт оттуда же). Карточка по канону пары «код + продуктовая
+//     панель» (whatsappCodePairSceneEn): тёмная панель, скругление, мягкая
+//     тень; высота карточки = высота кода, верхняя кромка общая.
+//   • Экран собирается из полей по мере чтения: полоска на строке поля →
+//     на экране проявляется его кусок. name → «Mill Street», label →
+//     «Connector 2», plug + maxPowerKw → «CCS · 50 kW», pricePerKwh →
+//     «0.39 € / kWh», последним available → «● Available» и кнопка.
+//   • Вид неподвижен, ни сетки, ни камеры (автор: «всё должно быть на одном
+//     фрейме»); полоска — канон (роуз 0.18, 1.15 строки, углы острые).
+// Отменено по дороге (не возвращать): файлы на карте с камерой и сеткой (v2),
+// расфокус как выделение (v3: «странные выделения, ничего не понятно»), улица с
+// машиной и карточкой над ней (v1). Копии — scratchpad/ch2/.
+// Дальше (часть 2, после согласования): нажатие отправляет команду, слева код
+// сменяется обработчиком, экран справа остаётся.
+// ⚠️ Озвучки нет, такты на глаз.
 
-// ── Код: три файла одним документом ────────────────────────────────────────
-// Пакеты разные — это три места. Файл статусов СНИЗУ: его новая строка
-// толкает вниз только собственную скобку, выше ничего не едет.
-const APP = `package api.mobile
+// ── Код ─────────────────────────────────────────────────────────────────────
+// Пустые строки — между логическими блоками, как принято (автор): после
+// заголовка класса и перед return.
+const QUERY = `class StationScreenQuery(
+    private val stations: StationRepository,
+    private val tariffs: TariffCatalog,
+) {
 
-fun toDto(connector: Connector): ConnectorDto {
-    return ConnectorDto(
-        id = connector.id,
-        available = connector.status != CHARGING,
-    )
-}`;
-const HANDLER = `package commands
+    fun load(stationId: StationId, driverId: DriverId): StationScreen {
+        val station = stations.get(stationId)
+        val tariff = tariffs.forDriver(driverId, station.operator)
 
-fun handle(cmd: StartSession) {
-    val connector = connectors.byId(cmd.connector)
-
-    if (connector.status !in listOf(AVAILABLE, FINISHING)) {
-        throw ConnectorUnavailable(connector.id)
+        return StationScreen(
+            name = station.name,
+            connectors = station.connectors.map { it.toView(tariff) },
+        )
     }
 
-    startSession(cmd)
+    private fun Connector.toView(tariff: Tariff): ConnectorView {
+        return ConnectorView(
+            id = id.value,
+            label = "Connector $number",
+            plug = plug.displayName,
+            maxPowerKw = maxPowerKw,
+            pricePerKwh = tariff.pricePerKwh(plug),
+            available = status != CHARGING,
+        )
+    }
 }`;
-const STATUS = `package connectors
 
-enum class ConnectorStatus {
-    AVAILABLE,
-    CHARGING,
-    FINISHING,
-}`;
-const STATUS_BROKEN = STATUS.replace('    FINISHING,\n}', '    FINISHING,\n    OUT_OF_ORDER,\n}');
-const doc = (...files: string[]) => files.join('\n\n\n');        // две пустые строки между файлами
-const DOC_0 = doc(APP, HANDLER, STATUS);
-const DOC_1 = doc(APP, HANDLER, STATUS_BROKEN);
+const TYPES = [
+  'StationScreenQuery', 'StationRepository', 'TariffCatalog', 'StationId', 'DriverId',
+  'StationScreen', 'Connector', 'Tariff', 'ConnectorView',
+];
+const RULES = buildCanonRules({
+  types: TYPES,
+  methods: ['load', 'toView'],
+  vars: [
+    'stations', 'tariffs', 'station', 'tariff', 'stationId', 'driverId', 'operator',
+    'connectors', 'value', 'number', 'plug', 'displayName', 'maxPowerKw', 'status', 'it', 'id',
+  ],
+});
 
-// Индексы строк — поиском по тексту, а не на глаз.
-const ROWS = DOC_1.split('\n');
+// ── Геометрия ───────────────────────────────────────────────────────────────
+// Кегль 24: код один, место есть — крупнее, чем 20 в главе 1 (смотрят с
+// телефонов). 26 строк = 936 px, самая длинная строка (70 знаков) = 1016 px.
+// Карточка: высота = высота кода, ширина — по пропорции экрана телефона из POV
+// (61.4 × 135.5 мм) → 424 px. Между кодом и карточкой 140 px, поля по 170.
+const FS = 24;
+const LH = FS * 1.5;
+const ADV = FS * 0.605;
+const WIN_H = Screen.height + 104;        // окно Manticore = кадр: морф не скроллит сам
+const ROWS = QUERY.split('\n');
+const CODE_W = Math.max(...ROWS.map(l => l.length)) * ADV;
+const CODE_H = ROWS.length * LH;
+const PHONE = {w: 61.4, h: 135.5};         // мм — экран телефона из POV (chargeAppUi)
+const K = CODE_H / PHONE.h;                // px на мм
+const CARD_W = PHONE.w * K;
+const CARD_H = CODE_H;
+const GAP = 140;
+const CODE_LEFT = -(CODE_W + GAP + CARD_W) / 2;
+const CARD_X = CODE_LEFT + CODE_W + GAP + CARD_W / 2;
+const TOP_LINE_Y = -CODE_H / 2 + LH / 2;  // центр первой строки; верх кода = верх карточки
+
 const lineOf = (needle: string): number => {
   const i = ROWS.findIndex(r => r.includes(needle));
   if (i < 0) throw new Error(`нет строки: ${needle}`);
   return i;
 };
-const span = (from: number, count: number) => Array.from({length: count}, (_, k) => from + k);
-const APP_LINES = span(0, APP.split('\n').length);
-const HANDLER_LINES = span(lineOf('package commands'), HANDLER.split('\n').length);
-const STATUS_LINES = span(lineOf('package connectors'), STATUS_BROKEN.split('\n').length);
-const L_AVAILABLE = lineOf('available = connector.status');
-const L_GUARD = lineOf('!in listOf');
-const L_THROW = lineOf('throw ConnectorUnavailable');
-const L_BROKEN = lineOf('OUT_OF_ORDER');
+const L_NAME = lineOf('name = station.name');
+const L_LABEL = lineOf('label =');
+const L_PLUG = lineOf('plug = plug');
+const L_POWER = lineOf('maxPowerKw = maxPowerKw');
+const L_PRICE = lineOf('pricePerKwh =');
+const L_AVAILABLE = lineOf('available =');
 
-const CODE_TYPES = [
-  'Connector', 'ConnectorDto', 'StartSession', 'ConnectorStatus', 'ConnectorUnavailable',
-];
-const CODE_RULES = [
-  ...buildCanonRules({
-    types: CODE_TYPES,
-    methods: ['toDto', 'handle'],
-    vars: ['connector', 'connectors', 'cmd', 'id', 'status', 'available', 'api', 'mobile', 'commands'],
-  }),
-  {match: /^enum$/, color: Canon.keyword},
-];
-
-// ── Геометрия кода — как в актах 2–3 ──────────────────────────────────────
-// Кегль 20 и колонка 850 — те же, что в главе 1: код и мир делят кадр так же.
-// Вид НЕПОДВИЖЕН: документ в своём самом высоком состоянии (с OUT_OF_ORDER,
-// 31 строка) стоит по центру кадра с первого кадра.
-const CODE_FS = 20;
-const CODE_W = 850;
-const CODE_X = -455;
-const LH = CODE_FS * 1.5;
-const CODE_PAD_Y = 38;                   // getCodePaddingY(20)
-const CLIP_H = Screen.height;            // окно = кадр: морф не скроллит сам
-const CODE_H = CLIP_H + CODE_PAD_Y * 2;
-const START_Y = -CLIP_H / 2 + LH / 2;
-const TOP_MARGIN = (Screen.height - ROWS.length * LH) / 2;
-const Y_VIEW = TOP_MARGIN - Screen.height / 2 - START_Y;
-
-// ── Камера мира ────────────────────────────────────────────────────────────
-// Ближе, чем в главе 1: в кадре только улица. Числа — из солвера
-// (scratchpad/ch2/frame_solve5.mjs повторяет orbit/lookAt/fov chargingStage):
-// карточка над машиной не наезжает на крышу, стойка целиком правее кода,
-// группа по вертикали в центре. Корма машины уходит за правую кромку.
-const CAM = {el: 14 * D2R, dist: 9.5, x: -0.70, y: 1.22, z: 0.325, off: -2.5};
-// Карточка приложения: над машиной, в плоскости −31°, чуть к стойке.
-const CARD_W = 2.4, CARD_H = 1.4, CARD_LIFT = 0.45, CARD_SHIFT = -0.6;
-
-const APP_UI = {
-  text: '#F3F5F7', muted: '#8B94A1', green: '#4ADE80', greenInk: '#06140B',
-  sheet: '#171C24', red: '#FF6B6B',
+// ── Экран приложения: цвета и шрифт — из chargeAppUi (POV) ──────────────────
+const APP = {
+  bg: '#0B0E13', text: '#F3F5F7', muted: '#8B94A1', faint: '#5B636E',
+  green: '#4ADE80', greenInk: '#06140B',
 };
-const APP_FONT = 'Manrope, Inter, sans-serif';
-const STREET_LIT = 0.55;                 // ровный зелёный «свободна», как в главе 1
+const APP_FONT = 'Manrope';
+const mm = (v: number) => v * K;
+const lx = (v: number) => mm(v) - CARD_W / 2;            // мм от левого края → локальный x
+const ly = (v: number) => mm(v) - CARD_H / 2;            // мм от верха → локальный y
+const baseline = (yMm: number, sizeMm: number) => ly(yMm) - mm(sizeMm) * 0.35;
 
 export default makeScene2D(function* (view) {
   applyBackground(view);
-  const stage = new Node({});
+  yield (document as any).fonts.load(`700 60px ${APP_FONT}`);
+  yield (document as any).fonts.load(`400 30px ${APP_FONT}`);
+
+  const stage = new Node({opacity: 0});
   view.add(stage);
 
-  yield (document as any).fonts.load(`700 100px Manrope`);
-  yield (document as any).fonts.load(`400 40px Manrope`);
-  const world = yield* buildChargingStage();
-  world.camEl(CAM.el);
-  world.camDist(CAM.dist);
-  world.tgtX(CAM.x);
-  world.tgtY(CAM.y);
-  world.tgtZ(CAM.z);
-  world.lookOff(CAM.off);
+  // ── полоски — под кодом ──
+  const stripes = new Node({});
+  stage.add(stripes);
 
-  // ── Состояния мира ───────────────────────────────────────────────────────
-  const postLit = createSignal(STREET_LIT);
-  const appOp = createSignal(0);
-  const appBlur = createSignal(14);
-  const pressed = createSignal(0);
-  const loading = createSignal(0);
-  const sheet = createSignal(0);
-  const clock = createSignal(0);           // секунды — для спиннера
-  spawn(clock(600, 600, linear));
-
-  const PANEL_ROT = world.car.rotation.y;  // −31°, плоскость всех приборов
-  const carBox = new Box3().setFromObject(world.car);
-  const carMid = carBox.getCenter(new Vector3());
-  const along = new Vector3(Math.cos(PANEL_ROT), 0, -Math.sin(PANEL_ROT));
-  const cardPos = carMid.clone().addScaledVector(along, CARD_SHIFT);
-  const app = mountWorldCard(world.scene3, {
-    x: cardPos.x, y: carBox.max.y + CARD_LIFT + CARD_H / 2, z: cardPos.z,
-    planeW: CARD_W, planeH: CARD_H, rotationY: PANEL_ROT, px: 1024, py: 600,
-  });
-
-  // Экран приложения — тот же, что в POV, разложенный на панели мира.
-  let appKey = '';
-  function drawApp() {
-    const b = Math.round(appBlur() * 4) / 4;
-    const pr = Math.round(pressed() * 50) / 50;
-    const ld = Math.round(loading() * 50) / 50;
-    const sh = Math.round(sheet() * 200) / 200;
-    const spin = ld > 0 ? Math.round(clock() * 30) : 0;
-    const key = `${b}|${pr}|${ld}|${sh}|${spin}`;
-    if (key === appKey) return;
-    appKey = key;
-    const c = app.ctx, W = app.width, H = app.height;
-    c.clearRect(0, 0, W, H);
-    c.save();
-    if (b > 0.05) c.filter = `blur(${b}px)`;
-    panelBody(c, W, H);
-    roundRect(c, PANEL.hair, PANEL.hair, W - PANEL.hair * 2, H - PANEL.hair * 2, 30);
-    c.clip();
-    c.textBaseline = 'alphabetic';
-    const text = (t: string, x: number, y: number, px: number, color: string,
-                  w = 400, align: CanvasTextAlign = 'left') => {
-      c.font = `${w} ${px}px ${APP_FONT}`;
-      c.fillStyle = color;
-      c.textAlign = align;
-      c.fillText(t, x, y);
-    };
-    text('Mill Street  ·  Post 3', 64, 100, 38, APP_UI.muted);
-    c.fillStyle = APP_UI.green;
-    c.beginPath(); c.arc(84, 197, 17, 0, Math.PI * 2); c.fill();
-    text('Available', 122, 232, 100, APP_UI.text, 700);
-
-    // кнопка
-    const BX = 64, BY = 322, BW = W - 128, BH = 150;
-    const k = 1 - 0.03 * pr;
-    const bw = BW * k, bh = BH * k, bx = BX + (BW - bw) / 2, by = BY + (BH - bh) / 2;
-    c.fillStyle = APP_UI.green;
-    roundRect(c, bx, by, bw, bh, bh / 2);
-    c.fill();
-    const dark = 0.16 * Math.max(pr, ld * 0.8);
-    if (dark > 0) {
-      c.fillStyle = `rgba(0,0,0,${dark})`;
-      roundRect(c, bx, by, bw, bh, bh / 2);
-      c.fill();
-    }
-    const cy = BY + BH / 2;
-    if (ld < 1) {
-      c.globalAlpha = 1 - ld;
-      text('Start charging', BX + BW / 2, cy + 22, 62, APP_UI.greenInk, 700, 'center');
-      c.globalAlpha = 1;
-    }
-    if (ld > 0) {
-      c.globalAlpha = ld;
-      const sx = BX + BW / 2 - 150;
-      c.strokeStyle = APP_UI.greenInk;
-      c.lineWidth = 8;
-      c.lineCap = 'round';
-      c.beginPath();
-      const a0 = clock() * 6.2;
-      c.arc(sx, cy, 24, a0, a0 + Math.PI * 1.45);
-      c.stroke();
-      text('Starting…', sx + 50, cy + 22, 62, APP_UI.greenInk, 700);
-      c.globalAlpha = 1;
-    }
-
-    // Лист ошибки снизу; «Available» наверху остаётся — как в POV.
-    if (sh > 0) {
-      const top = H - 330 * sh;
-      const g = c.createLinearGradient(0, top - 40, 0, top);
-      g.addColorStop(0, 'rgba(0,0,0,0)');
-      g.addColorStop(1, `rgba(0,0,0,${0.5 * sh})`);
-      c.fillStyle = g;
-      c.fillRect(0, top - 40, W, 40);
-      c.fillStyle = APP_UI.sheet;
-      roundRect(c, 0, top, W, 420, 36);
-      c.fill();
-      c.fillStyle = 'rgba(243,245,247,0.28)';
-      roundRect(c, W / 2 - 40, top + 16, 80, 8, 4);
-      c.fill();
-      c.fillStyle = APP_UI.red;
-      c.beginPath(); c.arc(100, top + 112, 30, 0, Math.PI * 2); c.fill();
-      c.fillStyle = APP_UI.sheet;
-      roundRect(c, 95, top + 93, 10, 27, 5);
-      c.fill();
-      c.beginPath(); c.arc(100, top + 130, 5.5, 0, Math.PI * 2); c.fill();
-      text('Connector unavailable', 150, top + 134, 66, APP_UI.text, 700);
-      text('Try another connector.', 150, top + 198, 40, APP_UI.muted);
-    }
-    c.restore();
-    app.tex.needsUpdate = true;
-  }
-
-  const paint = (mats: MeshStandardMaterial[], level: number) => {
-    for (const m of mats) {
-      m.emissive.copy(POST_IDLE);
-      m.emissiveIntensity = level * 3.4;
-    }
-  };
-  const frame = (r: WebGLRenderer, s: Scene) => {
-    paint(world.postMats, postLit());
-    app.mat.opacity = appOp();
-    drawApp();
-    world.frame(r, s);
-  };
-
-  // Только улица: депо в главе 2 ни при чём.
-  const mainView = createThreeView({
-    width: Screen.width, height: Screen.height, scene: world.scene3,
-    camera: world.camera, onRender: r => frame(r, world.scene3),
-  });
-  const shot = mainView.node;
-  const shotBlur = blur(10);
-  shot.filters([shotBlur]);
-  shot.opacity(0);
-  stage.add(shot);
-
-  // ── Документ ─────────────────────────────────────────────────────────────
-  const docWrap = new Node({opacity: 0});
-  const docBlur = blur(10);
-  docWrap.filters([docBlur]);
-  stage.add(docWrap);
-  const plateLayer = new Node({});          // под кодом: добавлен ДО mount()
-  docWrap.add(plateLayer);
-  const code = Manticore.create(DOC_0, {
-    x: CODE_X, y: Y_VIEW, width: CODE_W, height: CODE_H,
-    fontSize: CODE_FS, theme: CanonCodeTheme,
-    glowAccent: false, customTypes: CODE_TYPES,
+  // ── код ──
+  const code = Manticore.create(QUERY, {
+    x: 0, y: 0, width: CODE_W + 240, height: WIN_H, fontSize: FS, lineHeight: LH,
+    theme: CanonCodeTheme, glowAccent: false, customTypes: TYPES,
     cardStyle: {fill: 'rgba(0,0,0,0)', stroke: 'rgba(0,0,0,0)', radius: 0, edge: false},
     noClip: true,
   });
-  code.mount(docWrap);
-  code.colorize(CODE_RULES);
+  code.mount(stage);
+  code.colorize(RULES);
   paintCanonMethodCalls(code);
+  paintCanonParams(code);                  // именованные аргументы — цветом полей
+  // `private fun Connector.toView(` — определение, хотя перед именем точка, а не
+  // `fun`: пейнтер вызовов красит его как вызов, возвращаем цвет определения.
+  {
+    const line = code.getLine(lineOf('private fun Connector.toView')) as any;
+    for (const tok of line.tokens) if (tok.text.trim() === 'toView') tok.ref().fill(Canon.methodDef);
+  }
   code.node.opacity(1);
+  code.node.x(CODE_LEFT - code.getLeftEdge());
+  code.node.y(TOP_LINE_Y - code.getLineY(0));
 
-  // Полоска под строкой — канон: роуз 0.18, высота 1.15 строки, углы острые,
-  // по длине текста строки. Слой под кодом; документ не скроллит.
-  const STRIPE_COLOR = 'rgba(255, 80, 120, 0.18)';
-  const ADV = CODE_FS * 0.605;
-  const stripe = (line: number): Rect => {
-    const t = ROWS[line];
-    const c0 = t.length - t.trimStart().length, c1 = t.length;
+  const stripe = (i: number): Rect => {
+    const t = ROWS[i];
+    const c0 = t.length - t.trimStart().length;
     const r = new Rect({
-      x: CODE_X + code.getLeftEdge() + c0 * ADV - 10,
-      y: Y_VIEW + code.getLineY(line),
-      offset: [-1, 0],
-      width: (c1 - c0) * ADV + 20, height: LH * 1.15,
-      radius: 0, fill: STRIPE_COLOR, opacity: 0,
+      x: CODE_LEFT + c0 * ADV - 12, y: TOP_LINE_Y + i * LH, offset: [-1, 0],
+      width: (t.length - c0) * ADV + 24, height: LH * 1.15,
+      radius: 0, fill: 'rgba(255, 80, 120, 0.18)', opacity: 0,
     });
-    plateLayer.add(r);
+    stripes.add(r);
     return r;
   };
-  const S = {
-    available: stripe(L_AVAILABLE),
-    guard: stripe(L_GUARD),
-    thrown: stripe(L_THROW),
-    broken: stripe(L_BROKEN),
-  };
-  const MARK = 0.42;
-  const mark = (r: Rect, v: number) => r.opacity(v, MARK, easeInOutSine);
 
-  // Гашение всего, кроме нужных строк. Яркость — только на контейнере строки.
-  const DIM = 0.3;
-  function* spot(keep: number[] | null, dur = 0.7): ThreadGenerator {
-    const anims: ThreadGenerator[] = [];
-    for (let i = 0; i < code.lineCount; i++) {
-      anims.push(code.getLine(i)!.setOpacity(keep === null || keep.includes(i) ? 1 : DIM, dur));
-    }
-    yield* all(...anims);
+  // ── карточка экрана ──
+  const card = new Rect({
+    x: CARD_X, width: CARD_W, height: CARD_H, radius: mm(6),
+    fill: APP.bg, stroke: 'rgba(255,255,255,0.04)', lineWidth: 1,
+    shadowColor: 'rgba(0,0,0,0.45)', shadowBlur: 36, shadowOffset: [-10, 16],
+    clip: true,
+  });
+  stage.add(card);
+  // Текст экрана — по левому краю, по базовой линии (как в chargeAppUi).
+  const text = (t: string, xMm: number, yMm: number, sizeMm: number, fill: string, weight = 400) =>
+    new Txt({
+      text: t, fontFamily: APP_FONT, fontWeight: weight, fontSize: mm(sizeMm), fill,
+      x: lx(xMm), y: baseline(yMm, sizeMm), offset: [-1, 0],
+    });
+
+  // Хром телефона — приходит вместе с карточкой: время, сеть, батарея, «домой».
+  card.add(text('21:47', 4.6, 6.0, 3.3, APP.text, 700));
+  for (let i = 0; i < 4; i++) {
+    const bh = 1.1 + i * 0.55;
+    card.add(new Rect({
+      x: lx(43.2 + i * 1.25 + 0.4), y: ly(6.0 - bh / 2), width: mm(0.8), height: mm(bh),
+      radius: mm(0.25), fill: i < 3 ? APP.text : APP.faint,
+    }));
   }
+  card.add(new Rect({x: lx(49.6 + 2.8), y: ly(3.3 + 1.4), width: mm(5.6), height: mm(2.8),
+    radius: mm(0.7), fill: 'rgba(243,245,247,0.32)'}));
+  card.add(new Rect({x: lx(49.9 + 1.6), y: ly(3.6 + 1.1), width: mm(3.2), height: mm(2.2),
+    radius: mm(0.5), fill: APP.text}));
+  card.add(new Rect({x: lx(20.2 + 10.5), y: ly(131.2 + 0.62), width: mm(21), height: mm(1.25),
+    radius: mm(0.62), fill: 'rgba(243,245,247,0.85)'}));
+
+  // Куски экрана — каждый проявляется, когда прочитано его поле.
+  const piece = (...nodes: Node[]) => {
+    const g = new Node({opacity: 0});
+    const f = blur(8);
+    g.filters([f]);
+    nodes.forEach(n => g.add(n));
+    card.add(g);
+    return {g, f};
+  };
+  const header = piece(
+    new Line({points: [[lx(7.6), ly(13.0)], [lx(5.6), ly(15.2)], [lx(7.6), ly(17.4)]],
+      stroke: APP.text, lineWidth: mm(0.55), lineCap: 'round', lineJoin: 'round'}),
+    text('Mill Street', 10.4, 16.7, 4.3, APP.text, 700),
+  );
+  const label = piece(text('Connector 2', 6.0, 30.0, 3.4, APP.muted));
+  const plugPower = piece(text('CCS  ·  50 kW', 6.0, 51.0, 3.6, APP.text));
+  const price = piece(text('0.39 € / kWh', 6.0, 56.6, 3.4, APP.muted));
+  const B = {x: 4.7, y: 79.53, w: 52.0, h: 13.0};
+  const available = piece(
+    new Circle({x: lx(7.7), y: ly(38.6), size: mm(3.1), fill: APP.green}),
+    text('Available', 11.2, 41.4, 8.2, APP.text, 700),
+    new Rect({x: lx(B.x + B.w / 2), y: ly(B.y + B.h / 2), width: mm(B.w), height: mm(B.h),
+      radius: mm(B.h / 2), fill: APP.green}),
+    new Txt({text: 'Start charging', fontFamily: APP_FONT, fontWeight: 700, fontSize: mm(4.6),
+      fill: APP.greenInk, x: lx(B.x + B.w / 2), y: ly(B.y + B.h / 2)}),
+  );
+  const show = (p: {g: Node; f: any}) =>
+    all(p.g.opacity(1, 0.55, easeOutCubic), p.f.value(0, 0.6, easeInOutSine));
 
   // ═══ ТАЙМЛАЙН (черновой: такты на глаз, до записи озвучки) ═════════════
   function* at(t: number) {
     const dt = t - useTime();
     if (dt > 0) yield* waitFor(dt);
   }
+  const MARK = 0.45;
+  const mark = (r: Rect, v: number) => r.opacity(v, MARK, easeInOutSine);
+  // Чтение поля: полоска переходит на его строку, на экране проявляется кусок.
+  let lit: Rect[] = [];
+  function* read(lineIdx: number[], p: {g: Node; f: any}): ThreadGenerator {
+    const next = lineIdx.map(stripe);
+    yield* all(...lit.map(r => mark(r, 0)), ...next.map(r => mark(r, 1)), show(p));
+    lit = next;
+  }
 
-  // 0. Кадр проявляется целиком: мир и документ одним фокусом.
-  yield* all(
-    shot.opacity(1, 1.4, easeOutCubic), shotBlur.value(0, 1.4, easeInOutSine),
-    docWrap.opacity(1, 1.2, easeOutCubic), docBlur.value(0, 1.2, easeInOutSine),
-  );
+  // 0. После склейки с POV код и экран проявляются вместе, одним фокусом.
+  const open = blur(10);
+  stage.filters([open]);
+  yield* all(stage.opacity(1, 1.0, easeOutCubic), open.value(0, 1.2, easeInOutSine));
+  stage.filters([]);
 
-  // 1. API приложения: флаг «доступно» = «не заряжается». Приложение над
-  //    машиной говорит «Available» и даёт кнопку — стойка при этом зелёная.
-  yield* at(2.2);
-  yield* all(
-    spot(APP_LINES),
-    mark(S.available, 1),
-    appOp(1, 0.9, easeInOutSine), appBlur(0, 0.9, easeInOutSine),
-  );
-
-  // 2. Обработчик команды: начать можно только на AVAILABLE и FINISHING.
-  yield* at(6.2);
-  yield* all(spot(HANDLER_LINES), mark(S.available, 0), mark(S.guard, 1));
-
-  // 3. Два места, разные файлы, разная форма. Дубликата не видно.
-  yield* at(10.2);
-  yield* all(spot(null), mark(S.guard, 0));
-
-  // 4. Разъём ломается: сначала мир — индикатор стойки гаснет.
-  yield* at(13.0);
-  yield* postLit(0, 0.9, easeInOutSine);
-
-  // 5. Код догоняет мир: в enum добавляют OUT_OF_ORDER. Больше ничего.
-  yield* at(14.4);
-  yield* spot(STATUS_LINES);
-  yield* code.morphTo(DOC_1, {
-    addStyle: 'typewriter', charDelay: 0.05, lineDelay: 0.03,
-    moveDuration: 0.35, removeDuration: 0.2, scrollStrategy: 'block',
-    lineOrder: 'sequential', blockOrder: 'sequential',
-    settleBeforeType: true, diffPreferEarlyMatches: true,
-    recolorLine: paintCanonMethodCallsLine,
-  });
-  code.colorize(CODE_RULES);
-  paintCanonMethodCalls(code);
-  yield* spot(STATUS_LINES, 0);
-  yield* mark(S.broken, 1);
-
-  // 6. Обработчик новый статус отвергает: его нет в списке.
-  yield* at(18.4);
-  yield* all(spot(HANDLER_LINES), mark(S.broken, 0), mark(S.guard, 1));
-
-  // 7. Приложение пропускает: сломанный разъём не «заряжается», флаг true —
-  //    карточка как говорила «Available», так и говорит.
-  yield* at(21.4);
-  yield* all(spot(APP_LINES), mark(S.guard, 0), mark(S.available, 1));
-
-  // 8. Нажатие. Запрос уходит в обработчик и падает на throw — снизу выезжает
-  //    лист «Connector unavailable», «Available» наверху остаётся.
-  yield* at(24.4);
-  yield* pressed(1, 0.14, easeInOutSine);
-  yield* all(pressed(0, 0.2, easeInOutSine), loading(1, 0.25, easeInOutSine));
-  yield* waitFor(0.8);
-  yield* all(
-    spot([L_AVAILABLE, ...HANDLER_LINES]),
-    mark(S.thrown, 1),
-    loading(0, 0.3, easeInOutSine),
-    sheet(1, 0.6, easeOutCubic),
-  );
-
-  // 9. Система говорит две вещи сразу: можно здесь начать — нельзя.
-  yield* at(27.6);
-  yield* spot([L_AVAILABLE, L_THROW]);
-  yield* at(32.0);
+  yield* at(2.0);
+  yield* read([L_NAME], header);
+  yield* at(4.2);
+  yield* read([L_LABEL], label);
+  yield* at(6.4);
+  yield* read([L_PLUG, L_POWER], plugPower);
+  yield* at(8.6);
+  yield* read([L_PRICE], price);
+  // Последним — флаг: «доступно» = «не заряжается». Отсюда и зелёное
+  // «Available», и активная кнопка.
+  yield* at(10.8);
+  yield* read([L_AVAILABLE], available);
+  yield* at(14.5);
 });
