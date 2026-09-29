@@ -13,7 +13,7 @@ import {
   Vector3,
   WebGLRenderer,
 } from 'three';
-import {ChargeAppState, drawChargeApp} from './chargeAppUi';
+import {ChargeAppState, drawChargeApp, SCREEN_PARTS, ScreenPart} from './chargeAppUi';
 import {loadPhoneHand, ThumbPose} from './phoneHand';
 import {PovCompositor} from './povCompositor';
 import {buildRainStreet, EYE} from './rainStreet';
@@ -44,6 +44,10 @@ export interface PovState {
   /** 0..1 — рука и камера замирают: «жизнь» (дрожь руки, дыхание камеры)
    *  гаснет вскоре после переезда, чтобы телефон не дёргался, пока читают код. */
   still: number;
+  /** Время мира для дождя и кругов в лужах, с: идёт как t, а когда всё
+   *  замирает — плавно тормозит и встаёт (автор: «дождь тоже должен
+   *  остановиться»). */
+  worldT: number;
   ui: Omit<ChargeAppState, 't'>;
 }
 
@@ -70,7 +74,51 @@ export const SIDE_AT = ERROR_AT + 1.45;
 export const SIDE_T = 1.6;
 /** До телефона в правой половине, м (ближе, чем 0.30: экран крупнее). */
 export const SIDE_D = 0.25;
-export const POV_DURATION = 23.0;
+
+// ── Чтение кода: такты ОБЩИЕ для сцены MC (строки кода) и экрана (куски) ────
+// Автор (29.09): «пора вводить указатель розовый слева от строки кода, чтобы не
+// пачкать его и не затемнять, и десяток секунд уделять на то, чтобы рассказать
+// зрителю, что делает код». Гашение (прошлая проба: код гас раньше, чем его
+// успевали прочесть) снято и в коде, и на экране. Вместо него — розовая
+// полоска слева от строки (сцена MC) и такая же слева от куска экрана (здесь).
+// Два этапа:
+//   1. обзор, ~10 с: указатель идёт по коду за голосом — что делает запрос;
+//   2. поля ↔ экран: указатель у строки поля и у куска экрана, который она
+//      рисует, — одновременно.
+// Одна таблица на обе стороны — рассинхрона быть не может.
+/** Код проявляется, пока телефон садится справа. */
+export const CODE_AT = SIDE_AT + SIDE_T - 0.4;
+/** Этап 1 — обзор кода: указатель по строкам за голосом. */
+export const OVERVIEW_AT = CODE_AT + 1.4;
+export const OVERVIEW_STEP = 2.0;
+export const OVERVIEW_COUNT = 5;
+/** Этап 2 — поля ↔ куски экрана, в порядке кода: name, label, plug +
+ *  maxPowerKw, pricePerKwh, последним available. */
+export const FIELDS_AT = OVERVIEW_AT + OVERVIEW_COUNT * OVERVIEW_STEP;
+export const FIELDS_STEP = 2.2;
+export const FIELD_PARTS: ScreenPart[][] = [['header'], ['label'], ['plug'], ['price'], ['status']];
+/** Переезд указателя, с. */
+export const POINTER_T = 0.5;
+export const POV_DURATION = FIELDS_AT + FIELD_PARTS.length * FIELDS_STEP + 1.4;
+
+/** Указатель на экране: во втором этапе стоит у куска экрана текущего поля и
+ *  переезжает вместе с указателем в коде. */
+function screenPointer(t: number): {y0: number; y1: number; a: number} | undefined {
+  if (t < FIELDS_AT) return undefined;
+  const box = (parts: ScreenPart[]) => [
+    Math.min(...parts.map(p => SCREEN_PARTS[p][0])),
+    Math.max(...parts.map(p => SCREEN_PARTS[p][1])),
+  ];
+  let [y0, y1] = box(FIELD_PARTS[0]);
+  for (let i = 1; i < FIELD_PARTS.length; i++) {
+    const k = inOutCubic(tw(t, FIELDS_AT + i * FIELDS_STEP, POINTER_T));
+    const [b0, b1] = box(FIELD_PARTS[i]);
+    y0 += (b0 - y0) * k;
+    y1 += (b1 - y1) * k;
+  }
+  const a = inOutSine(tw(t, FIELDS_AT, POINTER_T));
+  return {y0: +y0.toFixed(3), y1: +y1.toFixed(3), a: +a.toFixed(3)};
+}
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 const tw = (t: number, t0: number, dur: number) => clamp01((t - t0) / dur);
@@ -101,7 +149,14 @@ export function povTimeline(t: number): PovState {
   diopt += (1 / SIDE_D - dPhone) * side;
   // автор: «вскоре после зума телефона не дёргать его, чтобы зритель не
   // отвлекался» — дрожь руки и дыхание камеры гаснут к концу переезда
-  const still = inOutSine(tw(t, SIDE_AT + SIDE_T - 0.4, 0.9));
+  const stillAt = SIDE_AT + SIDE_T - 0.4, stillT = 0.9;
+  const still = inOutSine(tw(t, stillAt, stillT));
+  // «Дождь тоже должен остановиться»: время мира течёт со скоростью (1 − still)
+  // — дождь и круги в лужах плавно тормозят и замирают вместе с рукой.
+  // Интеграл (1 − inOutSine) в замкнутом виде: x/2 + sin(πx)/(2π).
+  const xs = tw(t, stillAt, stillT);
+  const worldT = t <= stillAt ? t
+    : stillAt + stillT * (xs / 2 + Math.sin(Math.PI * xs) / (2 * Math.PI));
   return {
     t, rise, look, focus: 1 / diopt,
     reach: reachIn,
@@ -109,7 +164,11 @@ export function povTimeline(t: number): PovState {
     away: reachOut,
     side,
     still,
-    ui: {pressed: pressedUi, loading, error},
+    worldT,
+    // капли со стекла уходят, пока телефон едет вправо — в режиме объяснения
+    // они шум поверх букв (автор: «на экране сохранилась картинка из сцены с
+    // дождём, возможно поэтому плохо читается»)
+    ui: {pressed: pressedUi, loading, error, drops: +(1 - side).toFixed(3), pointer: screenPointer(t)},
   };
 }
 
@@ -277,11 +336,14 @@ export function* buildPovShot(): Generator<any, PovShot> {
       lastUi = key;
     }
 
-    world.update(s.t, camera);
+    world.update(s.worldT, camera);
     const bokehFar = world.bokeh.filter(b => b.layer === 'far');
     const bokehMid = world.bokeh.filter(b => b.layer === 'mid');
-    // слой руки идёт за телефоном: когда тот приближается, слой — вместе с ним
-    const fgDepth = 0.31 - (PHONE_D - SIDE_D) * s.side;
+    // Слой руки идёт за телефоном и в конце переезда садится РОВНО в фокус
+    // (0.25 м): прежде слой считался на 0.26 м при фокусе 0.25 — кружок
+    // нерезкости ~3 px, экран был чуть мыльный (автор: «экран заблюренный
+    // немного»). В самом POV (side = 0) всё как было.
+    const fgDepth = 0.31 + (SIDE_D - 0.31) * s.side;
     return comp.render(r, camera, [
       {scene: world.far, depth: 16, bokeh: bokehFar},
       {scene: world.mid, depth: 2.9, bokeh: bokehMid},

@@ -1,28 +1,24 @@
-import {
-  CatmullRomCurve3, Color, DoubleSide, Euler, InstancedMesh, Matrix4, Mesh, MeshStandardMaterial,
-  PlaneGeometry, Quaternion, RectAreaLight, Scene, TubeGeometry, Vector3,
-} from 'three';
+import {Vector3} from 'three';
 import {buildFaces, eyesOf, faceStateAt, FaceState, FacesShot, shotDuration} from './goodCodeFaces';
-import {canvasTex, DESK, EYE, FACADE_Z, KEYS, mulberry32, SCREEN, smooth, STUDY_WINDOW, wob} from './goodCodeOpening';
+import {DESK, EYE, KEYS, SCREEN, smooth, wob} from './goodCodeOpening';
 import {PersonSpec} from './rocketboxPerson';
 
 // ── Good Code, But I Hate It · интро ─────────────────────────────────────────
-// Ночь, мы снаружи: перед окном ветви дерева в фокусе, за ними тёплое окно, в левой
-// створке — новый разработчик, лицо освещено монитором, за головой торшер → фокус
-// уходит на него, камера по прямой влетает в окно и встаёт сбоку от лица, в трёх
-// четвертях → короткая остановка на лице → лицо уходит в левую
-// половину, справа выезжает его стол (клавиатура, руки, код) → щелчок, склейки чуть
-// ускоряются: ещё трое, у каждого свой стол и редактор, и последний — в очках, у
+// Ночь, кабинет: барвинок на столе в фокусе, за ним в расфокусе новый разработчик,
+// лицо освещено монитором → фокус уходит на него, камера издалека по прямой едет к
+// нему мимо букета и встаёт чуть сбоку от лица, в трёх четвертях (без облёта, к фронту
+// не заворачивает) → на 3-й секунде справа выезжает его стол (клавиатура, руки, код) →
+// щелчок, склейки: ещё пятеро, у каждого свой стол и редактор, последний — в очках, у
 // него на экране идёт загрузка → после его щелчка лицо уходит из кадра, и ВМЕСТЕ с
 // этим камера мягко едет в его экран → загрузка доходит, на 17.03 на экране
 // проступает титул видео (автор) → экран на весь кадр, эффект монитора снимается,
 // титул стоит на графите и гаснет.
 //
-// Озвучка (черновик; такты — по оценке темпа, ⚠️ поставить по записи автора):
+// Озвучка (такты сошлись с записью автора):
 //   Thirty people wrote a smart home platform — one spent twenty years on banking
 //   software, another came from video games, and someone only started coding last
-//   year. And yet in any of their integrations you know exactly where to look —
-//   in all but the one that's written best.
+//   year. They'd argue about naming, formatting, almost anything. It all just worked,
+//   and this is the story of how a newcomer made it better — and broke it.
 //
 // ⚠️ 3D-кадр собирает этот модуль (introTimeline — чистая функция времени,
 // render рисует кадр). Титул в конце — живые ноды MC в сцене: их снимок идёт на
@@ -30,14 +26,13 @@ import {PersonSpec} from './rocketboxPerson';
 // ⚠️ Такты — в одной таблице INTRO: перестановка под запись — только здесь.
 
 export const INTRO = {
-  open: [0, 6.4] as const,                  // влёт в окно — в три четверти к лицу
-  rack: [0.3, 1.3] as const,                // фокус: ветви → лицо, пока ветви в кадре
-  // камера фактически стоит уже с ~5.8 (хвост влёта — миллиметры): стол выезжает с 6.3
-  split: [6.3, 7.1] as const,               // после остановки на лице — справа его стол
-  click0: 7.95,                             // первый щелчок — склейки
-  // остальные пятеро — поровну, по 1.05 (автор: «всем после китайца одинаковый отрезок»;
-  // девушка с кофе вернулась за счёт паузы китайца, наезд в экран не тронут)
-  collage: [1, 2, 3, 4, 5].map(shot => ({shot, d: 1.05})),
+  open: [0, 3.2] as const,                  // наезд от цветов — чуть сбоку от лица (к 3.0 почти стоит)
+  rack: [0.2, 0.95] as const,               // фокус: цветы → лицо, пока букет в кадре (уходит к 1.37)
+  split: [3.0, 3.8] as const,               // автор: «на третьей секунде наедет кадр с клавиатурой»
+  // китаец после раскладки и пятеро после него — поровну, по 47 кадров (1.57 с): так
+  // наезд в экран начинается на прежних 13.2 (автор: «на прежнем тайминге»)
+  click0: 3.8 + 47 / 30,                    // первый щелчок — склейки
+  collage: [1, 2, 3, 4, 5].map(shot => ({shot, d: 47 / 30})),
   push: 4.7,                                // лицо последнего уходит, камера мягко едет в экран, с
   loaded: 16.5,                             // полоска загрузки на его экране дошла до конца
   title: [17.03, 17.88] as const,           // ⚠️ автор: титул появляется на 17.03
@@ -87,21 +82,26 @@ function atFraction(cum: number[], f: number): number {
   return (lo + (want - cum[lo]) / (cum[hi] - cum[lo] || 1)) / (cum.length - 1);
 }
 
-// ── Влёт в окно ──────────────────────────────────────────────────────────────
-// Автор: «может в окно дома влететь?», потом «добавь ветви деревьев, как было с
-// цветами, чтобы сначала фокус был на них; подъехав к китайцу, не смещай ракурс,
-// оставь чуть сбоку», потом «не так близко подъезжать; с ветками слишком долго».
-// Снаружи — стена дома (buildNightStudy exterior) и ветви перед окном
-// (buildBranches): сначала резкие ветви, окно в расфокусе; фокус быстро уходит на
-// него, камера сразу трогается, по прямой влетает в левую створку и встаёт сразу за
-// окном — в трёх четвертях от лица, средним планом. Разворота нет (28° → 31°),
-// высота монотонно 1.42 → 1.24. Лицо видно на всём пути: линия взгляда проходит
-// левее края монитора (≥ 6 см) и через створку, мимо переплёта.
+// ── Наезд на первого ─────────────────────────────────────────────────────────
+// Принцип первой версии (автор: «вернём первое начало с китайцем и цветами, без
+// окна»): барвинок в фокусе, лицо за ним в расфокусе → фокус на лицо, камера едет к
+// нему и встаёт чуть сбоку (автор: «не заворачивай на фронт лица»).
+// ⚠️ Потом: «пусть камера начнёт с большего отдаления… закручивание делать не надо».
+// Кривая мимо букета крутила камеру вокруг него (27°, до 22°/с) — теперь путь ПРЯМОЙ:
+// от стены с окном (1.53 м до глаз, 40° от оси лица) к трём четвертям (0.72 м, 36°:
+// торшер ровно за головой — тёплый ореол, а не лампа, торчащая у уха, как на 32°).
+// ⚠️ Букет в 0.75 м у края кадра «ушёл» (автор: «цветок играл важную роль в
+// режиссуре, эффект надо вернуть»), а в правой трети он лёг на тёмную спинку монитора
+// (автор: «цветок сливается с монитором, сделай как оператор»). Теперь стороны
+// поменяны: букет в 0.55 м в ЛЕВОЙ трети, за ним — полка с книгами и гирляндой (тёмный
+// силуэт на светлом боке); лицо в правой трети, освещённое экраном, — на тёмной стене.
+// Камера едет вправо-вперёд, букет остаётся слева от пути, и наезд почти без поворота.
+// Солвер (scratchpad solve/straight_push2.mjs, flower_bg.mjs — за букетом полка, не
+// монитор): поворот за наезд 3.3°, скорость ≤ 0.48 м/с, до цветов ≥ 0.20 м, букет в
+// кадре до 1.37 с, монитор лицо не закрывает; к 3.0 с до конца пути ~3 мм.
 /** Ракурс «как у всех» (камера = монитор): по нему — композиция лица в конце. */
 const CAM_FACE = V(0, SCREEN.y, SCREEN.z - 0.015);
 const FACE_LOOK = V(EYE.x, EYE.y - Math.tan(20 * D2R) * EYE.distanceTo(CAM_FACE) / 3, EYE.z);
-/** Ваза с барвинком в кабинете интро: у правой руки, с пути в стороне. */
-export const INTRO_VASE = V(-0.56, DESK.y, 0.47);
 /** Наклон кисти первого: запястье на столе, кисть поднята к клавишам (рад, − — вверх). */
 const REST_PITCH = -0.41;
 /** Клавиатура первого ближе к нему (м) и передний край стола: локти 126–152°,
@@ -114,49 +114,61 @@ const REST_THUMB: [number, number, number] = [-20, 6, 8];
 const REST_CURL: [number, number, number, number] = [1, 1, 0.9, 0.6];
 /** Глаза первого (он сидит чуть дальше от стола и чуть выше — goodCodeFaces sitBack, sitUp). */
 const FIRST_EYE = eyesOf(0);
-const START = {pos: V(-1.6, 1.42, 3.0), fov: 30};
-/** Конец — сразу за окном, над внутренним подоконником: средний план (1.43 м до глаз). */
-const END_POS = V(-0.72, 1.24, 1.22);
-/** Угол не меняется: лицо растёт только от подлёта (автор: «не так близко»). */
-const END_FOV = START.fov;
-/** Лицо в кадре: на старте — посередине створки, в конце — как у всех (глаза на верхней трети). */
-const E0: [number, number] = [0.0, 0.08];
+/** Точка сбоку от глаз: угол от оси лица (к его правому плечу), расстояние в плане, высота. */
+const beside = (deg: number, r: number, y: number) => V(FIRST_EYE.x - Math.sin(deg * D2R) * r, y, FIRST_EYE.z + Math.cos(deg * D2R) * r);
+/** Старт — в 7 см от стены с окном (FRONT_Z 1.15), конец — три четверти, чуть ниже глаз. */
+const START_POS = beside(40, (1.08 - FIRST_EYE.z) / Math.cos(40 * D2R), 1.10);
+const STOP_POS = beside(36, 0.72, 1.16);
+/** Букет: на старте в левой трети, в 0.55 м от камеры, на фоне полки; с пути в стороне. */
+export const INTRO_VASE = V(-0.764, DESK.y, 0.565);
+const FLOWER = INTRO_VASE.clone().add(V(0, 0.36, 0));        // середина цветков (как OPENING_DEBUG.FLOWER)
+/** Лицо в кадре: на старте — правее середины (на тёмной стене), в конце — как у всех. */
+const E0: [number, number] = [0.25, 0.25];
 const E1 = ndcOf(CAM_FACE, FACE_LOOK, 40, EYE);
-/** Фокус на старте — на ветвях перед окном (buildBranches), в ~0.7 м от камеры. */
-const BRANCH_FOCUS = V(-1.4, 1.52, 2.38);
-// Угол — от расстояния до глаз: tan(fov/2) ∝ r^−α, от START.fov к END_FOV; лицо
-// растёт монотонно, без «отъезда» на посадке.
-const R0 = FIRST_EYE.distanceTo(START.pos), R1 = FIRST_EYE.distanceTo(END_POS);
-const ALPHA = Math.log(Math.tan((END_FOV / 2) * D2R) / Math.tan((START.fov / 2) * D2R)) / Math.log(R0 / R1);
-const fovAt = (r: number) => 2 * Math.atan(Math.tan((START.fov / 2) * D2R) * Math.pow(R0 / r, ALPHA)) / D2R;
-/** Камера на доле пути s (путь прямой): место, угол, куда смотреть (лицо идёт по кадру по прямой). */
+// Угол — от расстояния до глаз: tan(fov/2) ∝ r^−α, 30° → 40°; лицо растёт монотонно.
+const R0 = FIRST_EYE.distanceTo(START_POS), R1 = FIRST_EYE.distanceTo(STOP_POS);
+const ALPHA = Math.log(Math.tan(20 * D2R) / Math.tan(15 * D2R)) / Math.log(R0 / R1);
+const fovAt = (r: number) => 2 * Math.atan(Math.tan(15 * D2R) * Math.pow(R0 / r, ALPHA)) / D2R;
+/** Камера на доле пути s (путь прямой): место, угол, куда смотреть (глаза идут по кадру по прямой). */
 function pathCamera(s: number) {
-  const pos = START.pos.clone().lerp(END_POS, s);
+  const pos = START_POS.clone().lerp(STOP_POS, s);
   const fov = fovAt(FIRST_EYE.distanceTo(pos));
   const look = aimAt(pos, FIRST_EYE, E0[0] + (E1[0] - E0[0]) * s, E0[1] + (E1[1] - E0[1]) * s, fov);
   return {pos, look, fov};
 }
-// ⚠️ Время влёта — не smootherstep: тот ~2 с стоял на ветвях (автор: «слишком долго
-// с ветками»). Профиль скорости u^1.2·(1−u)^2.6: камера трогается сразу, к 2 с
-// пройдено 40 % пути, дальше долгая мягкая посадка.
+// Время — по «усилию»: путь плюс поворот (2.5 м на радиан), поворот не копится на пике скорости.
+const EFFORT = (() => {
+  const cum = [0];
+  let p = pathCamera(0);
+  for (let i = 1; i <= 800; i++) {
+    const c = pathCamera(i / 800);
+    const turn = p.look.clone().sub(p.pos).normalize().angleTo(c.look.clone().sub(c.pos).normalize());
+    cum.push(cum[i - 1] + Math.hypot(c.pos.distanceTo(p.pos), 2.5 * turn));
+    p = c;
+  }
+  return cum;
+})();
+// Профиль скорости u²(1−u)²: мягкий старт — цветы в кадре до 1.37 с. ⚠️ С профилем,
+// где камера трогается сразу (u^1.2·(1−u)^2.6), они проскакивали раньше, чем фокус
+// успевал уйти с них: лицо на полсекунды плыло.
 const FLY_EASE = (() => {
   const N = 2000, cum = [0];
-  for (let i = 1; i <= N; i++) { const u = (i - 0.5) / N; cum.push(cum[i - 1] + u ** 1.2 * (1 - u) ** 2.6); }
+  for (let i = 1; i <= N; i++) { const u = (i - 0.5) / N; cum.push(cum[i - 1] + u ** 2 * (1 - u) ** 2); }
   return (u: number) => {
     const x = Math.min(1, Math.max(0, u)) * N, i = Math.min(N - 1, Math.floor(x));
     return (cum[i] + (cum[i + 1] - cum[i]) * (x - i)) / cum[N];
   };
 })();
-const openCamera = (t: number) => pathCamera(FLY_EASE((t - INTRO.open[0]) / (INTRO.open[1] - INTRO.open[0])));
-/** Ракурс первого после влёта — он же до щелчка (раскладка его не меняет). */
+const openCamera = (t: number) => pathCamera(atFraction(EFFORT, FLY_EASE((t - INTRO.open[0]) / (INTRO.open[1] - INTRO.open[0]))));
+/** Ракурс первого после наезда — он же до щелчка (раскладка его не меняет). */
 const FIRST_VIEW = pathCamera(1);
 
 // первый: читает, листает стрелкой; щелчок ↓ — на click0
 const P0 = {
-  // одно движение глаз за план (автор) — на остановке, когда лицо крупно
-  fix: [{t: 0, x: -0.02, y: 0.02}, {t: 6.55, x: 0.03, y: 0.0}],
-  blinks: [3.2, 7.3],
-  downs: [4.6, 6.55, INTRO.click0],
+  // одно движение глаз за план (автор) — со стрелкой, когда рядом уже его стол
+  fix: [{t: 0, x: -0.02, y: 0.02}, {t: 4.45, x: 0.03, y: 0.0}],
+  blinks: [1.7, 4.9],
+  downs: [2.3, 4.45, INTRO.click0],
 };
 function firstState(t: number): FaceState {
   const base = faceStateAt(0, 0.05, t);                      // руки, дыхание — от плана 0
@@ -221,20 +233,22 @@ export function introTimeline(t: number): IntroState {
     const {pos, look, fov} = openCamera(t);
     const fwd = look.clone().sub(pos).normalize();
     const r = smooth(I.rack[0], I.rack[1], t);
-    // фокус — в обратных расстояниях: ветви (по оси) → глаза (как у всех: до глаз)
-    const inv = (1 - r) / Math.max(0.05, BRANCH_FOCUS.clone().sub(pos).dot(fwd)) + r / FIRST_EYE.distanceTo(pos);
+    // фокус — в обратных расстояниях: цветы (по оси) → глаза (как у всех: до глаз)
+    const inv = (1 - r) / Math.max(0.05, FLOWER.clone().sub(pos).dot(fwd)) + r / FIRST_EYE.distanceTo(pos);
     const settle = smooth(I.open[1] - 1.4, I.open[1], t);
     face.camera = {pos, look, fov, roll: wob(t, 0.35, 0.45, 0.7) * D2R * (1 - settle)};
     face.focus = 1 / inv;
     face.aperture = 26 + 4 * settle;                          // к концу — как у всех (30)
     return {t, phase: 'open', face, e: 0, push: 0, clear: 0, studyK, screen};
   }
-  // остановка на лице, потом справа выезжает стол; ракурс — тот, где кончился влёт
+  // остановка на лице, потом справа выезжает стол; ракурс — тот, где кончился наезд
   // (автор: «не смещай ракурс, оставь чуть сбоку»)
   if (t < I.click0) {
     const face = firstState(t);
-    face.camera = {pos: FIRST_VIEW.pos.clone(), look: FIRST_VIEW.look.clone(), fov: FIRST_VIEW.fov};
-    face.focus = FIRST_EYE.distanceTo(FIRST_VIEW.pos);
+    // стол выезжает, пока камера досаживается (последние миллиметры пути): без скачка
+    const v = t < I.open[1] ? openCamera(t) : FIRST_VIEW;
+    face.camera = {pos: v.pos.clone(), look: v.look.clone(), fov: v.fov};
+    face.focus = FIRST_EYE.distanceTo(v.pos);
     face.aperture = 30;
     return {t, phase: 'split', face, e: smooth(I.split[0], I.split[1], t), push: 0, clear: 0, studyK, screen};
   }
@@ -300,78 +314,6 @@ function glowGlyphs(src: HTMLCanvasElement): HTMLCanvasElement {
   return c;
 }
 
-// ── Ветви перед окном ────────────────────────────────────────────────────────
-// Дерево стоит левее окна, за кадром; его ветви свисают перед левой створкой в
-// ~0.7 м от камеры на старте: первый фокус — на листьях, окно за ними в расфокусе
-// (автор: «как было с цветами»). Камера проходит под ними справа (≥ 0.25 м), ветви
-// уходят в левый верхний угол. Свет на листьях — из окна: тёплый прямоугольник в
-// проёме светит наружу (изнутри комнаты его не видно — он односторонний).
-function buildBranches(scene: Scene) {
-  const rnd = mulberry32(611);
-  // лист: овал с острым кончиком, черешок внизу; жилки светлее
-  const leafTex = canvasTex(128, 256, g => {
-    g.beginPath();
-    g.moveTo(64, 250);
-    g.bezierCurveTo(10, 196, 6, 92, 64, 6);
-    g.bezierCurveTo(122, 92, 118, 196, 64, 250);
-    const gr = g.createLinearGradient(0, 256, 0, 0);
-    gr.addColorStop(0, '#34502a'); gr.addColorStop(1, '#58793a');
-    g.fillStyle = gr;
-    g.fill();
-    g.strokeStyle = 'rgba(205, 222, 160, 0.35)';
-    g.lineWidth = 3;
-    g.beginPath(); g.moveTo(64, 248); g.lineTo(64, 14); g.stroke();
-    g.lineWidth = 1.5;
-    for (let i = 0; i < 7; i++) {
-      const y = 222 - i * 28;
-      for (const sx of [-1, 1]) { g.beginPath(); g.moveTo(64, y); g.quadraticCurveTo(64 + sx * 24, y - 16, 64 + sx * (42 - i * 3), y - 34); g.stroke(); }
-    }
-  });
-  const leafMat = new MeshStandardMaterial({map: leafTex, alphaTest: 0.5, side: DoubleSide, roughness: 0.7});
-  const bark = new MeshStandardMaterial({color: '#2b2522', roughness: 0.9});
-  const leafGeo = new PlaneGeometry(0.052, 0.094, 1, 1);
-  leafGeo.translate(0, 0.047, 0);                             // черешок — в начале координат
-  // ветви: от дерева слева (за кадром) к окну, концы свисают
-  const branches: [number, number, number][][] = [
-    [[-2.6, 2.35, 2.75], [-2.0, 2.05, 2.55], [-1.55, 1.72, 2.42], [-1.28, 1.52, 2.34]],
-    [[-2.7, 1.95, 2.35], [-2.1, 1.78, 2.3], [-1.62, 1.55, 2.28], [-1.42, 1.38, 2.3]],
-    [[-2.5, 1.5, 2.9], [-2.0, 1.42, 2.75], [-1.7, 1.3, 2.62], [-1.52, 1.24, 2.55]],
-    // «на 10 часов» (автор): гуще в левом верхнем углу кадра
-    [[-2.7, 2.1, 2.5], [-2.1, 1.8, 2.4], [-1.7, 1.6, 2.32], [-1.45, 1.5, 2.28]],
-  ];
-  const leaves: Matrix4[] = [];
-  const q = new Quaternion(), e = new Euler();
-  const addLeaf = (p: Vector3, down: number) => {
-    // лист висит вниз-наружу, плоскость повёрнута случайно
-    e.set(Math.PI + (rnd() - 0.5) * 1.4 + down, (rnd() - 0.5) * 2.6, (rnd() - 0.5) * 1.2);
-    q.setFromEuler(e);
-    const s = 0.8 + rnd() * 0.45;
-    leaves.push(new Matrix4().compose(p, q, new Vector3(s, s, s)));
-  };
-  for (const pts of branches) {
-    const curve = new CatmullRomCurve3(pts.map(([x, y, z]) => V(x, y, z)));
-    scene.add(new Mesh(new TubeGeometry(curve, 40, 0.008, 6), bark));
-    // веточки с листьями — на дальней от дерева половине
-    for (let k = 0; k < 9; k++) {
-      const u = 0.45 + (k / 8) * 0.55;
-      const base = curve.getPointAt(u);
-      const dir = V((rnd() - 0.3) * 0.12, -0.05 - rnd() * 0.1, (rnd() - 0.5) * 0.12);
-      const twig = new CatmullRomCurve3([base, base.clone().addScaledVector(dir, 0.5).add(V(0, 0.01, 0)), base.clone().add(dir)]);
-      scene.add(new Mesh(new TubeGeometry(twig, 8, 0.003, 4), bark));
-      for (let j = 0; j < 6; j++) addLeaf(twig.getPointAt(0.25 + (j / 5) * 0.75), j * 0.08);
-    }
-  }
-  const inst = new InstancedMesh(leafGeo, leafMat, leaves.length);
-  leaves.forEach((m, i) => inst.setMatrixAt(i, m));
-  scene.add(inst);
-  // свет из окна наружу: тёплый, по проёму
-  const w = STUDY_WINDOW, ww = w.x1 - w.x0, wh = w.y1 - w.y0;
-  const spill = new RectAreaLight(new Color('#ffb56e'), 2.2, ww, wh);
-  spill.position.set((w.x0 + w.x1) / 2, (w.y0 + w.y1) / 2, FACADE_Z + 0.02);
-  spill.lookAt((w.x0 + w.x1) / 2, (w.y0 + w.y1) / 2, 10);
-  scene.add(spill);
-}
-
 // ── Сборка ───────────────────────────────────────────────────────────────────
 export interface IntroOptions {people: PersonSpec[]; assets: string}
 export interface IntroShot {
@@ -383,11 +325,10 @@ export interface IntroShot {
 }
 
 export function* buildIntro(opts: IntroOptions): Generator<any, IntroShot> {
-  const faces = yield* buildFaces({people: opts.people, assets: opts.assets, studyScreenK: 1, studyVase: INTRO_VASE, studyExterior: true,
+  const faces = yield* buildFaces({people: opts.people, assets: opts.assets, studyScreenK: 1, studyVase: INTRO_VASE,
     // запястья на столе (автор: «так никто не печатает, руки должны кистями лежать на
     // столе»). Лицо в кадре не двигаем: стол глубже к нему, клавиатура ближе, сиденье выше
     studyRest: {keyboardZ: KEYS.z + REST_KB, deskFront: REST_DESK, handPitch: REST_PITCH, curl: REST_CURL, thumb: REST_THUMB}});
-  buildBranches(faces.scenes[0]);
 
   // в экран последнего — по прямой: от ракурса стола до экрана ровно на весь кадр
   const dv = faces.deskView(LAST);

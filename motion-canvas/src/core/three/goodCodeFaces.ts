@@ -88,6 +88,9 @@ interface Beat {
   sitBack?: number;
   /** Сиденье выше, м: локти над столешницей, предплечья ложатся на стол сверху. */
   sitUp?: number;
+  /** Верхние веки чуть опущены (0…1): взгляд вниз, к ноутбуку. Своих век, идущих за
+   *  взглядом, у модели нет — без этого глаза, опущенные на 25°, смотрят испуганно. */
+  lidDrop?: number;
   /** Что на нём: очки, наушники, стаканчик кофе в левой руке у плеча. */
   props?: {glasses?: boolean; headphones?: boolean; coffee?: boolean};
   /** Свой угол объектива: откинувшегося надо показать с креслом, иначе поза не читается. */
@@ -115,17 +118,22 @@ const BEATS: Beat[] = [
   {dur: 1.8, set: 1, fix: [{t: 0, x: 0.05, y: -0.01}, {t: 0.9, x: 0.0, y: -0.012}],
     blinks: [0.6], lean: 5, head: [1, -2, 2.5], taps: [...typing(0.25, 1.4, 0.13), [1.8, 0, 3]], hands: 'upper',
     ide: {h: 'thermostat', theme: 'light', chrome: 'jetbrains'}},
-  // 3 · вечер, кухня: старший, читает, щелчок правым средним
-  {dur: 1.3, set: 2, fix: [{t: 0, x: 0.0, y: 0.04}, {t: 0.7, x: 0.05, y: 0.035}],
-    blinks: [0.4], lean: 2, head: [0, 3, -1.5], taps: [[0.5, 0, 2], [1.3, 0, 1]], props: {headphones: true}, hands: 'trackpad',
+  // 3 · вечер, кухня: старший, читает, щелчок правым средним.
+  // ⚠️ У него ноутбук: экран на 27 см ниже камеры (центр 0.857 против 1.13). Смотрел
+  // почти в объектив — взгляд опущен к экрану ноутбука (~25°), голова ниже, веки чуть
+  // опущены (автор: «дед с блондинкой пусть чуть ниже смотрят, они с ноутами работают»).
+  // Замер стенда: при 19° разницы с объективом почти не видно.
+  {dur: 1.3, set: 2, fix: [{t: 0, x: 0.0, y: -0.23}, {t: 0.7, x: 0.05, y: -0.235}],
+    blinks: [0.4], lean: 2, head: [7, 3, -1.5], lidDrop: 0.25, taps: [[0.5, 0, 2], [1.3, 0, 1]], props: {headphones: true}, hands: 'trackpad',
     ide: {h: 'lock', theme: 'gruvbox', chrome: 'vim'}},
   // 4 · ночь, пустой опенспейс: откинулся в кресле, смотрит на экран издалека
   {dur: 0.9, set: 3, fix: [{t: 0, x: -0.02, y: -0.03}],
     blinks: [], lean: -22, head: [-6, -6, 7], taps: [], recline: true, fov: 54,
     ide: {h: 'blinds', theme: 'dark', chrome: 'vscode'}},
-  // 5 · утро, кухня: печатает
-  {dur: 0.6, set: 4, fix: [{t: 0, x: 0.03, y: 0.0}],
-    blinks: [], lean: 5, head: [3, 4, 0], taps: [[0.12, 1, 1], [0.3, 1, 2], [0.6, 1, 1]], props: {coffee: true},
+  // 5 · утро, кухня: печатает; ноутбук — взгляд к верху его экрана, как у деда
+  {dur: 0.6, set: 4, fix: [{t: 0, x: 0.03, y: -0.23}],
+    // моргает посреди своего плана в интро (там план 1.57 с, раскадровка с u −0.97; автор)
+    blinks: [-0.25], lean: 5, head: [9, 4, 0], lidDrop: 0.25, taps: [[0.12, 1, 1], [0.3, 1, 2], [0.6, 1, 1]], props: {coffee: true},
     ide: {h: 'speaker', theme: 'solarized', chrome: 'vscode'}},
   // 6 · ночь, только свет экрана: вспышка лица
   {dur: 0.4, set: 5, fix: [{t: 0, x: 0.0, y: 0.02}],
@@ -217,7 +225,7 @@ export function faceStateAt(shot: number, u: number, t: number): FaceState {
   const k = i === 0 ? 1 : smooth(0, SACCADE, u - f.t);
   const onScreen = (x: number, y: number) => new Vector3(CAM.x - x, CAM.y + y, SCREEN.z);
   const gaze = onScreen(prev.x, prev.y).lerp(onScreen(f.x, f.y), k);
-  const blink = b.blinks.reduce((m, s) => Math.max(m, smooth(s, s + 0.07, u) * (1 - smooth(s + 0.1, s + 0.24, u))), 0);
+  const blink = b.blinks.reduce((m, s) => Math.max(m, smooth(s, s + 0.07, u) * (1 - smooth(s + 0.1, s + 0.24, u))), b.lidDrop ?? 0);
   const taps: [number[], number[]] = [[0, 0, 0, 0, 0], [0, 0, 0, 0, 0]];
   for (const [tt, hand, finger] of b.taps) {
     const dt = u - tt;

@@ -61,40 +61,50 @@ export class PovCompositor {
   private graphiteCanvas: HTMLCanvasElement | null = null;
   /** Графит applyBackground с горизонтальной прозрачностью: плотный слева
    *  (до 0.40W), долго тает к 0.90W (smootherstep — пологие концы, края
-   *  перехода не читаются). Строится один раз.
+   *  перехода не читаются). Строится один раз на размер кадра.
    *  ⚠️ Автор: «переход должен быть более плавный» — первая проба таяла за
    *  0.50W → 0.66W (~300 px) и читалась полосой. На правом крае кода (~950 px)
-   *  графит всё ещё ~95 %: код читается на чистом фоне. */
+   *  графит всё ещё ~95 %: код читается на чистом фоне.
+   *  ⚠️ Автор: «градиент распадается на переходе графита в видео» — это
+   *  бандинг: вертикаль графита — всего ~7 ступенек яркости на весь кадр, а
+   *  маска прозрачности квантовалась в 8 бит поверх тёмной картинки. Поэтому
+   *  холст считается ПОПИКСЕЛЬНО: цвет и альфа — в дробях, к ним шум меньше
+   *  ступеньки, и только потом округление. Шум детерминированный (LCG) —
+   *  кадры одинаковые от прогона к прогону. */
   private graphite(): HTMLCanvasElement {
     if (this.graphiteCanvas) return this.graphiteCanvas;
     const {width: W, height: H} = this;
     const c = document.createElement('canvas');
     c.width = W; c.height = H;
     const g = c.getContext('2d')!;
-    const v = g.createLinearGradient(0, 0, 0, H);
-    v.addColorStop(0, '#0B0C10');
-    v.addColorStop(1, '#12141A');
-    g.fillStyle = v;
-    g.fillRect(0, 0, W, H);
-    // тёплое пятно applyBackground: центр (0.62W, 0.38H), радиус 0.95W
-    const sx = W * 0.62, sy = H * 0.38;
-    const spot = g.createRadialGradient(sx, sy, 0, sx, sy, W * 0.95);
-    spot.addColorStop(0, 'rgba(246,231,212,0.045)');
-    spot.addColorStop(1, 'rgba(255,255,255,0)');
-    g.fillStyle = spot;
-    g.fillRect(0, 0, W, H);
-    // горизонтальная маска: smootherstep от 0.40W (1) к 0.90W (0)
-    g.globalCompositeOperation = 'destination-in';
+    const img = g.createImageData(W, H);
+    const d = img.data;
+    const top = [0x0B, 0x0C, 0x10], bot = [0x12, 0x14, 0x1A];      // Colors.background
+    const warm = [246, 231, 212];                                    // тёплое пятно applyBackground
+    const sx = W * 0.62, sy = H * 0.38, R = W * 0.95;
     const x0 = W * 0.40, x1 = W * 0.90;
-    const m = g.createLinearGradient(x0, 0, x1, 0);
-    for (let i = 0; i <= 32; i++) {
-      const u = i / 32;
-      const a = 1 - u * u * u * (u * (u * 6 - 15) + 10);
-      m.addColorStop(u, `rgba(0,0,0,${a.toFixed(4)})`);
+    let seed = 20260929;
+    const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+    // треугольный шум (разность двух равномерных): ровнее белого, без «соли»
+    const tri = () => rnd() - rnd();
+    for (let y = 0; y < H; y++) {
+      const v = y / (H - 1);
+      const base = [0, 1, 2].map(k => top[k] + (bot[k] - top[k]) * v);
+      for (let x = 0; x < W; x++) {
+        const u = x <= x0 ? 0 : x >= x1 ? 1 : (x - x0) / (x1 - x0);
+        const alpha = 1 - u * u * u * (u * (u * 6 - 15) + 10);
+        const i = (y * W + x) * 4;
+        if (alpha <= 0) { d[i + 3] = 0; continue; }
+        const dist = Math.hypot(x - sx, y - sy);
+        const sa = dist >= R ? 0 : 0.045 * (1 - dist / R);
+        for (let k = 0; k < 3; k++) {
+          const col = base[k] * (1 - sa) + warm[k] * sa;
+          d[i + k] = Math.max(0, Math.min(255, Math.round(col + tri())));
+        }
+        d[i + 3] = Math.max(0, Math.min(255, Math.round(alpha * 255 + tri())));
+      }
     }
-    g.fillStyle = m;
-    g.fillRect(0, 0, W, H);
-    g.globalCompositeOperation = 'source-over';
+    g.putImageData(img, 0, 0);
     this.graphiteCanvas = c;
     return c;
   }

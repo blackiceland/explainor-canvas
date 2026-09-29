@@ -21,7 +21,25 @@ export interface ChargeAppState {
   loading: number;
   /** 0..1 — лист ошибки выезжает снизу. */
   error: number;
+  /** 0..1 — капли на стекле (продолжение POV: уходят, пока телефон едет
+   *  вправо — в режиме объяснения это шум поверх букв). Нет — 1. */
+  drops?: number;
+  /** Розовый указатель слева от куска экрана (глава 2: строка кода ↔ её кусок
+   *  экрана): верх и низ полоски в мм экрана, a — прозрачность. */
+  pointer?: {y0: number; y1: number; a: number};
 }
+
+/** Куски экрана, на которые показывает указатель: верх и низ, мм экрана. */
+export const SCREEN_PARTS = {
+  header: [12.6, 17.8],     // «‹ Mill Street»
+  label: [27.3, 30.9],      // «Post 3 · Connector 2»
+  status: [35.2, 41.8],     // «● Available»
+  plug: [48.1, 51.6],       // «CCS · 50 kW»
+  price: [53.9, 57.4],      // «0.39 € / kWh»
+} as const;
+export type ScreenPart = keyof typeof SCREEN_PARTS;
+/** Цвет указателя — канонный розовый акцент (Canon.methodDef). */
+export const POINTER_PINK = '#FF8CA3';
 
 const C = {
   bg: '#0B0E13',
@@ -133,6 +151,16 @@ export function drawChargeApp(canvas: HTMLCanvasElement, s: ChargeAppState): voi
   }
   text('Visa  ••  4821', 30.7, 100.8, 3.2, C.muted, 400, 'center');
 
+  // ── указатель: розовая полоска слева от куска экрана (глава 2) ──
+  // Тот же знак, что слева от строки кода: «эта строка — вот эти пиксели».
+  // Острые углы, как у полоски-канона; экран при этом не гаснет и не пачкается.
+  if (s.pointer && s.pointer.a > 0) {
+    g.globalAlpha = s.pointer.a;
+    g.fillStyle = POINTER_PINK;
+    g.fillRect(2.3, s.pointer.y0, 0.9, s.pointer.y1 - s.pointer.y0);
+    g.globalAlpha = 1;
+  }
+
   // ── лист ошибки ──
   if (s.error > 0) {
     const e = s.error;
@@ -167,9 +195,11 @@ export function drawChargeApp(canvas: HTMLCanvasElement, s: ChargeAppState): voi
 
   // капли дождя на стекле: каждая — маленькая линза (картинка под ней
   // увеличена), тёмный край и блик фонаря сверху слева
-  for (const [dx, dy, r] of DROPS) {
+  const drops = s.drops ?? 1;
+  for (const [dx, dy, r] of drops > 0.001 ? DROPS : []) {
     const px = x0 + dx * k, py = y0 + dy * k, pr = r * k;
     g.save();
+    g.globalAlpha = drops;
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.beginPath(); g.arc(px, py, pr, 0, Math.PI * 2); g.clip();
     g.drawImage(canvas, px - pr * 0.6, py - pr * 0.6, pr * 1.2, pr * 1.2, px - pr, py - pr, pr * 2, pr * 2);
