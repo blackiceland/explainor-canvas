@@ -24,6 +24,23 @@
           return send.apply(this, arguments);
         };
       })();
+      // ?hmr=off — a long render (_render.mjs) must not reload halfway when the
+      // author saves a scene: drop vite's update/full-reload messages, keep the rest.
+      (function () {
+        if (new URLSearchParams(location.search).get('hmr') !== 'off') return;
+        const add = WebSocket.prototype.addEventListener;
+        WebSocket.prototype.addEventListener = function (type, listener, opts) {
+          if (type === 'message' && typeof listener === 'function') {
+            const inner = listener;
+            listener = function (ev) {
+              const d = ev && ev.data;
+              if (typeof d === 'string' && /"type":"(update|full-reload|prune)"/.test(d)) return;
+              return inner.call(this, ev);
+            };
+          }
+          return add.call(this, type, listener, opts);
+        };
+      })();
     </script>
     <style>
       html, body { margin: 0; padding: 0; background: #0B0C10; color: #F4F1EB; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }

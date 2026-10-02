@@ -24,22 +24,24 @@ export interface ChargeAppState {
   /** 0..1 — капли на стекле (продолжение POV: уходят, пока телефон едет
    *  вправо — в режиме объяснения это шум поверх букв). Нет — 1. */
   drops?: number;
-  /** Розовый указатель слева от куска экрана (глава 2: строка кода ↔ её кусок
-   *  экрана): верх и низ полоски в мм экрана, a — прозрачность. */
-  pointer?: {y0: number; y1: number; a: number};
+  /** Полоска-указатель под куском экрана (глава 2: строка кода ↔ её кусок):
+   *  едет с куска `from` на кусок `to` (k 0..1), a — прозрачность. */
+  pointer?: {from: ScreenPart; to: ScreenPart; k: number; a: number};
 }
 
-/** Куски экрана, на которые показывает указатель: верх и низ, мм экрана. */
+/** Куски экрана, под которые встаёт полоска: чернильная высота (мм экрана),
+ *  левый край куска и его текст со шрифтом — длину полоски меряет тот же
+ *  шрифт, каким кусок нарисован. */
 export const SCREEN_PARTS = {
-  header: [12.6, 17.8],     // «‹ Mill Street»
-  label: [27.3, 30.9],      // «Post 3 · Connector 2»
-  status: [35.2, 41.8],     // «● Available»
-  plug: [48.1, 51.6],       // «CCS · 50 kW»
-  price: [53.9, 57.4],      // «0.39 € / kWh»
+  header: {y: [12.6, 17.8], x: 5.6, tx: 10.4, text: 'Mill Street', w: 700, mm: 4.3},
+  label: {y: [27.3, 30.9], x: 6.0, tx: 6.0, text: 'Post 3  ·  Connector 2', w: 400, mm: 3.4},
+  status: {y: [35.2, 41.8], x: 6.15, tx: 11.2, text: 'Available', w: 700, mm: 8.2},
+  plug: {y: [48.1, 51.6], x: 6.0, tx: 6.0, text: 'CCS  ·  50 kW', w: 400, mm: 3.6},
+  price: {y: [53.9, 57.4], x: 6.0, tx: 6.0, text: '0.39 € / kWh', w: 400, mm: 3.4},
 } as const;
 export type ScreenPart = keyof typeof SCREEN_PARTS;
-/** Цвет указателя — канонный розовый акцент (Canon.methodDef). */
-export const POINTER_PINK = '#FF8CA3';
+/** Полоска — канон кода (STRIPE_COLOR): роуз 0.18, острые углы. */
+const STRIPE_COLOR = 'rgba(255, 80, 120, 0.18)';
 
 const C = {
   bg: '#0B0E13',
@@ -83,6 +85,27 @@ export function drawChargeApp(canvas: HTMLCanvasElement, s: ChargeAppState): voi
     g.arcTo(x, y, x + w, y, r);
     g.closePath();
   };
+
+  // ── полоска-указатель (глава 2): ПОД куском, как полоска под строкой кода ──
+  // Пропорции кода: высота 1.15 строки (≈ чернила ± 0.39 кегля), по бокам
+  // 0.5 кегля. Между кусками едет и меняет длину вместе с полоской в коде.
+  const band = s.pointer && s.pointer.a > 0 ? (() => {
+    const box = (part: ScreenPart) => {
+      const P = SCREEN_PARTS[part];
+      g.font = font(P.w, P.mm);
+      const padY = Math.max(1.2, 0.39 * P.mm), padX = 0.5 * P.mm;
+      return [P.y[0] - padY, P.y[1] + padY, P.x - padX, P.tx + g.measureText(P.text).width + padX];
+    };
+    const a = box(s.pointer!.from), b = box(s.pointer!.to), q = s.pointer!.k;
+    const [y0b, y1b, x0b, x1b] = a.map((v, i) => v + (b[i] - v) * q);
+    return {y0: y0b, y1: y1b, x0: x0b, x1: x1b, a: s.pointer!.a};
+  })() : null;
+  if (band) {
+    g.globalAlpha = band.a;
+    g.fillStyle = STRIPE_COLOR;
+    g.fillRect(band.x0, band.y0, band.x1 - band.x0, band.y1 - band.y0);
+    g.globalAlpha = 1;
+  }
 
   // ── строка состояния ──
   text('21:47', 4.6, 6.0, 3.3, C.text, 700);
@@ -151,16 +174,6 @@ export function drawChargeApp(canvas: HTMLCanvasElement, s: ChargeAppState): voi
   }
   text('Visa  ••  4821', 30.7, 100.8, 3.2, C.muted, 400, 'center');
 
-  // ── указатель: розовая полоска слева от куска экрана (глава 2) ──
-  // Тот же знак, что слева от строки кода: «эта строка — вот эти пиксели».
-  // Острые углы, как у полоски-канона; экран при этом не гаснет и не пачкается.
-  if (s.pointer && s.pointer.a > 0) {
-    g.globalAlpha = s.pointer.a;
-    g.fillStyle = POINTER_PINK;
-    g.fillRect(2.3, s.pointer.y0, 0.9, s.pointer.y1 - s.pointer.y0);
-    g.globalAlpha = 1;
-  }
-
   // ── лист ошибки ──
   if (s.error > 0) {
     const e = s.error;
@@ -193,6 +206,16 @@ export function drawChargeApp(canvas: HTMLCanvasElement, s: ChargeAppState): voi
   rr(20.2, 131.2, 21, 1.25, 0.62);
   g.fill();
 
+  // ── указатель (глава 2): строка экрана в фокусе, остальное — в расфокусе
+  // и в тени; под строкой — полоска (нарисована раньше текста) ──
+  // Автор: «к полоске на экране пусть добавится полоска, которая вне её
+  // затемняет экран, или блюрит — решай сам». Решение — и то и другое, мягко.
+  // Один расфокус оставляет зелёную кнопку и крупное «Available» самыми яркими
+  // пятнами — они тянут взгляд с мелкой строки. Одна тень на почти чёрном
+  // экране даёт «грязь»: буквы серые, но читаются. Вместе — вне строки буквы
+  // видно как буквы, прочесть нельзя, и они тише; глаз садится на резкое сам.
+  if (band) focusRow(canvas, y0, k, band.y0, band.y1, band.a);
+
   // капли дождя на стекле: каждая — маленькая линза (картинка под ней
   // увеличена), тёмный край и блик фонаря сверху слева
   const drops = s.drops ?? 1;
@@ -217,6 +240,58 @@ export function drawChargeApp(canvas: HTMLCanvasElement, s: ChargeAppState): voi
     g.restore();
   }
   g.setTransform(1, 0, 0, 1, 0, 0);
+}
+
+// Строка в фокусе: копия экрана размывается, темнеет и ложится поверх резкого
+// экрана через маску «всё, кроме строки» с мягкими краями. Резкая зона — по
+// высоте полоски и не задевает соседние куски (самый тесный зазор — ~1 мм
+// между полоской «CCS · 50 kW» и ценой).
+const FOCUS = {
+  blur: 0.9,       // σ расфокуса, мм экрана (~5 px кадра, когда телефон справа)
+  shade: 0.5,      // тень поверх расфокуса: зелёная кнопка не должна тянуть взгляд
+  pad: 0,          // резкая зона выходит за полоску сверху и снизу, мм
+  feather: 1.0,    // мягкий край, мм
+};
+let soft: HTMLCanvasElement | null = null;
+
+function focusRow(canvas: HTMLCanvasElement, y0: number, k: number, r0: number, r1: number, a: number): void {
+  const W = canvas.width, H = canvas.height;
+  if (!soft || soft.width !== W || soft.height !== H) {
+    soft = document.createElement('canvas');
+    soft.width = W;
+    soft.height = H;
+  }
+  const sg = soft.getContext('2d')!;
+  sg.setTransform(1, 0, 0, 1, 0, 0);
+  sg.globalCompositeOperation = 'source-over';
+  // фон под размытием — чтобы край холста не тянул прозрачность внутрь
+  sg.filter = 'none';
+  sg.fillStyle = C.bg;
+  sg.fillRect(0, 0, W, H);
+  sg.filter = `blur(${(FOCUS.blur * k).toFixed(2)}px)`;
+  sg.drawImage(canvas, 0, 0);
+  sg.filter = 'none';
+  sg.fillStyle = `rgba(0,0,0,${FOCUS.shade})`;
+  sg.fillRect(0, 0, W, H);
+  // маска: 1 вне строки, 0 в строке; края — smoothstep
+  const b0 = y0 + (r0 - FOCUS.pad) * k, b1 = y0 + (r1 + FOCUS.pad) * k, f = FOCUS.feather * k;
+  const top = b0 - f, L = b1 + f - top;
+  const mask = sg.createLinearGradient(0, top, 0, top + L);
+  for (let i = 0, N = 6; i <= N; i++) {
+    const u = i / N, e = u * u * (3 - 2 * u);
+    mask.addColorStop(u * f / L, `rgba(0,0,0,${(1 - e).toFixed(4)})`);
+    mask.addColorStop((L - f + u * f) / L, `rgba(0,0,0,${e.toFixed(4)})`);
+  }
+  sg.globalCompositeOperation = 'destination-in';
+  sg.fillStyle = mask;
+  sg.fillRect(0, 0, W, H);
+  sg.globalCompositeOperation = 'source-over';
+  const g = canvas.getContext('2d')!;
+  g.save();
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.globalAlpha = a;
+  g.drawImage(soft, 0, 0);
+  g.restore();
 }
 
 // Капли на стекле (мм экрана, радиус мм): редкие, мелкие, не на главных словах.

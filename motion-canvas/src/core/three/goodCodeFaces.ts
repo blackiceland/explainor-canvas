@@ -23,6 +23,7 @@ import {
 } from 'three';
 import {RoundedBoxGeometry} from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import {attach, cupRadius, drawSoftReflection, fitGlasses, glasses, headphones, headPoints, softReflection, takeawayCup} from './accessories';
+import {CatSit, loadSittingCat} from './catProp';
 import {CinemaLens} from './cinemaLens';
 import {buildDesk, Desk, DeskSpec} from './desk';
 import {drawIde, HANDLERS, IdeChrome, IDE_THEMES} from './ide';
@@ -300,8 +301,9 @@ function buildDayOffice(scene: Scene, m: StudyModels, rnd: () => number, night =
   const Z = -2.8;
   const concrete = plasterTex(rnd);
   const floor = new MeshStandardMaterial({color: '#9a9994', roughness: 0.7, roughnessMap: concrete});
-  plane(scene, 8, 6, floor, new Vector3(0, 0, -0.5), 0, -Math.PI / 2);
-  plane(scene, 8, 6, new MeshStandardMaterial({color: '#e9e8e4', roughness: 0.95}), new Vector3(0, 3.0, -0.5), 0, Math.PI / 2);
+  // пол и потолок — от стекла до дальней стены зала (z 3.2): в широкой половинке был виден зазор
+  plane(scene, 8, 6.7, floor, new Vector3(0, 0, -0.15), 0, -Math.PI / 2);
+  plane(scene, 8, 6.7, new MeshStandardMaterial({color: '#e9e8e4', roughness: 0.95}), new Vector3(0, 3.0, -0.15), 0, Math.PI / 2);
   // стекло: небо с лёгким градиентом и силуэты домов напротив — всё далеко и в расфокусе
   const sky = canvasTex(16, 256, g => {
     const gr = g.createLinearGradient(0, 0, 0, 256);
@@ -499,6 +501,9 @@ function officeFront(scene: Scene, m: StudyModels, rnd: () => number, night: boo
   // дальняя стена: панели, растение
   const wall = new MeshStandardMaterial({color: night ? '#1b1c1f' : '#dcd9d3', roughness: 0.95, roughnessMap: plasterTex(rnd)});
   plane(scene, 8, 3, wall, new Vector3(0, 1.5, 3.2), Math.PI);
+  // боковая стена зала: у офисной девушки половинка шире (кошка слева от монитора), и
+  // без стены за краем зала была пустота
+  plane(scene, 6, 3, wall, new Vector3(2.6, 1.5, 0.2), -Math.PI / 2);
   const panel = new MeshStandardMaterial({color: night ? '#23262b' : '#9aa3ab', roughness: 1});
   for (let i = 0; i < 4; i++) box(scene, 0.6, 1.1, 0.03, panel, new Vector3(-1.2 + i * 0.8, 1.55, 3.17));
   const syn = m.syngonium.clone();
@@ -569,6 +574,14 @@ const DESKS: Record<number, DeskSpec> = {
     keyboard: KEYBOARDS.black, mouse: '#1b1b1c', screenGain: 1.3, screenLight: 3.5},
   4: {top: {kind: 'oak', y: 0.74, x0: -0.7, x1: 0.7, z0: 0.3, z1: 1.2}, device: 'laptop', shell: '#c9ccd1', shellMetal: 0.85,
     screenGain: 1.0, screenLight: 2.5, lightColor: '#fff4e0'},
+};
+/** Кошка офисной девушки (план 1, автор: «an_animated_cat, сделай слева от монитора»):
+ *  сидит на столе слева от монитора и вылизывает лапу. Мордой к монитору, камера —
+ *  с её правого бока на три четверти: поднятая лапа и язык на виду. План в интро идёт
+ *  47 кадров из 1.8 с раскадровки — силуэт берётся по всему плану. */
+const CAT_SIT: CatSit = {
+  url: 'cat_lick.glb', at: new Vector3(0.6, DESKS[1].top.y, 0.6), yaw: Math.PI, scale: 0.017,
+  offset: 0, shown: [0, 1.8],
 };
 
 /**
@@ -700,6 +713,7 @@ export interface FacesShot {
 export function* buildFaces(opts: FacesOptions): Generator<any, FacesShot> {
   yield Promise.all(['"JetBrains Mono"', '"Geist Mono"', '"IBM Plex Mono"'].map(f => (document as any).fonts?.load?.(`500 34px ${f}`)));
   const models = yield* loadStudyModels(opts.assets);
+  const cat = yield* loadSittingCat(opts.assets, CAT_SIT);
   // все люди — одним залпом: сервер медленный
   const people: Person[] = yield Promise.all(opts.people.map(p => {
     const g = loadPerson(p);
@@ -747,6 +761,7 @@ export function* buildFaces(opts: FacesOptions): Generator<any, FacesShot> {
   const desks: Record<number, Desk> = {};
   for (const [set, spec] of Object.entries(DESKS)) desks[+set] = buildDesk(scenes[+set], spec);
   officeFront(scenes[1], copy(), mulberry32(21), false);
+  scenes[1].add(cat.root);
   officeFront(scenes[3], copy(), mulberry32(21), true);
   kitchenFront(scenes[2], copy(), mulberry32(22), false);
   kitchenFront(scenes[4], copy(), mulberry32(22), true);
@@ -909,6 +924,7 @@ export function* buildFaces(opts: FacesOptions): Generator<any, FacesShot> {
       P.cup.updateMatrixWorld(true);
     }
     if (b.set === 3) train.position.x = 10 - 26 * s.u;   // голова состава уже в кадре справа, уходит влево
+    if (b.set === 1) cat.pose(s.u);                      // кошка лижет лапу по времени плана
     return {b, eyes};
   };
 
@@ -983,6 +999,8 @@ export function* buildFaces(opts: FacesOptions): Generator<any, FacesShot> {
     else if (b.hands === 'trackpad' && d.trackpadAt) hands.push(d.trackpadAt.clone().add(new Vector3(0, 0.03, -0.08)));
     else if (!b.recline) hands.push(new Vector3(d.homeX[1] - 0.03, d.keyTop + 0.03, d.homeZ - 0.1));
     const avoid: [Vector3, number][] = [[eyes, 0.12], [eyes.clone().add(new Vector3(-0.18, -0.18, -0.02)), 0.07]];
+    // кошка офисной девушки — в кадре целиком, во всех позах плана
+    if (b.set === 1) hands.push(...cat.outline());
     if (b.recline) {
       // откинулся: руки на коленях — ни плечи, ни локти, ни кисти в кадр не пускаем
       render(facesTimeline(FACE_STARTS[BEATS.indexOf(b)] + 0.01), 64, 36);

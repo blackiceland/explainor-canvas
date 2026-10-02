@@ -13,13 +13,20 @@ function tokenKey(t: Token): string {
     return t.text + '\0' + t.type;
 }
 
-function lcsTokenTable(a: Token[], b: Token[]): number[][] {
+// Только текст: тип токена выводится из соседей (`AVAILABLE,` — константа,
+// `AVAILABLE(` — вызов), и с типом в ключе неизменившееся слово стиралось бы
+// и печаталось заново.
+function textKey(t: Token): string {
+    return t.text;
+}
+
+function lcsTokenTable(a: Token[], b: Token[], key: (t: Token) => string): number[][] {
     const m = a.length;
     const n = b.length;
     const dp: number[][] = Array.from({length: m + 1}, () => new Array(n + 1).fill(0));
     for (let i = 1; i <= m; i++) {
         for (let j = 1; j <= n; j++) {
-            dp[i][j] = tokenKey(a[i - 1]) === tokenKey(b[j - 1])
+            dp[i][j] = key(a[i - 1]) === key(b[j - 1])
                 ? dp[i - 1][j - 1] + 1
                 : Math.max(dp[i - 1][j], dp[i][j - 1]);
         }
@@ -27,14 +34,15 @@ function lcsTokenTable(a: Token[], b: Token[]): number[][] {
     return dp;
 }
 
-export function diffTokens(oldTokens: Token[], newTokens: Token[]): TokenDiffEntry[] {
-    const dp = lcsTokenTable(oldTokens, newTokens);
+export function diffTokens(oldTokens: Token[], newTokens: Token[], byText = false): TokenDiffEntry[] {
+    const key = byText ? textKey : tokenKey;
+    const dp = lcsTokenTable(oldTokens, newTokens, key);
     const stack: TokenDiffEntry[] = [];
     let i = oldTokens.length;
     let j = newTokens.length;
 
     while (i > 0 || j > 0) {
-        if (i > 0 && j > 0 && tokenKey(oldTokens[i - 1]) === tokenKey(newTokens[j - 1])) {
+        if (i > 0 && j > 0 && key(oldTokens[i - 1]) === key(newTokens[j - 1])) {
             stack.push({op: 'keep', oldIndex: i - 1, newIndex: j - 1, token: newTokens[j - 1]});
             i--;
             j--;

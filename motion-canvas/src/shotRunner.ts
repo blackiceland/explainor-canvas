@@ -34,6 +34,9 @@ async function ensureFontsLoaded(timeoutMs = 10_000): Promise<void> {
 
 type ExportAck = {frame: number};
 
+// Lazy: only the requested scene's module is loaded.
+const sceneFiles = import.meta.glob<any>('./scenes/*.tsx', {query: '?scene', import: 'default'});
+
 function $(id: string) {
   return document.getElementById(id)!;
 }
@@ -139,7 +142,13 @@ async function main() {
   // сюда не дотянуть, bootstrap() держит его у себя. Без этого каждый прогон
   // харнесса переписывал project.meta и дёргал открытый редактор автора.
   const descriptions = project.scenes as any[];
-  const description = descriptions.find(s => s?.name === sceneName);
+  let description = descriptions.find(s => s?.name === sceneName);
+  if (!description) {
+    // Not in project.ts (or commented out there): load it straight from
+    // src/scenes, so rendering a scene never requires editing project.ts.
+    const load = sceneFiles[`./scenes/${sceneName}.tsx`];
+    if (load) description = await load();
+  }
   if (!description) {
     const names = descriptions.map(s => s?.name).filter(Boolean).join(', ');
     throw new Error(`Scene "${sceneName}" not found. Available: ${names}`);
@@ -226,19 +235,35 @@ async function main() {
     const padded = String(frame).padStart(6, '0');
     try {
       await playback.seek(frame);
+      const tSeek = Date.now();
       await renderer.stage.render(playback.currentScene, playback.previousScene);
       if (showGrid) drawOverlay(renderer.stage.finalBuffer);
+      const tRender = Date.now();
 
-      if (!import.meta.hot) throw new Error('HMR is not available.');
-      import.meta.hot.send('motion-canvas:export', {
-        frame,
-        name: padded,
-        data: renderer.stage.finalBuffer.toDataURL('image/png'),
-        mimeType: 'image/png',
-        subDirectories: ['still', 'shot', tag],
-      });
-      await waitForAck(frame, timeoutMs);
-      state.results.push({frame, file: `${state.dir}/${padded}.png`, ms: Date.now() - t0});
+      const data = renderer.stage.finalBuffer.toDataURL('image/png');
+      const tEncode = Date.now();
+      // A controlling puppeteer script (_render.mjs) can take the frame itself
+      // and write it from Windows: the dev-server path goes browser → vite in
+      // WSL → /mnt/c and costs ~5 s per 1 MB frame, this one ~tens of ms.
+      const saveFrame = (window as any).__saveFrame;
+      if (saveFrame) {
+        await saveFrame(padded, data);
+      } else {
+        if (!import.meta.hot) throw new Error('HMR is not available.');
+        import.meta.hot.send('motion-canvas:export', {
+          frame,
+          name: padded,
+          data,
+          mimeType: 'image/png',
+          subDirectories: ['still', 'shot', tag],
+        });
+        await waitForAck(frame, timeoutMs);
+      }
+      const tAck = Date.now();
+      state.results.push({
+        frame, file: `${state.dir}/${padded}.png`, ms: tAck - t0,
+        steps: {seek: tSeek - t0, render: tRender - tSeek, encode: tEncode - tRender, ack: tAck - tEncode},
+      } as any);
     } catch (e) {
       state.results.push({
         frame,

@@ -2,7 +2,7 @@ import {makeScene2D, Node, Txt} from '@motion-canvas/2d';
 import {all, easeInOutCubic, ThreadGenerator, waitFor} from '@motion-canvas/core';
 import {CodeBlock} from '../core/code/components/CodeBlock';
 import {Canon, CanonCodeTheme} from '../core/code/model/paletteCanon';
-import {getCodePaddingY} from '../core/code/shared/TextMeasure';
+import {getCodePaddingX, getCodePaddingY} from '../core/code/shared/TextMeasure';
 import {SafeZone} from '../core/ScreenGrid';
 import {Fonts, Screen, Timing} from '../core/theme';
 import {applyBackground} from '../core/utils';
@@ -72,7 +72,7 @@ private static void validateDisplayName(WhatsappChannelCreateRequest request) {
     }
 }
 
-private static void validateConnectionType(WhatsappChannelCreateRequest request) {
+private static ConnectionType validateConnectionType(WhatsappChannelCreateRequest request) {
     String connectionTypeRaw = StringUtils.trimToNull(request.getConnectionType());
 
     if (connectionTypeRaw == null) {
@@ -90,12 +90,12 @@ private static void validateConnectionType(WhatsappChannelCreateRequest request)
     if (connectionType != ConnectionType.QR_CODE && connectionType != ConnectionType.DIGITAL_CODE) {
         throw new ValidationException(Violations.enumViolation("connectionType", connectionTypeRaw));
     }
+
+    return connectionType;
 }
 
-private static void validatePhoneNumber(WhatsappChannelCreateRequest request) {
+private static void validatePhoneNumber(WhatsappChannelCreateRequest request, ConnectionType connectionType) {
     String phoneNumber = StringUtils.trimToNull(request.getPhoneNumber());
-    String connectionTypeRaw = StringUtils.trimToNull(request.getConnectionType());
-    ConnectionType connectionType = ConnectionType.valueOf(connectionTypeRaw);
 
     if (phoneNumber != null && !phoneNumber.matches("\\\\+?\\\\d{11}")) {
         throw new ValidationException(Violations.patternViolation("phoneNumber", phoneNumber));
@@ -118,11 +118,12 @@ export default makeScene2D(function* (view) {
   // Клип-вьюпорт растянут на всю высоту кадра. Монолит validate() (39 строк) при
   // читаемом кегле не влезает, поэтому хвост уходит за нижнюю кромку экрана —
   // а не обрезается рамкой в ~150px от края с пустой полосой под ней.
-  // Блок центрирован (x:0, y:0), поэтому поля слева/справа симметричны.
+  // Блок сдвинут влево на свой внутренний отступ: текст начинается ровно по
+  // левой границе SafeZone.
   const blockHeight = Screen.height + paddingY + 10;
 
   const code = CodeBlock.fromCode(VALIDATE_CODE, {
-    x: 0,
+    x: -getCodePaddingX(fontSize),
     y: 0,
     width: blockWidth,
     height: blockHeight,
@@ -216,8 +217,10 @@ export default makeScene2D(function* (view) {
     if (ln) ln.node.opacity(0);
   }
 
-  yield* code.appear(Timing.normal);
-  yield* waitFor(2);
+  // Плавное появление: 1.2 с вместо 0.6, пауза короче на столько же —
+  // первый такт разбиения остаётся на 2.6 с, под голосом.
+  yield* code.appear(1.2);
+  yield* waitFor(1.4);
 
   const leftEdge = code.getContentLeftEdge();
   const callIndent = textWidth('    ', Fonts.code, fontSize);
@@ -225,10 +228,18 @@ export default makeScene2D(function* (view) {
   const METHOD_COLOR = Canon.methodCall;  // вызовы validate*-методов на месте свёрнутых блоков
   const dimOpacity = 0.15;
 
-  const blocks = [
+  // validateConnectionType отдаёт разобранный тип, validatePhoneNumber получает
+  // его параметром — как в монолите, разбор connectionType остаётся в одном месте.
+  const blocks: {from: number; to: number; name: string; args: string;
+    prefix?: {text: string; color: string}[]}[] = [
     {from: 1, to: 10, name: 'validateDisplayName', args: '(request)'},
-    {from: 11, to: 28, name: 'validateConnectionType', args: '(request)'},
-    {from: 29, to: 37, name: 'validatePhoneNumber', args: '(request)'},
+    {from: 11, to: 28, name: 'validateConnectionType', args: '(request)', prefix: [
+      {text: 'ConnectionType', color: TYPE_CLEAN},
+      {text: ' ', color: PUNCT_COLOR},
+      {text: 'connectionType', color: VAR_LIGHT},
+      {text: ' = ', color: PUNCT_COLOR},
+    ]},
+    {from: 29, to: 37, name: 'validatePhoneNumber', args: '(request, connectionType)'},
   ];
 
   let totalCollapsed = 0;
@@ -268,6 +279,7 @@ export default makeScene2D(function* (view) {
       : createdCalls[createdCalls.length - 1]!.y() + lineHeight;
 
     const callParts = [
+      ...(block.prefix ?? []),
       {text: block.name, color: METHOD_COLOR},
       {text: block.args.charAt(0), color: PUNCT_COLOR},
     ];

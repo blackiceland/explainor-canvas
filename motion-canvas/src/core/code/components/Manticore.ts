@@ -90,6 +90,14 @@ export interface MorphOptions {
      */
     diffPreferEarlyMatches?: boolean;
     /**
+     * When true, a modified line's tokens are matched by TEXT only. The
+     * tokenizer derives a token's type from its neighbours, so `AVAILABLE,`
+     * (constant) and `AVAILABLE(canStart = true),` (call) disagree on the type
+     * of the very same word, and the default text+type match erases and
+     * re-types it. Default false preserves the original behaviour.
+     */
+    diffByText?: boolean;
+    /**
      * Optional per-line hook run immediately after the built-in colour rules
      * are applied to an added/modified line during the morph. Use it for
      * context-sensitive colouring that plain ColorRules can't express (e.g.
@@ -130,6 +138,7 @@ interface MorphResolvedOptions {
     pairBySimilarity: boolean;
     settleBeforeType: boolean;
     diffPreferEarlyMatches: boolean;
+    diffByText: boolean;
     recolorLine?: (line: CodeLine) => void;
 }
 
@@ -565,7 +574,7 @@ export class Manticore {
                     oldIndex: removes[r].oldIndex,
                     newIndex: adds[a].newIndex,
                     newText: adds[a].text,
-                    tokenDiff: diffTokens(oldTokens, newTokens),
+                    tokenDiff: diffTokens(oldTokens, newTokens, o.diffByText),
                 });
             }
             for (let r = 0; r < removes.length; r++) {
@@ -689,6 +698,7 @@ export class Manticore {
             pairBySimilarity: opts.pairBySimilarity ?? false,
             settleBeforeType: opts.settleBeforeType ?? false,
             diffPreferEarlyMatches: opts.diffPreferEarlyMatches ?? false,
+            diffByText: opts.diffByText ?? false,
             recolorLine: opts.recolorLine,
         };
     }

@@ -281,7 +281,7 @@ export default makeProject({
         // ГЛАВА 2, ОТКРЫТИЕ (~11 с): от первого лица под дождём. Телефон в руке,
         // «Available» → тап по «Start charging» → «Connector unavailable»,
         // фокус уходит на мёртвую стойку.
-        // duplicationStreetPovSceneEn,
+         duplicationStreetPovSceneEn,
 
         // ГЛАВА 2, ЛОЖНАЯ НЕЗАВИСИМОСТЬ (черновик ~32 с, без озвучки): API
         // приложения и обработчик команды отвечают на один вопрос по-разному;

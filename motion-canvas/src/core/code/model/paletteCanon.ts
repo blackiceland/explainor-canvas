@@ -60,8 +60,9 @@ export const CanonCodeTheme: SyntaxTheme = {
   comment:     Canon.comment,
 };
 
+// `enum` — ключевое слово, как `class` (без него `enum class` красился белым).
 const KEYWORDS =
-  'class|object|interface|fun|val|var|private|public|internal|protected|' +
+  'enum|class|object|interface|fun|val|var|private|public|internal|protected|' +
   'return|if|else|when|for|while|is|in|to|true|false|throw|null|try|catch|' +
   'finally|override|import|package|@Service';
 

@@ -13,7 +13,7 @@ import {
   Vector3,
   WebGLRenderer,
 } from 'three';
-import {ChargeAppState, drawChargeApp, SCREEN_PARTS, ScreenPart} from './chargeAppUi';
+import {ChargeAppState, drawChargeApp} from './chargeAppUi';
 import {loadPhoneHand, ThumbPose} from './phoneHand';
 import {PovCompositor} from './povCompositor';
 import {buildRainStreet, EYE} from './rainStreet';
@@ -48,6 +48,9 @@ export interface PovState {
    *  замирает — плавно тормозит и встаёт (автор: «дождь тоже должен
    *  остановиться»). */
   worldT: number;
+  /** 0..1 — графит выталкивает руку с телефоном вправо за кадр; 1 — кадр
+   *  целиком в графите, справа встаёт код. */
+  push: number;
   ui: Omit<ChargeAppState, 't'>;
 }
 
@@ -75,49 +78,44 @@ export const SIDE_T = 1.6;
 /** До телефона в правой половине, м (ближе, чем 0.30: экран крупнее). */
 export const SIDE_D = 0.25;
 
-// ── Чтение кода: такты ОБЩИЕ для сцены MC (строки кода) и экрана (куски) ────
-// Автор (29.09): «пора вводить указатель розовый слева от строки кода, чтобы не
-// пачкать его и не затемнять, и десяток секунд уделять на то, чтобы рассказать
-// зрителю, что делает код». Гашение (прошлая проба: код гас раньше, чем его
-// успевали прочесть) снято и в коде, и на экране. Вместо него — розовая
-// полоска слева от строки (сцена MC) и такая же слева от куска экрана (здесь).
-// Два этапа:
-//   1. обзор, ~10 с: указатель идёт по коду за голосом — что делает запрос;
-//   2. поля ↔ экран: указатель у строки поля и у куска экрана, который она
-//      рисует, — одновременно.
-// Одна таблица на обе стороны — рассинхрона быть не может.
-/** Код проявляется, пока телефон садится справа. */
-export const CODE_AT = SIDE_AT + SIDE_T - 0.4;
-/** Этап 1 — обзор кода: указатель по строкам за голосом. */
-export const OVERVIEW_AT = CODE_AT + 1.4;
-export const OVERVIEW_STEP = 2.0;
-export const OVERVIEW_COUNT = 5;
-/** Этап 2 — поля ↔ куски экрана, в порядке кода: name, label, plug +
- *  maxPowerKw, pricePerKwh, последним available. */
-export const FIELDS_AT = OVERVIEW_AT + OVERVIEW_COUNT * OVERVIEW_STEP;
-export const FIELDS_STEP = 2.2;
-export const FIELD_PARTS: ScreenPart[][] = [['header'], ['label'], ['plug'], ['price'], ['status']];
-/** Переезд указателя, с. */
-export const POINTER_T = 0.5;
-export const POV_DURATION = FIELDS_AT + FIELD_PARTS.length * FIELDS_STEP + 1.4;
+/** Лист ошибки уходит вниз, как только телефон встал справа (автор: «ошибку с
+ *  экрана предлагаю убрать после зума телефона»): объясняем экран станции, а
+ *  не лист. Кнопка под листом уже снова «Start charging» — загрузка кончилась,
+ *  когда пришла ошибка. */
+export const CLEAR_AT = SIDE_AT + SIDE_T + 0.1;
+export const CLEAR_T = 0.5;
 
-/** Указатель на экране: во втором этапе стоит у куска экрана текущего поля и
- *  переезжает вместе с указателем в коде. */
-function screenPointer(t: number): {y0: number; y1: number; a: number} | undefined {
-  if (t < FIELDS_AT) return undefined;
-  const box = (parts: ScreenPart[]) => [
-    Math.min(...parts.map(p => SCREEN_PARTS[p][0])),
-    Math.max(...parts.map(p => SCREEN_PARTS[p][1])),
-  ];
-  let [y0, y1] = box(FIELD_PARTS[0]);
-  for (let i = 1; i < FIELD_PARTS.length; i++) {
-    const k = inOutCubic(tw(t, FIELDS_AT + i * FIELDS_STEP, POINTER_T));
-    const [b0, b1] = box(FIELD_PARTS[i]);
-    y0 += (b0 - y0) * k;
-    y1 += (b1 - y1) * k;
-  }
-  const a = inOutSine(tw(t, FIELDS_AT, POINTER_T));
-  return {y0: +y0.toFixed(3), y1: +y1.toFixed(3), a: +a.toFixed(3)};
+// ── Код рядом с телефоном: такты ОБЩИЕ для сцены MC и экрана ────────────────
+// Автор (02.10): пример ужат до правила — слева toView и enum, справа (после
+// ухода телефона) обработчик; обзор запроса и разбор полей сняты («наш пример
+// объёмный, долго придётся логику объяснять»). Указатель — полоска-канон под
+// строкой (автор: «выбираю розовый хайлайт»; треугольник и полоска в поле
+// отвергнуты): в коде — под `available = …`, на экране — под «● Available»,
+// вне строки экран в расфокусе и тени (chargeAppUi).
+// Моменты — по черновику озвучки (~2.8 слова/с); переставить по записи.
+/** Код проявляется, когда экран уже чист. */
+export const CODE_AT = CLEAR_AT + CLEAR_T;
+/** Полоска: проявление и переезд со строки на строку, с. */
+export const MARK_IN = 0.42;
+export const MARK_MOVE = 0.45;
+/** «The big word on top comes from one line» — полоска под `available` в коде
+ *  и под «● Available» на экране, одновременно. */
+export const AVAIL_AT = CODE_AT + 3.9;
+/** Графит выталкивает руку с телефоном вправо за кадр (автор, 02.10: «рука
+ *  должна уйти другим эффектом — графит должен её сдвинуть вправо за фрейм»;
+ *  растворение с расфокусом отвергнуто). Справа встанет код обработчика:
+ *  сравнить два правила зритель должен глазами одновременно — поэтому второй
+ *  код рядом, а не скроллом под первым. */
+export const GONE_AT = AVAIL_AT + 6.3;
+export const GONE_T = 1.4;
+/** На сколько (доля ширины кадра) уезжают графит и рука: плотная часть графита
+ *  (до 0.40W) доходит до правого края, рука — далеко за него. */
+const PUSH_SHIFT = 0.62;
+
+/** Полоска на экране: под «● Available», вместе с полоской в коде. */
+function screenPointer(t: number): ChargeAppState['pointer'] {
+  if (t < AVAIL_AT) return undefined;
+  return {from: 'status', to: 'status', k: 1, a: +inOutSine(tw(t, AVAIL_AT, MARK_IN)).toFixed(3)};
 }
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
@@ -142,11 +140,15 @@ export function povTimeline(t: number): PovState {
   // ожидание и ошибка: лист выезжает, статус «Available» остаётся
   const errAt = ERROR_AT;
   const loading = tw(t, TAP_AT + 0.2, 0.2) * (1 - tw(t, errAt, 0.3));
-  const error = outCubic(tw(t, errAt, 0.45));
+  // после переезда лист уезжает обратно вниз — на экране снова станция
+  const error = outCubic(tw(t, errAt, 0.45)) * (1 - inOutCubic(tw(t, CLEAR_AT, CLEAR_T)));
   // читаем ошибку ~1 с — телефон уходит вправо и ближе; фокус едет вместе с
   // ним (было: фокус уходил обратно на мёртвую стойку, сцена кончалась)
   const side = inOutCubic(tw(t, SIDE_AT, SIDE_T));
   diopt += (1 / SIDE_D - dPhone) * side;
+  // графит выталкивает руку с телефоном вправо за кадр: оба едут одним ходом,
+  // рука остаётся резкой (фокус на ней)
+  const push = inOutCubic(tw(t, GONE_AT, GONE_T));
   // автор: «вскоре после зума телефона не дёргать его, чтобы зритель не
   // отвлекался» — дрожь руки и дыхание камеры гаснут к концу переезда
   const stillAt = SIDE_AT + SIDE_T - 0.4, stillT = 0.9;
@@ -165,6 +167,7 @@ export function povTimeline(t: number): PovState {
     side,
     still,
     worldT,
+    push,
     // капли со стекла уходят, пока телефон едет вправо — в режиме объяснения
     // они шум поверх букв (автор: «на экране сохранилась картинка из сцены с
     // дождём, возможно поэтому плохо читается»)
@@ -200,6 +203,9 @@ const PHONE_UP = {pos: new Vector3(0.05, -0.035, -0.30), roll: -7, tilt: 0};
 const PHONE_DOWN = {pos: new Vector3(0.12, -0.46, -0.24), roll: -16, tilt: 48};
 // Правая половина кадра: центр экрана около x 1440 и по вертикали по центру.
 const PHONE_SIDE = {pos: new Vector3(0.098, -0.004, -SIDE_D), roll: -5, tilt: 0};
+// Ход руки при выталкивании, м в системе камеры: столько же пикселей кадра,
+// сколько проходит графит (PUSH_SHIFT·W на дистанции SIDE_D, fov 46°, 16:9).
+const PUSH_X = PUSH_SHIFT * 2 * (16 / 9) * Math.tan(23 * D2R) * SIDE_D;
 
 // Плавный шум для «живой» камеры: сумма синусов с несоизмеримыми частотами.
 const wob = (t: number, a: number, f: number, p: number) =>
@@ -295,12 +301,19 @@ export function* buildPovShot(): Generator<any, PovShot> {
       + (PHONE_SIDE.roll - PHONE_UP.roll) * s.side + wob(s.t, 0.5, 0.8, 1.3) * life;
     q.multiply(new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), -tilt * D2R));
     q.multiply(new Quaternion().setFromAxisAngle(new Vector3(0, 0, 1), roll * D2R));
+    // выталкивание — чистый сдвиг вправо: разворот к глазу остаётся тем, что
+    // был у PHONE_SIDE, иначе телефон поворачивался бы, уезжая
+    pos.x += PUSH_X * s.push;
     return new Matrix4().compose(pos, q, new Vector3(1, 1, 1));
   };
 
   const render = (s: PovState, W: number, H: number) => {
     const r = renderer();
     if (!comp || comp.width !== W || comp.height !== H) comp = new PovCompositor(W, H);
+    // телефон ушёл, графит сплошной: мира не видно — только графит и зерно
+    if (s.push >= 1) {
+      return comp.render(r, camera, [], {focus: s.focus, K: 20}, {time: s.t, shade: 1, cover: 1});
+    }
     world.prepare(r);
     if (!fg.environment) fg.environment = world.mid.environment;
     (fg as any).environmentIntensity = 0.6;
@@ -349,7 +362,11 @@ export function* buildPovShot(): Generator<any, PovShot> {
       {scene: world.mid, depth: 2.9, bokeh: bokehMid},
       {scene: world.near, depth: 1.0},
       {scene: fg, depth: fgDepth},
-    ], {focus: s.focus, K: 20}, {time: s.t, shade: s.side});
+    ], {focus: s.focus, K: 20}, {
+      time: s.t, shade: s.side, shift: PUSH_SHIFT * s.push,
+      // виньетка уходит вместе с выталкиванием — в конце кадр чистый графит
+      vignette: 0.35 * (1 - s.push),
+    });
   };
 
   return {render, camera};

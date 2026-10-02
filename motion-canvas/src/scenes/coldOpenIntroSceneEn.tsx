@@ -1,10 +1,15 @@
 import {makeScene2D, Txt, Node} from '@motion-canvas/2d';
-import {easeInOutSine, waitFor} from '@motion-canvas/core';
+import {easeInOutSine, useTime, waitFor} from '@motion-canvas/core';
 import {applyBackground} from '../core/utils';
 
 // Cold open — the opening lines spoken over black, as cinematic title cards.
-// EB Garamond caps, cold lavender, a light glow. Timed to the VO (srt cues 1-5,
-// 00:00:00–00:00:14): "It lives in every project... But today, we step into it."
+// EB Garamond caps, cold lavender, a light glow. Timed to the VO: "It lives in
+// every project... But today, we step into it."
+//
+// Word onsets measured from the final mix (speech-band energy, 10 ms windows):
+// 0.14 · 2.75 · 6.46 · 7.83 · 10.37 · 12.17 · 13.65. A beat never appears before
+// its first word: it starts fading in 0.02 s after the onset and fades out right
+// before the next beat starts. Scene length stays 15.8 s (the clip slot in the edit).
 
 const SERIF = 'EB Garamond, Newsreader, serif';
 const INK = '#B7BCEA';                    // cold lavender (chosen sample #1)
@@ -37,23 +42,38 @@ export default makeScene2D(function* (view) {
     return node;
   }
 
-  const b1 = makeBeat(['IT LIVES IN EVERY PROJECT']);
-  const b2 = makeBeat(['AND IT IS NOT SOMETHING', 'PEOPLE SAY OUT LOUD'], 56);
-  const b3 = makeBeat(['WE SEE IT. WE RECOGNIZE IT.', 'AND WE PASS BY.'], 56);
-  const b4 = makeBeat(['BUT TODAY,', 'WE STEP INTO IT.']);
+  // One beat per spoken phrase, in turn at the same spot.
+  const beats: [Node, number][] = [
+    [makeBeat(['IT LIVES IN EVERY PROJECT']), 0.16],                       // "It lives in every project,"
+    [makeBeat(['AND IT IS NOT SOMETHING', 'PEOPLE SAY OUT LOUD'], 56), 2.77], // "and it is not … out loud."
+    [makeBeat(['WE SEE IT.']), 6.48],                                      // "We see it,"
+    [makeBeat(['WE RECOGNIZE IT.']), 7.85],                                // "we recognize it,"
+    [makeBeat(['AND WE PASS BY.']), 10.39],                                // "and we pass by,"
+    [makeBeat(['BUT TODAY']), 12.19],                                      // "but today,"
+    [makeBeat(['WE STEP INTO IT.']), 13.67],                               // "we step into it."
+  ];
+  const IN = 0.35;
+  const OUT = 0.3;
+  const LAST_OUT_AT = 14.75;   // VO ends 14.45
+  const LAST_OUT = 0.6;
+  const SCENE_END = 15.8;
 
-  function* show(node: Node, inDur: number, hold: number, outDur: number) {
-    yield* node.opacity(1, inDur, easeInOutSine);
-    yield* waitFor(hold);
-    yield* node.opacity(0, outDur, easeInOutSine);
+  function* at(t: number) {
+    const dt = t - useTime();
+    if (dt > 0) yield* waitFor(dt);
   }
 
-  yield* waitFor(0.2);
-  yield* show(b1, 0.6, 2.4, 0.6);   // 0.2 → 3.8   (VO 00:00.18–00:03.7)
-  yield* show(b2, 0.5, 1.1, 0.5);   // 3.8 → 5.9   (VO 00:03.7–00:05.1)
-  yield* waitFor(0.4);              //     → 6.3
-  yield* show(b3, 0.6, 3.7, 0.6);   // 6.3 → 11.2  (VO 00:06.3–00:11.25)
-  yield* waitFor(1.0);              //     → 12.2
-  yield* show(b4, 0.6, 1.2, 0.9);   // 12.2 → 14.9 (VO 00:12.2–00:14.6)
-  yield* waitFor(0.3);
+  for (let i = 0; i < beats.length; i++) {
+    const [node, start] = beats[i];
+    yield* at(start);
+    yield* node.opacity(1, IN, easeInOutSine);
+    if (i + 1 < beats.length) {
+      yield* at(beats[i + 1][1] - OUT);
+      yield* node.opacity(0, OUT, easeInOutSine);
+    } else {
+      yield* at(LAST_OUT_AT);
+      yield* node.opacity(0, LAST_OUT, easeInOutSine);
+    }
+  }
+  yield* at(SCENE_END);
 });

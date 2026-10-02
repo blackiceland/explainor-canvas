@@ -59,9 +59,11 @@ export class PovCompositor {
   }
 
   private graphiteCanvas: HTMLCanvasElement | null = null;
+  private graphiteSolid: HTMLCanvasElement | null = null;
   /** Графит applyBackground с горизонтальной прозрачностью: плотный слева
    *  (до 0.40W), долго тает к 0.90W (smootherstep — пологие концы, края
-   *  перехода не читаются). Строится один раз на размер кадра.
+   *  перехода не читаются). Строится один раз на размер кадра; вместе с ним —
+   *  тот же графит сплошной (graphiteSolid): им кадр уходит в графит целиком.
    *  ⚠️ Автор: «переход должен быть более плавный» — первая проба таяла за
    *  0.50W → 0.66W (~300 px) и читалась полосой. На правом крае кода (~950 px)
    *  графит всё ещё ~95 %: код читается на чистом фоне.
@@ -79,6 +81,11 @@ export class PovCompositor {
     const g = c.getContext('2d')!;
     const img = g.createImageData(W, H);
     const d = img.data;
+    const sc = document.createElement('canvas');
+    sc.width = W; sc.height = H;
+    const sg = sc.getContext('2d')!;
+    const simg = sg.createImageData(W, H);
+    const sd = simg.data;
     const top = [0x0B, 0x0C, 0x10], bot = [0x12, 0x14, 0x1A];      // Colors.background
     const warm = [246, 231, 212];                                    // тёплое пятно applyBackground
     const sx = W * 0.62, sy = H * 0.38, R = W * 0.95;
@@ -94,19 +101,66 @@ export class PovCompositor {
         const u = x <= x0 ? 0 : x >= x1 ? 1 : (x - x0) / (x1 - x0);
         const alpha = 1 - u * u * u * (u * (u * 6 - 15) + 10);
         const i = (y * W + x) * 4;
-        if (alpha <= 0) { d[i + 3] = 0; continue; }
         const dist = Math.hypot(x - sx, y - sy);
         const sa = dist >= R ? 0 : 0.045 * (1 - dist / R);
         for (let k = 0; k < 3; k++) {
           const col = base[k] * (1 - sa) + warm[k] * sa;
-          d[i + k] = Math.max(0, Math.min(255, Math.round(col + tri())));
+          d[i + k] = sd[i + k] = Math.max(0, Math.min(255, Math.round(col + tri())));
         }
-        d[i + 3] = Math.max(0, Math.min(255, Math.round(alpha * 255 + tri())));
+        sd[i + 3] = 255;
+        d[i + 3] = alpha <= 0 ? 0 : Math.max(0, Math.min(255, Math.round(alpha * 255 + tri())));
       }
     }
     g.putImageData(img, 0, 0);
+    sg.putImageData(simg, 0, 0);
     this.graphiteCanvas = c;
+    this.graphiteSolid = sc;
     return c;
+  }
+
+  private shiftMask: HTMLCanvasElement | null = null;
+  private shiftOut: HTMLCanvasElement | null = null;
+  /** Графит, сдвинутый вправо на долю ширины `shift`: цвета остаются на своих
+   *  местах (вертикаль и тёплое пятно не едут), сдвигается только прозрачность
+   *  — левее сдвига графит сплошной. Маска — альфа того же дизеренного
+   *  холста graphite(), поэтому полос нет и на ходу. */
+  private shiftedGraphite(shift: number): HTMLCanvasElement {
+    const {width: W, height: H} = this;
+    const fade = this.graphite();
+    const mk = () => { const c = document.createElement('canvas'); c.width = W; c.height = H; return c; };
+    const mask = this.shiftMask ??= mk();
+    const out = this.shiftOut ??= mk();
+    const dx = shift * W;
+    const m = mask.getContext('2d')!;
+    m.clearRect(0, 0, W, H);
+    m.fillStyle = '#fff';
+    m.fillRect(0, 0, Math.ceil(dx), H);
+    m.drawImage(fade, dx, 0);
+    const o = out.getContext('2d')!;
+    o.globalCompositeOperation = 'source-over';
+    o.clearRect(0, 0, W, H);
+    o.drawImage(this.graphiteSolid!, 0, 0);
+    o.globalCompositeOperation = 'destination-in';
+    o.drawImage(mask, 0, 0);
+    o.globalCompositeOperation = 'source-over';
+    return out;
+  }
+
+  private drawGrain(time: number, amount: number): void {
+    const {ctx, width: W, height: H, s} = this;
+    ctx.globalAlpha = amount;
+    ctx.globalCompositeOperation = 'overlay';
+    const f = Math.floor(time * 24);
+    const ox = (f * 197) % 512, oy = (f * 331) % 512;
+    const pat = ctx.createPattern(this.grain, 'repeat')!;
+    ctx.save();
+    ctx.translate(-ox, -oy);
+    ctx.scale(s, s);
+    ctx.fillStyle = pat;
+    ctx.fillRect(0, 0, W / s + 1024, H / s + 1024);
+    ctx.restore();
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
   }
 
   coc(lens: PovLens, d: number): number {
@@ -114,30 +168,45 @@ export class PovCompositor {
   }
 
   render(renderer: WebGLRenderer, camera: PerspectiveCamera, layers: PovLayer[], lens: PovLens,
-    opts: {time: number; grain?: number; vignette?: number; exposure?: number[]; shade?: number}): HTMLCanvasElement {
+    opts: {time: number; grain?: number; vignette?: number; exposure?: number[];
+      shade?: number; shift?: number; cover?: number}): HTMLCanvasElement {
     const {width: W, height: H, ctx, lctx, s} = this;
-    renderer.setSize(W, H, false);
-    camera.aspect = W / H;
-    camera.updateProjectionMatrix();
     ctx.globalCompositeOperation = 'source-over';
     ctx.filter = 'none';
-    ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, W, H);
-    const view = new Vector3();
     // Графит слева — под код, когда телефон уходит вправо (duplicationStreetPovSceneEn).
     // Автор: «код на нашем графите с плавным переходом в картинку справа». Это
     // РОВНО applyBackground всех код-сцен ролика (вертикаль #0B0C10 → #12141A +
     // еле тёплое пятно света), плотный до правого края кода и тающий к
     // телефону. Кладётся ПОД последний слой (рука с телефоном) — рука его не
     // получает. Зерно ложится поверх и дизерит переход: полос нет.
-    const shade = opts.shade ?? 0;
-    const drawShade = () => {
-      ctx.globalAlpha = Math.min(1, shade);
-      ctx.drawImage(this.graphite(), 0, 0);
+    // ⚠️ Вуаль поверх руки и улицы («всё кроме телефона почти в графите»)
+    // автор пробовал и отверг (02.10) — не возвращать.
+    // `shift` — графит едет вправо (доля ширины) и выталкивает руку с
+    // телефоном за кадр; `cover` = 1 — кадр целиком в графите.
+    const shade = Math.min(1, opts.shade ?? 0);
+    const shift = Math.max(0, opts.shift ?? 0);
+    const cover = Math.max(0, Math.min(1, opts.cover ?? 0));
+    const gamt = opts.grain ?? 0.07;
+    // Кадр целиком в графите — мир под ним не виден: не рендерим его.
+    if (cover >= 1) {
       ctx.globalAlpha = 1;
-    };
+      this.graphite();
+      ctx.drawImage(this.graphiteSolid!, 0, 0);
+      if (gamt > 0) this.drawGrain(opts.time, gamt);
+      return this.out;
+    }
+    renderer.setSize(W, H, false);
+    camera.aspect = W / H;
+    camera.updateProjectionMatrix();
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, W, H);
+    const view = new Vector3();
     layers.forEach((L, li) => {
-      if (shade > 0 && li === layers.length - 1) drawShade();
+      if (shade > 0 && li === layers.length - 1) {
+        ctx.globalAlpha = shade;
+        ctx.drawImage(shift > 0 ? this.shiftedGraphite(shift) : this.graphite(), 0, 0);
+        ctx.globalAlpha = 1;
+      }
       renderer.setClearColor(0x000000, 0);
       renderer.clear();
       if (opts.exposure) renderer.toneMappingExposure = opts.exposure[li] ?? 1;
@@ -179,7 +248,7 @@ export class PovCompositor {
       }
     });
     // виньетка — мягко, только углы; под графитом слабее — там канон applyBackground
-    const vig = (opts.vignette ?? 0.35) * (1 - 0.6 * Math.min(1, shade));
+    const vig = (opts.vignette ?? 0.35) * (1 - 0.6 * shade);
     if (vig > 0) {
       const gr = ctx.createRadialGradient(W / 2, H / 2, H * 0.45, W / 2, H / 2, Math.hypot(W, H) * 0.56);
       gr.addColorStop(0, 'rgba(0,0,0,0)');
@@ -187,23 +256,15 @@ export class PovCompositor {
       ctx.fillStyle = gr;
       ctx.fillRect(0, 0, W, H);
     }
-    // зерно плёнки: overlay по серому 128 не меняет среднюю яркость
-    const gamt = opts.grain ?? 0.07;
-    if (gamt > 0) {
-      ctx.globalAlpha = gamt;
-      ctx.globalCompositeOperation = 'overlay';
-      const f = Math.floor(opts.time * 24);
-      const ox = (f * 197) % 512, oy = (f * 331) % 512;
-      const pat = ctx.createPattern(this.grain, 'repeat')!;
-      ctx.save();
-      ctx.translate(-ox, -oy);
-      ctx.scale(s, s);
-      ctx.fillStyle = pat;
-      ctx.fillRect(0, 0, W / s + 1024, H / s + 1024);
-      ctx.restore();
+    // кадр уходит в графит целиком — тем же графитом, что под кодом
+    if (cover > 0) {
+      this.graphite();
+      ctx.globalAlpha = cover;
+      ctx.drawImage(this.graphiteSolid!, 0, 0);
       ctx.globalAlpha = 1;
-      ctx.globalCompositeOperation = 'source-over';
     }
+    // зерно плёнки: overlay по серому 128 не меняет среднюю яркость
+    if (gamt > 0) this.drawGrain(opts.time, gamt);
     return this.out;
   }
 }
