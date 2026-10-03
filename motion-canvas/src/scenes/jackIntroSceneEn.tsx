@@ -26,7 +26,6 @@ export default makeScene2D(function* (view) {
         letterSpacing={14.4}
         fill={MUTED}
         y={-80}
-        opacity={0}
       />
       <Txt
         ref={titleRef}
@@ -37,18 +36,14 @@ export default makeScene2D(function* (view) {
         letterSpacing={12.8}
         fill={TEXT_COLOR}
         y={40}
-        opacity={0}
       />
     </Node>,
   );
 
-  yield* container().opacity(1, 0);
-
-  yield* chapterRef().opacity(1, 0.8, easeInOutCubic);
-  yield* waitFor(0.8);
-
-  yield* titleRef().opacity(1, 0.7, easeInOutCubic);
-  yield* waitFor(3);
+  // CHAPTER и название проявляются вместе, одной нодой. Уход в тот же момент,
+  // что раньше (5.3 с), длина сцены прежняя — 6.8 с.
+  yield* container().opacity(1, 0.8, easeInOutCubic);
+  yield* waitFor(4.5);
 
   yield* container().opacity(0, 1.2, easeInOutCubic);
   yield* waitFor(0.3);

@@ -63,60 +63,64 @@ const D2R = Math.PI / 180;
 // объектива; линейный перевод в метрах «проскакивает» середину.
 export const POST_D = 3.9;      // до стойки, м
 export const PHONE_D = 0.30;    // до телефона, м
-/** Касание стекла — под звук тапа. */
-export const TAP_AT = 5.1;
-/** Лист «Connector unavailable» начинает выезжать. */
-export const ERROR_AT = TAP_AT + 1.83;
 // ⚠️ Продолжение (28.09, автор: «телефон в руке уходит вправо, экран делится на
-// две части, можно зазумить немного, слева код»). Раньше после ошибки фокус
-// уходил обратно на мёртвую стойку и сцена кончалась склейкой; теперь фокус
-// остаётся на телефоне, телефон уезжает вправо и приближается, слева —
-// код (сцена MC рисует его поверх кадра).
-/** Телефон трогается вправо — после ~1 с чтения ошибки. */
-export const SIDE_AT = ERROR_AT + 1.45;
+// две части, слева код»). Фокус остаётся на телефоне, телефон уезжает вправо и
+// приближается, слева — код (сцена MC рисует его поверх кадра).
+// ⚠️ 03.10 (автор: связь toView и handle показать телефоном): на телефоне
+// сначала КАРТА с ближней станцией, тапов в начале нет. Оба тапа — уже рядом
+// с кодом: тап 1 открывает станцию, и экран собирается по строкам toView;
+// тап 2 — Start, полоска идёт по handle, на `throw` выезжает лист ошибки.
+/** Телефон трогается вправо — после ~1.4 с на карте. */
+export const SIDE_AT = 5.0;
 export const SIDE_T = 1.6;
 /** До телефона в правой половине, м (ближе, чем 0.30: экран крупнее). */
 export const SIDE_D = 0.25;
 
-/** Лист ошибки уходит вниз, как только телефон встал справа (автор: «ошибку с
- *  экрана предлагаю убрать после зума телефона»): объясняем экран станции, а
- *  не лист. Кнопка под листом уже снова «Start charging» — загрузка кончилась,
- *  когда пришла ошибка. */
-export const CLEAR_AT = SIDE_AT + SIDE_T + 0.1;
-export const CLEAR_T = 0.5;
-
 // ── Код рядом с телефоном: такты ОБЩИЕ для сцены MC и экрана ────────────────
-// Автор (02.10): пример ужат до правила — слева toView и enum, справа (после
-// ухода телефона) обработчик; обзор запроса и разбор полей сняты («наш пример
-// объёмный, долго придётся логику объяснять»). Указатель — полоска-канон под
-// строкой (автор: «выбираю розовый хайлайт»; треугольник и полоска в поле
-// отвергнуты): в коде — под `available = …`, на экране — под «● Available»,
-// вне строки экран в расфокусе и тени (chargeAppUi).
+// Указатель — полоска-канон под строкой (автор: «выбираю розовый хайлайт»).
 // Моменты — по черновику озвучки (~2.8 слова/с); переставить по записи.
-/** Код проявляется, когда экран уже чист. */
-export const CODE_AT = CLEAR_AT + CLEAR_T;
+/** Код проявляется, когда телефон встал справа. */
+export const CODE_AT = SIDE_AT + SIDE_T + 0.1;
 /** Полоска: проявление и переезд со строки на строку, с. */
 export const MARK_IN = 0.42;
 export const MARK_MOVE = 0.45;
-/** «The big word on top comes from one line» — полоска под `available` в коде
- *  и под «● Available» на экране, одновременно. */
-export const AVAIL_AT = CODE_AT + 3.9;
+/** Тап 1 — водитель открывает станцию (карточка «Mill Street»). */
+export const TAP1_AT = CODE_AT + 2.0;
+/** Страница станции въезжает справа. */
+export const PAGE_AT = TAP1_AT + 0.22;
+export const PAGE_T = 0.4;
+/** «Opening the station runs this function» — полоска на `fun Connector.toView(`. */
+export const VIEW_AT = TAP1_AT + 0.6;
+/** Поля toView: plug, maxPowerKw, pricePerKwh, available. Полоска встаёт на
+ *  строку — в тот же момент её кусок появляется на экране. */
+export const FIELD_AT = [2.5, 3.3, 4.1, 5.6].map(d => TAP1_AT + d);
+/** «The last field decides the big word and the green button» — полоска под
+ *  `available`, и на экране в тот же момент появляются «● Available» и кнопка.
+ *  Полоски и расфокуса на экране больше нет: кусок экрана сам появляется на
+ *  своей строке — это и есть пара «строка ↔ пиксели». */
+export const AVAIL_AT = FIELD_AT[3];
+/** Тап 2 — Start. */
+export const TAP2_AT = AVAIL_AT + 6.7;
+/** «…another part of the system» — обе строки `package`. */
+export const PKG_AT = TAP2_AT + 4.5;
+/** «…the charging service» — полоска на `fun handle(`. */
+export const HANDLE_AT = TAP2_AT + 7.2;
+/** «It lets a driver start only on two statuses» — проверка статуса. */
+export const GUARD_AT = TAP2_AT + 9.3;
+/** «…it throws Connector unavailable» — полоска на `throw`, и в тот же момент
+ *  на телефоне выезжает лист ошибки. */
+export const ERROR_AT = TAP2_AT + 13.6;
+/** «Two places, two different shapes…» — обе строки правил; на телефоне в
+ *  это время оба конца противоречия: «Available» и лист «Connector unavailable». */
+export const BOTH_AT = ERROR_AT + 3.1;
 /** Графит выталкивает руку с телефоном вправо за кадр (автор, 02.10: «рука
  *  должна уйти другим эффектом — графит должен её сдвинуть вправо за фрейм»;
- *  растворение с расфокусом отвергнуто). Справа встанет код обработчика:
- *  сравнить два правила зритель должен глазами одновременно — поэтому второй
- *  код рядом, а не скроллом под первым. */
-export const GONE_AT = AVAIL_AT + 6.3;
+ *  растворение с расфокусом отвергнуто). Справа встанет enum. */
+export const GONE_AT = BOTH_AT + 13.1;
 export const GONE_T = 1.4;
 /** На сколько (доля ширины кадра) уезжают графит и рука: плотная часть графита
  *  (до 0.40W) доходит до правого края, рука — далеко за него. */
 const PUSH_SHIFT = 0.62;
-
-/** Полоска на экране: под «● Available», вместе с полоской в коде. */
-function screenPointer(t: number): ChargeAppState['pointer'] {
-  if (t < AVAIL_AT) return undefined;
-  return {from: 'status', to: 'status', k: 1, a: +inOutSine(tw(t, AVAIL_AT, MARK_IN)).toFixed(3)};
-}
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 const tw = (t: number, t0: number, dur: number) => clamp01((t - t0) / dur);
@@ -131,19 +135,21 @@ export function povTimeline(t: number): PovState {
   const look = inOutSine(tw(t, 2.2, 1.2));
   const dPost = 1 / POST_D, dPhone = 1 / PHONE_D;
   let diopt = dPost + (dPhone - dPost) * inOutCubic(tw(t, 2.6, 1.0));
-  // тап: палец над кнопкой → касание (TAP_AT) → отпускание → палец к краю
-  const reachIn = inOutCubic(tw(t, TAP_AT - 0.5, 0.5));
-  const reachOut = inOutCubic(tw(t, TAP_AT + 0.38, 0.45));
-  const pressIn = outCubic(tw(t, TAP_AT, 0.12));
-  const pressOut = inOutSine(tw(t, TAP_AT + 0.2, 0.2));
-  const pressedUi = clamp01(tw(t, TAP_AT, 0.1)) * (1 - tw(t, TAP_AT + 0.2, 0.2));
-  // ожидание и ошибка: лист выезжает, статус «Available» остаётся
-  const errAt = ERROR_AT;
-  const loading = tw(t, TAP_AT + 0.2, 0.2) * (1 - tw(t, errAt, 0.3));
-  // после переезда лист уезжает обратно вниз — на экране снова станция
-  const error = outCubic(tw(t, errAt, 0.45)) * (1 - inOutCubic(tw(t, CLEAR_AT, CLEAR_T)));
-  // читаем ошибку ~1 с — телефон уходит вправо и ближе; фокус едет вместе с
-  // ним (было: фокус уходил обратно на мёртвую стойку, сцена кончалась)
+  // два тапа в одну точку (карточка станции, потом кнопка Start — они на одном
+  // месте экрана): палец над точкой → касание → отпускание → палец к краю
+  const tapAt = t < TAP2_AT - 0.5 ? TAP1_AT : TAP2_AT;
+  const reachIn = inOutCubic(tw(t, tapAt - 0.5, 0.5));
+  const reachOut = inOutCubic(tw(t, tapAt + 0.38, 0.45));
+  const pressIn = outCubic(tw(t, tapAt, 0.12));
+  const pressOut = inOutSine(tw(t, tapAt + 0.2, 0.2));
+  const pressAt = (T: number) => clamp01(tw(t, T, 0.1)) * (1 - tw(t, T + 0.2, 0.2));
+  // карта → страница станции; поля появляются по строкам toView
+  const page = inOutCubic(tw(t, PAGE_AT, PAGE_T));
+  const reveal = FIELD_AT.map(T => +inOutSine(tw(t, T, 0.35)).toFixed(3));
+  // Start: ожидание, на `throw` — лист ошибки; статус «Available» остаётся
+  const loading = tw(t, TAP2_AT + 0.2, 0.2) * (1 - tw(t, ERROR_AT, 0.3));
+  const error = outCubic(tw(t, ERROR_AT, 0.45));
+  // телефон уходит вправо и ближе; фокус едет вместе с ним
   const side = inOutCubic(tw(t, SIDE_AT, SIDE_T));
   diopt += (1 / SIDE_D - dPhone) * side;
   // графит выталкивает руку с телефоном вправо за кадр: оба едут одним ходом,
@@ -171,7 +177,11 @@ export function povTimeline(t: number): PovState {
     // капли со стекла уходят, пока телефон едет вправо — в режиме объяснения
     // они шум поверх букв (автор: «на экране сохранилась картинка из сцены с
     // дождём, возможно поэтому плохо читается»)
-    ui: {pressed: pressedUi, loading, error, drops: +(1 - side).toFixed(3), pointer: screenPointer(t)},
+    ui: {
+      page: +page.toFixed(3), cardPressed: +pressAt(TAP1_AT).toFixed(3), reveal,
+      pressed: +pressAt(TAP2_AT).toFixed(3), loading, error,
+      drops: +(1 - side).toFixed(3),
+    },
   };
 }
 

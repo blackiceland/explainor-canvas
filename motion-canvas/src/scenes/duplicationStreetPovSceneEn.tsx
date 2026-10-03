@@ -1,6 +1,9 @@
 import {blur, makeScene2D, Node, Rect} from '@motion-canvas/2d';
 import {all, createSignal, easeInOutCubic, easeInOutSine, easeOutCubic, linear, ThreadGenerator, useTime, waitFor} from '@motion-canvas/core';
-import {AVAIL_AT, buildPovShot, CODE_AT, GONE_AT, GONE_T, MARK_IN, MARK_MOVE, povTimeline} from '../core/three/povStreetShot';
+import {
+  BOTH_AT, buildPovShot, CODE_AT, ERROR_AT, FIELD_AT, GONE_AT, GONE_T, GUARD_AT, HANDLE_AT, MARK_IN, MARK_MOVE,
+  PKG_AT, povTimeline, VIEW_AT,
+} from '../core/three/povStreetShot';
 import {Manticore, MorphOptions} from '../core/code/components/Manticore';
 import {
   buildCanonRules, Canon, CanonCodeTheme, paintCanonMethodCalls, paintCanonMethodCallsLine,
@@ -10,41 +13,38 @@ import {Screen} from '../core/theme';
 
 // ── DON'T FIGHT DUPLICATION · глава 2 целиком (акты 5–6 PDF) ────────────────
 // Ночь, дождь, улица. Впереди стойка — ни одного огонька. В руку поднимается
-// телефон: «● Available» и зелёная кнопка. Тап «Start charging» → «Starting…» →
-// снизу лист «Connector unavailable», а «Available» наверху остаётся.
+// телефон: на нём карта и карточка ближней станции «Mill Street». Телефон с
+// рукой уезжает вправо, слева на нашем графите — код (графит плотный слева и
+// тает в картинку справа, рука притемнена; вуаль «всё кроме телефона» отвергнута).
 //
-// Продолжение (28.09, идея автора): телефон с рукой уезжает вправо, лист
-// уходит вниз, слева на нашем графите — код. Графит плотный слева и плавно
-// тает в картинку справа; рука притемнена. (Вуаль «всё кроме телефона почти в
-// графите» автор пробовал 02.10 и отверг.)
+// Связь toView и handle показана телефоном (автор, 03.10): одна функция рисует
+// кнопку, другая получает её нажатие.
+//   • Тап 1 — карточка станции: страница собирается по строкам toView. Полоска
+//     встаёт на строку — в тот же момент её кусок появляется на экране: plug →
+//     «CCS», maxPowerKw → «· 50 kW», pricePerKwh → цена, available → «● Available»
+//     и зелёная кнопка.
+//   • Тап 2 — Start: «другая часть системы» — полоски на обеих строках `package`
+//     (автор: «надо в моменте подсветить их»), потом handle → проверка статуса →
+//     throw, и на `throw` на телефоне выезжает «Connector unavailable».
+//   • Обе строки правил сразу, на телефоне — оба конца противоречия.
+// Разные части системы — строкой `package` у каждого файла (не подписи, не
+// рамки): app.screens и charging.sessions. Оба файла — одной колонкой рядом с
+// телефоном (скролл не нужен: 28 строк при кегле 22).
 //
-// Код ужат до правила (автор, 02.10: «наш пример объёмный, долго придётся
-// логику объяснять»; обзор запроса и разбор полей сняты):
-//   • слева — `toView` (что показывает приложение) и под ним enum статусов;
-//   • справа — обработчик старта, на одном уровне с `toView` (автор: «классы на
-//     одном уровне, enum ниже, а не сверху»). Высоты равны — по 14 строк.
-// Указатель — полоска-канон под строкой (роуз 0.18, по длине строки, острые
-// углы, слой под кодом; треугольник и полоска в поле отвергнуты). Код не гаснет.
-//
-// Такты:
-//   1. телефон справа: полоска под `available = status != CHARGING` и под
-//      «● Available» на экране — одно слово в коде и на экране;
-//   2. телефон уходит в графит, справа проявляется обработчик: handle →
-//      проверка статуса → throw (лист, который видел водитель) → обе строки
-//      правил сразу;
-//   3. в enum печатается OUT_OF_ORDER → обработчик его не пускает → приложение
-//      спрашивает «не заряжается ли» → обе строки: система говорит две вещи;
-//   4. развязка: каждый статус несёт `canStart`, обе строки спрашивают статус.
-// Справа, а не скроллом вниз: два правила зритель сравнивает глазами
-// одновременно.
+// Дальше графит выталкивает руку с телефоном вправо за кадр, на его месте —
+// enum: печатается OUT_OF_ORDER → обработчик его не пускает → приложение
+// спрашивает «не заряжается ли» → обе строки: система говорит две вещи.
+// Развязка: каждый статус несёт `canStart`, обе строки спрашивают статус.
 //
 // ⚠️ Кадр POV целиком собирает core/three/povStreetShot (povTimeline —
-// чистая функция времени); стенд scratchpad/pov снимает тот же модуль.
-// ⚠️ Звук тапа ставит автор — касание стекла на TAP_AT (5.1 с).
+// чистая функция времени; там же такты, общие с экраном). Стенд scratchpad/pov
+// снимает тот же модуль. Звуки тапов (TAP1_AT, TAP2_AT) ставит автор.
 // ⚠️ Такты стоят по черновику озвучки (~2.8 слова/с) — переставить по записи.
 
-// ── Слева: что показывает приложение + статусы ─────────────────────────────
-const LEFT = `fun Connector.toView(tariff: Tariff): ConnectorView {
+// ── Слева: два файла — экран приложения и обработчик старта ────────────────
+const LEFT = `package com.chargeco.app.screens
+
+fun Connector.toView(tariff: Tariff): ConnectorView {
     return ConnectorView(
         plug = plug.displayName,
         maxPowerKw = maxPowerKw,
@@ -53,27 +53,10 @@ const LEFT = `fun Connector.toView(tariff: Tariff): ConnectorView {
     )
 }
 
-enum class ConnectorStatus {
-    AVAILABLE,
-    CHARGING,
-    FINISHING,
-}`;
-// Разъём сломался — в enum ОДНА новая строка, больше ничего не меняется.
-const LEFT_BROKEN = LEFT.replace('    FINISHING,\n}', '    FINISHING,\n    OUT_OF_ORDER,\n}');
-// Развязка: ответ «можно ли начать» несёт сам статус…
-const LEFT_RULE = LEFT_BROKEN
-  .replace('enum class ConnectorStatus {', 'enum class ConnectorStatus(val canStart: Boolean) {')
-  .replace('    AVAILABLE,', '    AVAILABLE(canStart = true),')
-  .replace('    CHARGING,', '    CHARGING(canStart = false),')
-  .replace('    FINISHING,', '    FINISHING(canStart = true),')
-  .replace('    OUT_OF_ORDER,', '    OUT_OF_ORDER(canStart = false),');
-// …и приложение спрашивает его.
-const LEFT_FIX = LEFT_RULE.replace('available = status != CHARGING,', 'available = status.canStart,');
 
-// ── Справа: обработчик старта ───────────────────────────────────────────────
-// Проверка оплаты — для правды: правило статуса — одна из причин отказа, как
-// в настоящем коде. Голос о ней молчит.
-const RIGHT = `fun handle(command: StartCharging): SessionId {
+package com.chargeco.charging.sessions
+
+fun handle(command: StartCharging): SessionId {
     val connector = connectors.get(command.connectorId)
     val driver = drivers.get(command.driverId)
 
@@ -87,8 +70,28 @@ const RIGHT = `fun handle(command: StartCharging): SessionId {
 
     return sessions.start(connector, driver)
 }`;
-const RIGHT_FIX = RIGHT.replace(
-  'if (connector.status !in setOf(AVAILABLE, FINISHING)) {', 'if (!connector.status.canStart) {');
+// Развязка: оба места спрашивают статус.
+const LEFT_FIX = LEFT
+  .replace('available = status != CHARGING,', 'available = status.canStart,')
+  .replace('if (connector.status !in setOf(AVAILABLE, FINISHING)) {', 'if (!connector.status.canStart) {');
+
+// ── Справа (после ухода телефона): статусы ─────────────────────────────────
+const RIGHT = `package com.chargeco.stations
+
+enum class ConnectorStatus {
+    AVAILABLE,
+    CHARGING,
+    FINISHING,
+}`;
+// Разъём сломался — в enum ОДНА новая строка, больше ничего не меняется.
+const RIGHT_BROKEN = RIGHT.replace('    FINISHING,\n}', '    FINISHING,\n    OUT_OF_ORDER,\n}');
+// Развязка: ответ «можно ли начать» несёт сам статус.
+const RIGHT_RULE = RIGHT_BROKEN
+  .replace('enum class ConnectorStatus {', 'enum class ConnectorStatus(val canStart: Boolean) {')
+  .replace('    AVAILABLE,', '    AVAILABLE(canStart = true),')
+  .replace('    CHARGING,', '    CHARGING(canStart = false),')
+  .replace('    FINISHING,', '    FINISHING(canStart = true),')
+  .replace('    OUT_OF_ORDER,', '    OUT_OF_ORDER(canStart = false),');
 
 const TYPES = [
   'Connector', 'Tariff', 'ConnectorView', 'ConnectorStatus', 'Boolean',
@@ -100,6 +103,7 @@ const RULES = buildCanonRules({
   vars: [
     'plug', 'displayName', 'maxPowerKw', 'tariff', 'status', 'canStart', 'connector', 'connectors',
     'command', 'connectorId', 'driver', 'drivers', 'driverId', 'paymentMethod', 'sessions', 'id',
+    'com', 'chargeco', 'app', 'screens', 'charging', 'stations',
   ],
 });
 const RECOLOR = (line: any) => {
@@ -130,39 +134,33 @@ const EDIT: MorphOptions = {
 };
 
 // ── Геометрия ───────────────────────────────────────────────────────────────
-// Кегль 24 — больше не влезает: строка проверки статуса (59 знаков) задаёт
-// ширину правой колонки. Поля по 96 px, между колонками ~100 px. Обе колонки
-// по 14 строк, общий верх; блок стоит по центру кадра (и по центру телефона,
-// пока тот справа).
-const FS = 24;
+// Слева 28 строк (два файла) — кегль 22, по центру кадра по высоте. Справа
+// после ухода телефона — enum (8 строк после OUT_OF_ORDER), тоже по центру.
+const FS = 22;
 const LH = FS * 1.5;
 const ADV = FS * 0.605;
 const MARGIN = 96;
 const WIN_H = Screen.height + 104;        // окно Manticore = кадр: морф не скроллит сам
 const rows = (src: string) => src.split('\n');
 const widest = (...srcs: string[]) => Math.max(...srcs.flatMap(rows).map(l => l.length)) * ADV;
-const LEFT_W = widest(LEFT, LEFT_BROKEN, LEFT_RULE, LEFT_FIX);
-const RIGHT_W = widest(RIGHT, RIGHT_FIX);
-const CODE_LEFT = -Screen.width / 2 + MARGIN;
-const RIGHT_LEFT = Screen.width / 2 - MARGIN - RIGHT_W;
-const CODE_TOP = -Math.max(rows(LEFT).length, rows(RIGHT).length) * LH / 2;
-const TOP_LINE_Y = CODE_TOP + LH / 2;
+const LEFT_W = widest(LEFT, LEFT_FIX);
+const RIGHT_W = widest(RIGHT, RIGHT_BROKEN, RIGHT_RULE);
+const LEFT_X = -Screen.width / 2 + MARGIN;
+const RIGHT_X = Screen.width / 2 - MARGIN - RIGHT_W;
+const LEFT_TOP = -rows(LEFT).length * LH / 2 + LH / 2;            // y первой строки
+const RIGHT_TOP = -rows(RIGHT_BROKEN).length * LH / 2 + LH / 2;
 
-// ── Такты обработчика и развязки (только код) — по черновику озвучки ───────
-const RIGHT_AT = GONE_AT + GONE_T + 0.2;  // справа проявляется обработчик
+// ── Такты после ухода телефона (только код) — по черновику озвучки ─────────
+const RIGHT_AT = GONE_AT + GONE_T + 0.2;  // справа проявляется enum
 const B = {
-  handle: RIGHT_AT + 1.4,                 // «…to the handler that actually starts a session»
-  guard: RIGHT_AT + 3.9,                  // «It lets a driver start only on two statuses…»
-  thrown: RIGHT_AT + 8.4,                 // «On anything else, it throws Connector unavailable.»
-  both: RIGHT_AT + 11.4,                  // «Two places, two different shapes…»
-  breaks: RIGHT_AT + 24.8,                // «Then a connector breaks, so we add one status…»
-  rejects: RIGHT_AT + 29.7,               // «The handler rejects it…»
-  asks: RIGHT_AT + 33.9,                  // «The app asks a different question…»
-  twice: RIGHT_AT + 41.7,                 // «…the system says two things at once…»
-  fix: RIGHT_AT + 60.9,                   // «The fix isn't merging the app and the handler…»
-  rule: RIGHT_AT + 65.5,                  // «What has to live in one place is the decision.»
-  ask: RIGHT_AT + 69.8,                   // «Each status now carries its own answer…»
-  end: RIGHT_AT + 91.3,                   // после «…understand one decision.»
+  breaks: RIGHT_AT + 1.6,                 // «Then a connector breaks, so we add one status…»
+  rejects: RIGHT_AT + 5.3,                // «The handler rejects it…»
+  asks: RIGHT_AT + 9.5,                   // «The app asks a different question…»
+  twice: RIGHT_AT + 17.3,                 // «…the system says two things at once…»
+  fix: RIGHT_AT + 36.3,                   // «The fix isn't merging the app and the handler…»
+  rule: RIGHT_AT + 40.9,                  // «What has to live in one place is the decision.»
+  ask: RIGHT_AT + 45.4,                   // «Each status now carries its own answer…»
+  end: RIGHT_AT + 67.1,                   // после «…understand one decision.»
 };
 
 // Полоска-канон проекта (duplicationIncidentSceneEn): роуз 0.18, по длине
@@ -186,12 +184,15 @@ export default makeScene2D(function* (view) {
   };
   view.add(frame);
 
-  // Колонка кода: слой (проявляется целиком), под кодом — слой полоски.
-  const column = (src: string, width: number, left: number) => {
+  // Колонка кода: слой (проявляется целиком), под кодом — слой полосок.
+  const column = (src: string, width: number, left: number, top: number, stripes: number) => {
     const layer = new Node({opacity: 0});
     view.add(layer);
-    const stripe = new Rect({offset: [-1, 0], height: STRIPE_H, fill: STRIPE_COLOR, radius: 0, opacity: 0});
-    layer.add(stripe);
+    const marks = Array.from({length: stripes}, () => {
+      const r = new Rect({offset: [-1, 0], height: STRIPE_H, fill: STRIPE_COLOR, radius: 0, opacity: 0});
+      layer.add(r);
+      return r;
+    });
     const code = Manticore.create(src, {
       x: 0, y: 0, width: width + 240, height: WIN_H, fontSize: FS, lineHeight: LH,
       theme: CanonCodeTheme, glowAccent: false, customTypes: TYPES,
@@ -204,19 +205,19 @@ export default makeScene2D(function* (view) {
     paintCanonParams(code);                // именованные аргументы — цветом полей
     code.node.opacity(1);
     code.node.x(left - code.getLeftEdge());
-    code.node.y(TOP_LINE_Y - code.getLineY(0));
-    return {layer, stripe, code, left};
+    code.node.y(top - code.getLineY(0));
+    return {layer, marks, code, left, top};
   };
   type Column = ReturnType<typeof column>;
 
-  const L = column(LEFT, LEFT_W, CODE_LEFT);
+  const L = column(LEFT, LEFT_W, LEFT_X, LEFT_TOP, 2);
   // `fun Connector.toView(` — определение, хотя перед именем точка: пейнтер
   // вызовов красит его как вызов, возвращаем цвет определения.
   {
-    const line = L.code.getLine(0) as any;
+    const line = L.code.getLine(rows(LEFT).findIndex(r => r.includes('fun Connector.toView'))) as any;
     for (const tok of line.tokens) if (tok.text.trim() === 'toView') tok.ref().fill(Canon.methodDef);
   }
-  const R = column(RIGHT, RIGHT_W, RIGHT_LEFT);
+  const R = column(RIGHT, RIGHT_W, RIGHT_X, RIGHT_TOP, 1);
 
   function* at(t: number) {
     const dt = t - useTime();
@@ -229,75 +230,86 @@ export default makeScene2D(function* (view) {
     yield* all(c.layer.opacity(1, 1.0, easeOutCubic), open.value(0, 1.1, easeInOutSine));
     c.layer.filters([]);
   }
-  // Полоска под строку `needle` документа `src`: первый раз проявляется на
-  // месте, дальше переезжает и меняет длину.
-  function* mark(c: Column, src: string, needle: string, move = MARK_MOVE): ThreadGenerator {
+  // Полоска `n` колонки — под строку `needle` документа `src`: первый раз
+  // проявляется на месте, дальше переезжает и меняет длину.
+  function* mark(c: Column, n: number, src: string, needle: string, move = MARK_MOVE): ThreadGenerator {
     const lines = rows(src);
     const i = lines.findIndex(r => r.includes(needle));
     if (i < 0) throw new Error(`нет строки: ${needle}`);
     const t = lines[i];
     const c0 = t.length - t.trimStart().length, c1 = t.trimEnd().length;
-    const x = c.left + c0 * ADV - STRIPE_PAD, y = TOP_LINE_Y + i * LH, w = (c1 - c0) * ADV + STRIPE_PAD * 2;
-    if (c.stripe.opacity() < 0.01) {
-      c.stripe.position([x, y]);
-      c.stripe.width(w);
-      yield* c.stripe.opacity(1, MARK_IN, easeInOutSine);
+    const x = c.left + c0 * ADV - STRIPE_PAD, y = c.top + i * LH, w = (c1 - c0) * ADV + STRIPE_PAD * 2;
+    const s = c.marks[n];
+    if (s.opacity() < 0.01) {
+      s.position([x, y]);
+      s.width(w);
+      yield* s.opacity(1, MARK_IN, easeInOutSine);
       return;
     }
-    yield* all(c.stripe.position([x, y], move, easeInOutCubic), c.stripe.width(w, move, easeInOutCubic));
+    yield* all(s.position([x, y], move, easeInOutCubic), s.width(w, move, easeInOutCubic));
   }
-  const unmark = (c: Column) => c.stripe.opacity(0, MARK_IN, easeInOutSine);
+  const unmark = (c: Column, n: number) => c.marks[n].opacity(0, MARK_IN, easeInOutSine);
+  const AVAIL = 'available =';
   const GUARD = 'if (connector.status !in';
 
   function* timeline(): ThreadGenerator {
-    // ── телефон справа: одно слово в коде и на экране ──
+    // ── телефон справа: тап 1 — страница станции собирается по строкам toView ──
     yield* at(CODE_AT);
     yield* develop(L);
-    yield* at(AVAIL_AT);                   // тот же момент — полоска под «● Available» (povStreetShot)
-    yield* mark(L, LEFT, 'available =');
+    yield* at(VIEW_AT);
+    yield* mark(L, 0, LEFT, 'fun Connector.toView(');
+    const fields = ['plug = plug', 'maxPowerKw = maxPowerKw', 'pricePerKwh =', AVAIL];
+    for (let i = 0; i < fields.length; i++) {
+      yield* at(FIELD_AT[i]);              // тот же момент — кусок появляется на экране
+      yield* mark(L, 0, LEFT, fields[i]);
+    }
 
-    // ── обработчик: телефон уходит в графит, справа — код старта ──
+    // ── тап 2 — Start: нажатие уходит в другую часть системы ──
+    yield* at(PKG_AT);
+    yield* all(
+      mark(L, 0, LEFT, 'package com.chargeco.app.screens'),
+      mark(L, 1, LEFT, 'package com.chargeco.charging.sessions'),
+    );
+    yield* at(HANDLE_AT);
+    yield* all(mark(L, 0, LEFT, 'fun handle('), unmark(L, 1));
+    yield* at(GUARD_AT);
+    yield* mark(L, 0, LEFT, GUARD);
+    yield* at(ERROR_AT);                   // тот же момент — лист ошибки на телефоне
+    yield* mark(L, 0, LEFT, 'throw ConnectorUnavailable');
+    // два места, две формы одного правила; на телефоне — оба конца противоречия
+    yield* at(BOTH_AT);
+    yield* all(mark(L, 0, LEFT, AVAIL), mark(L, 1, LEFT, GUARD));
+
+    // ── графит выталкивает телефон, справа — статусы ──
     yield* at(GONE_AT);
-    yield* unmark(L);
+    yield* all(unmark(L, 0), unmark(L, 1));
     yield* at(RIGHT_AT);
     yield* develop(R);
-    yield* at(B.handle);
-    yield* mark(R, RIGHT, 'fun handle(');
-    yield* at(B.guard);
-    yield* mark(R, RIGHT, GUARD);
-    yield* at(B.thrown);
-    yield* mark(R, RIGHT, 'throw ConnectorUnavailable');
-    // два места, две формы одного правила
-    yield* at(B.both);
-    yield* all(mark(R, RIGHT, GUARD), mark(L, LEFT, 'available ='));
-
-    // ── разъём сломался: один новый статус ──
+    // разъём сломался: один новый статус
     yield* at(B.breaks);
-    yield* all(unmark(L), unmark(R));
-    yield* L.code.morphTo(LEFT_BROKEN, INSERT);
-    yield* mark(L, LEFT_BROKEN, 'OUT_OF_ORDER,');
+    yield* R.code.morphTo(RIGHT_BROKEN, INSERT);
+    yield* mark(R, 0, RIGHT_BROKEN, 'OUT_OF_ORDER,');
     // обработчик его не пускает: новый статус и правило обработчика — вместе
     yield* at(B.rejects);
-    yield* mark(R, RIGHT, GUARD);
-    // приложение спрашивает другое: полоска слева уходит со статуса к `available`
+    yield* mark(L, 0, LEFT, GUARD);
+    // приложение спрашивает другое
     yield* at(B.asks);
-    yield* all(unmark(R), mark(L, LEFT_BROKEN, 'available ='));
+    yield* mark(L, 0, LEFT, AVAIL);
     // система говорит две вещи сразу
     yield* at(B.twice);
-    yield* mark(R, RIGHT, GUARD);
+    yield* all(unmark(R, 0), mark(L, 1, LEFT, GUARD));
 
     // ── развязка: ответ живёт в статусе, оба места его спрашивают ──
     yield* at(B.fix);
-    yield* all(unmark(L), unmark(R));
+    yield* all(unmark(L, 0), unmark(L, 1));
     yield* at(B.rule);
-    yield* L.code.morphTo(LEFT_RULE, EDIT);
+    yield* R.code.morphTo(RIGHT_RULE, EDIT);
     yield* at(B.ask);
-    yield* all(mark(R, RIGHT, GUARD), mark(L, LEFT_RULE, 'available ='));
+    yield* all(mark(L, 0, LEFT, AVAIL), mark(L, 1, LEFT, GUARD));
     yield* all(
-      L.code.morphTo(LEFT_FIX, EDIT),
-      R.code.morphTo(RIGHT_FIX, EDIT),
-      mark(L, LEFT_FIX, 'available =', 0.9),
-      mark(R, RIGHT_FIX, 'if (!connector.status.canStart)', 0.9),
+      L.code.morphTo(LEFT_FIX, {...EDIT, blockOrder: 'parallel'}),
+      mark(L, 0, LEFT_FIX, AVAIL, 0.9),
+      mark(L, 1, LEFT_FIX, 'if (!connector.status.canStart)', 0.9),
     );
     yield* at(B.end);
   }

@@ -15,6 +15,14 @@ import {SCREEN} from './phoneHand';
 export interface ChargeAppState {
   /** Время сцены, с — для спиннера. */
   t: number;
+  /** 0..1 — с карты на страницу станции: страница въезжает справа, карта
+   *  уходит влево (переход iOS). Нет — сразу страница станции. */
+  page?: number;
+  /** 0..1 — карточка станции на карте под пальцем. */
+  cardPressed?: number;
+  /** Поля страницы появляются по строкам toView (глава 2): [plug, maxPowerKw,
+   *  pricePerKwh, available], каждое 0..1. Нет — всё на месте. */
+  reveal?: number[];
   /** 0..1 — кнопка под пальцем. */
   pressed: number;
   /** 0..1 — кнопка в состоянии «Starting…». */
@@ -100,14 +108,113 @@ export function drawChargeApp(canvas: HTMLCanvasElement, s: ChargeAppState): voi
     const [y0b, y1b, x0b, x1b] = a.map((v, i) => v + (b[i] - v) * q);
     return {y0: y0b, y1: y1b, x0: x0b, x1: x1b, a: s.pointer!.a};
   })() : null;
-  if (band) {
-    g.globalAlpha = band.a;
-    g.fillStyle = STRIPE_COLOR;
-    g.fillRect(band.x0, band.y0, band.x1 - band.x0, band.y1 - band.y0);
-    g.globalAlpha = 1;
+  const page = s.page ?? 1;
+  const shown = (i: number) => (s.reveal ? Math.max(0, Math.min(1, s.reveal[i])) : 1);
+  g.save();
+  g.beginPath();
+  g.rect(0, 0, SCREEN.wMM, SCREEN.hMM);
+  g.clip();
+
+  // ── карта с ближней станцией (глава 2: первый тап открывает станцию) ──
+  // Переход как в iOS: карта уходит влево на треть и темнеет, страница
+  // станции въезжает справа с тенью по левому краю.
+  if (page < 1) {
+    g.save();
+    g.translate(-0.3 * SCREEN.wMM * page, 0);
+    drawMap(g, text, rr, s.cardPressed ?? 0);
+    g.restore();
+    if (page > 0) {
+      g.fillStyle = `rgba(0,0,0,${(0.35 * page).toFixed(3)})`;
+      g.fillRect(0, 0, SCREEN.wMM, SCREEN.hMM);
+    }
   }
 
-  // ── строка состояния ──
+  // ── страница станции ──
+  if (page > 0) {
+    g.save();
+    g.translate((1 - page) * SCREEN.wMM, 0);
+    if (page < 1) {
+      const sh = g.createLinearGradient(-5, 0, 0, 0);
+      sh.addColorStop(0, 'rgba(0,0,0,0)');
+      sh.addColorStop(1, 'rgba(0,0,0,0.45)');
+      g.fillStyle = sh;
+      g.fillRect(-5, 0, 5, SCREEN.hMM);
+    }
+    g.fillStyle = C.bg;
+    g.fillRect(0, 0, SCREEN.wMM, SCREEN.hMM);
+
+    if (band) {
+      g.globalAlpha = band.a;
+      g.fillStyle = STRIPE_COLOR;
+      g.fillRect(band.x0, band.y0, band.x1 - band.x0, band.y1 - band.y0);
+      g.globalAlpha = 1;
+    }
+
+    // заголовок
+    g.strokeStyle = C.text;
+    g.lineWidth = 0.55;
+    g.lineCap = 'round';
+    g.lineJoin = 'round';
+    g.beginPath();
+    g.moveTo(7.6, 13.0); g.lineTo(5.6, 15.2); g.lineTo(7.6, 17.4);
+    g.stroke();
+    text('Mill Street', 10.4, 16.7, 4.3, C.text, 700);
+
+    // стойка; поля разъёма появляются по строкам toView: plug → «CCS»,
+    // maxPowerKw → «· 50 kW», pricePerKwh → цена, available → «● Available» и кнопка
+    text('Post 3  ·  Connector 2', 6.0, 30.0, 3.4, C.muted, 400);
+    g.globalAlpha = shown(3);
+    g.fillStyle = C.green;
+    g.beginPath(); g.arc(7.7, 38.6, 1.55, 0, Math.PI * 2); g.fill();
+    text('Available', 11.2, 41.4, 8.2, C.text, 700);
+    g.globalAlpha = shown(0);
+    text('CCS', 6.0, 51.0, 3.6, C.text, 400);
+    g.font = font(400, 3.6);
+    const ccsW = g.measureText('CCS').width;
+    g.globalAlpha = shown(1);
+    text('  ·  50 kW', 6.0 + ccsW, 51.0, 3.6, C.text, 400);
+    g.globalAlpha = shown(2);
+    text('0.39 € / kWh', 6.0, 56.6, 3.4, C.muted, 400);
+
+    // кнопка — появляется вместе с «Available»: её включает то же поле
+    g.globalAlpha = shown(3);
+    const B = START_BUTTON;
+    const sc = 1 - 0.03 * s.pressed;
+    const bw = B.w * sc, bh = B.h * sc;
+    const bx = B.x + (B.w - bw) / 2, by = B.y + (B.h - bh) / 2;
+    g.fillStyle = C.green;
+    rr(bx, by, bw, bh, bh / 2);
+    g.fill();
+    // нажатие и ожидание — темнее, без смены цвета
+    const dark = 0.16 * Math.max(s.pressed, s.loading * 0.8);
+    if (dark > 0) {
+      g.fillStyle = `rgba(0,0,0,${dark})`;
+      rr(bx, by, bw, bh, bh / 2);
+      g.fill();
+    }
+    const cy = B.y + B.h / 2;
+    if (s.loading < 1) {
+      g.globalAlpha = shown(3) * (1 - s.loading);
+      text('Start charging', B.x + B.w / 2, cy + 1.6, 4.6, C.greenInk, 700, 'center');
+    }
+    if (s.loading > 0) {
+      g.globalAlpha = shown(3) * s.loading;
+      const sx = B.x + B.w / 2 - 11.5;
+      g.strokeStyle = C.greenInk;
+      g.lineWidth = 0.6;
+      g.beginPath();
+      const a0 = s.t * 6.2;
+      g.arc(sx, cy, 1.9, a0, a0 + Math.PI * 1.45);
+      g.stroke();
+      text('Starting…', sx + 4.0, cy + 1.6, 4.6, C.greenInk, 700);
+    }
+    g.globalAlpha = shown(3);
+    text('Visa  ••  4821', 30.7, 100.8, 3.2, C.muted, 400, 'center');
+    g.globalAlpha = 1;
+    g.restore();
+  }
+
+  // ── строка состояния — общая для карты и страницы ──
   text('21:47', 4.6, 6.0, 3.3, C.text, 700);
   for (let i = 0; i < 4; i++) {
     const bh = 1.1 + i * 0.55;
@@ -120,59 +227,7 @@ export function drawChargeApp(canvas: HTMLCanvasElement, s: ChargeAppState): voi
   g.globalAlpha = 0.35; g.fill(); g.globalAlpha = 1;
   rr(49.9, 3.6, 3.2, 2.2, 0.5);
   g.fillStyle = C.text; g.fill();
-
-  // ── заголовок ──
-  g.strokeStyle = C.text;
-  g.lineWidth = 0.55;
-  g.lineCap = 'round';
-  g.lineJoin = 'round';
-  g.beginPath();
-  g.moveTo(7.6, 13.0); g.lineTo(5.6, 15.2); g.lineTo(7.6, 17.4);
-  g.stroke();
-  text('Mill Street', 10.4, 16.7, 4.3, C.text, 700);
-
-  // ── стойка ──
-  text('Post 3  ·  Connector 2', 6.0, 30.0, 3.4, C.muted, 400);
-  g.fillStyle = C.green;
-  g.beginPath(); g.arc(7.7, 38.6, 1.55, 0, Math.PI * 2); g.fill();
-  text('Available', 11.2, 41.4, 8.2, C.text, 700);
-  text('CCS  ·  50 kW', 6.0, 51.0, 3.6, C.text, 400);
-  text('0.39 € / kWh', 6.0, 56.6, 3.4, C.muted, 400);
-
-  // ── кнопка ──
-  const B = START_BUTTON;
-  const sc = 1 - 0.03 * s.pressed;
-  const bw = B.w * sc, bh = B.h * sc;
-  const bx = B.x + (B.w - bw) / 2, by = B.y + (B.h - bh) / 2;
-  g.fillStyle = C.green;
-  rr(bx, by, bw, bh, bh / 2);
-  g.fill();
-  // нажатие и ожидание — темнее, без смены цвета
-  const dark = 0.16 * Math.max(s.pressed, s.loading * 0.8);
-  if (dark > 0) {
-    g.fillStyle = `rgba(0,0,0,${dark})`;
-    rr(bx, by, bw, bh, bh / 2);
-    g.fill();
-  }
-  const cy = B.y + B.h / 2;
-  if (s.loading < 1) {
-    g.globalAlpha = 1 - s.loading;
-    text('Start charging', B.x + B.w / 2, cy + 1.6, 4.6, C.greenInk, 700, 'center');
-    g.globalAlpha = 1;
-  }
-  if (s.loading > 0) {
-    g.globalAlpha = s.loading;
-    const sx = B.x + B.w / 2 - 11.5;
-    g.strokeStyle = C.greenInk;
-    g.lineWidth = 0.6;
-    g.beginPath();
-    const a0 = s.t * 6.2;
-    g.arc(sx, cy, 1.9, a0, a0 + Math.PI * 1.45);
-    g.stroke();
-    text('Starting…', sx + 4.0, cy + 1.6, 4.6, C.greenInk, 700);
-    g.globalAlpha = 1;
-  }
-  text('Visa  ••  4821', 30.7, 100.8, 3.2, C.muted, 400, 'center');
+  g.restore();
 
   // ── лист ошибки ──
   if (s.error > 0) {
@@ -240,6 +295,82 @@ export function drawChargeApp(canvas: HTMLCanvasElement, s: ChargeAppState): voi
     g.restore();
   }
   g.setTransform(1, 0, 0, 1, 0, 0);
+}
+
+// ── Карта с ближней станцией (глава 2, до первого тапа) ─────────────────────
+// Тёмная карта: улицы — чуть светлее фона, без подписей; синяя точка «вы
+// здесь», белая метка станции (нейтральная: доступность ещё никто не считал —
+// её посчитает toView). Снизу карточка «Mill Street» стоит ровно там, где
+// потом будет кнопка Start: палец жмёт в ту же точку (START_BUTTON), поза
+// руки та же, что у тапа по кнопке.
+type TextFn = (t: string, x: number, y: number, mm: number, color: string, w?: number, align?: CanvasTextAlign) => void;
+type RRFn = (x: number, y: number, w: number, h: number, r: number) => void;
+function drawMap(g: CanvasRenderingContext2D, text: TextFn, rr: RRFn, pressed: number): void {
+  g.fillStyle = '#0E131A';
+  g.fillRect(0, 0, SCREEN.wMM, SCREEN.hMM);
+  const street = (pts: number[][], w: number, col: string) => {
+    g.strokeStyle = col;
+    g.lineWidth = w;
+    g.lineCap = 'butt';
+    g.lineJoin = 'round';
+    g.beginPath();
+    g.moveTo(pts[0][0], pts[0][1]);
+    for (const p of pts.slice(1)) g.lineTo(p[0], p[1]);
+    g.stroke();
+  };
+  street([[-5, 118], [70, 104]], 2.4, '#19202A');
+  street([[14, -5], [24, 140]], 2.6, '#1A222C');
+  street([[47, -5], [40, 140]], 2.0, '#171E27');
+  street([[-5, 58], [70, 52]], 2.0, '#171E27');
+  street([[-5, 28], [70, 74]], 4.2, '#202935');           // Mill Street — проспект наискось
+  // вы здесь
+  const me = [30.0, 63.0];
+  g.fillStyle = 'rgba(76,141,255,0.16)';
+  g.beginPath(); g.arc(me[0], me[1], 5.0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#F3F5F7';
+  g.beginPath(); g.arc(me[0], me[1], 2.1, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#4C8DFF';
+  g.beginPath(); g.arc(me[0], me[1], 1.5, 0, Math.PI * 2); g.fill();
+  // метка станции: капля с молнией
+  const pin = [36.0, 47.0];
+  g.fillStyle = C.text;
+  g.beginPath();
+  g.arc(pin[0], pin[1], 2.9, Math.PI * 0.8, Math.PI * 2.2);
+  g.lineTo(pin[0], pin[1] + 5.0);
+  g.closePath();
+  g.fill();
+  g.fillStyle = C.bg;
+  g.beginPath();
+  const bolt = [[0.45, -1.7], [-1.0, 0.25], [0.0, 0.25], [-0.45, 1.7], [1.0, -0.25], [0.0, -0.25]];
+  g.moveTo(pin[0] + bolt[0][0], pin[1] + bolt[0][1]);
+  for (const [bx, by] of bolt.slice(1)) g.lineTo(pin[0] + bx, pin[1] + by);
+  g.closePath();
+  g.fill();
+  // поиск
+  g.fillStyle = C.sheet;
+  rr(4.7, 10.5, 52.0, 7.6, 3.8);
+  g.fill();
+  g.strokeStyle = C.muted;
+  g.lineWidth = 0.45;
+  g.lineCap = 'round';
+  g.beginPath(); g.arc(9.6, 14.0, 1.25, 0, Math.PI * 2); g.stroke();
+  g.beginPath(); g.moveTo(10.5, 14.9); g.lineTo(11.5, 15.9); g.stroke();
+  text('Search stations', 13.2, 15.4, 3.3, C.muted, 400);
+  // карточка ближней станции — под пальцем
+  g.fillStyle = C.sheet;
+  rr(4.7, 76.5, 52.0, 19.0, 4.0);
+  g.fill();
+  if (pressed > 0) {
+    g.fillStyle = `rgba(0,0,0,${(0.18 * pressed).toFixed(3)})`;
+    rr(4.7, 76.5, 52.0, 19.0, 4.0);
+    g.fill();
+  }
+  text('Mill Street', 9.2, 84.8, 4.6, C.text, 700);
+  text('120 m  ·  2 connectors', 9.2, 90.8, 3.3, C.muted, 400);
+  g.strokeStyle = C.muted;
+  g.lineWidth = 0.5;
+  g.lineJoin = 'round';
+  g.beginPath(); g.moveTo(50.4, 83.6); g.lineTo(52.6, 86.0); g.lineTo(50.4, 88.4); g.stroke();
 }
 
 // Строка в фокусе: копия экрана размывается, темнеет и ложится поверх резкого
