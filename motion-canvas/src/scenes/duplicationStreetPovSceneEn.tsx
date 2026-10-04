@@ -1,8 +1,8 @@
 import {blur, makeScene2D, Node, Rect} from '@motion-canvas/2d';
-import {all, createSignal, easeInOutCubic, easeInOutSine, easeOutCubic, linear, ThreadGenerator, useTime, waitFor} from '@motion-canvas/core';
+import {all, createSignal, delay, easeInOutCubic, easeInOutSine, easeOutCubic, linear, ThreadGenerator, useTime, waitFor} from '@motion-canvas/core';
 import {
   BOTH_AT, buildPovShot, CODE_AT, ERROR_AT, FIELD_AT, GONE_AT, GONE_T, GUARD_AT, HANDLE_AT, MARK_IN, MARK_MOVE,
-  PKG_AT, povTimeline, VIEW_AT,
+  AVAIL_OFF_AT, povTimeline, TAP2_AT, VIEW_AT,
 } from '../core/three/povStreetShot';
 import {Manticore, MorphOptions} from '../core/code/components/Manticore';
 import {
@@ -12,21 +12,25 @@ import {
 import {Screen} from '../core/theme';
 
 // ── DON'T FIGHT DUPLICATION · глава 2 целиком (акты 5–6 PDF) ────────────────
-// Ночь, дождь, улица. Впереди стойка — ни одного огонька. В руку поднимается
-// телефон: на нём карта и карточка ближней станции «Mill Street». Телефон с
-// рукой уезжает вправо, слева на нашем графите — код (графит плотный слева и
-// тает в картинку справа, рука притемнена; вуаль «всё кроме телефона» отвергнута).
+// Ночь, дождь, улица — в кинограйде тил/янтарь (автор, 04.10; грейд уходит,
+// пока телефон едет к коду). Впереди стойка — ни одного огонька. В руку
+// поднимается телефон: на нём карта и карточка ближней станции «Mill Street».
+// Телефон с рукой уезжает вправо, слева на нашем графите — код (графит плотный
+// слева и тает в картинку справа, рука притемнена; вуаль «всё кроме телефона»
+// отвергнута).
 //
 // Связь toView и handle показана телефоном (автор, 03.10): одна функция рисует
 // кнопку, другая получает её нажатие.
 //   • Тап 1 — карточка станции: страница собирается по строкам toView. Полоска
 //     встаёт на строку — в тот же момент её кусок появляется на экране: plug →
 //     «CCS», maxPowerKw → «· 50 kW», pricePerKwh → цена, available → «● Available»
-//     и зелёная кнопка.
-//   • Тап 2 — Start: «другая часть системы» — полоски на обеих строках `package`
-//     (автор: «надо в моменте подсветить их»), потом handle → проверка статуса →
-//     throw, и на `throw` на телефоне выезжает «Connector unavailable».
-//   • Обе строки правил сразу, на телефоне — оба конца противоречия.
+//     и зелёная кнопка. Полоска с `available` уходит ДО нажатия Start.
+//   • Яркость блоков следует за действием: пока работает toView, файл handle
+//     приглушён; на нажатии Start toView гаснет, handle загорается и сразу
+//     получает полоску (подсветку строк `package` автор снял); дальше проверка
+//     статуса → throw, и на `throw` на телефоне выезжает «Connector unavailable».
+//   • Обе строки правил сразу (оба блока в полную яркость), на телефоне — оба
+//     конца противоречия.
 // Разные части системы — строкой `package` у каждого файла (не подписи, не
 // рамки): app.screens и charging.sessions. Оба файла — одной колонкой рядом с
 // телефоном (скролл не нужен: 28 строк при кегле 22).
@@ -39,7 +43,8 @@ import {Screen} from '../core/theme';
 // ⚠️ Кадр POV целиком собирает core/three/povStreetShot (povTimeline —
 // чистая функция времени; там же такты, общие с экраном). Стенд scratchpad/pov
 // снимает тот же модуль. Звуки тапов (TAP1_AT, TAP2_AT) ставит автор.
-// ⚠️ Такты стоят по черновику озвучки (~2.8 слова/с) — переставить по записи.
+// ⚠️ Такты сжаты для отладки (автор, 04.10: «сократи паузы») — по записи
+// озвучки растянуть.
 
 // ── Слева: два файла — экран приложения и обработчик старта ────────────────
 const LEFT = `package com.chargeco.app.screens
@@ -150,17 +155,19 @@ const RIGHT_X = Screen.width / 2 - MARGIN - RIGHT_W;
 const LEFT_TOP = -rows(LEFT).length * LH / 2 + LH / 2;            // y первой строки
 const RIGHT_TOP = -rows(RIGHT_BROKEN).length * LH / 2 + LH / 2;
 
-// ── Такты после ухода телефона (только код) — по черновику озвучки ─────────
+// ── Такты после ухода телефона (только код) ────────────────────────────────
+// ⚠️ 04.10, автор: «сократи паузы, сейчас отладка» — сжаты до действия; по
+// записи озвучки растянуть заново.
 const RIGHT_AT = GONE_AT + GONE_T + 0.2;  // справа проявляется enum
 const B = {
-  breaks: RIGHT_AT + 1.6,                 // «Then a connector breaks, so we add one status…»
-  rejects: RIGHT_AT + 5.3,                // «The handler rejects it…»
-  asks: RIGHT_AT + 9.5,                   // «The app asks a different question…»
-  twice: RIGHT_AT + 17.3,                 // «…the system says two things at once…»
-  fix: RIGHT_AT + 36.3,                   // «The fix isn't merging the app and the handler…»
-  rule: RIGHT_AT + 40.9,                  // «What has to live in one place is the decision.»
-  ask: RIGHT_AT + 45.4,                   // «Each status now carries its own answer…»
-  end: RIGHT_AT + 67.1,                   // после «…understand one decision.»
+  breaks: RIGHT_AT + 1.2,                 // «Then a connector breaks, so we add one status…»
+  rejects: RIGHT_AT + 3.6,                // «The handler rejects it…»
+  asks: RIGHT_AT + 5.4,                   // «The app asks a different question…»
+  twice: RIGHT_AT + 7.2,                  // «…the system says two things at once…»
+  fix: RIGHT_AT + 9.7,                    // «The fix isn't merging the app and the handler…»
+  rule: RIGHT_AT + 10.3,                  // «What has to live in one place is the decision.»
+  ask: RIGHT_AT + 13.8,                   // «Each status now carries its own answer…»
+  end: RIGHT_AT + 17.5,                   // после «…understand one decision.»
 };
 
 // Полоска-канон проекта (duplicationIncidentSceneEn): роуз 0.18, по длине
@@ -218,6 +225,17 @@ export default makeScene2D(function* (view) {
     for (const tok of line.tokens) if (tok.text.trim() === 'toView') tok.ref().fill(Canon.methodDef);
   }
   const R = column(RIGHT, RIGHT_W, RIGHT_X, RIGHT_TOP, 1);
+  // Яркость блоков следует за действием: пока работает toView, файл handle
+  // приглушён; на нажатии Start — наоборот (автор: «сразу снимается опасити у
+  // верхнего блока, мы же нижний показываем»); на двух строках правил — оба в
+  // полную яркость. 0.35 на графите — буквы видны как буквы, ниже на почти
+  // чёрном фоне прозрачность уже «грязнит».
+  const DIM = 0.35;
+  const handleFrom = rows(LEFT).findIndex(r => r.includes('package com.chargeco.charging'));
+  const viewLines = rows(LEFT).map((_, i) => i).filter(i => i < handleFrom);
+  const handleLines = rows(LEFT).map((_, i) => i).filter(i => i >= handleFrom);
+  for (const i of handleLines) L.code.getLine(i)!.node.opacity(DIM);
+  const fade = (lines: number[], v: number, dur = 0.6) => all(...lines.map(i => L.code.getLine(i)!.setOpacity(v, dur)));
 
   function* at(t: number) {
     const dt = t - useTime();
@@ -264,21 +282,25 @@ export default makeScene2D(function* (view) {
       yield* mark(L, 0, LEFT, fields[i]);
     }
 
+    // подсветка `available` уходит ДО нажатия Start
+    yield* at(AVAIL_OFF_AT);
+    yield* unmark(L, 0);
+
     // ── тап 2 — Start: нажатие уходит в другую часть системы ──
-    yield* at(PKG_AT);
+    // на нажатии toView гаснет, handle загорается, и сразу — полоска на handle
+    yield* at(TAP2_AT);
     yield* all(
-      mark(L, 0, LEFT, 'package com.chargeco.app.screens'),
-      mark(L, 1, LEFT, 'package com.chargeco.charging.sessions'),
+      fade(viewLines, DIM),
+      fade(handleLines, 1),
+      delay(HANDLE_AT - TAP2_AT, mark(L, 0, LEFT, 'fun handle(')),
     );
-    yield* at(HANDLE_AT);
-    yield* all(mark(L, 0, LEFT, 'fun handle('), unmark(L, 1));
     yield* at(GUARD_AT);
     yield* mark(L, 0, LEFT, GUARD);
     yield* at(ERROR_AT);                   // тот же момент — лист ошибки на телефоне
     yield* mark(L, 0, LEFT, 'throw ConnectorUnavailable');
     // два места, две формы одного правила; на телефоне — оба конца противоречия
     yield* at(BOTH_AT);
-    yield* all(mark(L, 0, LEFT, AVAIL), mark(L, 1, LEFT, GUARD));
+    yield* all(fade(viewLines, 1, 0.5), mark(L, 0, LEFT, AVAIL), mark(L, 1, LEFT, GUARD));
 
     // ── графит выталкивает телефон, справа — статусы ──
     yield* at(GONE_AT);

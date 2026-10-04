@@ -120,6 +120,7 @@ import dryConditionsScene from "./scenes/dryConditionsScene?scene";
 import goodCodeOpeningSceneEn from "./scenes/goodCodeOpeningSceneEn?scene";
 import goodCodeFacesSceneEn from "./scenes/goodCodeFacesSceneEn?scene";
 import goodCodeIntroSceneEn from "./scenes/goodCodeIntroSceneEn?scene";
+import goodCodeHouseSceneEn from "./scenes/goodCodeHouseSceneEn?scene";
 
 export default makeProject({
     experimentalFeatures: true,
@@ -127,6 +128,9 @@ export default makeProject({
         // GOOD CODE, BUT I HATE IT · ИНТРО (~17 с): цветы → лицо → стол → склейки →
         // экран, полоски на пяти шагах → «Except one» (дом, гараж).
          goodCodeIntroSceneEn,
+        // GOOD CODE, BUT I HATE IT · 1.1 ДОМ И ОДИН ФАЙЛ (25 с): дом собирается → гостиная →
+        // обработчик лампы, пять шагов отзываются в доме.
+         goodCodeHouseSceneEn,
         // GOOD CODE, BUT I HATE IT · ОТКРЫТИЕ (16 с): кабинет с цветами, проезд
         // от букета к лицу, за плечо и в экран с кодом.
         // goodCodeOpeningSceneEn,

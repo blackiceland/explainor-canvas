@@ -23,6 +23,7 @@ import {
   easeOutCubic,
   easeOutSine,
   SimpleSignal,
+  useTime,
   Vector2,
   waitFor,
 } from '@motion-canvas/core';
@@ -438,26 +439,37 @@ const GRAPH_S = 0.9;
 const FAM_S = 0.8 * GRAPH_S;
 const FAM_POS = [-40 * GRAPH_S, -174 * GRAPH_S] as const;
 const FAM_D = 1.0;
-const FAM_HOLD = 1.6;                // ⚠️ VO — семья: два человека по ссылкам
 
 const REFLOW = 1.1;
 const CARD_IN = 0.7;
 const FIELD_STEP = 0.75;             // ⚠️ VO — по одному полю
 const ARROW_DRAW = 0.55;
 
-// ⚠️ ТРИ строки создания каскадом: каждая ссылка тянет следующую строку —
-// «чтобы записать одного человека, пришлось создать троих», и дыр всё
-// больше (последняя строка кончается тремя null). Карточка появляется
-// ПОСЛЕ закрытия своей скобки и заполняется СВОЕЙ строкой.
+// ⚠️⚠️ СЕМЬЯ — КАК НА ЕГО ЧЕРТЕЖЕ (стр. 11; разбор null-demo, П4, 04.10):
+// T — 1908, J — 1935 (сын), K — 1964 (внук). Раньше было три строки каскадом,
+// где K стоял в строке T до своего создания, у детей father = null при живом
+// отце на экране, буквы J/K переставлены против чертежа, и пустых клеток
+// выходило семь при голосе «five links are empty». Теперь пять строк: отцы —
+// в конструкторе (ссылка на уже созданную запись), младших детей вписывает
+// ЕГО присваивание `youngest offspring(T) := J` — та же форма, что
+// `father(J) := T` на стр. 9. Пустых клеток ровно пять.
+// ⚠️ Записи создаются по порядку, карточка появляется В НАЧАЛЕ своей строки.
 const MAKE_Y = 330;
 const MAKE_PITCH = 52;
 const MAKE_CHAR = 0.026;
 // ⚠️ Обрывы печати: на father долгий (здесь сидел Хоар — писать нечего),
-// на elder sibling короткий (та же беда, уже понятная), перед K — никакого.
+// на elder sibling короткий (та же беда, уже понятная). Первая строка идёт
+// прежним ритмом — под неё уже лёг голос.
 const FATHER_STALL = 1.7;            // ⚠️ VO
 const SIB_STALL = 0.9;               // ⚠️ VO
-const K_HOLD = 0.9;                  // ⚠️ VO — единственная настоящая ссылка
-const PAYOFF_HOLD = 2.0;             // ⚠️ VO — запись: две дырки, одна стрелка
+const CARD_SHOW = 0.4;               // пустая карточка перед своей строкой
+const LINK_SWAP = 0.25;              // временный null гаснет, когда приходит ссылка
+const J_CARD_AT = 6.0;               // ⚠️ VO — карточка J на «Later, his child…» (от начала такта)
+// ⚠️⚠️ ДЛИНА ТАКТА = КАК В СМОНТИРОВАННОМ РОЛИКЕ: от первой буквы T до морфа
+// 16,16 с (null-demo: 57,96 → 74,12). Прежние константы давали 15,31 —
+// в ролике пауза перед морфом длиннее. Кусок рендерится отдельно и встаёт в
+// монтаж между неподвижными кадрами, поэтому конец такта прибит к ролику.
+const BEAT10 = 16.16;
 
 const EASY_IN = 0.8;
 const EASY_HOLD = 2.8;               // ⚠️ VO
@@ -1020,8 +1032,10 @@ export default makeScene2D(function* (view) {
   const val1908 = cellVal(0, '1908', KW);
   const valTrue = cellVal(1, 'true', KW);
   const cellNulls = [cellVal(2, 'null', KW), cellVal(3, 'null', KW)];
+  // младшего ребёнка ещё нет: конструктор кладёт null, присваивание его сменит
+  const tNullYo = cellVal(4, 'null', KW);
 
-  // ── вторая карточка: младший потомок, куда уходит стрелка ────────────
+  // ── вторая карточка: J, сын (1935) — куда уходит стрелка из T ────────
   const other = createRef<Node>();
   work().add(<Node ref={other} opacity={0} />);
   other().add(
@@ -1047,11 +1061,11 @@ export default makeScene2D(function* (view) {
       }),
     );
   }
-  // ⚠️ Имя K — его собственное из статьи (`reference (person) T, J, K;`).
+  // ⚠️ Имя J — как на его чертеже (стр. 11) и в `father(J) := T` (стр. 9).
   // Ярлык у второй карточки — имя, а не класс: класс уже показан у первой.
   other().add(
     new Txt({
-      text: 'K',
+      text: 'J',
       x: OTHER_X,
       y: OTHER_Y - CARD_H / 2 - 44,
       fontFamily: MONO,
@@ -1060,7 +1074,7 @@ export default makeScene2D(function* (view) {
       fill: IDENT,
     }),
   );
-  // значения K заполняет ЕГО СОБСТВЕННАЯ строка создания (вторая)
+  // значения J заполняет ЕГО СОБСТВЕННАЯ строка создания (вторая)
   const mkCardVal = (parent: Node, cx: number, topY: number, i: number, text: string) => {
     const n = new Txt({
       text,
@@ -1076,9 +1090,31 @@ export default makeScene2D(function* (view) {
     return n;
   };
   const kTop = OTHER_Y - CARD_H / 2;
-  const kVals = ['1935', 'true', 'null', 'null'].map((t, i) => mkCardVal(other(), OTHER_X, kTop, i, t));
+  const jcYear = mkCardVal(other(), OTHER_X, kTop, 0, '1935');
+  const jcMale = mkCardVal(other(), OTHER_X, kTop, 1, 'true');
+  const jcSib = mkCardVal(other(), OTHER_X, kTop, 3, 'null');
+  const jcNullYo = mkCardVal(other(), OTHER_X, kTop, 4, 'null');   // до присваивания
 
-  // ⚠️ Стрелка — ЧИСТАЯ ГОРИЗОНТАЛЬ из пятой клетки в первую клетку K
+  // ⚠️ Ссылки на отца — тем же словарём, что и стрелки вниз: точка в клетке,
+  // линия от кромки карточки, наконечник в кромку записи-отца. Отец СВЕРХУ, и
+  // стрелка входит в него снизу — ребёнок «смотрит» на отца. Маршрут обходит
+  // ярлыки и чужие стрелки (замер по геометрии карточек).
+  const linkDot = (x: number, y: number) =>
+    new Rect({x, y, width: 12, height: 12, radius: 6, fill: 'rgba(244, 241, 235, 0.8)', opacity: 0});
+  const linkLine = (points: [number, number][]) =>
+    new Line({points, stroke: 'rgba(244, 241, 235, 0.55)', lineWidth: 3, endArrow: true, arrowSize: 12, end: 0});
+  const jcFatherY = kTop + ROW_H * 2.5;
+  const jcFatherDot = linkDot(OTHER_X, jcFatherY);
+  other().add(jcFatherDot);
+  const jcFatherX = CARD_X + CARD_W / 2 - 60;        // внутри T, у правой кромки
+  const jcFather = linkLine([
+    [OTHER_X - CARD_W / 2, jcFatherY],
+    [jcFatherX, jcFatherY],
+    [jcFatherX, cellY(4) + ROW_H / 2],               // нижняя кромка T
+  ]);
+  other().add(jcFather);
+
+  // ⚠️ Стрелка — ЧИСТАЯ ГОРИЗОНТАЛЬ из пятой клетки T в первую клетку J
   // (высоты совпадают по построению OTHER_Y). Цель видна в кадре ЦЕЛИКОМ.
   const arrow = new Line({
     points: [
@@ -1093,7 +1129,7 @@ export default makeScene2D(function* (view) {
   });
   work().add(arrow);
 
-  // ── третья запись: 1964, младший потомок K ───────────────────────────
+  // ── третья запись: K, внук (1964), младший потомок J ─────────────────
   const card3 = createRef<Node>();
   work().add(<Node ref={card3} opacity={0} />);
   card3().add(
@@ -1121,7 +1157,7 @@ export default makeScene2D(function* (view) {
   }
   card3().add(
     new Txt({
-      text: 'J',
+      text: 'K',
       x: C3_X,
       y: C3_Y - CARD_H / 2 - 44,
       fontFamily: MONO,
@@ -1130,10 +1166,23 @@ export default makeScene2D(function* (view) {
       fill: IDENT,
     }),
   );
-  // значения J заполняет ТРЕТЬЯ строка — и кончается тремя null подряд
+  // значения K заполняет его строка: отец — J, брата и детей нет
   const jTop = C3_Y - CARD_H / 2;
-  const jVals = ['1964', 'true', 'null', 'null', 'null'].map((t, i) => mkCardVal(card3(), C3_X, jTop, i, t));
-  // стрелка K → 1964: из пятой клетки K влево, в первую клетку 1964
+  const kcYear = mkCardVal(card3(), C3_X, jTop, 0, '1964');
+  const kcMale = mkCardVal(card3(), C3_X, jTop, 1, 'true');
+  const kcSib = mkCardVal(card3(), C3_X, jTop, 3, 'null');
+  const kcYo = mkCardVal(card3(), C3_X, jTop, 4, 'null');
+  const kcFatherY = jTop + ROW_H * 2.5;
+  const kcFatherDot = linkDot(C3_X, kcFatherY);
+  card3().add(kcFatherDot);
+  const kcFatherX = OTHER_X + CARD_W / 2 - 60;       // внутри J, у правой кромки
+  const kcFather = linkLine([
+    [C3_X + CARD_W / 2, kcFatherY],
+    [kcFatherX, kcFatherY],
+    [kcFatherX, kTop + CARD_H],                      // нижняя кромка J
+  ]);
+  card3().add(kcFather);
+  // стрелка J → K: из пятой клетки J влево, в первую клетку K
   const arrow3 = new Line({
     points: [
       [OTHER_X - CARD_W / 2, K_CELL5_Y],
@@ -1167,20 +1216,25 @@ export default makeScene2D(function* (view) {
   });
   work().add(arrowDot);
 
-  // ── ТРИ строки создания ─────────────────────────────────────────────
-  // ⚠️ Печать с ОБРЫВАМИ в первой строке (father — долгий, здесь сидел
-  // Хоар; sibling — короткий) и КАСКАДОМ дальше: аргумент K закрывает
-  // строку → появляется запись K → её заполняет ВТОРАЯ строка; аргумент J
-  // закрывает вторую → семья отъезжает, появляется J → ТРЕТЬЯ строка
-  // кончается тремя null подряд. Дыр всё больше.
+  // ── ПЯТЬ строк: три записи и две связи ──────────────────────────────
+  // ⚠️ Первая строка — с ОБРЫВАМИ (father — долгий, здесь сидел Хоар;
+  // sibling — короткий) и прежним ритмом: клетка загорается, печать ждёт.
+  // Дальше узор уже понятен: клетки загораются НА ХОДУ (cellAsync), печать не
+  // ждёт — иначе пять строк не ложатся под «Later, his child and grandchild…».
+  // Сын: пустая карточка → его строка (отец — ссылка на T) → семья отъезжает →
+  // `youngest offspring(T) := J` гасит временный null у T и ведёт стрелку.
+  // Внук — тем же порядком.
   type MTok = {
     t: string;
     c: string;
     line: number;
     cell?: Txt;
-    dot?: Rect;
-    act?: 'cardK' | 'cardJ';
+    cellAsync?: Txt;
+    dotAsync?: Rect;
+    link?: Line;
     stall?: number;
+    pre?: 'cardJ' | 'cardK';
+    post?: 'zoom' | 'linkT' | 'linkJ';
   };
   const MAKE: MTok[] = [
     {t: 'T ', c: IDENT, line: 0},
@@ -1195,40 +1249,54 @@ export default makeScene2D(function* (view) {
     {t: ', ', c: PUN, line: 0},
     {t: 'null', c: KW, line: 0, cell: cellNulls[1], stall: SIB_STALL},
     {t: ', ', c: PUN, line: 0},
-    {t: 'K', c: IDENT, line: 0, dot: arrowDot},
-    {t: ');', c: PUN, line: 0, act: 'cardK'},
-    {t: 'K ', c: IDENT, line: 1},
+    {t: 'null', c: KW, line: 0, cell: tNullYo},
+    {t: ');', c: PUN, line: 0},
+    {t: 'J ', c: IDENT, line: 1, pre: 'cardJ'},
     {t: ':= ', c: PUN, line: 1},
     {t: 'person', c: TY, line: 1},
     {t: '(', c: PUN, line: 1},
-    {t: '1935', c: KW, line: 1, cell: kVals[0]},
+    {t: '1935', c: KW, line: 1, cellAsync: jcYear},
     {t: ', ', c: PUN, line: 1},
-    {t: 'true', c: KW, line: 1, cell: kVals[1]},
+    {t: 'true', c: KW, line: 1, cellAsync: jcMale},
     {t: ', ', c: PUN, line: 1},
-    {t: 'null', c: KW, line: 1, cell: kVals[2]},
+    {t: 'T', c: IDENT, line: 1, dotAsync: jcFatherDot, link: jcFather},
     {t: ', ', c: PUN, line: 1},
-    {t: 'null', c: KW, line: 1, cell: kVals[3]},
+    {t: 'null', c: KW, line: 1, cellAsync: jcSib},
     {t: ', ', c: PUN, line: 1},
-    {t: 'J', c: IDENT, line: 1, dot: dot3},
-    {t: ');', c: PUN, line: 1, act: 'cardJ'},
-    {t: 'J ', c: IDENT, line: 2},
-    {t: ':= ', c: PUN, line: 2},
-    {t: 'person', c: TY, line: 2},
+    {t: 'null', c: KW, line: 1, cellAsync: jcNullYo},
+    {t: ');', c: PUN, line: 1, post: 'zoom'},
+    {t: 'youngest offspring', c: IDENT, line: 2},
     {t: '(', c: PUN, line: 2},
-    {t: '1964', c: KW, line: 2, cell: jVals[0]},
-    {t: ', ', c: PUN, line: 2},
-    {t: 'true', c: KW, line: 2, cell: jVals[1]},
-    {t: ', ', c: PUN, line: 2},
-    {t: 'null', c: KW, line: 2, cell: jVals[2]},
-    {t: ', ', c: PUN, line: 2},
-    {t: 'null', c: KW, line: 2, cell: jVals[3]},
-    {t: ', ', c: PUN, line: 2},
-    {t: 'null', c: KW, line: 2, cell: jVals[4]},
-    {t: ');', c: PUN, line: 2},
+    {t: 'T', c: IDENT, line: 2},
+    {t: ') ', c: PUN, line: 2},
+    {t: ':= ', c: PUN, line: 2},
+    {t: 'J', c: IDENT, line: 2},
+    {t: ';', c: PUN, line: 2, post: 'linkT'},
+    {t: 'K ', c: IDENT, line: 3, pre: 'cardK'},
+    {t: ':= ', c: PUN, line: 3},
+    {t: 'person', c: TY, line: 3},
+    {t: '(', c: PUN, line: 3},
+    {t: '1964', c: KW, line: 3, cellAsync: kcYear},
+    {t: ', ', c: PUN, line: 3},
+    {t: 'true', c: KW, line: 3, cellAsync: kcMale},
+    {t: ', ', c: PUN, line: 3},
+    {t: 'J', c: IDENT, line: 3, dotAsync: kcFatherDot, link: kcFather},
+    {t: ', ', c: PUN, line: 3},
+    {t: 'null', c: KW, line: 3, cellAsync: kcSib},
+    {t: ', ', c: PUN, line: 3},
+    {t: 'null', c: KW, line: 3, cellAsync: kcYo},
+    {t: ');', c: PUN, line: 3},
+    {t: 'youngest offspring', c: IDENT, line: 4},
+    {t: '(', c: PUN, line: 4},
+    {t: 'J', c: IDENT, line: 4},
+    {t: ') ', c: PUN, line: 4},
+    {t: ':= ', c: PUN, line: 4},
+    {t: 'K', c: IDENT, line: 4},
+    {t: ';', c: PUN, line: 4, post: 'linkJ'},
   ];
   const makeRow = createRef<Node>();
   work().add(<Node ref={makeRow} x={COL_X + COL_DX} y={MAKE_Y + BLOCK_GAP * 2} opacity={0} />);
-  const lineChars = [0, 0, 0];
+  const lineChars = [0, 0, 0, 0, 0];
   const makeNodes = MAKE.map(t => {
     const n = mkTok('', t.c, [lineChars[t.line] * CODE_ADV, t.line * MAKE_PITCH]);
     lineChars[t.line] += t.t.length;
@@ -1537,7 +1605,8 @@ export default makeScene2D(function* (view) {
   }
   yield* focusRow(-1, 0.5);
 
-  // ═══ 10. Каскад строк создания ══════════════════════════════════════
+  // ═══ 10. Три записи и две связи ═════════════════════════════════════
+  const t10 = useTime();
   const caretBlink = function* (total: number) {
     makeCaret.opacity(1);
     let t = 0;
@@ -1552,9 +1621,22 @@ export default makeScene2D(function* (view) {
     makeCaret.opacity(0);
   };
   makeRow().opacity(1);
-  const typedIn = [0, 0, 0];
+  const typedIn = [0, 0, 0, 0, 0];
+  // присваивание: временный null гаснет, на его месте точка, стрелка к ребёнку
+  const linkUp = (nul: Txt, dot: Rect, line: Line) =>
+    all(
+      nul.opacity(0, LINK_SWAP, easeInCubic),
+      chain(waitFor(0.1), dot.opacity(1, 0.3, easeOutCubic)),
+      chain(waitFor(0.15), line.end(1, ARROW_DRAW, easeInOutCubic)),
+    );
   for (let i = 0; i < MAKE.length; i++) {
     const tok = MAKE[i];
+    if (tok.pre === 'cardJ') {
+      const wait = t10 + J_CARD_AT - useTime();
+      if (wait > 0) yield* waitFor(wait);
+      yield* other().opacity(1, CARD_SHOW, easeOutCubic);
+    }
+    if (tok.pre === 'cardK') yield* card3().opacity(1, CARD_SHOW, easeOutCubic);
     if (tok.stall) {
       makeCaret.position.x(typedIn[tok.line] * CODE_ADV);
       makeCaret.position.y(tok.line * MAKE_PITCH);
@@ -1566,33 +1648,23 @@ export default makeScene2D(function* (view) {
       yield* waitFor(MAKE_CHAR);
     }
     if (tok.cell) yield* tok.cell.opacity(1, 0.28, easeOutCubic);
-    // точка-ссылка в пятой клетке — в момент печати аргумента
-    if (tok.dot) yield* tok.dot.opacity(1, 0.3, easeOutCubic);
-    if (tok.act === 'cardK') {
-      // скобка закрыта — и только теперь стрелка ведёт к новой записи
-      yield* all(
-        arrow.end(1, ARROW_DRAW, easeInOutCubic),
-        chain(waitFor(0.15), other().opacity(1, 0.5, easeOutCubic)),
-      );
-      yield* waitFor(K_HOLD);
-    }
-    if (tok.act === 'cardJ') {
-      // вторая скобка закрыта — семья отъезжает, и приходит третья запись
+    // клетки и ссылки на ходу: печать не ждёт
+    if (tok.cellAsync) yield tok.cellAsync.opacity(1, 0.28, easeOutCubic);
+    if (tok.dotAsync) yield tok.dotAsync.opacity(1, 0.3, easeOutCubic);
+    if (tok.link) yield tok.link.end(1, ARROW_DRAW, easeInOutCubic);
+    if (tok.post === 'zoom') {
+      // сын записан — семья отъезжает, чтобы влезли внук и две связи
       yield* all(
         graph().scale(FAM_S, FAM_D, easeInOutCubic),
         graph().position(new Vector2(FAM_POS[0], FAM_POS[1]), FAM_D, easeInOutCubic),
-        chain(
-          waitFor(FAM_D * 0.35),
-          all(
-            arrow3.end(1, ARROW_DRAW, easeInOutCubic),
-            chain(waitFor(0.15), card3().opacity(1, 0.5, easeOutCubic)),
-          ),
-        ),
       );
-      yield* waitFor(FAM_HOLD * 0.5);
     }
+    if (tok.post === 'linkT') yield* linkUp(tNullYo, arrowDot, arrow);
+    if (tok.post === 'linkJ') yield* linkUp(jcNullYo, dot3, arrow3);
   }
-  yield* waitFor(PAYOFF_HOLD);
+  // морф строго там, где он в ролике
+  const rest = t10 + BEAT10 - useTime();
+  if (rest > 0) yield* waitFor(rest);
 
   // ═══ 11. МОРФ в две фазы: центрирование → кроссфейд ═════════════════
   // (A) Окружение гаснет, а карточка СНАЧАЛА встаёт на место ящика 1908:

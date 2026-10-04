@@ -1,8 +1,8 @@
 import {
   Box3, BoxGeometry, BufferGeometry, LinearMipmapLinearFilter, CanvasTexture, Color, CylinderGeometry, DataTexture, DataUtils, DirectionalLight, DoubleSide,
   EquirectangularReflectionMapping, ExtrudeGeometry, Float32BufferAttribute, Group, HemisphereLight,
-  IcosahedronGeometry, InstancedMesh, LinearFilter, RectAreaLight, Material, Matrix4, Mesh, MeshPhysicalMaterial, MeshStandardMaterial,
-  NearestFilter, NeutralToneMapping, Object3D, Path, PerspectiveCamera, PlaneGeometry, PMREMGenerator, Quaternion,
+  IcosahedronGeometry, InstancedMesh, LinearFilter, RectAreaLight, Material, Matrix4, Mesh, MeshBasicMaterial, MeshPhysicalMaterial, MeshStandardMaterial,
+  NearestFilter, NeutralToneMapping, Object3D, Path, PerspectiveCamera, Plane, PlaneGeometry, PMREMGenerator, PointLight, Quaternion,
   RepeatWrapping, RGBAFormat, Scene, ShadowMaterial, Shape, ShapeGeometry, SphereGeometry, SRGBColorSpace, Texture,
   TextureLoader, UnsignedByteType, Vector2, Vector3, PCFShadowMap, WebGLRenderer,
 } from 'three';
@@ -40,6 +40,7 @@ import {VerticalTiltShiftShader} from 'three/examples/jsm/shaders/VerticalTiltSh
 // (ворота справа, как у референса).
 
 const T = 0.22;                       // толщина стен
+const FLOOR2 = 2.85;                  // перекрытие: низ второго этажа (раскрытие дома поднимает всё выше)
 const BV = 0.022;                     // скругление кромок стен
 
 // ── Общее ────────────────────────────────────────────────────────────────────
@@ -62,6 +63,19 @@ function canvasTex(w: number, h: number, draw: (g: CanvasRenderingContext2D) => 
   t.anisotropy = 8;
   if (srgb) t.colorSpace = SRGBColorSpace;
   return t;
+}
+
+/** Мелкая зернистость ткани (ковёр): цвет вокруг base ± spread. */
+function grainTex(seed: number, base: string, spread: number, size = 256, n = 2600) {
+  const r = rand(seed), c = new Color(base);
+  return canvasTex(size, size, g => {
+    g.fillStyle = base; g.fillRect(0, 0, size, size);
+    for (let i = 0; i < n; i++) {
+      const k = 1 + (r() - 0.5) * 2 * spread;
+      g.fillStyle = `rgb(${Math.min(255, c.r * 255 * k)},${Math.min(255, c.g * 255 * k)},${Math.min(255, c.b * 255 * k)})`;
+      g.fillRect(r() * size, r() * size, 1 + r() * 2, 1 + r() * 2);
+    }
+  });
 }
 
 /** Гладкий шум 3D (решётка + плавная интерполяция), 0…1. */
@@ -166,6 +180,8 @@ interface Mats {
   concrete: Material; curb: Material; base: Material; bark: Material; soil: Material; paver: Material;
   glass: Material; interior: Material; curtain: Material; metal: Material; dark: Material; garage: Material;
   panel: Material; lampGlow: Material; leaf: Material; core: Material; lawnBase: Material; accent: Material; cavity: Material;
+  floorWood: Material; hallTile: Material; ceiling: Material; wallIn: Material; fabric: Material; fabric2: Material; rug: Material;
+  counter: Material; cabinet: Material; tv: Material;
 }
 
 /** Веточка с листьями (белая — цвет даёт вершина): 6 листиков вокруг черешка. */
@@ -243,6 +259,16 @@ function makeMats(a: Assets): Mats {
     lawnBase: std('#4c5a35', 1),
     accent: std('#d98a9c', 0.5),                           // акцент канала (#E886A0) под светом
     cavity: std('#26231f', 1),
+    floorWood: std('#c7a17b', 0.62, {normalMap: tiled(a.wood, 1.1, Math.PI / 2).normalMap, normalScale: nrm(0.6), roughnessMap: tiled(a.wood, 1.1, Math.PI / 2).roughnessMap}),
+    hallTile: std('#d7d2c9', 0.6, {normalMap: tiled(a.concrete, 0.9).normalMap, normalScale: nrm(0.3)}),
+    ceiling: std('#f1efea', 0.95),
+    wallIn: pbr(tiled(a.stucco, 2.4), '#f4efe6', {normalScale: nrm(0.3)}),
+    fabric: std('#6d7a87', 0.95),                            // диван: приглушённый серо-синий
+    fabric2: std('#7c8996', 0.95),
+    rug: std('#d9d0c2', 1, {map: grainTex(4, '#d9d0c2', 0.05, 256, 4000)}),
+    counter: std('#e7e3dc', 0.35),
+    cabinet: std('#a3ad9a', 0.6),                             // кухня: шалфей
+    tv: new MeshPhysicalMaterial({color: new Color('#15171a'), roughness: 0.15, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.05}),
   };
 }
 
@@ -253,31 +279,42 @@ interface Hole {x: number; y: number; w: number; h: number; kind?: 'window' | 'd
  * Стена — плита с проёмами, кромки скруглены: w по низу, h до карниза, сверху щипец
  * высотой gable. Локально: x вдоль стены, y вверх, наружная грань — z = 0, внутренняя — T.
  */
-function wall(w: number, h: number, gable: number, holes: Hole[], m: Mats): Mesh {
-  // проём от самого низа (ворота) — вырез в контуре: дыра, касающаяся края, не вырезается
-  const notches = holes.filter(o => o.y - o.h / 2 <= 1e-3).sort((p, q) => p.x - q.x);
-  const s = new Shape();
-  s.moveTo(0, 0);
-  for (const o of notches) { s.lineTo(o.x - o.w / 2, 0); s.lineTo(o.x - o.w / 2, o.h); s.lineTo(o.x + o.w / 2, o.h); s.lineTo(o.x + o.w / 2, 0); }
-  s.lineTo(w, 0); s.lineTo(w, h);
-  if (gable > 0) s.lineTo(w / 2, h + gable);
-  s.lineTo(0, h); s.lineTo(0, 0);
-  for (const o of holes) {
-    if (notches.includes(o)) continue;
-    const p = new Path();
-    p.moveTo(o.x - o.w / 2, o.y - o.h / 2); p.lineTo(o.x + o.w / 2, o.y - o.h / 2);
-    p.lineTo(o.x + o.w / 2, o.y + o.h / 2); p.lineTo(o.x - o.w / 2, o.y + o.h / 2); p.lineTo(o.x - o.w / 2, o.y - o.h / 2);
-    s.holes.push(p);
-  }
-  const geo = new ExtrudeGeometry(s, {depth: T - 2 * BV, bevelEnabled: true, bevelThickness: BV, bevelSize: BV, bevelOffset: -BV, bevelSegments: 3, curveSegments: 1});
-  geo.translate(0, 0, BV);
-  const mesh = shadowed(new Mesh(geo, m.plaster));
-  for (const o of holes) {
-    const u = o.kind === 'door' ? door(o, m) : o.kind === 'garage' ? garageDoor(o, m) : windowUnit(o, m);
-    u.userData.opening = o.kind ?? 'window';
-    mesh.add(u);
-  }
-  return mesh;
+function wall(w: number, h: number, gable: number, holes: Hole[], m: Mats): Group {
+  // Два куска по уровню перекрытия: нижний этаж стоит, верхний (с щипцом) поднимается при
+  // раскрытии дома. Шов между ними — пояс по фасаду, он же граница модулей.
+  const g = new Group();
+  const lowH = holes.filter(o => o.y < FLOOR2), upH = holes.filter(o => o.y >= FLOOR2);
+  const piece = (y0: number, y1: number, gab: number, hs: Hole[]) => {
+    // проём от самого низа (ворота) — вырез в контуре: дыра, касающаяся края, не вырезается
+    const notches = y0 === 0 ? hs.filter(o => o.y - o.h / 2 <= 1e-3).sort((p, q) => p.x - q.x) : [];
+    const sh = new Shape();
+    sh.moveTo(0, y0);
+    for (const o of notches) { sh.lineTo(o.x - o.w / 2, y0); sh.lineTo(o.x - o.w / 2, o.h); sh.lineTo(o.x + o.w / 2, o.h); sh.lineTo(o.x + o.w / 2, y0); }
+    sh.lineTo(w, y0); sh.lineTo(w, y1);
+    if (gab > 0) sh.lineTo(w / 2, y1 + gab);
+    sh.lineTo(0, y1); sh.lineTo(0, y0);
+    for (const o of hs) {
+      if (notches.includes(o)) continue;
+      const p = new Path();
+      p.moveTo(o.x - o.w / 2, o.y - o.h / 2); p.lineTo(o.x + o.w / 2, o.y - o.h / 2);
+      p.lineTo(o.x + o.w / 2, o.y + o.h / 2); p.lineTo(o.x - o.w / 2, o.y + o.h / 2); p.lineTo(o.x - o.w / 2, o.y - o.h / 2);
+      sh.holes.push(p);
+    }
+    const geo = new ExtrudeGeometry(sh, {depth: T - 2 * BV, bevelEnabled: true, bevelThickness: BV, bevelSize: BV, bevelOffset: -BV, bevelSegments: 3, curveSegments: 1});
+    geo.translate(0, 0, BV);
+    const mesh = shadowed(new Mesh(geo, m.plaster));
+    for (const o of hs) {
+      const u = o.kind === 'door' ? door(o, m) : o.kind === 'garage' ? garageDoor(o, m) : windowUnit(o, m, o.y >= FLOOR2);
+      u.userData.opening = o.kind ?? 'window';
+      mesh.add(u);
+    }
+    g.add(mesh);
+    return mesh;
+  };
+  g.userData.lower = piece(0, FLOOR2, 0, lowH);
+  g.userData.upper = piece(FLOOR2, h, gable, upH);
+  g.userData.upper.userData.upperStorey = true;
+  return g;
 }
 
 /** Проём — своей группой с центром в середине проёма: в сборке окно «встаёт» из центра. */
@@ -297,7 +334,7 @@ function curtain(w: number, h: number, m: Mats, seed: number): Mesh {
 }
 
 /** Окно: рама в глубине откоса, импост, стекло, отлив; за стеклом — комната и шторы. */
-function windowUnit(o: Hole, m: Mats): Group {
+function windowUnit(o: Hole, m: Mats, fakeRoom = true): Group {
   const g = new Group();
   const F = 0.08, D = 0.1, Z = 0.06 + D / 2;
   g.add(rbox(o.w, F, D, m.frame, o.x, o.y - o.h / 2 + F / 2, Z, 0.012), rbox(o.w, F, D, m.frame, o.x, o.y + o.h / 2 - F / 2, Z, 0.012));
@@ -309,11 +346,13 @@ function windowUnit(o: Hole, m: Mats): Group {
   glass.rotation.y = Math.PI;
   g.add(shadowed(glass, false));
   g.add(rbox(o.w + 0.2, 0.055, 0.2, m.concrete, o.x, o.y - o.h / 2 - 0.028, -0.05, 0.015));     // отлив
-  // комната: дальняя стена в 0.6 м и шторы по краям проёма
-  const back = new Mesh(new PlaneGeometry(o.w + 1.0, o.h + 1.0), m.interior);
-  back.position.set(o.x, o.y + 0.1, T + 0.6);
-  back.rotation.y = Math.PI;
-  g.add(shadowed(back, false));
+  // комната: дальняя стена в 0.6 м (только наверху — внизу настоящие комнаты) и шторы
+  if (fakeRoom) {
+    const back = new Mesh(new PlaneGeometry(o.w + 1.0, o.h + 1.0), m.interior);
+    back.position.set(o.x, o.y + 0.1, T + 0.6);
+    back.rotation.y = Math.PI;
+    g.add(shadowed(back, false));
+  }
   const cw = o.w * 0.26, seed = Math.round(o.x * 100 + o.y * 37);
   for (const s of [-1, 1]) {
     const c = curtain(cw, o.h + 0.12, m, seed + s);
@@ -899,8 +938,200 @@ function slab(w: number, d: number, r: number, y0: number, y1: number, mat: Mate
 }
 
 // ── Дом ──────────────────────────────────────────────────────────────────────
+// ── Первый этаж: комнаты и устройства ─────────────────────────────────────────
+// Сценарий 1.1: «камера наезжает в гостиную к лампе»; 1.2: шторы, термостат, замок. Дом
+// раскрывается модулями (верхний этаж и крыша поднимаются), внутри — обставленные комнаты.
+// Устройства (лампа, термостат, замок, подвесы) — крупнее мебели, чтобы на них читались значки.
+
+/** Торшер — устройство «лампа»: свет и абажур управляются яркостью 0…1. */
+export interface LampRig {group: Group; light: PointLight; shade: MeshStandardMaterial; bulb: MeshStandardMaterial; peak: number;
+  /** Оболочка выделения: цветной полупрозрачный корпус поверх торшера — форма видна сквозь цвет. */
+  shell: {group: Group; mat: MeshBasicMaterial}}
+
+function floorLamp(m: Mats): LampRig {
+  const g = new Group();
+  const base = new Mesh(new CylinderGeometry(0.17, 0.19, 0.035, 40), m.dark);
+  base.position.y = 0.018;
+  const pole = new Mesh(new CylinderGeometry(0.014, 0.014, 1.42, 12), m.dark);
+  pole.position.y = 0.74;
+  const shadeMat = new MeshStandardMaterial({color: new Color('#efe6d6'), roughness: 0.9, metalness: 0, side: DoubleSide, emissive: new Color('#ffc98a'), emissiveIntensity: 0.9});
+  const shade = new Mesh(new CylinderGeometry(0.19, 0.25, 0.34, 48, 1, true), shadeMat);
+  shade.position.y = 1.5;
+  const bulbMat = new MeshStandardMaterial({color: new Color('#fff4dc'), emissive: new Color('#ffdcaa'), emissiveIntensity: 3});
+  const bulb = new Mesh(new SphereGeometry(0.05, 16, 12), bulbMat);
+  bulb.position.y = 1.44;
+  const light = new PointLight(new Color('#ffcf98'), 15, 0, 2);
+  light.position.y = 1.44;
+  light.castShadow = true;
+  light.shadow.mapSize.set(1024, 1024);
+  light.shadow.bias = -0.002;
+  light.shadow.radius = 4;
+  g.add(shadowed(base), shadowed(pole), shadowed(shade, false), bulb, light);
+  // Выделение «нашли лампу»: тот же торшер чуть толще, цветом полоски кода. Не обводка и не
+  // свечение — предмет «становится цветным», форма читается сквозь цвет (канон сцены с депо).
+  const shellMat = new MeshBasicMaterial({color: new Color('#ff5c84'), transparent: true, opacity: 0, depthWrite: false, side: DoubleSide});
+  const shell = new Group();
+  const twin = (src: Mesh, sx: number, sy: number) => {
+    const t = new Mesh(src.geometry, shellMat);
+    t.position.copy(src.position);
+    t.scale.set(sx, sy, sx);
+    t.renderOrder = 2;
+    t.userData.noAO = true;
+    shell.add(t);
+  };
+  twin(base, 1.12, 1.6); twin(pole, 2.6, 1.01); twin(shade, 1.06, 1.04);
+  shell.visible = false;
+  g.add(shell);
+  return {group: g, light, shade: shadeMat, bulb: bulbMat, peak: 15, shell: {group: shell, mat: shellMat}};
+}
+
+/** Диван лицом в +x: основание, спинка, подлокотники, подушки. */
+function sofa(m: Mats): Group {
+  const g = new Group();
+  g.add(rbox(0.9, 0.36, 2.2, m.fabric, 0, 0.18, 0, 0.06), rbox(0.24, 0.52, 2.2, m.fabric, -0.33, 0.56, 0, 0.08));
+  for (const sgn of [-1, 1]) g.add(rbox(0.9, 0.54, 0.2, m.fabric, 0, 0.27, sgn * 1.0, 0.07));
+  for (let i = 0; i < 3; i++) g.add(rbox(0.64, 0.14, 0.6, m.fabric2, 0.08, 0.43, -0.6 + i * 0.6, 0.06), rbox(0.16, 0.42, 0.58, m.fabric2, -0.17, 0.72, -0.6 + i * 0.6, 0.07));
+  return g;
+}
+
+/** Стол на четырёх ножках (журнальный, обеденный). */
+function table(w: number, d: number, h: number, m: Mats): Group {
+  const g = new Group();
+  g.add(rbox(w, 0.05, d, m.frame, 0, h, 0, 0.015));
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) g.add(rbox(0.045, h - 0.02, 0.045, m.dark, sx * (w / 2 - 0.07), (h - 0.02) / 2, sz * (d / 2 - 0.07), 0.01));
+  return g;
+}
+
+/** Стул лицом в +z. */
+function chair(m: Mats): Group {
+  const g = new Group();
+  g.add(rbox(0.44, 0.05, 0.44, m.frame, 0, 0.46, 0, 0.012), rbox(0.44, 0.42, 0.04, m.frame, 0, 0.7, -0.2, 0.012));
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) g.add(rbox(0.035, 0.44, 0.035, m.dark, sx * 0.18, 0.22, sz * 0.18, 0.008));
+  return g;
+}
+
+/** Подвесной светильник (кухня, столовая): шнур и конус. */
+function pendant(m: Mats, drop: number): Group {
+  const g = new Group();
+  const cord = new Mesh(new CylinderGeometry(0.006, 0.006, drop, 6), m.dark);
+  cord.position.y = -drop / 2;
+  const cone = new Mesh(new CylinderGeometry(0.05, 0.16, 0.18, 32, 1, true), new MeshStandardMaterial({color: new Color('#2c2f33'), roughness: 0.5, metalness: 0.4, side: DoubleSide}));
+  cone.position.y = -drop - 0.09;
+  const glow = new Mesh(new SphereGeometry(0.045, 12, 10), m.lampGlow);
+  glow.position.y = -drop - 0.13;
+  g.add(shadowed(cord, false), shadowed(cone), glow);
+  return g;
+}
+
+interface Interior {group: Group; ceilings: Mesh[]; lamp: LampRig; lampAt: Vector3; thermostat: Object3D; lock: Object3D;
+  /** Всё, что составляет гостиную: пол крыла A (дальше LK срезается), её перегородки и вещи. */
+  livingObjs: Object3D[]; floorA: Mesh;
+  /** Гостиная в осях раскладки: пол и стены до перекрытия. */
+  living: {x0: number; x1: number; z0: number; z1: number}}
+
+/**
+ * Первый этаж. Гостиная — передняя часть левого крыла (диван у левой стены лицом к ТВ,
+ * торшер у дивана, термостат на стене кухни), кухня — за перегородкой, прихожая — в
+ * эркере (замок на двери изнутри), столовая — в правом крыле, гараж — за его стенкой.
+ */
+function groundFloor(m: Mats, A: {x0: number; x1: number; z0: number; z1: number}, BAY: {x0: number; x1: number; z0: number; z1: number},
+  B: {x0: number; x1: number; z0: number; z1: number}): Interior {
+  const g = new Group();
+  const Y = SOCLE, PT = 0.12, PH = FLOOR2 - Y;
+  const floor = (x0: number, z0: number, x1: number, z1: number, mat: Material) => g.add(rbox(x1 - x0, 0.06, z1 - z0, mat, (x0 + x1) / 2, Y - 0.03, (z0 + z1) / 2, 0.008));
+  /** Перегородка вдоль x или z, с проёмом-дверью [g0, g1] (по длине) и перемычкой над ним. */
+  const part = (x0: number, z0: number, x1: number, z1: number, gap?: [number, number]) => {
+    const alongX = Math.abs(x1 - x0) > Math.abs(z1 - z0), a0 = alongX ? x0 : z0, a1 = alongX ? x1 : z1, c = alongX ? z0 : x0;
+    const seg = (p0: number, p1: number, y0: number, y1: number) => {
+      const len = p1 - p0, mid = (p0 + p1) / 2;
+      g.add(alongX ? rbox(len, y1 - y0, PT, m.wallIn, mid, (y0 + y1) / 2, c, 0.015) : rbox(PT, y1 - y0, len, m.wallIn, c, (y0 + y1) / 2, mid, 0.015));
+    };
+    if (!gap) { seg(a0, a1, Y, FLOOR2); return; }
+    seg(a0, gap[0], Y, FLOOR2); seg(gap[1], a1, Y, FLOOR2); seg(gap[0], gap[1], Y + 2.15, FLOOR2);
+  };
+  const ceil: Mesh[] = [];
+  const ceiling = (x0: number, z0: number, x1: number, z1: number) => {
+    const c = rbox(x1 - x0, 0.2, z1 - z0, m.ceiling, (x0 + x1) / 2, FLOOR2 - 0.1, (z0 + z1) / 2, 0.01);
+    c.userData.upperStorey = true;
+    ceil.push(c);
+  };
+  // полы
+  const nFloorA = g.children.length;
+  floor(A.x0 + T, A.z0 + T, A.x1, A.z1 - T, m.floorWood);
+  const floorA = g.children[nFloorA] as Mesh;
+  floor(B.x0, B.z0 + T, B.x1 - T, B.z1 - T, m.floorWood);
+  floor(BAY.x0, BAY.z0 + T, BAY.x1 - T, BAY.z1, m.hallTile);
+  // перегородки
+  const LK = 1.1;                                          // граница гостиной и кухни
+  const nParts = g.children.length;
+  part(A.x1, A.z0, A.x1, B.z0, [A.z0 + 0.65, B.z0 - 0.3]); // прихожая ↔ гостиная
+  part(A.x1, B.z0, A.x1, LK, undefined);                   // гостиная ↔ столовая (за ТВ)
+  part(A.x0 + T, LK, A.x1, LK, [A.x1 - 1.4, A.x1 - 0.5]);  // гостиная ↔ кухня
+  const livParts = g.children.slice(nParts);
+  part(B.x1 - 2.45, B.z0 + T, B.x1 - 2.45, B.z1 - T);      // столовая ↔ гараж
+  // гостиная: ковёр, диван у левой стены, столик, торшер, ТВ, растение, термостат
+  const LZ = (A.z0 + T + LK) / 2;                          // середина гостиной по глубине
+  const nLiv = g.children.length;
+  g.add(rbox(2.6, 0.015, 2.1, m.rug, A.x0 + 2.2, Y + 0.008, LZ, 0.005));
+  g.add(sofa(m).translateX(A.x0 + T + 0.5).translateY(Y).translateZ(LZ));
+  g.add(table(1.1, 0.6, 0.42, m).translateX(A.x0 + 2.25).translateY(Y).translateZ(LZ));
+  const lamp = floorLamp(m);
+  const lampAt = new Vector3(A.x0 + T + 0.42, Y, LZ + 1.45);
+  lamp.group.position.copy(lampAt);
+  g.add(lamp.group);
+  const tvX = A.x1 - PT / 2 - 0.22;
+  g.add(rbox(0.42, 0.46, 1.7, m.cabinet, tvX, Y + 0.23, LZ, 0.03));
+  g.add(rbox(0.05, 0.7, 1.25, m.tv, tvX + 0.06, Y + 0.46 + 0.4, LZ, 0.01));
+  const pot = new Mesh(new CylinderGeometry(0.17, 0.13, 0.36, 24), m.concrete);
+  pot.position.set(A.x1 - 0.45, Y + 0.18, LK - 0.4);
+  g.add(shadowed(pot), lobedPlant([{c: new Vector3(A.x1 - 0.45, Y + 0.62, LK - 0.4), r: 0.26}, {c: new Vector3(A.x1 - 0.52, Y + 0.85, LK - 0.36), r: 0.2}], 260, 0.14, '#62774a', m, 51));
+  const thermostat = new Group();
+  const tBody = new Mesh(new CylinderGeometry(0.11, 0.11, 0.035, 48), new MeshStandardMaterial({color: new Color('#e8e6e1'), roughness: 0.35, metalness: 0.2}));
+  tBody.rotation.x = Math.PI / 2;
+  const tFace = new Mesh(new CylinderGeometry(0.082, 0.082, 0.008, 48), new MeshStandardMaterial({color: new Color('#1d2024'), roughness: 0.2, emissive: new Color('#f0a35a'), emissiveIntensity: 0.15}));
+  tFace.rotation.x = Math.PI / 2;
+  tFace.position.z = -0.021;
+  thermostat.add(shadowed(tBody), tFace);
+  thermostat.position.set(A.x0 + 2.4, Y + 1.15, LK - PT / 2 - 0.016);
+  g.add(thermostat);
+  const livThings = g.children.slice(nLiv);
+  // кухня: гарнитур у задней стены, холодильник, остров, подвесы
+  const KZ = A.z1 - T;
+  g.add(rbox(A.x1 - A.x0 - T - 1.0, 0.86, 0.6, m.cabinet, (A.x0 + T + A.x1 - 1.0) / 2, Y + 0.43, KZ - 0.3, 0.02));
+  g.add(rbox(A.x1 - A.x0 - T - 0.96, 0.04, 0.64, m.counter, (A.x0 + T + A.x1 - 1.0) / 2, Y + 0.88, KZ - 0.32, 0.01));
+  g.add(rbox(0.72, 1.95, 0.66, m.garage, A.x1 - 0.5, Y + 0.975, KZ - 0.33, 0.04));
+  g.add(rbox(1.9, 0.9, 0.85, m.cabinet, (A.x0 + A.x1) / 2, Y + 0.45, (LK + KZ) / 2 - 0.1, 0.02), rbox(2.0, 0.04, 0.95, m.counter, (A.x0 + A.x1) / 2, Y + 0.92, (LK + KZ) / 2 - 0.1, 0.01));
+  for (const dx of [-0.5, 0.5]) g.add(pendant(m, 0.8).translateX((A.x0 + A.x1) / 2 + dx).translateY(FLOOR2 - 0.2).translateZ((LK + KZ) / 2 - 0.1));
+  // прихожая: скамья, дорожка; замок на двери изнутри (у ручки)
+  g.add(rbox(1.0, 0.44, 0.38, m.frame, BAY.x1 - T - 0.24, Y + 0.22, (BAY.z0 + BAY.z1) / 2 + 0.2, 0.03));
+  g.add(rbox(0.9, 0.012, 1.4, m.rug, (BAY.x0 + BAY.x1) / 2, Y + 0.007, (BAY.z0 + BAY.z1) / 2 - 0.1, 0.004));
+  const lock = rbox(0.075, 0.15, 0.045, m.dark, (BAY.x0 + BAY.x1) / 2 + 0.4, Y + 1.12, BAY.z0 + T + 0.06, 0.012);
+  g.add(lock);
+  // столовая: стол, шесть стульев, подвес; гараж за стенкой
+  const DX = (B.x0 + B.x1 - 2.45) / 2, DZ = (B.z0 + B.z1) / 2;
+  g.add(table(1.9, 0.95, 0.75, m).translateX(DX).translateY(Y).translateZ(DZ));
+  for (const [cx, cz, ry] of [[-0.55, -0.72, 0], [0.55, -0.72, 0], [-0.55, 0.72, Math.PI], [0.55, 0.72, Math.PI], [-1.2, 0, Math.PI / 2], [1.2, 0, -Math.PI / 2]] as const) {
+    const c = chair(m);
+    c.position.set(DX + cx, Y, DZ + cz);
+    c.rotation.y = ry;
+    g.add(c);
+  }
+  g.add(pendant(m, 0.9).translateX(DX).translateY(FLOOR2 - 0.2).translateZ(DZ));
+  // перекрытие (низ второго этажа): поднимается вместе с ним
+  ceiling(A.x0 + T, A.z0 + T, A.x1 + 0.01, A.z1 - T);
+  ceiling(B.x0 - 0.01, B.z0 + T, B.x1 - T, B.z1 - T);
+  ceiling(BAY.x0 - 0.01, BAY.z0 + T, BAY.x1 - T, BAY.z1 + 0.01);
+  return {group: g, ceilings: ceil, lamp, lampAt, thermostat, lock, living: {x0: A.x0 + T, x1: A.x1, z0: A.z0 + T, z1: LK},
+    livingObjs: [floorA, ...livParts, ...livThings], floorA};
+}
+
+/** Что поднимается при раскрытии: верх стен, перекрытие, крыши с трубами и панелями. */
+interface OpenRig {uppers: Object3D[]; ceil: Group; roofs: Group[]; hide: Object3D[];
+  /** Тёмная ниша за проёмом ворот: у закрытого дома видна снаружи, у раскрытого — лишняя. */
+  cavity: Object3D}
+
 export interface HouseParts {
-  plinth: Group; wingA: Group; wingB: Group; bay: Group; garage: Object3D; garden: Group; lawn: Group;
+  plinth: Group; wingA: Group; wingB: Group; bay: Group; garage: Object3D; garden: Group; lawn: Group; interior: Group; ceil: Group;
 }
 
 export interface HouseShot {
@@ -909,12 +1140,29 @@ export interface HouseShot {
   parts: HouseParts;
   /** Кадр W×H (суперсэмплинг ss). */
   render: (W: number, H: number, ss?: number) => HTMLCanvasElement;
+  /** Тот же кадр, но в доме только гостиная — модулем на своей плите (изоляция при наезде). */
+  renderRoom: (W: number, H: number, ss?: number) => HTMLCanvasElement;
   /** Сборка дома на момент t (с): детали, газон, черепица, ворота и облёт камеры. */
   setBuild: (t: number) => void;
   /** Длительность сборки (с), дальше дом стоит. */
   buildEnd: number;
   /** Ворота встраиваются (сценарий 1.3): dt — секунды от начала их хода. */
   setGarage: (dt: number) => void;
+  /** Раскрытие дома 0…1: крыши уходят вверх, за ними — верхний этаж с перекрытием. */
+  setOpen: (u: number) => void;
+  /** Пролёт камеры 0…1: от общего плана в гостиную (комната посередине, по ширине — в долю кадра
+   *  под правую часть: слева потом встанет код). 0 — камерой правит сборка. */
+  setDive: (u: number) => void;
+  /** Торшер: яркость 0…1 как на ползунке приложения (свет — по степени 2.2). */
+  setLamp: (level: number) => void;
+  /** Выделение торшера 0…1 (оболочка цвета полоски кода). */
+  setLampSelect: (k: number) => void;
+  /** Свет дома: 0 — день, 1 — вечер; accent 0…1 — фон приглушается, торшер самый яркий. */
+  setMood: (k: number, accent?: number) => void;
+  /** Наезд к углу с торшером 0…1 (после пролёта в гостиную). */
+  setLampFocus: (u: number) => void;
+  /** Где торшер в кадре (доли кадра 0…1 от левого верхнего угла): абажур x, y и основание bx, by. */
+  lampOnScreen: () => {x: number; y: number; bx: number; by: number};
   /** Стенд: сглаживание ворса и затенение в углах (GTAO) — для замеров. */
   setQuality: (q: {grassAA?: boolean; ao?: boolean; far?: [number, number]; clumps?: boolean; clumpS?: [number, number]; dens?: number; farGain?: number}) => void;
   /** Режим лучей: заместители для трассировщика вместо растровых приёмов (и обратно). */
@@ -927,17 +1175,21 @@ const SOCLE = 0.42;                    // цоколь; порог двери н
 // ⚠️ Автор: «анимацию местами обобщить, не дольше 3 секунд». Окна — вместе со стенами,
 // крыша падает уже покрытой (без каскада рядов), панели — одним блоком, фазы внахлёст;
 // ворота в эту сборку не входят — по сценарию они встраиваются в 1.3 (setGarage).
-// Сценарий: «дом собирается модулями на общем плане… шаг 40–80 мс, пружина с лёгким
-// перелётом, одно направление; модуль ворот встраивается иначе». Крупные модули падают
-// сверху с лёгким отскоком (ниже своего места не проходят — стена не тонет в земле), окна
-// и двери раскрываются из центра проёма пружиной, растения вырастают от земли, черепица
-// ложится рядами от карниза к коньку, газон прорастает волной от фасада. Ворота — последние,
-// другим ходом: сбоку, медленный подход и щелчок.
+// Сценарий: «дом собирается модулями на общем плане… шаг 40–80 мс, одно направление; модуль
+// ворот встраивается иначе». Модули опускаются на место сверху и плавно тормозят (без отскока и
+// пружины — автор: «прыжки удешевляют»), растения вырастают от земли тем же торможением, газон
+// прорастает последним. Ворота — другим ходом: сбоку, медленный подход и щелчок (сценарий 1.3).
 type PieceStyle = 'drop' | 'pop' | 'grow';
 interface Piece {o: Object3D; phase: string; style: PieceStyle; dropH: number; pos: Vector3; scale: Vector3; t0: number}
 
-function buildHouse(m: Mats): {parts: HouseParts; pieces: Piece[]} {
+/** Гостиная отдельным модулем: что из дома в неё входит, что срезается по LK, своя плита. */
+interface RoomModule {objs: Object3D[]; clip: Mesh[]; base: Mesh; LK: number; bounds: {x0: number; x1: number; z0: number; z1: number}}
+
+function buildHouse(m: Mats): {parts: HouseParts; pieces: Piece[]; open: OpenRig; inner: Interior; room: RoomModule} {
   const plinth = new Group(), wingA = new Group(), wingB = new Group(), bay = new Group(), garden = new Group();
+  // крыши — в своих группах подъёма: сборка двигает саму крышу, раскрытие — группу
+  const liftA = new Group(), liftB = new Group(), liftBay = new Group();
+  wingA.add(liftA); wingB.add(liftB); bay.add(liftBay);
   const pieces: Piece[] = [];
   const reg = <O extends Object3D>(o: O, phase: string, style: PieceStyle = 'drop', dropH = 2.2): O => {
     pieces.push({o, phase, style, dropH, pos: o.position.clone(), scale: o.scale.clone(), t0: 0});
@@ -964,19 +1216,21 @@ function buildHouse(m: Mats): {parts: HouseParts; pieces: Piece[]} {
   leftA.rotation.y = Math.PI / 2; leftA.position.set(A.x0, 0, A.z1 - T);
   wingA.add(reg(front, 'walls', 'drop', 2.8), reg(backA, 'walls', 'drop', 2.8), reg(leftA, 'walls', 'drop', 2.8));
   const roofA = gableRoof({len: ad, span: aw, rise: A.rise, ohE: 0.45, ohG: 0.42, at: new Vector3((A.x0 + A.x1) / 2, A.h, (A.z0 + A.z1) / 2), rotY: Math.PI / 2, seed: 41}, m);
-  wingA.add(reg(roofA, 'roofs', 'drop', 2.4));
+  liftA.add(reg(roofA, 'roofs', 'drop', 2.4));
   // козырёк над окнами первого этажа: фальцевый металл на кронштейнах
   const awn = new Group();
   awn.add(rbox(aw - 0.6, 0.05, 0.95, m.metal, 0, 0, 0, 0.015));
   for (let x = -(aw - 0.6) / 2 + 0.15; x < (aw - 0.6) / 2 - 0.1; x += 0.3) awn.add(rbox(0.03, 0.035, 0.95, m.metal, x, 0.035, 0, 0.01));
   awn.position.set((A.x0 + A.x1) / 2, 2.68, A.z0 - 0.44);
   awn.rotation.x = -0.32;
-  for (const x of [A.x0 + 0.6, A.x1 - 0.6]) wingA.add(reg(rbox(0.05, 0.05, 0.82, m.dark, x, 2.52, A.z0 - 0.38, 0.015), 'roofTop', 'drop', 1.2));
-  wingA.add(reg(awn, 'roofTop', 'drop', 1.4));
+  const awnG = new Group();
+  wingA.add(awnG);
+  for (const x of [A.x0 + 0.6, A.x1 - 0.6]) awnG.add(reg(rbox(0.05, 0.05, 0.82, m.dark, x, 2.52, A.z0 - 0.38, 0.015), 'roofTop', 'drop', 1.2));
+  awnG.add(reg(awn, 'roofTop', 'drop', 1.4));
   const chA = new Group();
   chA.add(rbox(0.78, 2.6, 0.78, m.plaster, 0, 0, 0, 0.03), rbox(0.94, 0.12, 0.94, m.concrete, 0, 1.33, 0, 0.03), rbox(0.5, 0.18, 0.5, m.dark, 0, 1.45, 0, 0.03));
   chA.position.set(-4.6, A.h + 1.5, 2.6);
-  wingA.add(reg(chA, 'roofTop', 'drop', 1.8));
+  liftA.add(reg(chA, 'roofTop', 'drop', 1.8));
 
   // эркер с входной дверью: выступ между крыльями, плоская крыша
   const BAY = {x0: -1.0, x1: 1.6, z0: -3.5, z1: -1.4, h: 5.0};
@@ -986,7 +1240,7 @@ function buildHouse(m: Mats): {parts: HouseParts; pieces: Piece[]} {
   const br = wall(bd - T, BAY.h, 0, [], m);
   br.rotation.y = -Math.PI / 2; br.position.set(BAY.x1, 0, BAY.z0 + T);
   bay.add(reg(bf, 'walls', 'drop', 2.8), reg(br, 'walls', 'drop', 2.8));
-  bay.add(reg(rbox(bw + 0.36, 0.24, bd + 0.3, m.metal, (BAY.x0 + BAY.x1) / 2, BAY.h + 0.12, (BAY.z0 + BAY.z1) / 2 - 0.12, 0.04), 'roofs', 'drop', 1.8));
+  liftBay.add(reg(rbox(bw + 0.36, 0.24, bd + 0.3, m.metal, (BAY.x0 + BAY.x1) / 2, BAY.h + 0.12, (BAY.z0 + BAY.z1) / 2 - 0.12, 0.04), 'roofs', 'drop', 1.8));
   // крыльцо: две ступени до порога на цоколе
   for (let i = 0; i < 2; i++) bay.add(reg(rbox(1.9 - i * 0.25, SOCLE / 2 - 0.02, 1.1 - i * 0.4, m.concrete, (BAY.x0 + BAY.x1) / 2, LAWN_Y + (SOCLE / 2 - 0.02) / 2 + i * (SOCLE / 2 - 0.04), BAY.z0 - 0.55 + i * 0.2, 0.025), 'socle', 'drop', 0.9));
 
@@ -1006,7 +1260,7 @@ function buildHouse(m: Mats): {parts: HouseParts; pieces: Piece[]} {
   wingB.add(reg(fB, 'walls', 'drop', 2.8), reg(rB, 'walls', 'drop', 2.8), reg(bB, 'walls', 'drop', 2.8));
   // за проёмом ворот — тёмная глубина гаража (пока модуля нет, проём не сквозной)
   const cav = rbox(garageHole.w - 0.02, garageHole.h - 0.02, 1.2, m.cavity, garageHole.x, garageHole.y, T + 0.6, 0.01);
-  rB.add(cav);
+  rB.userData.lower.add(cav);
   // левый конец крыши B — внутрь крыши A: конёк B упирается в её скат там, где тот на
   // той же высоте; ендова получается из пересечения, плитки B под крышей A не кладём
   const slopeA = A.rise / (aw / 2), xcA = (A.x0 + A.x1) / 2, xMeet = xcA + (A.h + A.rise - B.h - B.rise) / slopeA;
@@ -1014,10 +1268,11 @@ function buildHouse(m: Mats): {parts: HouseParts; pieces: Piece[]} {
   const roofATop = (x: number) => A.h + A.rise + 0.18 / Math.cos(Math.atan(slopeA)) - slopeA * Math.abs(x - xcA);
   const roofB = gableRoof({len: roofBx1 - xMeet, span: bd2, rise: B.rise, ohE: 0.45, ohG: 0, at: new Vector3((xMeet + roofBx1) / 2, B.h, (B.z0 + B.z1) / 2), rotY: 0, seed: 42,
     skip: p => p.x < A.x1 + 0.45 && p.y < roofATop(p.x) + 0.02}, m);
-  wingB.add(reg(roofB, 'roofs', 'drop', 2.4));
+  liftB.add(reg(roofB, 'roofs', 'drop', 2.4));
   // водосточные трубы — на видных углах крыла B
   const eave = (roofB.userData.eaveMinus as Vector3).clone().applyMatrix4(roofB.matrix);
-  wingB.add(reg(downspout(new Vector3(B.x1 + 0.1, eave.y, eave.z), new Vector2(B.x1 + 0.07, B.z0 - 0.08), m), 'roofTop', 'drop', 1.4));
+  const spout = reg(downspout(new Vector3(B.x1 + 0.1, eave.y, eave.z), new Vector2(B.x1 + 0.07, B.z0 - 0.08), m), 'roofTop', 'drop', 1.4);
+  wingB.add(spout);
   // солнечные панели на переднем скате: над черепицей
   const aB = Math.atan2(B.rise, bd2 / 2);
   const panels = new Group();
@@ -1036,12 +1291,21 @@ function buildHouse(m: Mats): {parts: HouseParts; pieces: Piece[]} {
   }
   panels.rotation.x = -aB;
   panels.position.set(0, B.h + B.rise, (B.z0 + B.z1) / 2);
-  wingB.add(reg(panels, 'roofTop', 'drop', 1.2));
+  liftB.add(reg(panels, 'roofTop', 'drop', 1.2));
   const chB = new Group();
   chB.add(rbox(0.72, 2.4, 0.72, m.plaster, 0, 0, 0, 0.03), rbox(0.88, 0.12, 0.88, m.concrete, 0, 1.23, 0, 0.03), rbox(0.46, 0.18, 0.46, m.dark, 0, 1.35, 0, 0.03));
   chB.position.set(1.2, B.h + 1.8, 2.4);
-  wingB.add(reg(chB, 'roofTop', 'drop', 1.8));
-  const garage = rB.children[0];
+  liftB.add(reg(chB, 'roofTop', 'drop', 1.8));
+  let garage: Object3D = rB;
+  rB.traverse(o => { if (o.userData.opening === 'garage') garage = o; });
+
+  // первый этаж: комнаты (падают вместе с цоколем) и перекрытие (с крышами)
+  const inner = groundFloor(m, A, BAY, B);
+  const interior = reg(inner.group, 'socle', 'drop', 1.0);
+  const ceilings = new Group();
+  for (const c of inner.ceilings) ceilings.add(c);
+  const ceil = new Group();
+  ceil.add(reg(ceilings, 'roofs', 'drop', 1.8));
 
   // цоколь: бетонная полоса по низу видимых стен, на 5 см наружу
   const socle = (x0: number, z0: number, x1: number, z1: number, g: Group) => {
@@ -1049,9 +1313,10 @@ function buildHouse(m: Mats): {parts: HouseParts; pieces: Piece[]} {
     const s = rbox(len + 0.1, SOCLE, T + 0.1, m.concrete, (x0 + x1) / 2, SOCLE / 2, (z0 + z1) / 2, 0.025);
     s.rotation.y = -Math.atan2(z1 - z0, x1 - x0);
     g.add(reg(s, 'socle', 'drop', 1.0));
+    return s;
   };
-  socle(A.x0, A.z0 + T / 2 - 0.05, A.x1, A.z0 + T / 2 - 0.05, wingA);
-  socle(A.x0 + T / 2 - 0.05, A.z0, A.x0 + T / 2 - 0.05, A.z1, wingA);
+  const socFront = socle(A.x0, A.z0 + T / 2 - 0.05, A.x1, A.z0 + T / 2 - 0.05, wingA);
+  const socLeft = socle(A.x0 + T / 2 - 0.05, A.z0, A.x0 + T / 2 - 0.05, A.z1, wingA);
   socle(BAY.x0, BAY.z0 + T / 2 - 0.05, BAY.x1, BAY.z0 + T / 2 - 0.05, bay);
   socle(BAY.x1 - T / 2 + 0.05, BAY.z0, BAY.x1 - T / 2 + 0.05, BAY.z1, bay);
   socle(BAY.x1, B.z0 + T / 2 - 0.05, B.x1, B.z0 + T / 2 - 0.05, wingB);
@@ -1118,7 +1383,23 @@ function buildHouse(m: Mats): {parts: HouseParts; pieces: Piece[]} {
   }}, m);
 
   reg(lawn, 'plinth', 'drop', 1.6);
-  return {parts: {plinth, wingA, wingB, bay, garage, garden, lawn}, pieces};
+
+  // Гостиная отдельным модулем (изоляция при наезде, сценарий 1.1 «Дом и один файл»): её стены,
+  // цоколь, пол, перегородки и вещи стоят на своей белой плите. Общая с кухней стена и пол
+  // срезаются по LK (кухонная часть), плита — только в слое «одна комната».
+  const LKz = inner.living.z1, RM = 0.3;
+  const rb = {x0: A.x0 - RM, x1: A.x1 + RM, z0: A.z0 - RM, z1: LKz + RM};
+  const roomBase = slab(rb.x1 - rb.x0, rb.z1 - rb.z0, 0.35, -0.95, SOCLE - 0.03, m.curb, 0.06);
+  roomBase.position.set((rb.x0 + rb.x1) / 2, 0, (rb.z0 + rb.z1) / 2);
+  roomBase.visible = false;
+  wingA.add(roomBase);
+  const roomMod: RoomModule = {
+    objs: [front.userData.lower as Object3D, leftA.userData.lower as Object3D, socFront, socLeft, roomBase],
+    clip: [leftA.userData.lower as Mesh, socLeft, inner.floorA], base: roomBase, LK: LKz, bounds: rb,
+  };
+  const uppers = [...[front, backA, leftA, bf, br, fB, rB, bB].map(w => w.userData.upper as Object3D), awnG];
+  return {parts: {plinth, wingA, wingB, bay, garage, garden, lawn, interior, ceil}, pieces,
+    open: {uppers, ceil, roofs: [liftA, liftB, liftBay], hide: [spout], cavity: cav}, inner, room: roomMod};
 }
 
 /** Студийный фон: мягкий вертикальный градиент. */
@@ -1134,7 +1415,9 @@ let ownRenderer: WebGLRenderer | null = null;
 export function houseRenderer(): WebGLRenderer {
   // свой рендерер: тип теней включается на весь рендерер, а общий нужен другим сценам
   if (ownRenderer) return ownRenderer;
-  ownRenderer = new WebGLRenderer({canvas: document.createElement('canvas'), antialias: false, preserveDrawingBuffer: true});
+  ownRenderer = new WebGLRenderer({canvas: document.createElement('canvas'), antialias: false, preserveDrawingBuffer: true, alpha: true});
+  ownRenderer.setClearColor(0x000000, 0);
+  ownRenderer.localClippingEnabled = true;
   ownRenderer.outputColorSpace = SRGBColorSpace;
   ownRenderer.toneMapping = NeutralToneMapping;
   ownRenderer.toneMappingExposure = 1.0;
@@ -1144,25 +1427,45 @@ export function houseRenderer(): WebGLRenderer {
   return ownRenderer;
 }
 
-export async function loadHouseDiorama(base: string): Promise<HouseShot> {
+/** Где дом живёт в кадре. */
+export interface HouseOptions {
+  /** Серый студийный фон (стенд). false — фона нет, дом стоит на графите сцены с тенью. */
+  studio?: boolean;
+  /** Область кадра под общий план в NDC (−1…1, y вверх). По умолчанию — весь кадр. */
+  frame?: {x0: number; x1: number; y0: number; y1: number};
+  /** Где гостиная в конце наезда (NDC): комната вписана в эту коробку. По умолчанию — середина. */
+  room?: {x0: number; x1: number; y0: number; y1: number};
+  /** Куда встаёт угол с торшером при наезде к нему (NDC). По умолчанию — как комната. */
+  lamp?: {x0: number; x1: number; y0: number; y1: number};
+}
+
+export async function loadHouseDiorama(base: string, opts: HouseOptions = {}): Promise<HouseShot> {
+  const studio = opts.studio ?? true;
+  const FR = opts.frame ?? {x0: -0.88, x1: 0.88, y0: -0.88, y1: 0.88};
+  const RB = opts.room ?? {x0: -0.36, x1: 0.36, y0: -0.84, y1: 0.84};
+  const LB = opts.lamp ?? RB;
   const r = houseRenderer();
   const assets = await loadAssets(base);
   const m = makeMats(assets);
   const scene = new Scene();
-  scene.background = backdrop();
+  scene.background = studio ? backdrop() : null;
   // небо: свет и отражения; солнце на небе совмещено с ключевым светом (слева-сверху кадра)
   const pmrem = new PMREMGenerator(r);
   scene.environment = pmrem.fromEquirectangular(assets.sky).texture;
   scene.environmentIntensity = 0.75;
   const sunSky = skySun(assets.sky);
   scene.userData.skySun = sunSky;                         // для стенда: где солнце на небе
-  const KEY_AZ = Math.atan2(-8, -22);                      // азимут ключа (как в пробном кадре)
+  // Ключ — из-за дома (азимут камеры общего плана 38° + 7°), 55° над горизонтом: тени дома, деревьев
+  // и подставки ложатся в ОДНУ сторону — на «юг», вниз по кадру, к зрителю (автор: «давай тень на юг,
+  // на запад мне не нравится»). Фасады к камере при этом в тени — их поднимает заполняющий свет
+  // спереди без теней (ниже). Свет «из-за камеры» прятал тень за подставку, сбоку — клал её на запад.
+  const KEY_AZ = 45 * Math.PI / 180;
   const skyAz = Math.atan2(sunSky.x, sunSky.z);
   scene.environmentRotation.y = skyAz - KEY_AZ;
-  const el = Math.asin(Math.min(1, Math.max(0.35, sunSky.y)));
+  const el = 55 * Math.PI / 180;
   const sunDir = new Vector3(Math.sin(KEY_AZ) * Math.cos(el), Math.sin(el), Math.cos(KEY_AZ) * Math.cos(el));
 
-  const {parts, pieces} = buildHouse(m);
+  const {parts, pieces, open, inner, room} = buildHouse(m);
   // ⚠️ Раскладка референса — ворота справа от фасада: дом построен с воротами в +x и
   // отражён целиком (scale.x = −1; three.js сам меняет обход граней при отрицательном
   // масштабе): в мире ворота в −x, камера смотрит спереди-слева.
@@ -1186,7 +1489,77 @@ export async function loadHouseDiorama(base: string): Promise<HouseShot> {
   sun.shadow.bias = -0.0003; sun.shadow.normalBias = 0.015;
   scene.add(sun, sun.target);
   scene.add(new HemisphereLight(new Color('#e6ebf1'), new Color('#8c8a83'), 0.25));
-  const floor = new Mesh(new PlaneGeometry(200, 200), new ShadowMaterial({opacity: 0.22}));
+  // заполняющий свет со стороны камеры: фасады читаются при ключе из-за дома; теней не даёт
+  const FILL_I = 1.35;
+  const fill = new DirectionalLight(new Color('#eef1f6'), FILL_I);
+  {
+    const fa = 38 * Math.PI / 180, fe = 30 * Math.PI / 180;
+    fill.position.set(-Math.sin(fa) * Math.cos(fe), Math.sin(fe), -Math.cos(fa) * Math.cos(fe)).multiplyScalar(40);
+    fill.target.position.set(0, 0, 0);
+    scene.add(fill, fill.target);
+  }
+  // ── тень на полу: один свет, тень прижата к основанию ──
+  // Две невидимые лампы ровно по солнцу (интенсивность 0 — только тени): резкая и мягкая карты.
+  // Пол смешивает их по расстоянию от кромки основания: у кромки тень резкая, дальше мягчеет —
+  // как у настоящего солнца (тень «касается» предмета). Плюс узкая контактная тень у самой кромки,
+  // темнее всего на линии касания и сходящая на нет за ~25 см.
+  // ⚠️ Мягкая тень одной картой ложилась пятном ниже основания, не касаясь его, — дом «висел в
+  // воздухе» (автор). ⚠️ Широкий ореол 3 м тоже отвергнут; тень одна и в одну сторону — на юг.
+  const shadowLight = (radius: number, size: number) => {
+    const l = new DirectionalLight(new Color('#ffffff'), 0);
+    l.position.copy(sunDir).multiplyScalar(40);
+    l.target.position.set(0, 0, 0);
+    l.castShadow = true;
+    l.shadow.mapSize.set(size, size);
+    l.shadow.camera.left = -15; l.shadow.camera.right = 15; l.shadow.camera.top = 15; l.shadow.camera.bottom = -15;
+    l.shadow.camera.near = 5; l.shadow.camera.far = 90;
+    l.shadow.radius = radius;
+    l.shadow.bias = -0.0005;
+    scene.add(l, l.target);
+    return l;
+  };
+  // ⚠️ порядок важен: после солнца; в шейдере пола это два последних направленных света
+  const floorSharp = shadowLight(1.5, 4096), floorSoft = shadowLight(18, 2048);
+  scene.userData.floorKey = floorSoft;                     // стенд: подбор тени на графите
+  // ⚠️ Числа ламп three.js подставляет заменой текста (не #define): `#undef NUM_…` становится
+  // `#undef 1` и шейдер не собирается. Поэтому маска пола своя. Иначе ShadowMaterial перемножает
+  // тени ВСЕХ ламп, и тенящий торшер затемнял весь графит, а из окон били «лучи».
+  const FLOOR_OP = studio ? 0.22 : 0.6;                    // на графите тень темнее: тёмное по тёмному
+  /** Основание, к которому прижата тень (подставка; в слое «одна комната» — плита гостиной). */
+  const floorU = {
+    uBaseC: {value: new Vector2(0, 0)}, uBaseHalf: {value: new Vector2(10.5, 8.5)}, uBaseR: {value: 2.4},
+    uSoftDist: {value: 2.5}, uContact: {value: 0.25}, uContactK: {value: 0.9}, uSunOp: {value: 1},
+  };
+  const floorMat = new ShadowMaterial({opacity: FLOOR_OP});
+  floorMat.onBeforeCompile = sh => {
+    Object.assign(sh.uniforms, floorU);
+    sh.vertexShader = 'varying vec2 vFloorXZ;\n' + sh.vertexShader.replace('#include <worldpos_vertex>',
+      '#include <worldpos_vertex>\n  vFloorXZ = (modelMatrix * vec4(transformed, 1.0)).xz;');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <shadowmask_pars_fragment>', `#include <shadowmask_pars_fragment>
+varying vec2 vFloorXZ;
+uniform vec2 uBaseC; uniform vec2 uBaseHalf; uniform float uBaseR;
+uniform float uSoftDist; uniform float uContact; uniform float uContactK; uniform float uSunOp;
+float sdRoundRect(vec2 p, vec2 b, float r) { vec2 q = abs(p) - b + r; return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r; }
+float floorShadowMask() {
+  float sharp = 1.0, soft = 1.0;
+  #ifdef USE_SHADOWMAP
+  #if NUM_DIR_LIGHT_SHADOWS > 1
+  DirectionalLightShadow ls = directionalLightShadows[ NUM_DIR_LIGHT_SHADOWS - 2 ];
+  sharp = getShadow( directionalShadowMap[ NUM_DIR_LIGHT_SHADOWS - 2 ], ls.shadowMapSize, ls.shadowIntensity, ls.shadowBias, ls.shadowRadius, vDirectionalShadowCoord[ NUM_DIR_LIGHT_SHADOWS - 2 ] );
+  DirectionalLightShadow lf = directionalLightShadows[ NUM_DIR_LIGHT_SHADOWS - 1 ];
+  soft = getShadow( directionalShadowMap[ NUM_DIR_LIGHT_SHADOWS - 1 ], lf.shadowMapSize, lf.shadowIntensity, lf.shadowBias, lf.shadowRadius, vDirectionalShadowCoord[ NUM_DIR_LIGHT_SHADOWS - 1 ] );
+  #endif
+  #endif
+  float d = sdRoundRect(vFloorXZ - uBaseC, uBaseHalf, uBaseR);
+  float sun = mix(sharp, soft, smoothstep(0.0, uSoftDist, d));
+  float c = d > 0.0 ? 1.0 - smoothstep(0.0, uContact, d) : 0.0;
+  return 1.0 - max(uSunOp * (1.0 - sun), uContactK * c * c);
+}`)
+      .replace('getShadowMask()', 'floorShadowMask()');
+  };
+  floorMat.customProgramCacheKey = () => 'floor-contact';
+  const floor = new Mesh(new PlaneGeometry(200, 200), floorMat);
   floor.rotation.x = -Math.PI / 2;
   floor.position.y = -0.95;
   floor.receiveShadow = true;
@@ -1206,15 +1579,16 @@ export async function loadHouseDiorama(base: string): Promise<HouseShot> {
     const pos = mesh.geometry.attributes.position, step = Math.max(1, Math.floor(pos.count / 300));
     for (let i = 0; i < pos.count; i += step) corners.push(new Vector3().fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld));
   });
+  const HX = (FR.x1 - FR.x0) / 2, HY = (FR.y1 - FR.y0) / 2;
   const place = (D: number) => {
     camera.position.set(target.x - Math.sin(AZ) * Math.cos(EL) * D, target.y + Math.sin(EL) * D, target.z - Math.cos(AZ) * Math.cos(EL) * D);
     camera.lookAt(target);
     camera.updateMatrixWorld(true);
-    return Math.max(...corners.map(c => { const v = c.clone().project(camera); return Math.max(Math.abs(v.x), Math.abs(v.y)); }));
+    return Math.max(...corners.map(c => { const v = c.clone().project(camera); return Math.max(Math.abs(v.x) / HX, Math.abs(v.y) / HY); }));
   };
   const fit = () => {
-    let lo = 20, hi = 200;
-    for (let i = 0; i < 40; i++) { const mid = (lo + hi) / 2; if (place(mid) > 0.88) lo = mid; else hi = mid; }
+    let lo = 20, hi = 400;
+    for (let i = 0; i < 40; i++) { const mid = (lo + hi) / 2; if (place(mid) > 1) lo = mid; else hi = mid; }
     place(hi);
     return hi;
   };
@@ -1227,17 +1601,26 @@ export async function loadHouseDiorama(base: string): Promise<HouseShot> {
     target.addScaledVector(right, (x0 + x1) / 2 * tv * camera.aspect).addScaledVector(up, (y0 + y1) / 2 * tv);
   }
   const D_END = fit();
+  // Сдвиг объектива (setViewOffset): картинка уезжает в свою область кадра, а камера смотрит
+  // прямо на дом — без поворота и перекоса вертикалей. В NDC: x вправо, y вверх.
+  const G_SHIFT = {x: (FR.x0 + FR.x1) / 2, y: (FR.y0 + FR.y1) / 2};
+  const shift = {...G_SHIFT};
+  const applyShift = () => {
+    const W = 1000 * camera.aspect, H = 1000;
+    if (shift.x || shift.y) camera.setViewOffset(W, H, -shift.x * W / 2, shift.y * H / 2, W, H); else camera.clearViewOffset();
+    camera.updateProjectionMatrix();
+  };
 
   // ── сборка ──
   // Фазы и шаг между модулями (сценарий: 40–80 мс); внутри фазы — слева направо по кадру.
   const PHASES: Record<string, {at: number; sort: boolean; step: [number, number]}> = {
-    plinth: {at: 0, sort: false, step: [0.06, 0.06]}, socle: {at: 0.3, sort: true, step: [0.03, 0.05]},
+    plinth: {at: -5, sort: false, step: [0, 0]}, socle: {at: 0.3, sort: true, step: [0.03, 0.05]},
     walls: {at: 0.4, sort: true, step: [0.04, 0.08]}, roofs: {at: 0.92, sort: false, step: [0.05, 0.07]},
     roofTop: {at: 1.25, sort: true, step: [0.04, 0.06]}, garden: {at: 1.45, sort: true, step: [0.03, 0.05]},
     plants: {at: 1.75, sort: true, step: [0.02, 0.04]},
   };
   const GARAGE = {approach: 0.9, from: 10};
-  const BUILD_END = 3.0, DROP_T = 0.42, CASCADE = false;
+  const BUILD_END = 3.0, DROP_T = 0.6, GROW_T = 0.7, CASCADE = false;
   {
     const rs = rand(77), ndcX = (o: Object3D) => new Box3().setFromObject(o).getCenter(new Vector3()).project(camera).x;
     for (const [name, ph] of Object.entries(PHASES)) {
@@ -1247,17 +1630,13 @@ export async function loadHouseDiorama(base: string): Promise<HouseShot> {
       for (const p of list) { p.t0 = t; t += ph.step[0] + (ph.step[1] - ph.step[0]) * rs(); }
     }
   }
-  /** Падение с лёгким отскоком: доля высоты 1 → 0; ниже места не уходит. */
-  const fall = (u: number) => {
-    if (u <= 0) return 1;
-    if (u >= 1) return 0;
-    const s1 = 0.64, h = 0.07;
-    if (u < s1) { const k = u / s1; return 1 - k * k; }
-    const w = (u - s1) / (1 - s1);
-    return h * 4 * w * (1 - w);
-  };
-  /** Пружина с лёгким перелётом (~6 %), оседает за ~0.6 с; аргумент — секунды. */
-  const spring = (t: number) => t <= 0 ? 0 : 1 - Math.exp(-7.22 * t) * (Math.cos(8 * t) + 0.9025 * Math.sin(8 * t));
+  // ⚠️ Без отскоков и пружин (автор: «чтобы компоненты не прыгали при строительстве — удешевляет
+  // анимацию, делает несерьёзной»). Модуль опускается на место и тормозит до нуля, как его ставит
+  // кран: доля высоты (1 − u)³; растения растут тем же торможением, без перелёта.
+  /** Опускание на место: доля высоты 1 → 0, скорость у места — ноль. */
+  const fall = (u: number) => u <= 0 ? 1 : u >= 1 ? 0 : Math.pow(1 - u, 3);
+  /** Плавный рост 0 → 1 без перелёта; аргумент — секунды. */
+  const settle = (t: number) => t <= 0 ? 0 : t >= GROW_T ? 1 : 1 - Math.pow(1 - t / GROW_T, 3);
   const ease = (u: number) => { const k = Math.min(1, Math.max(0, u)); return k * k * k * (k * (k * 6 - 15) + 10); };
   const garage = parts.garage, gRest = garage.position.clone();
   const lawnGrow = parts.lawn.userData.lawn.grow as {value: number};
@@ -1273,8 +1652,8 @@ export async function loadHouseDiorama(base: string): Promise<HouseShot> {
       p.o.visible = dt >= 0;
       if (dt < 0) continue;
       if (p.style === 'drop') p.o.position.copy(p.pos).setY(p.pos.y + p.dropH * fall(dt / DROP_T));
-      else if (p.style === 'pop') p.o.scale.copy(p.scale).multiplyScalar(Math.max(1e-3, spring(dt)));
-      else { const k = Math.max(1e-3, spring(dt * 0.85)); p.o.scale.set(p.scale.x * (0.35 + 0.65 * k), p.scale.y * k, p.scale.z * (0.35 + 0.65 * k)); }
+      else if (p.style === 'pop') p.o.scale.copy(p.scale).multiplyScalar(Math.max(1e-3, settle(dt)));
+      else { const k = Math.max(1e-3, settle(dt)); p.o.scale.set(p.scale.x * (0.35 + 0.65 * k), p.scale.y * k, p.scale.z * (0.35 + 0.65 * k)); }
       // черепица ложится рядами от карниза к коньку, когда скат лёг; потом конёк — по длине
       const cas = CASCADE ? p.o.userData.cascade as Cascade[] | undefined : undefined;
       if (cas) {
@@ -1292,7 +1671,7 @@ export async function loadHouseDiorama(base: string): Promise<HouseShot> {
       }
     }
     // газон прорастает волной от фасада, когда подставка легла
-    lawnGrow.value = ease((t - 0.12) / 0.8);
+    lawnGrow.value = ease((t - 1.95) / 0.9);         // после сада и растений: вырезы уже закрыты деталями
     garage.visible = false;                                 // в 1.1 ворот ещё нет
   };
   /** Ворота (сценарий 1.3): сбоку по нормали стены, медленный подход, пауза, щелчок; dt — с от начала. */
@@ -1310,10 +1689,149 @@ export async function loadHouseDiorama(base: string): Promise<HouseShot> {
   const setBuildCam = (t: number) => {
     // камера: облёт на 12° с лёгким наездом, к концу сборки — общий план
     const e = ease(t / 2.9);
+    camera.fov = 19;
+    shift.x = G_SHIFT.x; shift.y = G_SHIFT.y;
+    applyShift();
     camAt(AZ - (12 * Math.PI / 180) * (1 - e), D_END * (1 + 0.1 * (1 - e)));
   };
 
   const setBuild = (t: number) => { setBuildParts(t); setBuildCam(t); };
+
+  // ── раскрытие и гостиная ──
+  const liftRest = new Map<Object3D, number>();
+  for (const o of [...open.uppers, open.ceil, ...open.roofs]) liftRest.set(o, o.position.y);
+  // на общем плане этаж и крыша висят над домом; пока камера заходит в комнату, уходят
+  // выше — иначе она влетает в висящий этаж (кадр серый)
+  const STOREY_UP = 4.2, ROOF_UP = 9.5, DIVE_UP = 22;   // к концу наезда выше камеры — из кадра
+  let openU = 0, diveU = 0;
+  const applyLift = () => {
+    const k = (v: number) => ease(Math.min(1, Math.max(0, v)));
+    const eR = k(openU * 1.4), eS = k(openU * 1.4 - 0.4);   // крыши первыми, этаж — следом
+    const extra = DIVE_UP * k(diveU * 1.25);
+    for (const r of open.roofs) r.position.y = liftRest.get(r)! + ROOF_UP * eR + extra * 1.6;
+    for (const o of open.uppers) o.position.y = liftRest.get(o)! + STOREY_UP * eS + extra;
+    open.ceil.position.y = liftRest.get(open.ceil)! + STOREY_UP * eS + extra;
+  };
+  const cavityMat = (open.cavity as Mesh).material as MeshStandardMaterial;
+  cavityMat.transparent = true;
+  const setOpen = (u: number) => {
+    openU = u;
+    applyLift();
+    for (const o of open.hide) if (u > 0.02) o.visible = false;
+    // ниша гаража растворяется за первую половину раскрытия: мгновенно — скачок тёмного проёма
+    const ck = 1 - ease((u - 0.05) / 0.45);
+    cavityMat.opacity = ck;
+    open.cavity.visible = ck > 0.002;
+    // падающая тень на графите гаснет, пока дом раскрывается: висящий этаж иначе кладёт на фон
+    // большое тёмное пятно; контактная тень у основания остаётся — дом по-прежнему стоит
+    floorU.uSunOp.value = 1 - ease(u * 1.5);
+    // ⚠️ Тени поднятого не выключаем: щелчок тени на газоне и в комнатах. Солнце спереди-слева,
+    // тень висящего этажа съезжает назад по мере подъёма — комнаты открываются светом сами.
+  };
+  // гостиная в мире (дом отражён по x): середина комнаты и торшер
+  const toWorld = (v: Vector3) => v.clone().applyMatrix4(root.matrixWorld);
+  const lampWorld = () => new Vector3(0, 1.5, 0).applyMatrix4(inner.lamp.group.matrixWorld);
+  const G_POS = camera.position.clone(), G_TGT = target.clone();
+  // Камера в гостиной: спереди-слева сверху, круче общего плана (кукольный домик). Комната
+  // вписана в коробку RB — композиция кадра, а не «насколько пускает газон»: подставка, которая
+  // при этом уходит левее, растворяется под кодом (это делает сцена).
+  const IN = {az: 45 * Math.PI / 180, el: 62 * Math.PI / 180, fov: 34};
+  const L = room.bounds, Y0 = -0.95, Y1 = FLOOR2;           // модуль целиком: плита и стены
+  const roomPts = [L.x0, L.x1].flatMap(x => [L.z0, L.z1].flatMap(z => [Y0, Y1].map(y => toWorld(new Vector3(x, y, z)))));
+  const roomC = roomPts.reduce((a, p) => a.add(p), new Vector3()).multiplyScalar(1 / roomPts.length);
+  const RV = (() => {
+    const cam = new PerspectiveCamera(IN.fov, 16 / 9, 0.5, 400), v = new Vector3();
+    const look = (d: number) => {
+      cam.position.set(roomC.x - Math.sin(IN.az) * Math.cos(IN.el) * d, roomC.y + Math.sin(IN.el) * d, roomC.z - Math.cos(IN.az) * Math.cos(IN.el) * d);
+      cam.lookAt(roomC);
+      cam.updateMatrixWorld(true);
+      let x0 = 9, x1 = -9, y0 = 9, y1 = -9;
+      for (const p of roomPts) { v.copy(p).project(cam); x0 = Math.min(x0, v.x); x1 = Math.max(x1, v.x); y0 = Math.min(y0, v.y); y1 = Math.max(y1, v.y); }
+      return {x0, x1, y0, y1};
+    };
+    let lo = 2, hi = 300;
+    for (let i = 0; i < 50; i++) {
+      const mid = (lo + hi) / 2, b = look(mid);
+      if (b.x1 - b.x0 > RB.x1 - RB.x0 || b.y1 - b.y0 > RB.y1 - RB.y0) lo = mid; else hi = mid;
+    }
+    const b = look(hi);
+    return {pos: cam.position.clone(), tgt: roomC.clone(),
+      shift: {x: (RB.x0 + RB.x1) / 2 - (b.x0 + b.x1) / 2, y: (RB.y0 + RB.y1) / 2 - (b.y0 + b.y1) / 2}};
+  })();
+  const I_POS = RV.pos, I_TGT = RV.tgt, I_SHIFT = RV.shift;
+  // Угол с торшером (такт «finds the lamp»): торшер, край дивана, стены угла — вписаны в коробку LB
+  // тем же ракурсом: честный наезд, торшер крупнее раза в три.
+  const la = inner.lampAt;
+  const lampPts = [la.x - 0.45, la.x + 2.0].flatMap(x => [la.z - 1.8, la.z + 0.45].flatMap(z => [SOCLE, SOCLE + 1.8].map(y => toWorld(new Vector3(x, y, z)))));
+  const lampC = lampPts.reduce((a, p) => a.add(p), new Vector3()).multiplyScalar(1 / lampPts.length);
+  const LV = (() => {
+    const cam = new PerspectiveCamera(IN.fov, 16 / 9, 0.5, 400), v = new Vector3();
+    const look = (d: number) => {
+      cam.position.set(lampC.x - Math.sin(IN.az) * Math.cos(IN.el) * d, lampC.y + Math.sin(IN.el) * d, lampC.z - Math.cos(IN.az) * Math.cos(IN.el) * d);
+      cam.lookAt(lampC);
+      cam.updateMatrixWorld(true);
+      let x0 = 9, x1 = -9, y0 = 9, y1 = -9;
+      for (const p of lampPts) { v.copy(p).project(cam); x0 = Math.min(x0, v.x); x1 = Math.max(x1, v.x); y0 = Math.min(y0, v.y); y1 = Math.max(y1, v.y); }
+      return {x0, x1, y0, y1};
+    };
+    let lo = 1, hi = 300;
+    for (let i = 0; i < 50; i++) {
+      const mid = (lo + hi) / 2, b = look(mid);
+      if (b.x1 - b.x0 > LB.x1 - LB.x0 || b.y1 - b.y0 > LB.y1 - LB.y0) lo = mid; else hi = mid;
+    }
+    const b = look(hi);
+    return {pos: cam.position.clone(), tgt: lampC.clone(),
+      shift: {x: (LB.x0 + LB.x1) / 2 - (b.x0 + b.x1) / 2, y: (LB.y0 + LB.y1) / 2 - (b.y0 + b.y1) / 2}};
+  })();
+  let lampU = 0;
+  const setDive = (u: number) => {
+    diveU = u;
+    applyLift();
+    if (u <= 0) return;                                     // до пролёта камерой правит сборка (облёт)
+    const e = ease(Math.min(1, Math.max(0, u))), f = ease(Math.min(1, Math.max(0, lampU)));
+    // конечная точка пролёта — гостиная, а на такте поиска — угол с торшером
+    const P = I_POS.clone().lerp(LV.pos, f), T = I_TGT.clone().lerp(LV.tgt, f);
+    const S = {x: I_SHIFT.x + (LV.shift.x - I_SHIFT.x) * f, y: I_SHIFT.y + (LV.shift.y - I_SHIFT.y) * f};
+    camera.position.lerpVectors(G_POS, P, e);
+    // дуга: в середине пути камера чуть выше прямой — заходит в дом сверху, а не сбоку
+    camera.position.y += Math.sin(Math.PI * e) * 2.2;
+    const tgt = new Vector3().lerpVectors(G_TGT, T, e);
+    camera.fov = 19 + (IN.fov - 19) * e;
+    shift.x = G_SHIFT.x + (S.x - G_SHIFT.x) * e;
+    shift.y = G_SHIFT.y + (S.y - G_SHIFT.y) * e;
+    camera.lookAt(tgt);
+    applyShift();
+    camera.updateMatrixWorld(true);
+  };
+  /** Наезд к торшеру 0…1 (после пролёта в гостиную). */
+  const setLampFocus = (u: number) => { lampU = u; if (diveU > 0) setDive(diveU); };
+  const hemi = scene.children.find(o => (o as HemisphereLight).isHemisphereLight) as HemisphereLight;
+  const DAY = {sun: sun.intensity, env: scene.environmentIntensity, hemi: hemi.intensity};
+  /** Свет дома: 0 — день, 1 — вечер (солнце и небо тише, торшер — главный свет комнаты). */
+  const setMood = (k: number, accent = 0) => {
+    const e = Math.min(1, Math.max(0, k)), a = 1 - 0.8 * Math.min(1, Math.max(0, accent));
+    sun.intensity = DAY.sun * (1 - 0.88 * e) * a;
+    scene.environmentIntensity = DAY.env * (1 - 0.72 * e) * a;
+    hemi.intensity = DAY.hemi * (1 - 0.7 * e) * a;
+    fill.intensity = FILL_I * (1 - 0.85 * e) * a;
+  };
+  const setLampSelect = (k: number) => {
+    const sh = inner.lamp.shell;
+    sh.mat.opacity = 0.55 * Math.min(1, Math.max(0, k));
+    sh.group.visible = k > 0.002;
+  };
+  const setLamp = (level: number) => {
+    const L = inner.lamp, k = Math.max(0, Math.min(1, level));
+    L.light.intensity = L.peak * Math.pow(k, 2.2);
+    L.shade.emissiveIntensity = 0.9 * Math.pow(k, 1.2);
+    L.bulb.emissiveIntensity = 3 * Math.pow(k, 1.2);
+  };
+  const lampOnScreen = () => {
+    scene.updateMatrixWorld(true);
+    const v = lampWorld().project(camera);
+    const b = new Vector3(0, 0, 0).applyMatrix4(inner.lamp.group.matrixWorld).project(camera);
+    return {x: (v.x + 1) / 2, y: (1 - v.y) / 2, bx: (b.x + 1) / 2, by: (1 - b.y) / 2};
+  };
 
   let composer: EffectComposer | null = null, size = '', aoPass: GTAOPass | null = null, aoOn = true;
   const setQuality = (q: {grassAA?: boolean; ao?: boolean; far?: [number, number]; clumps?: boolean; clumpS?: [number, number]; dens?: number; farGain?: number}) => {
@@ -1326,7 +1844,7 @@ export async function loadHouseDiorama(base: string): Promise<HouseShot> {
     if (q.ao !== undefined) { aoOn = q.ao; if (aoPass) aoPass.enabled = aoOn; }
   };
   const out = document.createElement('canvas');
-  const render = (W: number, H: number, ss = 2) => {
+  const render = (W: number, H: number, ss = 2, target: HTMLCanvasElement = out) => {
     const w = W * ss, h = H * ss;
     if (size !== `${w}x${h}`) {
       size = `${w}x${h}`;
@@ -1353,17 +1871,45 @@ export async function loadHouseDiorama(base: string): Promise<HouseShot> {
       composer.addPass(new OutputPass());
     }
     camera.aspect = W / H;
-    camera.updateProjectionMatrix();
+    applyShift();
     composer!.render();
-    if (out.width !== W || out.height !== H) { out.width = W; out.height = H; }
-    const g = out.getContext('2d')!;
+    if (target.width !== W || target.height !== H) { target.width = W; target.height = H; }
+    const g = target.getContext('2d')!;
+    g.clearRect(0, 0, W, H);
     g.imageSmoothingQuality = 'high';
     g.drawImage(r.domElement, 0, 0, w, h, 0, 0, W, H);
-    return out;
+    return target;
+  };
+  // ── слой «одна комната» ──
+  // Видны только меши гостиной; кухонная часть общей стены, её цоколя и пола срезается плоскостью
+  // по LK (и в тенях — clipShadows); тень на графите — в полную силу: висящего этажа в слое нет.
+  const roomMeshes = new Set<Object3D>();
+  for (const o of [...inner.livingObjs, ...room.objs]) o.traverse(x => roomMeshes.add(x));
+  const roomPlane = new Plane(new Vector3(0, 0, -1), room.LK + 0.061);
+  const clipMats = room.clip.map(msh => { const mm = (msh.material as Material).clone(); msh.material = mm; return mm; });
+  const outRoom = document.createElement('canvas');
+  const rbw = room.bounds, rbc = toWorld(new Vector3((rbw.x0 + rbw.x1) / 2, 0, (rbw.z0 + rbw.z1) / 2));
+  const roomBaseC = new Vector2(rbc.x, rbc.z), roomBaseHalf = new Vector2((rbw.x1 - rbw.x0) / 2, (rbw.z1 - rbw.z0) / 2);
+  const renderRoom = (W: number, H: number, ss = 2) => {
+    const hidden: Object3D[] = [];
+    root.traverse(o => { if ((o as Mesh).isMesh && o.visible && !roomMeshes.has(o)) { o.visible = false; hidden.push(o); } });
+    room.base.visible = true;
+    for (const mm of clipMats) { mm.clippingPlanes = [roomPlane]; mm.clipShadows = true; }
+    const keep = {c: floorU.uBaseC.value.clone(), h: floorU.uBaseHalf.value.clone(), r: floorU.uBaseR.value, sun: floorU.uSunOp.value};
+    floorU.uBaseC.value.copy(roomBaseC); floorU.uBaseHalf.value.copy(roomBaseHalf); floorU.uBaseR.value = 0.35; floorU.uSunOp.value = 1;
+    // ⚠️ У изолированной комнаты теней на графите нет (автор, 04.10): пол в этом слое не рисуется.
+    floor.visible = false;
+    const c = render(W, H, ss, outRoom);
+    floor.visible = true;
+    floorU.uBaseC.value.copy(keep.c); floorU.uBaseHalf.value.copy(keep.h); floorU.uBaseR.value = keep.r; floorU.uSunOp.value = keep.sun;
+    for (const mm of clipMats) mm.clippingPlanes = null;
+    room.base.visible = false;
+    for (const o of hidden) o.visible = true;
+    return c;
   };
   // ── режим лучей ──
   const pmremEnv = scene.environment, rasterBg = scene.background;
-  const rasterOnly: Object3D[] = [sun, floor], traceOnly: Object3D[] = [];
+  const rasterOnly: Object3D[] = [sun, floor, floorSharp, floorSoft], traceOnly: Object3D[] = [];
   let traceBuilt = false;
   const buildTrace = () => {
     const ims: InstancedMesh[] = [];
@@ -1395,5 +1941,5 @@ export async function loadHouseDiorama(base: string): Promise<HouseShot> {
     scene.environment = on ? assets.sky : pmremEnv;
     scene.background = on ? new Color('#b9bdc2') : rasterBg;
   };
-  return {scene, camera, parts, render, setTraceMode, setBuild, setGarage, buildEnd: BUILD_END, setQuality};
+  return {scene, camera, parts, render, renderRoom, setTraceMode, setBuild, setGarage, buildEnd: BUILD_END, setQuality, setOpen, setDive, setLamp, setLampSelect, setLampFocus, lampOnScreen, setMood};
 }

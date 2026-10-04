@@ -3,6 +3,8 @@
 //   node _render.mjs coldOpenIntroSceneEn            одна сцена
 //   node _render.mjs sceneA sceneB                   несколько подряд, склеенные в один файл
 //   OUT_FILE=... FPS=60 CRF=18 KEEP=1 node _render.mjs scene
+//   FRAMES=2160-3480 node _render.mjs scene          только кусок кадров (включительно) —
+//                                                    вставка в монтаж без рендера всей сцены
 //
 // Настройки по умолчанию — как у автора: 1920×1080, 60 к/с, libx264, crf 18,
 // preset slow, yuv420p. Файл — следующий свободный output/videoNNN.mp4.
@@ -53,7 +55,8 @@ function encode(dir, out) {
 const browser = await puppeteer.launch({
   headless: 'new',
   args: ['--no-sandbox'],
-  userDataDir: `${ROOT}/.shot-profile`,
+  // PROFILE — свой профиль браузера, если основной занят другим (зависшим) рендером
+  userDataDir: process.env.PROFILE ?? `${ROOT}/.shot-profile`,
 });
 const page = await browser.newPage();
 // Кадры забираем из страницы сами и пишем из Windows: путь через dev-сервер
@@ -104,19 +107,26 @@ try {
     if (!(duration > 0)) throw new Error(`${scene}: не удалось определить длительность`);
     console.log(`${scene}: ${duration} кадров (${(duration / FPS).toFixed(2)} с)`);
 
-    // 2. PNG-секвенция в чистую папку
+    // 2. PNG-секвенция в чистую папку (FRAMES=a-b — только кусок)
+    let [from, to] = [0, duration - 1];
+    if (process.env.FRAMES) {
+      [from, to] = process.env.FRAMES.split('-').map(Number);
+      if (!(from >= 0 && to >= from && to < duration)) throw new Error(`FRAMES ${process.env.FRAMES} вне 0-${duration - 1}`);
+      console.log(`  кусок: кадры ${from}-${to} (${((to - from + 1) / FPS).toFixed(2)} с)`);
+    }
+    const count = to - from + 1;
     const tag = `_render_${scene}`;
     const dir = `${SHOT_DIR}/${tag}`;
     rmSync(dir, {recursive: true, force: true});
     mkdirSync(dir, {recursive: true});
     frameDir = dir;
     await page.goto(
-      `http://127.0.0.1:5173/shot.html?scene=${scene}&frames=0-${duration - 1}&fps=${FPS}&w=1920&h=1080&grid=off&out=${tag}&timeoutMs=900000&hmr=off`,
+      `http://127.0.0.1:5173/shot.html?scene=${scene}&frames=${from}-${to}&fps=${FPS}&w=1920&h=1080&grid=off&out=${tag}&timeoutMs=900000&hmr=off`,
       {waitUntil: 'domcontentloaded', timeout: 300000},
     );
-    await waitShot(duration);
+    await waitShot(count);
     const got = readdirSync(dir).filter(f => f.endsWith('.png')).length;
-    if (got < duration) throw new Error(`${scene}: ожидалось ${duration} кадров, получено ${got}`);
+    if (got < count) throw new Error(`${scene}: ожидалось ${count} кадров, получено ${got}`);
 
     // 3. кодирование
     const seg = SCENES.length === 1 ? OUT : `${SHOT_DIR}/${tag}.mp4`;

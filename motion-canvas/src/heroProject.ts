@@ -15,6 +15,7 @@ import duplicationWorldSceneEn from './scenes/duplicationWorldSceneEn?scene';
 import goodCodeOpeningSceneEn from './scenes/goodCodeOpeningSceneEn?scene';
 import goodCodeFacesSceneEn from './scenes/goodCodeFacesSceneEn?scene';
 import goodCodeIntroSceneEn from './scenes/goodCodeIntroSceneEn?scene';
+import goodCodeHouseSceneEn from './scenes/goodCodeHouseSceneEn?scene';
 import duplicationChapterTwoTitleSceneEn from './scenes/duplicationChapterTwoTitleSceneEn?scene';
 import duplicationFalseIndependenceSceneEn from './scenes/duplicationFalseIndependenceSceneEn?scene';
 
@@ -22,5 +23,5 @@ import duplicationFalseIndependenceSceneEn from './scenes/duplicationFalseIndepe
 // нужен только чтобы стилл-экспортёр рендерил сцену, не трогая project.ts автора.
 export default makeProject({
   experimentalFeatures: true,
-  scenes: [goodCodeIntroSceneEn, goodCodeFacesSceneEn, goodCodeOpeningSceneEn, duplicationWorldSceneEn, duplicationCityParticlesSceneEn, duplicationFieldSceneEn, duplicationEpigraphSceneEn, openingMergeTimelapseSceneEn, chargingHeroDemoScene, duplicationChapterOneTitleSceneEn, duplicationDivergeSceneEn, duplicationIncidentSceneEn, duplicationIdenticalLogicSceneEn, duplicationTradeoffSketchSceneEn, duplicationChapterTwoTitleSceneEn, duplicationStreetPovSceneEn, duplicationFalseIndependenceSceneEn, duplicationCitySceneEn],
+  scenes: [goodCodeIntroSceneEn, goodCodeHouseSceneEn, goodCodeFacesSceneEn, goodCodeOpeningSceneEn, duplicationWorldSceneEn, duplicationCityParticlesSceneEn, duplicationFieldSceneEn, duplicationEpigraphSceneEn, openingMergeTimelapseSceneEn, chargingHeroDemoScene, duplicationChapterOneTitleSceneEn, duplicationDivergeSceneEn, duplicationIncidentSceneEn, duplicationIdenticalLogicSceneEn, duplicationTradeoffSketchSceneEn, duplicationChapterTwoTitleSceneEn, duplicationStreetPovSceneEn, duplicationFalseIndependenceSceneEn, duplicationCitySceneEn],
 });

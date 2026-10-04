@@ -78,45 +78,48 @@ export const SIDE_D = 0.25;
 
 // ── Код рядом с телефоном: такты ОБЩИЕ для сцены MC и экрана ────────────────
 // Указатель — полоска-канон под строкой (автор: «выбираю розовый хайлайт»).
-// Моменты — по черновику озвучки (~2.8 слова/с); переставить по записи.
+// ⚠️ 04.10, автор: «сократи паузы, сейчас отладка и это продлевает рендер» —
+// такты сжаты до действия; по записи озвучки их растянуть заново.
 /** Код проявляется, когда телефон встал справа. */
 export const CODE_AT = SIDE_AT + SIDE_T + 0.1;
 /** Полоска: проявление и переезд со строки на строку, с. */
 export const MARK_IN = 0.42;
 export const MARK_MOVE = 0.45;
 /** Тап 1 — водитель открывает станцию (карточка «Mill Street»). */
-export const TAP1_AT = CODE_AT + 2.0;
+export const TAP1_AT = CODE_AT + 1.5;
 /** Страница станции въезжает справа. */
 export const PAGE_AT = TAP1_AT + 0.22;
 export const PAGE_T = 0.4;
-/** «Opening the station runs this function» — полоска на `fun Connector.toView(`. */
+/** Полоска на `fun Connector.toView(` — страница начала собираться. */
 export const VIEW_AT = TAP1_AT + 0.6;
 /** Поля toView: plug, maxPowerKw, pricePerKwh, available. Полоска встаёт на
  *  строку — в тот же момент её кусок появляется на экране. */
-export const FIELD_AT = [2.5, 3.3, 4.1, 5.6].map(d => TAP1_AT + d);
-/** «The last field decides the big word and the green button» — полоска под
- *  `available`, и на экране в тот же момент появляются «● Available» и кнопка.
- *  Полоски и расфокуса на экране больше нет: кусок экрана сам появляется на
- *  своей строке — это и есть пара «строка ↔ пиксели». */
+export const FIELD_AT = [1.6, 2.2, 2.8, 3.6].map(d => TAP1_AT + d);
+/** Полоска под `available`, и на экране в тот же момент появляются
+ *  «● Available» и кнопка. Полоски и расфокуса на экране нет: кусок экрана сам
+ *  появляется на своей строке — это и есть пара «строка ↔ пиксели». */
 export const AVAIL_AT = FIELD_AT[3];
-/** Тап 2 — Start. */
-export const TAP2_AT = AVAIL_AT + 6.7;
-/** «…another part of the system» — обе строки `package`. */
-export const PKG_AT = TAP2_AT + 4.5;
-/** «…the charging service» — полоска на `fun handle(`. */
-export const HANDLE_AT = TAP2_AT + 7.2;
-/** «It lets a driver start only on two statuses» — проверка статуса. */
-export const GUARD_AT = TAP2_AT + 9.3;
-/** «…it throws Connector unavailable» — полоска на `throw`, и в тот же момент
- *  на телефоне выезжает лист ошибки. */
-export const ERROR_AT = TAP2_AT + 13.6;
-/** «Two places, two different shapes…» — обе строки правил; на телефоне в
- *  это время оба конца противоречия: «Available» и лист «Connector unavailable». */
-export const BOTH_AT = ERROR_AT + 3.1;
+/** Полоска с `available` уходит ДО нажатия Start (автор: «строка с != charging
+ *  слишком долго хайлайтится; перед нажатием на старт хайлайт надо снять»). */
+export const AVAIL_OFF_AT = AVAIL_AT + 2.0;
+/** Тап 2 — Start. На нажатии блок toView гаснет, блок handle загорается
+ *  (автор: «сразу снимается опасити у верхнего блока, мы же нижний показываем»). */
+export const TAP2_AT = AVAIL_AT + 3.0;
+/** Сразу после нажатия — полоска на `fun handle(` (автор: «после нажатия сразу
+ *  хайлайть handle»; подсветку строк `package` автор снял). */
+export const HANDLE_AT = TAP2_AT + 0.3;
+/** Проверка статуса. */
+export const GUARD_AT = TAP2_AT + 1.8;
+/** Полоска на `throw`, и в тот же момент на телефоне выезжает лист ошибки. */
+export const ERROR_AT = TAP2_AT + 3.4;
+/** Обе строки правил; блок toView снова в полную яркость; на телефоне оба
+ *  конца противоречия: «Available» и лист «Connector unavailable». */
+export const BOTH_AT = ERROR_AT + 1.6;
 /** Графит выталкивает руку с телефоном вправо за кадр (автор, 02.10: «рука
  *  должна уйти другим эффектом — графит должен её сдвинуть вправо за фрейм»;
- *  растворение с расфокусом отвергнуто). Справа встанет enum. */
-export const GONE_AT = BOTH_AT + 13.1;
+ *  растворение с расфокусом отвергнуто). Справа встанет enum. Пауза на двух
+ *  строках правил короткая (автор: «паузу сократи»). */
+export const GONE_AT = BOTH_AT + 2.5;
 export const GONE_T = 1.4;
 /** На сколько (доля ширины кадра) уезжают графит и рука: плотная часть графита
  *  (до 0.40W) доходит до правого края, рука — далеко за него. */
@@ -374,6 +377,8 @@ export function* buildPovShot(): Generator<any, PovShot> {
       {scene: fg, depth: fgDepth},
     ], {focus: s.focus, K: 20}, {
       time: s.t, shade: s.side, shift: PUSH_SHIFT * s.push,
+      // кинограйд — только в начале: уходит, пока телефон едет к коду
+      grade: 1 - s.side,
       // виньетка уходит вместе с выталкиванием — в конце кадр чистый графит
       vignette: 0.35 * (1 - s.push),
     });

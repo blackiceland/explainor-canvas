@@ -146,6 +146,46 @@ export class PovCompositor {
     return out;
   }
 
+  private gradeLut: {curve: Float32Array; sw: Float32Array; hw: Float32Array} | null = null;
+  /** Кинограйд начала POV (автор, 04.10: «синематик цветовую гамму в начале,
+   *  подходящую»). Ночь, дождь, натриевые фонари — классический раскол тил /
+   *  янтарь: тени уходят в холодный тил, света (фонари, кожа, боке) — в тёплый
+   *  янтарь; мягкая S-кривая добавляет плотности, насыщенность чуть ниже —
+   *  цвет «плёночный», не кислотный. amount 0..1 — доля грейда (к коду он
+   *  уходит: графит и экран телефона — в своих каноничных цветах). */
+  private applyGrade(amount: number): void {
+    if (!this.gradeLut) {
+      const curve = new Float32Array(256), sw = new Float32Array(256), hw = new Float32Array(256);
+      for (let i = 0; i < 256; i++) {
+        const x = i / 255;
+        curve[i] = 255 * (x - 0.16 * Math.sin(2 * Math.PI * x) / (2 * Math.PI));
+        sw[i] = (1 - x) ** 2.0;
+        hw[i] = x ** 1.6;
+      }
+      this.gradeLut = {curve, sw, hw};
+    }
+    const {curve, sw, hw} = this.gradeLut;
+    const img = this.ctx.getImageData(0, 0, this.width, this.height);
+    const d = img.data;
+    const SAT = 0.9;
+    const TR = -9, TG = 3, TB = 13;        // тил в тенях
+    const WR = 16, WG = 6, WB = -12;       // янтарь в светах
+    for (let i = 0; i < d.length; i += 4) {
+      const r = d[i], g = d[i + 1], b = d[i + 2];
+      const L = (54 * r + 183 * g + 19 * b) >> 8;
+      const s = sw[L], h = hw[L];
+      const R0 = curve[r], G0 = curve[g], B0 = curve[b];
+      const Lc = 0.2126 * R0 + 0.7152 * G0 + 0.0722 * B0;
+      const R = Lc + SAT * (R0 - Lc) + s * TR + h * WR;
+      const G = Lc + SAT * (G0 - Lc) + s * TG + h * WG;
+      const B = Lc + SAT * (B0 - Lc) + s * TB + h * WB;
+      d[i] = r + amount * (R - r);
+      d[i + 1] = g + amount * (G - g);
+      d[i + 2] = b + amount * (B - b);
+    }
+    this.ctx.putImageData(img, 0, 0);
+  }
+
   private drawGrain(time: number, amount: number): void {
     const {ctx, width: W, height: H, s} = this;
     ctx.globalAlpha = amount;
@@ -169,7 +209,7 @@ export class PovCompositor {
 
   render(renderer: WebGLRenderer, camera: PerspectiveCamera, layers: PovLayer[], lens: PovLens,
     opts: {time: number; grain?: number; vignette?: number; exposure?: number[];
-      shade?: number; shift?: number; cover?: number}): HTMLCanvasElement {
+      shade?: number; shift?: number; cover?: number; grade?: number}): HTMLCanvasElement {
     const {width: W, height: H, ctx, lctx, s} = this;
     ctx.globalCompositeOperation = 'source-over';
     ctx.filter = 'none';
@@ -256,6 +296,9 @@ export class PovCompositor {
       ctx.fillStyle = gr;
       ctx.fillRect(0, 0, W, H);
     }
+    // кинограйд (начало POV): до графита и зерна — зерно ложится уже на грейд
+    const grade = Math.max(0, Math.min(1, opts.grade ?? 0));
+    if (grade > 0) this.applyGrade(grade);
     // кадр уходит в графит целиком — тем же графитом, что под кодом
     if (cover > 0) {
       this.graphite();
